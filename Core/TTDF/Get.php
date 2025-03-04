@@ -868,4 +868,17 @@ class TTDF
     {
         Get::CoreFunctions($TTDF);
     }
+    /**
+     * HeadMeta
+     */
+    public static function HeadMeta()
+    {
+    ?>
+        <meta charset="<?php Get::Options('charset', true) ?>">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no" />
+        <meta name="renderer" content="webkit" />
+        <meta name="generator" content="Typecho <?php Get::TypechoVer(true) ?>" />
+        <meta name="template" content="<?php GetTheme::Name(true) ?>" />
+    <?php
+    }
 }
