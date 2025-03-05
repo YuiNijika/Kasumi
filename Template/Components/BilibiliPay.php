@@ -3,14 +3,16 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>
 
 <div id="con">
-    <div id="TA-con" id="BPayTomori">
-        <div id="text-con">
-            <div id="linght"></div>
-            <a href="#modal-one">
-                <div id="TA">为TA充电</div>
-            </a>
+    <a href="#modal-one">
+        <div id="TA-con" id="BPayTomori">
+            <div id="text-con">
+                <div id="linght"></div>
+                <a href="#modal-one">
+                    <div id="TA">为TA充电</div>
+                </a>
+            </div>
         </div>
-    </div>
+    </a>
 
     <div id="tube-con">
         <svg viewBox="0 0 1028 385" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -53,10 +55,15 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
         <div class="modal" id="modal-one">
             <div class="modal-dialog">
                 <div class="modal-header">
-                    <h2>充电方式选择</h2>
+                    <h2>为 <?php echo $this->user->screenName; ?> 的创作充电</h2>
                     <a href="#" class="modal-close">&times;</a>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body" style="text-align: center;">
+                    <?php if (!empty(Get::Options('PayQrcode'))){ ?>
+                    <img src="<?php echo Get::Options('PayQrcode') ?>" />
+                    <?php } else {
+                        echo '<p>感谢支持！目前还不需要充电~</p>';
+                    } ?>
                 </div>
                 <div class="modal-footer">
                     <a href="#">

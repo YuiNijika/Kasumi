@@ -103,6 +103,14 @@ function themeConfig($form)
             'description' => '顶部自定义导航栏，格式为 名称|链接，多个导航请换行。'
         ],
         [
+            // 充电收款二维码
+            'type' => 'Text',
+            'name' => 'PayQrcode',
+            'value' => null,
+            'label' => '收款二维码',
+            'description' => '收款二维码图片链接，为空则不显示。'
+        ],
+        [
             // 轮播图开关
             'type' => 'Select',
             'name' => 'CarouselSwitch',
