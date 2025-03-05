@@ -67,7 +67,8 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                 </div>
                 <div class="modal-footer">
                     <a href="#">
-                        <button class="cancel-btn">取消</button></a>
+                        <button class="cancel-btn">取消</button>
+                    </a>
                 </div>
             </div>
         </div>

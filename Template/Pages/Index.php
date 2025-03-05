@@ -14,4 +14,5 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
         };
         ?>
     </a-row>
+    <?php Kasumi::Components('IndexPageLink'); ?>
 </div>
