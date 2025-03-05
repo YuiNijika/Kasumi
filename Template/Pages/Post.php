@@ -6,6 +6,6 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
         <?php Kasumi::Components('PostContent'); ?>
     </a-col>
     <a-col :xs="24" :sm="24" :md="24" :lg="5" :xl="5" :xxl="5">
-        <?php Kasumi::Components('PostSidebar'); ?>
+        <?php Kasumi::Components('AppSidebar'); ?>
     </a-col>
 </a-row>

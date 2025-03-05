@@ -117,6 +117,270 @@ body #Post .arco-card-size-medium .arco-card-body {
     background-size: cover !important;
 }
 
+/* ---------------
+ * BilibiliPay
+ * --------------- */
+
+/* 设置白色容器 */
+#con {
+    width: 100%;
+    max-width: 320px;
+    height: 85px;
+    position: relative;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+}
+
+/* 设置文本内容容器 */
+#TA-con {
+    width: 40%;
+    height: 50px;
+    background-color: #f25d8e;
+    box-shadow: 0 4px 4px rgba(255, 112, 159, .3);
+    position: relative;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* 设置文本居中容器 */
+#text-con {
+    width: 100px;
+    height: 100%;
+    margin: 0 auto;
+    position: relative;
+}
+
+/* 做一个小闪电 */
+#linght {
+    width: 0;
+    height: 0;
+    position: absolute;
+    top: 30%;
+    left: 10px;
+    border-color: transparent;
+    border-style: solid;
+    border-width: 10px;
+    border-top: 10px solid #fff;
+    border-radius: 4px;
+    transform: rotate(-55deg);
+}
+
+#linght::after {
+    position: absolute;
+    top: -13px;
+    left: -11px;
+    content: "";
+    width: 0;
+    height: 0;
+    border-color: transparent;
+    border-style: solid;
+    border-width: 10px;
+    border-top: 10px solid #fff;
+    transform: rotate(180deg);
+    border-radius: 4px;
+}
+
+/* 文字 */
+#TA {
+    float: right;
+    line-height: 50px;
+    font-size: 15px;
+    color: #fff;
+}
+
+#TA-con:hover {
+    background-color: #ff6b9a;
+}
+
+/* 创建图形容器 */
+#tube-con {
+    width: 60%;
+    height: 55px;
+    position: relative;
+}
+
+/* 对svg图形设置宽高 */
+svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* 创建一个蒙版 宽度为0，当我hover充电框的时候，宽度展开 */
+#mask {
+    width: 0px;
+    height: 100%;
+    overflow: hidden;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: all 0.5s;
+}
+
+/* 对蒙版的sbg单独设置宽高，保证宽度高低有一个固定值而不是百分比 */
+#mask svg {
+    width: 157px;
+    height: 55px;
+}
+
+/* 对充电框hover的时候开始动画，将粉色线条铺开 */
+#TA-con:hover+#tube-con>#mask {
+    width: 157px;
+}
+
+/* 对充电框hover的时候开始动画，添加黄色快速移动的动画 */
+#TA-con:hover+#tube-con>#orange-mask {
+    animation: move1 0.5s linear 0.2s infinite;
+}
+
+#TA-con:hover+#tube-con>#orange-mask svg {
+    animation: movetwo 0.5s linear 0.2s infinite;
+}
+
+/* 创建黄色移动的蒙版 */
+#orange-mask {
+    width: 18px;
+    height: 100%;
+    overflow: hidden;
+    position: absolute;
+    left: -15px;
+    top: 0px;
+}
+
+/* 创建黄色移动的内容 */
+#orange-mask svg {
+    position: absolute;
+    ;
+    top: 0;
+    left: 15px;
+    width: 157px;
+    height: 55px;
+}
+
+@keyframes move1 {
+    0% {
+        left: -15px;
+    }
+
+    100% {
+        left: 140px;
+    }
+}
+
+@keyframes movetwo {
+    0% {
+        left: 15px;
+    }
+
+    100% {
+        left: -140px;
+    }
+}
+
+#people {
+    position: absolute;
+    right: 10px;
+    top: 8px;
+    font-size: 12px;
+    font-family: "雅黑";
+    color: #aaa;
+}
+
+#people>b {
+    color: #777;
+}
+
+
+/* 对话框样式 */
+.modal:before {
+    content: "";
+    display: none;
+    background: rgba(0, 0, 0, 0.6);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999;
+}
+
+.modal:target:before {
+    display: block;
+}
+
+.modal:target .modal-dialog {
+    transform: translate(0, 0);
+    top: 20%;
+}
+
+.modal-dialog {
+    background: #fff;
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 8px;
+    margin-left: -180px;
+    position: fixed;
+    left: 50%;
+    top: -100%;
+    z-index: 1000;
+    width: 360px;
+    transform: translate(0, -500%);
+    transition: transform 0.3s ease-out;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    font-size: 18px;
+    color: #f25d8e;
+    margin: 0;
+}
+
+.modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid #f0f0f0;
+    text-align: right;
+}
+
+/* 关闭按钮 */
+.modal-close {
+    color: #999;
+    font-size: 24px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+.cancel-btn {
+    background: #428bca;
+    border: #357ebd solid 1px;
+    border-radius: 3px;
+    color: #fff;
+    display: inline-block;
+    font-size: 14px;
+    padding: 8px 15px;
+    text-decoration: none;
+    text-align: center;
+    min-width: 60px;
+    position: relative;
+    transition: color 0.1sease;
+}
+
+.modal-close:hover {
+    color: #f25d8e;
+}
+
 /* ------------------
  * Comment list
  * --------------- */
