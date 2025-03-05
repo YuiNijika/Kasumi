@@ -6,7 +6,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
     $LogoUrl = Get::Options('LogoUrl');
     if (!empty($LogoUrl)) {
     ?>
-        <a-menu-item key="0" :style="{ padding: 0, height: '30px', marginRight: '15px', marginLeft: '-30px' }" disabled>
+        <a-menu-item key="0" :style="{ padding: 0, height: '30px', marginRight: '15px', }" disabled>
             <img src="<?php echo htmlspecialchars($LogoUrl); ?>" style="height: 30px; cursor: none;" />
         </a-menu-item>
     <?php
