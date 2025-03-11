@@ -17,7 +17,6 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                 ?>
                     <div class="thumbnail" style="
                         background-image: url(<?php echo htmlspecialchars($thumbnailUrl); ?>);
-                        border-radius: 4px 4px 0px 0px;
                     "></div>
                 <?php } ?>
             </template>
