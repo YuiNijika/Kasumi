@@ -92,7 +92,7 @@ function themeConfig($form)
             'name' => 'SidebarNav',
             'value' => '首页|home|' . Get::SiteUrl(false),
             'label' => '侧边导航',
-            'description' => '侧边自定义导航栏，格式为 名称|图标|链接，多个导航请换行。'
+            'description' => '侧边自定义导航栏，格式为 名称|图标|链接，多个导航请换行。<br>查看图标名称：<a href="https://www.mdui.org/docs/material_icon">https://www.mdui.org/docs/material_icon</a>'
         ],
         [
             // 轮播图开关
