@@ -1,34 +1,37 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>
-<a-menu mode="horizontal" theme="dark" :default-selected-keys="['1']">
-    <?php
-    $LogoUrl = Get::Options('LogoUrl');
-    if (!empty($LogoUrl)) {
-    ?>
-        <a-menu-item key="0" :style="{ padding: 0, height: '30px', marginRight: '15px', }" disabled>
-            <img src="<?php echo htmlspecialchars($LogoUrl); ?>" style="height: 30px; cursor: none;" />
-        </a-menu-item>
-    <?php
-    }
-    ?>
-    <?php
-    $HeadMenu = Get::Options('HeadMenu');
-    if (empty($HeadMenu)) {
-        $HeadMenu = '首页|' . Get::SiteUrl(false);
-    }
-    $MenuItems = explode("\n", $HeadMenu);
-
-    foreach ($MenuItems as $item) {
-        $parts = explode('|', trim($item));
-        if (count($parts) == 2) {
-            list($name, $link) = $parts;
-    ?>
-            <a href="<?php echo htmlspecialchars($link); ?>">
-                <a-menu-item key="<?php echo htmlspecialchars($name); ?>"><?php echo htmlspecialchars($name); ?></a-menu-item>
-            </a>
-    <?php
-        }
-    }
-    ?>
-</a-menu>
+<div class="mdui-appbar mdui-appbar-fixed">
+    <div class="mdui-toolbar mdui-color-theme">
+        <a href="javascript:;" class="mdui-btn mdui-btn-icon" mdui-drawer="{target: '#drawer'}">
+            <i class="mdui-icon material-icons">menu</i>
+        </a>
+        <a href="<?php Get::SiteUrl() ?>" class="mdui-typo-headline mdui-hidden-xs"><?php Get::SiteName(); ?></a>
+        <a class="mdui-typo-title">
+            <?php
+            if (Get::Is("index")) {
+                echo Get::Options("SubTitle") ? Get::Options("SubTitle") : '首页';
+            }
+            $archiveTitle = GetPost::ArchiveTitle(
+                [
+                    "category" => _t("%s"),
+                    "search" => _t("%s"),
+                    "tag" => _t("%s"),
+                    "author" => _t("%s"),
+                ],
+                "",
+            );
+            ?>
+        </a>
+        <div class="mdui-toolbar-spacer"></div>
+        <a href="javascript:;" class="mdui-btn mdui-btn-icon">
+            <i class="mdui-icon material-icons">search</i>
+        </a>
+        <a href="javascript:;" class="mdui-btn mdui-btn-icon">
+            <i class="mdui-icon material-icons">refresh</i>
+        </a>
+        <a href="javascript:;" class="mdui-btn mdui-btn-icon">
+            <i class="mdui-icon material-icons">more_vert</i>
+        </a>
+    </div>
+</div>

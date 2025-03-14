@@ -71,14 +71,6 @@ function themeConfig($form)
             'description' => '在这里填入一个图片 URL 地址, 以在网站标题前加上一个图标'
         ],
         [
-            // Logo
-            'type' => 'Text',
-            'name' => 'LogoUrl',
-            'value' => null,
-            'label' => 'Logo',
-            'description' => '输入网站Logo的链接，为空则不显示。'
-        ],
-        [
             // 副标题
             'type' => 'Text',
             'name' => 'SubTitle',
@@ -97,46 +89,10 @@ function themeConfig($form)
         [
             // 导航菜单
             'type' => 'Textarea',
-            'name' => 'HeadMenu',
-            'value' => '首页|' . Get::SiteUrl(false),
-            'label' => '顶部导航',
-            'description' => '顶部自定义导航栏，格式为 名称|链接，多个导航请换行。'
-        ],
-        [
-            // 充电收款二维码
-            'type' => 'Text',
-            'name' => 'PayQrcode',
-            'value' => null,
-            'label' => '收款二维码',
-            'description' => '收款二维码图片链接，为空则不显示。'
-        ],
-        [
-            // 轮播图开关
-            'type' => 'Select',
-            'name' => 'CarouselSwitch',
-            'value' => 'close', 
-            'label' => '轮播图',
-            'description' => '是否启用轮播图',
-            'options' => [
-                'close' => '关闭',
-                'open' => '启用',
-            ]
-        ],
-        [
-            // 缩略图高度
-            'type' => 'Text',
-            'name' => 'CarouselHeight',
-            'value' => '340px',
-            'label' => '缩略图高度',
-            'description' => '设置轮播图缩略图的高度，单位为px，默认为340px。'
-        ],
-        [
-            // 缩略图内容
-            'type' => 'Textarea',
-            'name' => 'CarouselContent',
-            'value' => null,
-            'label' => '缩略图图片',
-            'description' => '请以 跳转链接|图片链接 的格式输入，每行一个。'
+            'name' => 'SidebarNav',
+            'value' => '首页|home|' . Get::SiteUrl(false),
+            'label' => '侧边导航',
+            'description' => '侧边自定义导航栏，格式为 名称|图标|链接，多个导航请换行。'
         ],
     ];
     // 循环添加表单元素
