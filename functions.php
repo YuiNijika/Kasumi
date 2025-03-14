@@ -24,7 +24,7 @@ class Kasumi
      * 获取模板
      * @param string $file 文件名
      */
-    public static function Nakano()
+    public static function Tomori()
     {
         if (Get::Is("index")) {
             Kasumi::Pages('Index');

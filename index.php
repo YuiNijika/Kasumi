@@ -9,5 +9,5 @@
  */
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 Get::Template('AppHeader');
-Kasumi::Nakano();
+Kasumi::Tomori();
 Get::Template('AppFooter');
