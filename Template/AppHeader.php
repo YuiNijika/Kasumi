@@ -6,6 +6,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 <head>
     <?php TTDF::HeadMeta() ?>
+    <link href="<?php echo Get::Options('FaviconUrl', false) ? Get::Options('FaviconUrl', false) : Get::SiteUrl(false) . 'favicon.ico'; ?>" rel="icon" />
     <link rel="stylesheet" href="<?php GetTheme::AssetsUrl() ?>/main.css?ver=<?php GetTheme::Ver(true); ?>">
     <link rel="stylesheet" href="<?php GetTheme::AssetsUrl() ?>/mdui/css/mdui.min.css?ver=<?php GetTheme::Ver(); ?>">
     <link rel="stylesheet" href="<?php GetTheme::AssetsUrl() ?>/arco/arco.min.css?ver=<?php GetTheme::Ver(); ?>">
