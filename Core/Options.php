@@ -107,6 +107,18 @@ function themeConfig($form)
             ]
         ],
         [
+            // 分类标签是否启用轮播图
+            'type' => 'Radio',
+            'name' => 'CarouselCategory',
+            'value' => 'open', 
+            'label' => '分类标签是否启用',
+            'description' => '是否在分类标签页面启用轮播图',
+            'options' => [
+                'open' => '启用',
+                'close' => '关闭',
+            ]
+        ],
+        [
             // 缩略图高度
             'type' => 'Text',
             'name' => 'CarouselHeight',
