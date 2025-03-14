@@ -2,7 +2,7 @@
 /**
  * Nakano Kasumi Theme
  * 基于TTDF_v2开发的一款简约主题
- * @package Nakano Kasumi
+ * @package Kasumi
  * @author 鼠子(Tomoriゞ)
  * @version 1.0.0
  * @link https://github.com/ShuShuicu/Typecho-Kasumi-Theme
