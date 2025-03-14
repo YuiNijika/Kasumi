@@ -94,6 +94,34 @@ function themeConfig($form)
             'label' => '侧边导航',
             'description' => '侧边自定义导航栏，格式为 名称|图标|链接，多个导航请换行。'
         ],
+        [
+            // 轮播图开关
+            'type' => 'Select',
+            'name' => 'CarouselSwitch',
+            'value' => 'close', 
+            'label' => '轮播图',
+            'description' => '是否启用轮播图',
+            'options' => [
+                'close' => '关闭',
+                'open' => '启用',
+            ]
+        ],
+        [
+            // 缩略图高度
+            'type' => 'Text',
+            'name' => 'CarouselHeight',
+            'value' => '340px',
+            'label' => '缩略图高度',
+            'description' => '设置轮播图缩略图的高度，单位为px，默认为340px。'
+        ],
+        [
+            // 缩略图内容
+            'type' => 'Textarea',
+            'name' => 'CarouselContent',
+            'value' => null,
+            'label' => '缩略图图片',
+            'description' => '请以 跳转链接|图片链接 的格式输入，每行一个。'
+        ],
     ];
     // 循环添加表单元素
     foreach ($formElements as $TTDF) {

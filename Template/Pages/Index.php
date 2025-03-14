@@ -10,7 +10,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
     ?>
     <a-row>
         <?php
-        while ($this->next()) {
+        while (Get::Next()) {
             Kasumi::Components('IndexPostCard');
         };
         ?>
