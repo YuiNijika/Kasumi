@@ -9,6 +9,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                 Title : '<?php GetPost::Title(); ?>',
                 Tag: '<?php GetPost::Tags(); ?>',
                 Category: '<?php GetPost::Category(',', true); ?>',
+                PostDate: '<?php GetPost::Date(); ?>',
                 WordCount: '<?php GetPost::WordCount(); ?>',
                 Author: '<?php GetAuthor::Name(); ?>',
                 AuthorUrl: '<?php GetAuthor::Permalink(); ?>',

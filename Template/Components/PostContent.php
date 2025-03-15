@@ -13,7 +13,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                 </div>
                 <div class="mdui-divider"></div>
                 <div class="mdui-card-actions mdui-card-primary-subtitle">
-                    作者：<a :href="AuthorUrl">{{ Author }}</a>丨<a v-html="Category"></a> · <a v-html="Tag"></a>丨字数：{{ WordCount }}
+                    作者：<a :href="AuthorUrl">{{ Author }}</a>丨{{ PostDate }}丨共 {{ WordCount }} 字
                 </div>
                 <div class="mdui-divider"></div>
                 <div class="mdui-card-content">
