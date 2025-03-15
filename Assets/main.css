@@ -24,7 +24,7 @@ to{background-position:2000px 0}
 body .view-image{z-index:1145141919810}
 body .mdui-typo{font-size:17px;line-height:1.5;word-wrap:break-word}
 .mdui-typo img{border-radius:6px;max-width:100%}
-;body .mdui-typo h1,body .mdui-typo h2,body .mdui-typo h3,body .mdui-typo h4,body .mdui-typo h5,body .mdui-typo h6{margin-top:0}
+body .mdui-typo h1, body .mdui-typo h2, body .mdui-typo h3, body .mdui-typo h4, body .mdui-typo h5, body .mdui-typo h6 {margin-top: 0em;}
 .arco-card-size-medium .arco-card-meta-title,body .arco-card-size-medium .arco-card-header-title{font-size:20px}
 body .KasumiCarousel{height:var(--carousel-height)}
 @media (max-width:767px){body .KasumiCarousel{height:calc(var(--carousel-height)/ 1.8)}
