@@ -2,21 +2,21 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>
 <?php if (Get::Is('post')) { ?>
-    <script>
-        const PostApp = {
-            data() {
-                return {
-                    Title : '<?php GetPost::Title(); ?>',
-                    Tag: '<?php GetPost::Tags(); ?>',
-                    Category: '<?php GetPost::Category(',', true); ?>',
-                    WordCount: '<?php GetPost::WordCount(); ?>',
-                    Author: '<?php GetAuthor::Name(); ?>',
-                    AuthorUrl: '<?php GetAuthor::Permalink(); ?>',
-                }
+<script>
+    const PostApp = {
+        data() {
+            return {
+                Title : '<?php GetPost::Title(); ?>',
+                Tag: '<?php GetPost::Tags(); ?>',
+                Category: '<?php GetPost::Category(',', true); ?>',
+                WordCount: '<?php GetPost::WordCount(); ?>',
+                Author: '<?php GetAuthor::Name(); ?>',
+                AuthorUrl: '<?php GetAuthor::Permalink(); ?>',
             }
         }
-        Vue.createApp(PostApp).mount('#PostPage');
-    </script>
+    }
+    Vue.createApp(PostApp).mount('#PostPage');
+</script>
 <?php } ?>
 <script>
     const FooterApp = {

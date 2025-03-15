@@ -59,6 +59,11 @@ function themeConfig($form)
             background-color: #fffbcc;
         }
     </style>
+    <div style="text-align: center;">
+        <h1>Kirakira Dokidoki</h1>
+        <p>感谢使用 Kasumi 主题，这里是主题设置页面，你可以在这里设置一些主题相关的选项。</p>
+        <p>如果你有任何问题或建议，欢迎在 <a href="https://github.com/ShuShuicu/Typecho-Kasumi-Theme/issues">GitHub Issues</a> 进行反馈。</p>
+    </div>
 <?php
     // 定义表单元素配置
     $formElements = [
