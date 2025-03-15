@@ -12,7 +12,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
     <script type="text/javascript">
         console.log('加载时间<?php GetFunctions::TimerStop(); ?>')
     </script>
-    <?php Get::Template('Script') ?>
+    <?php Get::Template('VueScript') ?>
 </body>
 
 </html>
