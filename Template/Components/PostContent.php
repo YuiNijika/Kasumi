@@ -21,6 +21,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                         <?php GetPost::Content(); ?>
                     </div>
                 </div>
+                <?php Kasumi::Components('PostContentButton') ?>
             </div>
         </div>
     </article>

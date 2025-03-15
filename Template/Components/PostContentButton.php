@@ -1,7 +1,6 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
-?>
-<?php
+
 ob_start();
 GetPost::Tags(',');
 $tagsOutput = ob_get_clean();
@@ -42,14 +41,26 @@ $replacementCategory = function ($matches) use ($colors) {
     return "<a-tag color=\"$color\"><a href=\"{$matches[1]}\">{$matches[2]}</a></a-tag>";
 };
 
+// 处理标签
 $formattedTags = preg_replace_callback($pattern, $replacementTags, $tagsOutput);
-$formattedCategory = preg_replace_callback($pattern, $replacementCategory, $categoryOutput);
-
-// 移除逗号
 $formattedTags = str_replace(',', '', $formattedTags);
+
+if (trim($formattedTags) === '暂无标签') {
+    $color = $colors[array_rand($colors)];
+    $formattedTags = "<a-tag color=\"$color\">#暂无标签</a-tag>";
+}
+
+// 处理分类
+$formattedCategory = preg_replace_callback($pattern, $replacementCategory, $categoryOutput);
 $formattedCategory = str_replace(',', '', $formattedCategory);
+
+if (trim($formattedCategory) === '暂无分类') {
+    $color = $colors[array_rand($colors)];
+    $formattedCategory = "<a-tag color=\"$color\">#暂无分类</a-tag>";
+}
 ?>
-<a-space>
+
+<a-space style="margin-bottom: 5px;">
     <?php echo $formattedCategory; ?>
 </a-space>
 <br>
