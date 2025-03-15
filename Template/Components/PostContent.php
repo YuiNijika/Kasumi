@@ -1,22 +1,27 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>
-<article>
-    <a-card
-        role="article"
-        aria-label="文章卡片"
-        title="<?php GetPost::Title(); ?>">
-        <template #extra>
-            <?php Kasumi::Components('PostShare') ?>
-        </template>
-        <div class="Kasumi-typo">
-            <div class="mdui-typo">
-                <?php GetPost::Content(); ?>
-            </div>
-            <div class="mdui-divider"></div>
-            <div style="padding: 10px 0px;">
-                <?php Kasumi::Components('PostContentButton') ?>
+<div id="PostPage">
+    <article>
+        <a-card
+            role="article"
+            aria-label="文章卡片"
+            >
+            <div class="mdui-card-content">
+                <div class="mdui-card-primary-title">
+                    <?php GetPost::Title(); ?>
+                </div>
+                <div class="mdui-divider"></div>
+                <div class="mdui-card-actions mdui-card-primary-subtitle">
+                    作者：<a :href="AuthorUrl">{{ Author }}</a>丨<a v-html="Category"></a> · <a v-html="Tag"></a>丨字数：{{ WordCount }}
+                </div>
+                <div class="mdui-divider"></div>
+                <div class="mdui-card-content">
+                    <div class="mdui-typo" id="PostContent">
+                        <?php GetPost::Content(); ?>
+                    </div>
+                </div>
             </div>
         </div>
-    </a-card>
-</article>
+    </article>
+</a-card>
