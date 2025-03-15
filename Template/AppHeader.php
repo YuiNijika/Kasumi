@@ -16,7 +16,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 <body class="mdui-drawer-body-left mdui-appbar-with-toolbar mdui-theme-primary-indigo mdui-theme-accent-pink">
     <main id="app">
         <nav>
-            <?php Kasumi::Components('AppHeadMenu'); ?>
-            <?php Kasumi::Components('AppSidebar'); ?>
+            <?php Kasumi::Components('AppHeaderNav'); ?>
+            <?php Kasumi::Components('AppLeftSidebar'); ?>
         </nav>
         <div class="Kasumi">
