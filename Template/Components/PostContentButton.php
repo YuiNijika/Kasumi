@@ -59,11 +59,16 @@ if (trim($formattedCategory) === '暂无分类') {
     $formattedCategory = "<a-tag color=\"$color\">#暂无分类</a-tag>";
 }
 ?>
-
-<a-space style="margin-bottom: 5px;">
-    <?php echo $formattedCategory; ?>
-</a-space>
-<br>
-<a-space>
-    <?php echo $formattedTags; ?>
-</a-space>
+<div class="PostContentButton">
+    <div v-html="PostsCopyright"></div>
+    <div class="PostContentButtonSeparator">
+        THE END
+    </div>
+    <a-space style="margin-bottom: 5px;">
+        <?php echo $formattedCategory; ?>
+    </a-space>
+    <br>
+    <a-space>
+        <?php echo $formattedTags; ?>
+    </a-space>
+</div>

@@ -10,9 +10,14 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                     Tag: '<?php echo htmlspecialchars(GetPost::Tags(), ENT_QUOTES, 'UTF-8'); ?>',
                     Category: '<?php echo htmlspecialchars(GetPost::Category(',', true), ENT_QUOTES, 'UTF-8'); ?>',
                     PostDate: '<?php echo htmlspecialchars(GetPost::Date(), ENT_QUOTES, 'UTF-8'); ?>',
+                    PostUrl: '<?php echo htmlspecialchars(GetPost::Permalink(), ENT_QUOTES, 'UTF-8'); ?>',
                     WordCount: '<?php echo htmlspecialchars(GetPost::WordCount(), ENT_QUOTES, 'UTF-8'); ?>',
                     Author: '<?php echo htmlspecialchars(GetAuthor::Name(), ENT_QUOTES, 'UTF-8'); ?>',
                     AuthorUrl: '<?php echo htmlspecialchars(GetAuthor::Permalink(), ENT_QUOTES, 'UTF-8'); ?>',
+                    PostsCopyright: `
+                        <div><span>©</span> 版权声明</div>
+                        <div>分享是一种美德，转载请保留原链接</div>
+                    `,
                 };
             }
         });
