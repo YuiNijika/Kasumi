@@ -13,7 +13,6 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                     WordCount: '<?php echo htmlspecialchars(GetPost::WordCount(), ENT_QUOTES, 'UTF-8'); ?>',
                     Author: '<?php echo htmlspecialchars(GetAuthor::Name(), ENT_QUOTES, 'UTF-8'); ?>',
                     AuthorUrl: '<?php echo htmlspecialchars(GetAuthor::Permalink(), ENT_QUOTES, 'UTF-8'); ?>',
-                    Content: '<?php echo htmlspecialchars(GetPost::Content(), ENT_QUOTES, 'UTF-8'); ?>',
                 };
             }
         });
