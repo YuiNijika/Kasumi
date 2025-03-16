@@ -71,4 +71,5 @@ if (trim($formattedCategory) === '暂无分类') {
     <a-space>
         <?php echo $formattedTags; ?>
     </a-space>
+    <div v-html="PostShare"></div>
 </div>
