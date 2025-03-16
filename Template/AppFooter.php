@@ -3,7 +3,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>      
         </div>
         <footer>
-            <div id="footer"></div>
+            <div id="FooterCard"></div>
         </footer>
     </main>
     <script src="<?php GetTheme::AssetsUrl() ?>/main.js?ver=<?php GetTheme::Ver(); ?>"></script>

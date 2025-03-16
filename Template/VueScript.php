@@ -2,31 +2,87 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>
 <?php if (Get::Is('post')) { ?>
-<script>
-    const PostApp = {
-        data() {
-            return {
-                Title : '<?php GetPost::Title(); ?>',
-                Tag: '<?php GetPost::Tags(); ?>',
-                Category: '<?php GetPost::Category(',', true); ?>',
-                PostDate: '<?php GetPost::Date(); ?>',
-                WordCount: '<?php GetPost::WordCount(); ?>',
-                Author: '<?php GetAuthor::Name(); ?>',
-                AuthorUrl: '<?php GetAuthor::Permalink(); ?>',
+    <script>
+        const PostApp = Vue.createApp({
+            data() {
+                return {
+                    Title: '<?php echo htmlspecialchars(GetPost::Title(), ENT_QUOTES, 'UTF-8'); ?>',
+                    Tag: '<?php echo htmlspecialchars(GetPost::Tags(), ENT_QUOTES, 'UTF-8'); ?>',
+                    Category: '<?php echo htmlspecialchars(GetPost::Category(',', true), ENT_QUOTES, 'UTF-8'); ?>',
+                    PostDate: '<?php echo htmlspecialchars(GetPost::Date(), ENT_QUOTES, 'UTF-8'); ?>',
+                    WordCount: '<?php echo htmlspecialchars(GetPost::WordCount(), ENT_QUOTES, 'UTF-8'); ?>',
+                    Author: '<?php echo htmlspecialchars(GetAuthor::Name(), ENT_QUOTES, 'UTF-8'); ?>',
+                    AuthorUrl: '<?php echo htmlspecialchars(GetAuthor::Permalink(), ENT_QUOTES, 'UTF-8'); ?>',
+                    Content: '<?php echo htmlspecialchars(GetPost::Content(), ENT_QUOTES, 'UTF-8'); ?>',
+                };
             }
-        }
-    }
-    Vue.createApp(PostApp).mount('#PostPage');
-</script>
+        });
+        PostApp.mount('#PostContent');
+    </script>
 <?php } ?>
 <script>
-    const FooterApp = {
+    const HeaderAppbar = Vue.createApp({
+        data() {
+            return {
+                siteUrl: "<?php echo htmlspecialchars(Get::SiteUrl(false), ENT_QUOTES, 'UTF-8'); ?>",
+                siteName: "<?php echo htmlspecialchars(Get::SiteName(false), ENT_QUOTES, 'UTF-8'); ?>",
+                subTitle: "<?php echo htmlspecialchars(Get::Options("SubTitle", false) ? Get::Options("SubTitle") : '首页', ENT_QUOTES, 'UTF-8'); ?>",
+                archiveTitle: "<?php echo htmlspecialchars(GetPost::ArchiveTitle([
+                                    "category" => _t("%s"),
+                                    "search" => _t("%s"),
+                                    "tag" => _t("%s"),
+                                    "author" => _t("%s"),
+                                ], "", false), ENT_QUOTES, 'UTF-8'); ?>",
+            };
+        },
+        template: `
+            <div class="mdui-appbar mdui-appbar-fixed">
+                <div class="mdui-toolbar mdui-color-theme">
+                    <a href="javascript:;" class="mdui-btn mdui-btn-icon" mdui-drawer="{target: '#drawer'}">
+                        <i class="mdui-icon material-icons">menu</i>
+                    </a>
+                    <a :href="siteUrl" class="ignore-translate mdui-typo-headline mdui-hidden-xs">{{ siteName }}</a>
+                    <a class="mdui-typo-title">
+                        {{ isIndexPage ? subTitle : archiveTitle }}
+                    </a>
+                    <div class="mdui-toolbar-spacer"></div>
+                    <a href="javascript:;" class="mdui-btn mdui-btn-icon" mdui-dialog="{target: '#search-dialog'}">
+                        <i class="mdui-icon material-icons">search</i>
+                    </a>
+                </div>
+            </div>
+            <div class="mdui-dialog" id="search-dialog" style="border-radius: 5px;" role="dialog" aria-labelledby="search-dialog-title">
+                <div class="mdui-dialog-title" id="search-dialog-title">搜索文章 · <small>精彩近在咫尺！</small></div>
+                <div class="mdui-dialog-content">
+                    <form method="post" :action="siteUrl" role="search">
+                        <div class="mdui-textfield">
+                            <i class="mdui-icon material-icons" aria-hidden="true">search</i>
+                            <input class="mdui-textfield-input" type="search" name="s" placeholder="输入关键词后按回车(Enter)..." aria-label="搜索文章" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="mdui-dialog-actions">
+                    <button class="mdui-btn mdui-ripple" mdui-dialog-cancel>关闭</button>
+                </div>
+            </div>
+        `,
+        computed: {
+            isIndexPage() {
+                return window.location.pathname === "/";
+            }
+        }
+    });
+
+    HeaderAppbar.mount('#HeaderAppbar');
+</script>
+<script>
+    const FooterCard = Vue.createApp({
         data() {
             return {
                 year: new Date().getFullYear(),
-                siteTitle: "<?php echo Get::Options('title'); ?>",
-                siteUrl: "<?php echo Get::SiteUrl(); ?>",
-                icpCode: "<?php echo Get::Options('IcpCode'); ?>",
+                siteTitle: "<?php echo htmlspecialchars(Get::Options('title', false), ENT_QUOTES, 'UTF-8'); ?>",
+                siteUrl: "<?php echo htmlspecialchars(Get::SiteUrl(false), ENT_QUOTES, 'UTF-8'); ?>",
+                icpCode: "<?php echo htmlspecialchars(Get::Options('IcpCode', false), ENT_QUOTES, 'UTF-8'); ?>",
             };
         },
         template: `
@@ -46,7 +102,6 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                 </div>
             </a-card>
         `,
-    };
-
-    Vue.createApp(FooterApp).mount('#footer');
+    });
+    FooterCard.mount('#FooterCard');
 </script>

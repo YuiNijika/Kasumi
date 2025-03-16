@@ -1,7 +1,7 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>
-<div id="PostPage">
+<div id="PostContent">
     <article>
         <a-card
             role="article"
