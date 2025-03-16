@@ -46,7 +46,7 @@ function themeConfig($form)
         <p>感谢使用 Kasumi 主题，这里是主题设置页面，你可以在这里设置一些主题相关的选项。</p>
         <p>如果你有任何问题或建议，欢迎在 <a href="https://github.com/ShuShuicu/Typecho-Kasumi-Theme/issues">GitHub Issues</a> 进行反馈。</p>
         <hr>
-        <p>主题版本：<?php GetTheme::Ver(); ?>丨框架版本：<?php TTDF::Ver() ?></p>
+        <p>主题版本：<?php GetTheme::Ver(); ?>丨框架版本：<?php TTDF::Ver() ?>丨Typecho版本: <?php TTDF::TypechoVer() ?></p>
     </div>
 <?php
     // 定义表单元素配置
