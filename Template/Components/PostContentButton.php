@@ -64,12 +64,12 @@ if (trim($formattedCategory) === '暂无分类') {
     <div class="PostContentButtonSeparator">
         THE END
     </div>
+    <?php if(Get::Is('post')) { ?>
     <a-space style="margin-bottom: 5px;">
         <?php echo $formattedCategory; ?>
-    </a-space>
-    <br>
-    <a-space>
+        <br>
         <?php echo $formattedTags; ?>
     </a-space>
     <div v-html="PostShare"></div>
+    <?php } ?>
 </div>
