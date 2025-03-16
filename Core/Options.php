@@ -84,6 +84,39 @@ function themeConfig($form)
             'description' => '侧边自定义导航栏，格式为 名称|图标|链接，多个导航请换行。<br>查看图标名称：<a href="https://www.mdui.org/docs/material_icon">https://www.mdui.org/docs/material_icon</a>'
         ],
         [
+            // 警告提示开关
+            'type' => 'Select',
+            'name' => 'AlertSwitch',
+            'value' => 'close',
+            'label' => '警告提示',
+            'description' => '是否启用警告提示',
+            'options' => [
+                'close' => '关闭',
+                'open' => '启用',
+            ]
+        ],
+        [
+            // 警告提示模式
+            'type' => 'Radio',
+            'name' => 'AlertMode',
+            'value' => 'info',
+            'label' => '警告提示模式',
+            'description' => '选择警告提示模式',
+            'options' => [
+                'info' => '蓝色信息',
+                'warning' => '黄色警告',
+                'success' => '绿色成功',
+                'error' => '红色错误',
+            ]
+        ],
+        [
+            // 警告提示内容
+            'type' => 'Text',
+            'name' => 'AlertContent',
+            'value' => null,
+            'label' => '警告提示内容',
+        ],
+        [
             // 轮播图开关
             'type' => 'Select',
             'name' => 'CarouselSwitch',

@@ -69,6 +69,25 @@ if (Get::Is('post')) {
         PostApp.mount('#PostContent');
     </script>
 <?php } ?>
+
+<?php if (Get::Options('AlertSwitch') === 'open') { ?>
+<script>
+    const Alert = Vue.createApp({
+        data() {
+            return {
+                alertSwitch: "<?php echo htmlspecialchars(Get::Options('AlertSwitch', false), ENT_QUOTES, 'UTF-8'); ?>",
+                alertMode: "<?php echo htmlspecialchars(Get::Options('AlertMode', false), ENT_QUOTES, 'UTF-8'); ?>",
+                alertContent: "<?php echo htmlspecialchars(Get::Options('AlertContent', false), ENT_QUOTES, 'UTF-8'); ?>",
+            };
+        },
+        template: `
+            <a-alert v-if="alertSwitch === 'open'" :type="alertMode" style="margin-bottom: 10px;">{{ alertContent }}</a-alert>
+        `,
+    });
+    Alert.mount('#Alert');
+</script>
+<?php } ?>
+
 <script>
     const HeaderAppbar = Vue.createApp({
         data() {

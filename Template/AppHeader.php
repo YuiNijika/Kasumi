@@ -23,3 +23,4 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
             <?php Kasumi::Components('AppLeftSidebar'); ?>
         </nav>
         <div class="Kasumi">
+            <div id="Alert"></div>
