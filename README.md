@@ -1,5 +1,6 @@
 # Kasumi
 > 一个简单的Typecho博客主题
+> 与Bocchi主题可以无缝切换！
 
 ## 主题特色
 - Vue
