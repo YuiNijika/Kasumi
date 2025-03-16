@@ -29,11 +29,10 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                 <?php GetPost::DB_Content_Html() ?>
             </div>
         </div>
-        <?php Kasumi::Components('PostContentButton'); ?>
+        <div class="PostContentButton">
+            <div class="PostContentButtonSeparator">
+                THE END
+            </div>
+        </div>
     </div>
 </a-card>
-<div class="PostContentButton">
-    <div class="PostContentButtonSeparator">
-        THE END
-    </div>
-</div>
