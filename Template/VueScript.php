@@ -22,8 +22,6 @@ if (Get::Is('post')) {
                     PostDate: '<?php echo htmlspecialchars(GetPost::Date(), ENT_QUOTES, 'UTF-8'); ?>',
                     PostUrl: '<?php echo htmlspecialchars(GetPost::Permalink(), ENT_QUOTES, 'UTF-8'); ?>',
                     Thumbnail: '<?php echo htmlspecialchars($thumbnailUrl); ?>',
-                    PostExcerpt: '<?php echo htmlspecialchars(GetPost::Excerpt(150), ENT_QUOTES, 'UTF-8'); ?>',
-                    PostExcerptShort: '<?php echo htmlspecialchars(GetPost::Excerpt(50), ENT_QUOTES, 'UTF-8'); ?>',
                     WordCount: '<?php echo htmlspecialchars(GetPost::WordCount(), ENT_QUOTES, 'UTF-8'); ?>',
                     Author: '<?php echo htmlspecialchars(GetAuthor::Name(), ENT_QUOTES, 'UTF-8'); ?>',
                     AuthorUrl: '<?php echo htmlspecialchars(GetAuthor::Permalink(), ENT_QUOTES, 'UTF-8'); ?>',
