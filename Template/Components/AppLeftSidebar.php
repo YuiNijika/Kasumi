@@ -2,7 +2,7 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>
 <div class="mdui-drawer mdui-card" id="drawer">
-    <ul class="mdui-list">
+    <ul class="mdui-list" mdui-collapse="{accordion: true}">
         <?php
         $SidebarNav = Get::Options('SidebarNav');
         if (empty($SidebarNav)) {
