@@ -1,8 +1,11 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>
-<div class="mdui-drawer mdui-card" id="drawer">
-    <ul class="mdui-list" mdui-collapse="{accordion: true}">
+<div class="mdui-drawer" id="drawer">
+    <a-menu
+        :style="{ height: '100%' }"
+        mode="pop"
+        showCollapseButton>
         <?php
         $SidebarNav = Get::Options('SidebarNav');
         if (empty($SidebarNav)) {
@@ -26,17 +29,10 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
         }
         ?>
         <div class="mdui-divider"></div>
-        <div class="mdui-collapse" mdui-collapse>
-            <div class="mdui-collapse-item">
-                <div class="mdui-collapse-item-header mdui-list-item mdui-ripple" role="button" aria-expanded="false">
-                    <i class="mdui-list-item-icon mdui-icon material-icons" aria-hidden="true">language</i>
-                    <div class="mdui-list-item-content">页面翻译</div>
-                    <i class="mdui-collapse-item-arrow mdui-icon material-icons" aria-hidden="true">keyboard_arrow_down</i>
-                </div>
-                <div class="ignore-translate mdui-collapse-item-body mdui-list" role="menu">
-                    <?php Kasumi::Components('TranslateMenu') ?>
-                </div>
-            </div>
-        </div>
-    </ul>
+        <a-sub-menu>
+            <template #icon><icon-bug></icon-bug></template>
+            <template #title>页面翻译</template>
+                <?php kASUMI::Components('TranslateMenu') ?>
+        </a-sub-menu>
+    </a-menu>
 </div>

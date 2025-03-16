@@ -93,7 +93,7 @@ $languages = array_filter($allLanguages, function($code) use ($translationLang) 
 
 // 生成语言选项
 foreach ($languages as $code => $name) { ?>
-    <a href="javascript:translate.changeLanguage('<?php echo $code; ?>');" class="mdui-list-item mdui-ripple" role="menuitem">
-        <div class="mdui-list-item-content"><?php echo $name; ?></div>
+    <a href="javascript:translate.changeLanguage('<?php echo $code; ?>');" role="menuitem">
+        <a-menu-item class="ignore-translate"><?php echo $name ?></a-menu-item>
     </a>
 <?php }; ?>
