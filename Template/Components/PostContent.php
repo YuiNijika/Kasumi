@@ -1,12 +1,25 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>
+
 <div id="PostContent">
     <article>
-        <a-card
-            role="article"
-            aria-label="文章卡片"
-            >
+        <a-card role="article" aria-label="文章卡片">
+            <?php
+            // 判断是否显示缩略图
+            if (Get::Fields('PostStyleThumbnail') == 'open') {
+                $thumbnailStyle = Get::Fields('thumbnailStyle') ?? null;
+                $thumbnailUrl = $thumbnailStyle ?: get_ArticleThumbnail($this);
+
+                if ($thumbnailUrl) {
+            ?>
+                    <div class="mdui-card-media">
+                        <div class="thumbnail-post" style="background-image: url(<?php echo htmlspecialchars($thumbnailUrl); ?>);"></div>
+                    </div>
+            <?php
+                }
+            }
+            ?>
             <div class="mdui-card-content">
                 <div class="mdui-card-primary-title">
                     <?php GetPost::Title(); ?>
@@ -21,8 +34,8 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                         <?php GetPost::Content(); ?>
                     </div>
                 </div>
-                <?php Kasumi::Components('PostContentButton') ?>
+                <?php Kasumi::Components('PostContentButton'); ?>
             </div>
-        </div>
+        </a-card>
     </article>
-</a-card>
+</div>

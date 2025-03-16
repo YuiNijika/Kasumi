@@ -1,9 +1,25 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
+
+// 获取缩略图 URL
+$thumbnailStyle = Get::Fields('thumbnailStyle') ?? null;
+$thumbnailUrl = $thumbnailStyle ?: get_ArticleThumbnail($this);
+
+// 确保 $thumbnailUrl 不为空
+if (!$thumbnailUrl) {
+    $thumbnailUrl = ''; // 如果缩略图 URL 为空，设置为空字符串
+}
 ?>
+
 <a-col :xs="24" :sm="24" :md="12" :lg="12" :xl="6" :xxl="6">
     <article>
-        <a href="<?php GetPost::Permalink(); ?>">
+        <a href="<?php
+                    if (Get::Fields('PostStyleGoUrl') === 'open') {
+                        echo Get::Fields('goUrlStyle') ?? GetPost::Permalink();
+                    } else {
+                        echo GetPost::Permalink();
+                    }
+                    ?>">
             <a-card
                 role="article"
                 aria-label="文章卡片"
@@ -11,18 +27,13 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                 :bordered="false"
                 class="KasumiIndexPostCard">
                 <template #cover>
-                    <?php
-                    // 获取缩略图URL
-                    $thumbnailUrl = get_ArticleThumbnail($this);
-                    if ($thumbnailUrl) {
-                        // 如果缩略图URL存在，则输出缩略图  
-                    ?>
+                    <?php if ($thumbnailUrl) { ?>
                         <div class="thumbnail" style="
                         background-image: url(<?php echo htmlspecialchars($thumbnailUrl); ?>);
                     "></div>
                     <?php } ?>
                 </template>
-                <a-card-meta title="<?php $this->title(); ?>">
+                <a-card-meta title="<?php GetPost::Title() ?>">
                     <template #description>
                         <?php GetPost::Category() ?> · <?php GetPost::Date() ?>
                     </template>
