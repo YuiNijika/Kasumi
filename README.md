@@ -23,7 +23,8 @@
 ### 预览
 ![index](https://www.scbkw.cn/wp-content/uploads/2025/03/20250315035527474-index-1.webp)
 ![index-2](https://www.scbkw.cn/wp-content/uploads/2025/03/20250315035527311-index-2.webp)
-![post](https://www.scbkw.cn/wp-content/uploads/2025/03/20250315035528837-post.webp)
-![post-2](https://www.scbkw.cn/wp-content/uploads/2025/03/20250315035528970-post-2.webp)
+![post](https://www.scbkw.cn/wp-content/uploads/2025/03/20250317004518877-post.webp)
+![post-1](https://www.scbkw.cn/wp-content/uploads/2025/03/20250317004519283-post-1.webp)
+![post-2](https://www.scbkw.cn/wp-content/uploads/2025/03/20250317004520578-post-2.webp)
 ![admin](https://www.scbkw.cn/wp-content/uploads/2025/03/20250315035527316-admin-1.webp)
 ![admin-2](https://www.scbkw.cn/wp-content/uploads/2025/03/20250315035527688-admin-2.webp)
