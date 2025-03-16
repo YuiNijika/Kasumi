@@ -31,7 +31,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                 <div class="mdui-divider"></div>
                 <div class="mdui-card-content">
                     <div class="mdui-typo" id="PostContent">
-                        <?php GetPost::Content(); ?>
+                        <?php GetPost::DB_Content_Html() ?>
                     </div>
                 </div>
                 <?php Kasumi::Components('PostContentButton'); ?>
