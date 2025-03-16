@@ -68,7 +68,7 @@ if (!empty($buttons)) {
 
                 foreach ($domainIcons as $domain => $icon) {
                     if (preg_match('/^https?:\/\/[^\/]+\.' . $domain . '\/?$/', $buttonLink)) {
-                        $buttonImg = GetTheme::Url(false) . '/Assets/images/icon/' . $icon;
+                        $buttonImg = GetTheme::AssetsUrl(false) . '/images/icon/' . $icon;
                         break;
                     }
                 }
