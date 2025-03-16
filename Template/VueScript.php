@@ -81,7 +81,7 @@ if (Get::Is('post')) {
             };
         },
         template: `
-            <a-alert v-if="alertSwitch === 'open'" :type="alertMode" style="margin-bottom: 10px;">{{ alertContent }}</a-alert>
+            <a-alert v-if="alertSwitch === 'open'" :type="alertMode" banner closable style="margin-bottom: 10px;">{{ alertContent }}</a-alert>
         `,
     });
     Alert.mount('#Alert');
