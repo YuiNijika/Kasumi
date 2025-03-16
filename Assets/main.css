@@ -14,7 +14,7 @@ a{color:unset;text-decoration:unset}
 .MyGO{background:-webkit-linear-gradient(45deg,#70f7fe,#fbd7c6,#fdefac,#bfb5dd,#bed5f5);background:-moz-linear-gradient(45deg,#70f7fe,#fbd7c6,#fdefac,#bfb5dd,#bed5f5);background:-ms-linear-gradient(45deg,#70f7fe,#fbd7c6,#fdefac,#bfb5dd,#bed5f5);color:transparent;-webkit-background-clip:text;animation:ran 20s linear infinite}
 @keyframes ran{from{backgroud-position:0}
 to{background-position:2000px 0}
-}.Kasumi{min-height:calc(95vh - 120px);max-width:90%;padding:20px 0 20px 0;box-sizing:border-box;margin-right:auto;margin-left:auto}
+}.Kasumi{min-height:calc(95vh - 120px);max-width:95%;padding:20px 0 20px 0;box-sizing:border-box;margin-right:auto;margin-left:auto}
 .Kasumi-typo{font-size:16px;line-height:1.7;word-wrap:break-word}
 .Kasumi-typo img{border-radius:6px;max-width:100%}
 .KasumiIndexPostCard{margin:5px;border-radius:4px}
