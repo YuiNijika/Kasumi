@@ -3,7 +3,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 if (Get::Fields('PostStyleButton') === 'open') { 
 ?>
 
-<div class="mdui-card mdui-card-content mdui-m-b-2">
+<a-card class="mdui-card-content" style="margin-top: 10px;">
 
 <?php 
 // 获取文章的 buttonStyle 字段内容
@@ -20,7 +20,7 @@ if (!empty($buttons)) {
             $buttonLink = $matches[2]; // 按钮链接
 ?>
     <a target="_blank" href="<?php echo htmlspecialchars($buttonLink); ?>">
-        <button class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme-accent" style="border-radius: 8px">
+        <button class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme-accent">
             <b><?php echo htmlspecialchars($buttonText); ?></b>
         </button>
     </a>
@@ -97,5 +97,5 @@ if (!empty($buttons)) {
     }
 }
 ?>
-</div>
+</a-card>
 <?php }; ?>

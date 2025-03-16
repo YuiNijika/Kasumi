@@ -37,5 +37,6 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
                 <?php Kasumi::Components('PostContentButton'); ?>
             </div>
         </a-card>
+        <?php Kasumi::Components('PostButton'); ?>
     </article>
 </div>
