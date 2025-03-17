@@ -114,24 +114,28 @@ if (Get::Is('post')) {
                         {{ isIndexPage ? subTitle : archiveTitle }}
                     </a>
                     <div class="mdui-toolbar-spacer"></div>
+                    <form method="post" :action="siteUrl" role="search">
+                        <a-input class="mdui-hidden-xs" :style="{width:'320px'}" placeholder="随便搜搜吧？" type="search" name="s" allow-clear />
+                    </form>
                     <a href="javascript:;" class="mdui-btn mdui-btn-icon" mdui-dialog="{target: '#search-dialog'}">
                         <i class="mdui-icon material-icons">search</i>
                     </a>
                 </div>
             </div>
-            <div class="mdui-dialog" id="search-dialog" style="border-radius: 5px;" role="dialog" aria-labelledby="search-dialog-title">
+            <div class="mdui-dialog" id="search-dialog" role="dialog" aria-labelledby="search-dialog-title">
                 <div class="mdui-dialog-title" id="search-dialog-title">搜索文章 · <small>精彩近在咫尺！</small></div>
-                <div class="mdui-dialog-content">
-                    <form method="post" :action="siteUrl" role="search">
-                        <div class="mdui-textfield">
-                            <i class="mdui-icon material-icons" aria-hidden="true">search</i>
-                            <input class="mdui-textfield-input" type="search" name="s" placeholder="输入关键词后按回车(Enter)..." aria-label="搜索文章" required>
-                        </div>
-                    </form>
+                <form method="post" :action="siteUrl" role="search">
+                <div style="margin: -10px 20px 0px 20px;">
+                    <div class="mdui-textfield">
+                        <i class="mdui-icon material-icons" aria-hidden="true">search</i>
+                        <input class="mdui-textfield-input" type="search" name="s" placeholder="输入关键词后按回车(Enter)..." aria-label="搜索文章" required>
+                    </div>
                 </div>
                 <div class="mdui-dialog-actions">
                     <button class="mdui-btn mdui-ripple" mdui-dialog-cancel>关闭</button>
+                    <button class="mdui-btn mdui-ripple" type="submit">搜索</button>
                 </div>
+                </form>
             </div>
         `,
         computed: {
