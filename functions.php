@@ -1,4 +1,4 @@
-<?php 
+<?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 // 引入框架配置文件
 require_once 'Core/TTDF.php';
@@ -128,8 +128,10 @@ function getAttachmentImageUrl($widget)
 /**
  * 短代码解析
  */
-class ShortCodeParser {
-    public function __construct() {
+class ShortCodeParser
+{
+    public function __construct()
+    {
         // 为文章内容和摘要添加过滤器
         Typecho_Plugin::factory('Widget_Abstract_Contents')->contentEx = array($this, 'add_shortcode_support');
         Typecho_Plugin::factory('Widget_Abstract_Contents')->excerptEx = array($this, 'add_shortcode_support');
@@ -141,10 +143,11 @@ class ShortCodeParser {
      * @param string $content
      * @return string
      */
-    public function add_shortcode_support($content) {
-        if(!empty($content)){
-        $content = htmlspecialchars_decode($content); // 先解码HTML实体
-        $content = $this->parse_button_shortcode($content);
+    public function add_shortcode_support($content)
+    {
+        if (!empty($content)) {
+            $content = htmlspecialchars_decode($content); // 先解码HTML实体
+            $content = $this->parse_button_shortcode($content);
         }
         return $content;
     }
@@ -155,7 +158,8 @@ class ShortCodeParser {
      * @param string $content
      * @return string
      */
-    private function parse_button_shortcode($content) {
+    private function parse_button_shortcode($content)
+    {
         // 按钮
         $pattern = '/\[b\s*url="(.*?)"\](.*?)\[\/b\]/i';
         $callback = function ($matches) {
@@ -199,7 +203,6 @@ class ShortCodeParser {
         $content = preg_replace_callback($pattern_t, $callback_t, $content);
 
         return $content;
-
     }
 }
 

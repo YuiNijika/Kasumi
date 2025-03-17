@@ -24,7 +24,6 @@ if (Get::Is('post')) {
                     Thumbnail: '<?php echo htmlspecialchars($thumbnailUrl); ?>',
                     WordCount: '<?php echo htmlspecialchars(GetPost::WordCount(), ENT_QUOTES, 'UTF-8'); ?>',
                     Author: '<?php echo htmlspecialchars(GetAuthor::Name(), ENT_QUOTES, 'UTF-8'); ?>',
-                    AuthorUrl: '<?php echo htmlspecialchars(GetAuthor::Permalink(), ENT_QUOTES, 'UTF-8'); ?>',
                     PostBreadcrumb: `
                         <a-breadcrumb>
                             <a-breadcrumb-item><a href="<?php Get::SiteUrl(); ?>">首页</a></a-breadcrumb-item>
@@ -41,7 +40,7 @@ if (Get::Is('post')) {
             computed: {
                 SubTitle() {
                     return `
-                        作者：<a :href="this.AuthorUrl">${this.Author}</a>丨${this.PostDate}丨共 ${this.WordCount} 字
+                        作者：${this.Author}丨${this.PostDate}丨共 ${this.WordCount} 字
                     `;
                 },
                 PostShare() {
