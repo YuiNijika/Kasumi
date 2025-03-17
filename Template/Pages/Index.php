@@ -1,7 +1,6 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 ?>
-
 <div id="Index">
     <?php 
         // 首页轮播图开关开启
