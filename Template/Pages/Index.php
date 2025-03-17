@@ -18,7 +18,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
     ?>
     <a-row>
         <?php
-        while (Get::Next()) {
+        while (GetPost::List()) {
             Kasumi::Components('IndexPostCard');
         };
         ?>
