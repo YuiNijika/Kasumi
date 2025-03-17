@@ -2,37 +2,33 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 if (Get::Fields('PostStyleButton') === 'open') {
 ?>
+    <?php
+    // 获取文章的 buttonStyle 字段内容
+    $buttons = Get::Fields('buttonStyle');
 
-    <a-card class="mdui-card-content" style="margin-top: 10px;">
-
-        <?php
-        // 获取文章的 buttonStyle 字段内容
-        $buttons = Get::Fields('buttonStyle');
-
-        // 如果字段不为空
-        if (!empty($buttons)) {
-            // 分行解析
-            $buttonLines = explode("\n", $buttons);
+    // 如果字段不为空
+    if (!empty($buttons)) {
+        // 分行解析
+        $buttonLines = explode("\n", $buttons);
+    ?>
+        <a-space style="margin-top: 10px;">
+            <?php
             foreach ($buttonLines as $button) {
                 // 正则解析 [按钮名称](按钮链接)
                 if (preg_match('/\[(.*?)\]\((.*?)\)/', trim($button), $matches)) {
                     $buttonText = $matches[1]; // 按钮名称
                     $buttonLink = $matches[2]; // 按钮链接
-        ?>
+            ?>
 
-                    <a-space>
-                        <a target="_blank" href="<?php echo htmlspecialchars($buttonLink); ?>">
-                            <a-button type="primary"><?php echo htmlspecialchars($buttonText); ?></a-button>
-                        </a>
-                    </a-space>
-
-        <?php
+                    <a target="_blank" href="<?php echo htmlspecialchars($buttonLink); ?>">
+                        <a-button type="primary"><?php echo htmlspecialchars($buttonText); ?></a-button>
+                    </a>
+            <?php
                 }
             }
-        }
-        ?>
-    </a-card>
-    <?php
+            ?></a-space>
+        <?php
+    }
     // 获取文章的 buttonStyle 字段内容
     $buttons = Get::Fields('buttonStyle');
 
@@ -86,7 +82,7 @@ if (Get::Fields('PostStyleButton') === 'open') {
                         }
                     }
                 }
-    ?>
+        ?>
                 <a-card class="mdui-hoverable" style="margin-top: 10px;">
                     <a href="<?php echo htmlspecialchars($buttonLink); ?>" target="_blank" rel="external nofollow">
                         <div class="mdui-card-header">
