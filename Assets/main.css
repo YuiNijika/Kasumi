@@ -5,7 +5,7 @@
     Copyright 2025 鼠子Tomoriゞ
     https://github.com/ShuShuicu/Typecho-Theme-Development-Framework
 */
-body:after{content:" ";position:fixed;inset:0;background-color:#fff;z-index:999999;background-image:url(images/dualball.svg);background-repeat:no-repeat;background-position:center;background-size:30%;animation:fadeOut 1s forwards;pointer-events:none}
+body:after{content:" ";position:fixed;inset:0;background-color:#fff;z-index:999999;background-image:url(images/loading.svg);background-repeat:no-repeat;background-position:center;background-size:30%;animation:fadeOut 1s forwards;pointer-events:none}
 @keyframes fadeOut{from{opacity:1}
 to{opacity:0}
 }body:before{content:"";position:fixed;top:0;left:0;right:0;bottom:0;z-index:-520;pointer-events:none}
