@@ -5,8 +5,6 @@
  */
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
-require_once 'ClassDB.php';
-
 class GetPost extends Typecho_Widget
 {
     use ErrorHandler, SingletonWidget;
@@ -289,7 +287,7 @@ class GetPost extends Typecho_Widget
     {
         try {
             $cid = self::getArchive()->cid;
-            $db = TTDF_DB::getInstance();
+            $db = DB::getInstance();
             $text = $db->getArticleText($cid);
             $text = preg_replace("/[^\x{4e00}-\x{9fa5}]/u", "", $text);
             $wordCount = mb_strlen($text, 'UTF-8');
@@ -311,7 +309,7 @@ class GetPost extends Typecho_Widget
     public static function PostsNum($echo = true)
     {
         try {
-            $db = TTDF_DB::getInstance();
+            $db = DB::getInstance();
             $postsNum = $db->getArticleCount();
             if ($echo) {
                 echo $postsNum;
@@ -333,7 +331,7 @@ class GetPost extends Typecho_Widget
     {
         try {
             $cid = self::getArchive()->cid;
-            $db = TTDF_DB::getInstance();
+            $db = DB::getInstance();
             $title = $db->getArticleTitle($cid);
             if ($echo) {
                 echo $title;
@@ -355,7 +353,7 @@ class GetPost extends Typecho_Widget
     {
         try {
             $cid = self::getArchive()->cid;
-            $db = TTDF_DB::getInstance();
+            $db = DB::getInstance();
             $content = $db->getArticleContent($cid);
             if ($echo) {
                 echo $content;
@@ -377,7 +375,7 @@ class GetPost extends Typecho_Widget
     {
         try {
             $cid = self::getArchive()->cid;
-            $db = TTDF_DB::getInstance();
+            $db = DB::getInstance();
             $content = $db->getArticleContent($cid);
             $content = Markdown::convert($content);
             if ($echo) {
