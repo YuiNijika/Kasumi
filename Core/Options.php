@@ -76,6 +76,38 @@ function themeConfig($form)
             'description' => '在这里填入网站ICP备案号, 将显示在底部右侧位置'
         ],
         [
+            // 收款二维码
+            'type' => 'Text',
+            'name' => 'PayQrcode',
+            'value' => null,
+            'label' => '收款二维码',
+            'description' => '在这里填入一个图片 URL 地址, 以在充电对话框中显示'
+        ],
+        [
+            // 首页样式
+            'type' => 'Radio',
+            'name' => 'IndexStyle',
+            'value' => 'Card',
+            'label' => '首页样式',
+            'description' => '选择首页样式',
+            'options' => [
+                'Card' => '卡片',
+                'List' => '列表',
+            ]
+        ],
+        [
+            // 分类标签样式
+            'type' => 'Radio',
+            'name' => 'ArchiveStyle',
+            'value' => 'List',
+            'label' => '分类标签样式',
+            'description' => '选择分类标签样式',
+            'options' => [
+                'Card' => '卡片',
+                'List' => '列表',
+            ]
+        ],
+        [
             // 导航菜单
             'type' => 'Textarea',
             'name' => 'SidebarNav',
@@ -131,7 +163,7 @@ function themeConfig($form)
         [
             // 分类标签是否启用轮播图
             'type' => 'Radio',
-            'name' => 'CarouselCategory',
+            'name' => 'CarouselArchive',
             'value' => 'open', 
             'label' => '分类标签是否启用',
             'description' => '是否在分类标签页面启用轮播图',
