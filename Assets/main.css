@@ -25,7 +25,6 @@ body .view-image{z-index:1145141919810}
 body .mdui-typo{font-size:17px;line-height:1.5;word-wrap:break-word}
 .mdui-typo img{border-radius:6px;max-width:100%}
 body .mdui-typo h1, body .mdui-typo h2, body .mdui-typo h3, body .mdui-typo h4, body .mdui-typo h5, body .mdui-typo h6 {margin-top: 0em;}
-.arco-card-size-medium .arco-card-meta-title,body .arco-card-size-medium .arco-card-header-title{font-size:20px}
 body .KasumiCarousel{height:var(--carousel-height)}
 @media (max-width:767px){body .KasumiCarousel{height:calc(var(--carousel-height)/ 1.8)}
 }footer{margin-top:40px;display:block;unicode-bidi:isolate}
@@ -33,7 +32,7 @@ body .arco-menu-horizontal .arco-menu-inner{padding:14px 85px}
 body .arco-menu-horizontal .arco-menu-inner img{margin-left:-30px}
 @media (max-width:1200px){body .arco-menu-horizontal .arco-menu-inner{padding:14px 20px}
 body .arco-menu-horizontal .arco-menu-inner img{margin-left:0}
-}body #Post .arco-card-size-medium .arco-card-body{padding:0px}
+}body #PostContent .arco-card-size-medium .arco-card-body{padding:0px}
 .PostContentButtonSeparator{text-align: center;display: flex;justify-content: center;align-items: center;}
 .PostContentButtonSeparator::after, .PostContentButtonSeparator::before {content: '';background: #7272721a;max-width: 20%;height: 2px;margin: 0 1em;flex: 1;}
 .thumbnail{height:200px;background-position:center center!important;background-size:cover!important;border-radius:4px 4px 0 0}

@@ -59,47 +59,49 @@ if (trim($formattedCategory) === '暂无分类') {
     $formattedCategory = "<a-tag color=\"$color\">#暂无分类</a-tag>";
 }
 ?>
-<a-card role="article" aria-label="文章卡片">
-    <?php
-    // 判断是否显示缩略图
-    if (Get::Fields('PostStyleThumbnail') == 'open') {
-        $thumbnailStyle = Get::Fields('thumbnailStyle') ?? null;
-        $thumbnailUrl = $thumbnailStyle ?: get_ArticleThumbnail($this);
+<a-watermark content="<?php Get::SiteName() ?>">
+    <a-card role="article" aria-label="文章卡片">
+        <?php
+        // 判断是否显示缩略图
+        if (Get::Fields('PostStyleThumbnail') == 'open') {
+            $thumbnailStyle = Get::Fields('thumbnailStyle') ?? null;
+            $thumbnailUrl = $thumbnailStyle ?: get_ArticleThumbnail($this);
 
-        if ($thumbnailUrl) {
-    ?>
-            <div class="mdui-card-media">
-                <div class="thumbnail-post" style="background-image: url(<?php echo htmlspecialchars($thumbnailUrl); ?>);"></div>
-            </div>
-    <?php
+            if ($thumbnailUrl) {
+        ?>
+                <div class="mdui-card-media">
+                    <div class="thumbnail-post" style="background-image: url(<?php echo htmlspecialchars($thumbnailUrl); ?>);"></div>
+                </div>
+        <?php
+            }
         }
-    }
-    ?>
-    <div class="mdui-card-content">
-        <div class="mdui-card-primary-title">
-            <?php GetPost::Title(); ?>
-        </div>
-        <div class="mdui-divider"></div>
-        <div class="mdui-card-actions mdui-card-primary-subtitle" v-html="SubTitle"></div>
-        <div class="mdui-divider"></div>
+        ?>
         <div class="mdui-card-content">
-            <div class="mdui-typo" id="PostContentTypo">
-                <?php GetPost::DB_Content_Html() ?>
+            <div class="mdui-card-primary-title">
+                <?php GetPost::Title(); ?>
+            </div>
+            <div class="mdui-divider"></div>
+            <div class="mdui-card-actions mdui-card-primary-subtitle" v-html="SubTitle"></div>
+            <div class="mdui-divider"></div>
+            <div class="mdui-card-content">
+                <div class="mdui-typo" id="PostContentTypo">
+                    <?php GetPost::DB_Content_Html() ?>
+                </div>
+            </div>
+            <div class="PostContentButton">
+                <div v-html="PostsCopyright"></div>
+                <div class="PostContentButtonSeparator">
+                    THE END
+                </div>
+                <a-space style="margin-bottom: 5px;">
+                    <?php echo $formattedCategory; ?>
+                </a-space>
+                <br>
+                <a-space>
+                    <?php echo $formattedTags; ?>
+                </a-space>
+                <div v-html="PostShare"></div>
             </div>
         </div>
-        <div class="PostContentButton">
-            <div v-html="PostsCopyright"></div>
-            <div class="PostContentButtonSeparator">
-                THE END
-            </div>
-            <a-space style="margin-bottom: 5px;">
-                <?php echo $formattedCategory; ?>
-            </a-space>
-            <br>
-            <a-space>
-                <?php echo $formattedTags; ?>
-            </a-space>
-            <div v-html="PostShare"></div>
-        </div>
-    </div>
-</a-card>
+    </a-card>
+</a-watermark>
