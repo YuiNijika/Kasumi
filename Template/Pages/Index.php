@@ -23,7 +23,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
         </a-col>
         <a-col :xs="24" :sm="24" :md="24" :lg="8" :xl="6" :xxl="6" style="padding: 5px 5px 0px 5px;">
         <div>
-        <a-affix offset-top="80" style="background-color: #fff;">
+        <a-affix offset-top="80">
             <div id="AppRightSidebar">
             </div>
         </div>    

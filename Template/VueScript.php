@@ -98,6 +98,7 @@ function AppRightSidebar() {
             }
         },
         template: `
+        <div style="background-color: #fff;">
             <div style="padding: 0px 10px 0px 10px;">
                 <?php Kasumi::Components('BilibiliPay'); ?>
             </div>
@@ -116,6 +117,7 @@ function AppRightSidebar() {
                 GetPost::unbindArchive();
             } ?>
             </a-list>
+            </div>
         `,
     });
     AppRightSidebar.mount('#AppRightSidebar');
