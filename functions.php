@@ -32,6 +32,8 @@ class Kasumi
             Kasumi::Pages('Post');
         } elseif (Get::Is("page")) {
             Kasumi::Pages('Page');
+        } elseif (Get::Is("archive")) {
+            Kasumi::Pages('Archive');
         } else {
             Kasumi::Pages('Index');
         }
