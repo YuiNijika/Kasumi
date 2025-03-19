@@ -70,22 +70,52 @@ if (Get::Is('post')) {
 <?php } ?>
 
 <?php if (Get::Options('AlertSwitch') === 'open') { ?>
-<script>
-    const Alert = Vue.createApp({
-        data() {
-            return {
-                alertSwitch: "<?php echo htmlspecialchars(Get::Options('AlertSwitch', false), ENT_QUOTES, 'UTF-8'); ?>",
-                alertMode: "<?php echo htmlspecialchars(Get::Options('AlertMode', false), ENT_QUOTES, 'UTF-8'); ?>",
-                alertContent: "<?php echo htmlspecialchars(Get::Options('AlertContent', false), ENT_QUOTES, 'UTF-8'); ?>",
-            };
-        },
-        template: `
+    <script>
+        const Alert = Vue.createApp({
+            data() {
+                return {
+                    alertSwitch: "<?php echo htmlspecialchars(Get::Options('AlertSwitch', false), ENT_QUOTES, 'UTF-8'); ?>",
+                    alertMode: "<?php echo htmlspecialchars(Get::Options('AlertMode', false), ENT_QUOTES, 'UTF-8'); ?>",
+                    alertContent: "<?php echo htmlspecialchars(Get::Options('AlertContent', false), ENT_QUOTES, 'UTF-8'); ?>",
+                };
+            },
+            template: `
             <a-alert v-if="alertSwitch === 'open'" :type="alertMode" banner closable style="margin-bottom: 10px;">{{ alertContent }}</a-alert>
         `,
-    });
-    Alert.mount('#Alert');
-</script>
+        });
+        Alert.mount('#Alert');
+    </script>
 <?php } ?>
+
+<script>
+    const AppRightSidebar = Vue.createApp({
+        data() {
+            return {
+                baseUrl: '<?php echo htmlspecialchars(Get::SiteUrl(false), ENT_QUOTES, 'UTF-8'); ?>?action=api&path=PostList&pageSize=1',
+            }
+        },
+        template: `
+            <div style="padding: 0px 10px 0px 10px;">
+                <?php Kasumi::Components('BilibiliPay'); ?>
+            </div>
+            <a-list size="small">
+            <?php // 获取随机文章列表
+            $randomPosts = GetPost::RandomPosts(10);
+
+            foreach ($randomPosts as $post) {
+                // 绑定当前文章实例
+                GetPost::bindArchive(\Widget\Contents\Post\Edit::alloc($post['cid'])); ?>
+                    <a-list-item><a href="<?php echo $post['permalink']; ?>"><?php echo htmlspecialchars($post['title']); ?></a></a-list-item>
+                <?php
+                // 解绑当前文章实例
+                GetPost::bindArchive(null);
+            } ?>
+                </a-list>
+                
+        `,
+    });
+    AppRightSidebar.mount('#AppRightSidebar');
+</script>
 
 <script>
     const HeaderAppbar = Vue.createApp({
