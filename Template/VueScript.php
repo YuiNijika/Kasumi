@@ -87,6 +87,9 @@ if (Get::Is('post')) {
     </script>
 <?php } ?>
 
+<?php 
+function AppRightSidebar() {
+?>
 <script>
     const AppRightSidebar = Vue.createApp({
         data() {
@@ -99,23 +102,30 @@ if (Get::Is('post')) {
                 <?php Kasumi::Components('BilibiliPay'); ?>
             </div>
             <a-list size="small">
-            <?php // 获取随机文章列表
-            $randomPosts = GetPost::RandomPosts(10);
+            <?php 
+            // 获取随机文章列表，限制输出4篇
+            $randomPosts = GetPost::RandomPosts(4);
 
             foreach ($randomPosts as $post) {
                 // 绑定当前文章实例
-                GetPost::bindArchive(\Widget\Contents\Post\Edit::alloc($post['cid'])); ?>
-                    <a-list-item><a href="<?php echo $post['permalink']; ?>"><?php echo htmlspecialchars($post['title']); ?></a></a-list-item>
-                <?php
+                GetPost::bindArchive(\Widget\Contents\Post\Edit::alloc($post['cid']));
+            ?>
+                <a-list-item><a href="<?php echo htmlspecialchars($post['permalink']); ?>"><?php echo htmlspecialchars($post['title']); ?></a></a-list-item>
+            <?php
                 // 解绑当前文章实例
-                GetPost::bindArchive(null);
+                GetPost::unbindArchive();
             } ?>
-                </a-list>
-                
+            </a-list>
         `,
     });
     AppRightSidebar.mount('#AppRightSidebar');
 </script>
+<?php
+}
+if (Get::Options('IndexStyle') === 'List' || Get::Options('ArchiveStyle') === 'List') { 
+    AppRightSidebar();
+} 
+?>
 
 <script>
     const HeaderAppbar = Vue.createApp({
