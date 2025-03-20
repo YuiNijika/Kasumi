@@ -144,6 +144,7 @@ class DB
         return array_map(function ($post) {
             return [
                 'cid' => $post['cid'],
+                'slug' => $post['slug'],
                 'title' => $post['title'],
                 'permalink' => Typecho_Router::url('post', ['cid' => $post['cid']], Typecho_Common::url('', Helper::options()->index)),
                 'created' => $post['created'],

@@ -184,7 +184,7 @@ function themeConfig($form)
             // 缩略图内容
             'type' => 'Textarea',
             'name' => 'CarouselContent',
-            'value' => null,
+            'value' => 'https://github.com/ShuShuicu/Typecho-Kasumi-Theme|' . GetTheme::Url(false) . '/screenshot.webp',
             'label' => '缩略图图片',
             'description' => '请以 跳转链接|图片链接 的格式输入，每行一个。'
         ],
