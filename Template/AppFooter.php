@@ -10,10 +10,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
     <script src="<?php GetTheme::AssetsUrl() ?>/script.js?ver=<?php GetTheme::Ver(); ?>"></script>
     <script src="<?php GetTheme::AssetsUrl() ?>/mdui/js/mdui.min.js?ver=<?php GetTheme::Ver(); ?>"></script>
     <script src="<?php GetTheme::AssetsUrl() ?>/arco/arco-vue.min.js?ver=<?php GetTheme::Ver(); ?>"></script>
-    <script type="text/javascript">
-        console.log('加载时间<?php GetFunctions::TimerStop(); ?>')
-    </script>
-    <?php Get::Template('VueScript') ?>
+    <?php TTDF_Hook::do_action('load_foot'); ?>
 </body>
 
 </html>

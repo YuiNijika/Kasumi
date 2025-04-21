@@ -5,8 +5,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 <html lang="<?php echo Get::Options('lang', true) ? Get::Options('lang', true) : 'zh-CN' ?>">
 
 <head>
-    <?php TTDF::HeadMeta() ?>
-    <?php TTDF::HeadMetaOG() ?>
+    <?php TTDF_Hook::do_action('load_head'); ?>
     <link rel="canonical" href="<?php Get::PageUrl(true, false, null, true); ?>" />
     <link href="<?php echo Get::Options('FaviconUrl', false) ? Get::Options('FaviconUrl', false) : Get::SiteUrl(false) . 'favicon.ico'; ?>" rel="icon" />
     <link rel="stylesheet" href="<?php GetTheme::AssetsUrl() ?>/main.css?ver=<?php GetTheme::Ver(true); ?>">

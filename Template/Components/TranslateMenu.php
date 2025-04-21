@@ -1,4 +1,4 @@
-<?php 
+<?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 // 获取 TranslationLang 设置项
@@ -87,13 +87,26 @@ if (!is_array($translationLang)) {
 }
 
 // 过滤出选中的语言
-$languages = array_filter($allLanguages, function($code) use ($translationLang) {
+$languages = array_filter($allLanguages, function ($code) use ($translationLang) {
     return in_array($code, $translationLang);
 }, ARRAY_FILTER_USE_KEY);
+?>
+<ul class="mdui-list" mdui-collapse="{accordion: true}">
 
-// 生成语言选项
-foreach ($languages as $code => $name) { ?>
-    <a href="javascript:translate.changeLanguage('<?php echo $code; ?>');" role="menuitem">
-        <a-menu-item class="ignore-translate"><?php echo $name ?></a-menu-item>
-    </a>
-<?php }; ?>
+    <li class="mdui-collapse-item">
+        <div class="mdui-collapse-item-header mdui-list-item mdui-ripple">
+            <i class="mdui-list-item-icon mdui-icon material-icons">language</i>
+            <div class="mdui-list-item-content">页面翻译</div>
+            <i class="mdui-collapse-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+        </div>
+        <ul class="mdui-collapse-item-body mdui-list mdui-list-dense">
+            <?php
+            // 生成语言选项
+            foreach ($languages as $code => $name) { ?>
+                <a href="javascript:translate.changeLanguage('<?php echo $code; ?>');" role="menuitem">
+                    <li class="mdui-list-item mdui-ripple"><?php echo $name ?></li>
+                </a>
+            <?php }; ?>
+        </ul>
+    </li>
+</ul>

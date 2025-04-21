@@ -32,11 +32,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
             ?>
             <li class="mdui-subheader">共有 <?php GetPost::PostsNum() ?> 篇文章</li>
         </ul>
-        <a-sub-menu>
-            <template #icon><icon-bug></icon-bug></template>
-            <template #title>页面翻译</template>
-            <?php kASUMI::Components('TranslateMenu') ?>
-        </a-sub-menu>
+        <?php kASUMI::Components('TranslateMenu') ?>
     </a-menu>
 
 </div>
