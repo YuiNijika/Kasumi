@@ -11,10 +11,23 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  */
 define("THEME_URL", GetTheme::Url(false));
 define("THEME_NAME", GetTheme::Name(false));
-
+// 后台标签文本
+class EchoHtml extends Typecho_Widget_Helper_Layout
+{
+    public function __construct($html)
+    {
+        $this->html($html);
+        $this->start();
+        $this->end();
+    }
+    public function start() {}
+    public function end() {}
+}
 function themeConfig($form)
 {
 ?>
+    <link rel="stylesheet" href="<?php GetTheme::AssetsUrl() ?>/mdui/css/mdui.min.css?ver=<?php GetTheme::Ver(); ?>">
+    <script src="<?php GetTheme::AssetsUrl() ?>/mdui/js/mdui.min.js?ver=<?php GetTheme::Ver(); ?>"></script>
     <style>
         body {
             background: url(<?php GetTheme::Url() ?>/screenshot.webp) no-repeat 0 0;
@@ -40,17 +53,28 @@ function themeConfig($form)
             float: left;
             background-color: #fffbcc;
         }
+
+        .typecho-option-submit li {
+            display: none;
+        }
     </style>
-    <div style="text-align: center;">
-        <h1>Kirakira Dokidoki</h1>
-        <p>感谢使用 Kasumi 主题，这里是主题设置页面，你可以在这里设置一些主题相关的选项。</p>
-        <p>如果你有任何问题或建议，欢迎在 <a href="https://github.com/ShuShuicu/Typecho-Kasumi-Theme/issues">GitHub Issues</a> 进行反馈。</p>
-        <hr>
-        <p>主题版本：<?php GetTheme::Ver(); ?>丨框架版本：<?php TTDF::Ver() ?>丨Typecho版本: <?php TTDF::TypechoVer() ?></p>
-    </div>
-<?php
+    <div class="mdui-card" style="border-radius: 5px;">
+        <div style="text-align: center;">
+            <h1>Kirakira Dokidoki</h1>
+            <p>感谢使用 Kasumi 主题，这里是主题设置页面，你可以在这里设置一些主题相关的选项。</p>
+            <p>如果你有任何问题或建议，欢迎在 <a href="https://github.com/ShuShuicu/Typecho-Kasumi-Theme/issues">GitHub Issues</a> 进行反馈。</p>
+            <hr>
+            <p>主题版本：<?php GetTheme::Ver(); ?>丨框架版本：<?php TTDF::Ver() ?>丨Typecho版本: <?php TTDF::TypechoVer() ?></p>
+        </div>
+        <div class="mdui-tab mdui-tab-centered mdui-tab-full-widt" mdui-tab>
+            <a href="#tab1" class="mdui-ripple">基础设置</a>
+            <a href="#tab2" class="mdui-ripple">其他设置</a>
+        </div>
+    <?php
+    $form->addItem(new EchoHtml('<div class="mdui-card-content">'));
+    $form->addItem(new EchoHtml('<div id="tab1">'));
     // 定义表单元素配置
-    $formElements = [
+    $formElements_1 = [
         [
             // Favicon
             'type' => 'Text',
@@ -115,6 +139,22 @@ function themeConfig($form)
             'label' => '侧边导航',
             'description' => '侧边自定义导航栏，格式为 名称|图标|链接，多个导航请换行。<br>查看图标名称：<a href="https://www.mdui.org/docs/material_icon">https://www.mdui.org/docs/material_icon</a>'
         ],
+    ];
+    // 循环添加表单元素
+    foreach ($formElements_1 as $TTDF) {
+        $form->addInput(TTDF_FormElement(
+            $TTDF['type'],
+            $TTDF['name'],
+            $TTDF['value'] ?? null,
+            $TTDF['label'] ?? '',
+            $TTDF['description'] ?? '',
+            $TTDF['options'] ?? []
+        ));
+    }
+    $form->addItem(new EchoHtml('</div>'));
+    $form->addItem(new EchoHtml('<div id="tab2">'));
+    // 定义表单元素配置
+    $formElements_2 = [
         [
             // 警告提示开关
             'type' => 'Select',
@@ -152,7 +192,7 @@ function themeConfig($form)
             // 轮播图开关
             'type' => 'Select',
             'name' => 'CarouselSwitch',
-            'value' => 'close', 
+            'value' => 'close',
             'label' => '轮播图',
             'description' => '是否启用轮播图',
             'options' => [
@@ -164,7 +204,7 @@ function themeConfig($form)
             // 分类标签是否启用轮播图
             'type' => 'Radio',
             'name' => 'CarouselArchive',
-            'value' => 'open', 
+            'value' => 'open',
             'label' => '分类标签是否启用',
             'description' => '是否在分类标签页面启用轮播图',
             'options' => [
@@ -273,7 +313,7 @@ function themeConfig($form)
         ],
     ];
     // 循环添加表单元素
-    foreach ($formElements as $TTDF) {
+    foreach ($formElements_2 as $TTDF) {
         $form->addInput(TTDF_FormElement(
             $TTDF['type'],
             $TTDF['name'],
@@ -283,4 +323,7 @@ function themeConfig($form)
             $TTDF['options'] ?? []
         ));
     }
+    $form->addItem(new EchoHtml('</div>'));
+    $form->addItem(new EchoHtml('<button type="submit" class="mdui-btn mdui-color-indigo mdui-ripple" style="float: right;margin-bottom: 10px;">保存设置</button></div>'));
+    $form->addItem(new EchoHtml('</div>'));
 }
