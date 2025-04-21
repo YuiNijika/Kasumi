@@ -91,13 +91,44 @@ class TTDF
     public static function HeadMetaOG()
     {
     ?>
-<meta property="og:locale" content="<?php echo Get::Options('lang', true) ? Get::Options('lang', true) : 'zh-CN' ?>" />
+    <meta name="og:description" content="<?php TTDF_SEO_Description(); ?>" />
+    <meta property="og:locale" content="<?php echo Get::Options('lang') ? Get::Options('lang') : 'zh-CN' ?>" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="<?php Get::Options('title', true) ?>" />
     <meta property="og:title" content="<?php TTDF_SEO_Title(); ?>" />
     <meta property="og:url" content="<?php Get::PageUrl(); ?>" />
-    <meta name="keywords" content="<?php TTDF_SEO_Keywords(); ?>" />
-    <meta name="description" content="<?php TTDF_SEO_Description(); ?>" />
 <?php
+    }
+}
+
+/**
+ * 钩子类
+ */
+class TTDF_Hook {
+    private static $actions = [];
+
+    /**
+     * 注册钩子
+     * @param string $hook_name 钩子名称
+     * @param callable $callback 回调函数
+     */
+    public static function add_action($hook_name, $callback) {
+        if (!isset(self::$actions[$hook_name])) {
+            self::$actions[$hook_name] = [];
+        }
+        self::$actions[$hook_name][] = $callback;
+    }
+
+    /**
+     * 执行钩子
+     * @param string $hook_name 钩子名称
+     * @param mixed $args 传递给回调函数的参数
+     */
+    public static function do_action($hook_name, $args = null) {
+        if (isset(self::$actions[$hook_name])) {
+            foreach (self::$actions[$hook_name] as $callback) {
+                call_user_func($callback, $args);
+            }
+        }
     }
 }
