@@ -83,7 +83,6 @@ class TTDF
     <meta name="generator" content="Typecho <?php TTDF::TypechoVer(true) ?>" />
     <meta name="framework" content="TTDF <?php TTDF::Ver(true) ?>" />
     <meta name="template" content="<?php GetTheme::Name(true) ?>" />
-    <link rel="canonical" href="<?php Get::PageUrl(true, false, null, true); ?>" />
 <?php
     }
     /**
@@ -98,6 +97,7 @@ class TTDF
     <meta property="og:site_name" content="<?php Get::Options('title', true) ?>" />
     <meta property="og:title" content="<?php TTDF_SEO_Title(); ?>" />
     <meta property="og:url" content="<?php Get::PageUrl(); ?>" />
+    <link rel="canonical" href="<?php Get::PageUrl(true, false, null, true); ?>" />
 <?php
     }
 }
