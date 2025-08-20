@@ -1,13 +1,13 @@
 <?php
+
 /**
- * Nakano Kasumi Theme
- * 基于TTDF_v2开发的一款简约主题
+ * Kasumi Theme for Typecho.
  * @package Kasumi
  * @author 鼠子(Tomoriゞ)
- * @version 1.0.5
- * @link https://github.com/ShuShuicu/Typecho-Kasumi-Theme
+ * @version 1.0.0
+ * @link https://github.com/YuiNijika/Kasumi
  */
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
-Get::Template('AppHeader');
-Kasumi::Tomori();
-Get::Template('AppFooter');
+Get::Components('AppHeader');
+Get::Components('Index/CardBody');
+Get::Components('AppFooter');

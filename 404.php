@@ -1,21 +1,22 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
-Get::Template('AppHeader');
+
+// 先定义 SEO 信息
+const useSeo = [
+    'title' => '出错啦',
+    'description' => '您访问的页面不存在',
+    'keywords' => '404, error, 错误'
+];
+
+// 确保 Archive 部件已初始化
+$archive = Typecho_Widget::widget('Widget_Archive', array('type' => 'error'));
+
+Get::Components('AppHeader');
 ?>
-<a-card>
-    <a-result status="404">
-        <template #subtitle>
-            返回首页去寻找闪闪亮亮令人心动的东西罢！
-        </template>
-        <template #extra>
-            <a-space>
-                <a href="<?php Get::SiteUrl() ?>">
-                    <a-button type="primary">返回首页</a-button>
-                </a>
-            </a-space>
-        </template>
-    </a-result>
-</a-card>
+<div class="error">
+    <div style="text-align: center;">
+        你似乎来到了没有知识存在的荒原
+    </div>
+</div>
 <?php
-Get::Template('AppFooter');
-?>
+Get::Components('AppFooter');
