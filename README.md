@@ -1,4 +1,4 @@
-# kirakiradokidoki
+# Kirakira Dokidoki
 
 Kasumi Theme for Typecho
 
