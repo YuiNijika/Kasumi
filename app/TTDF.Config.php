@@ -9,7 +9,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  * TTDF Config
  */
 return [
-    'VITE' => true, // 是否启用Vite开发环境
+    'VITE' => false, // 是否启用Vite开发环境
     'DEBUG' => false, // TTDF Debug
     'FIELDS_ENABLED' => true, // 是否启用自定义字段
     'TYAJAX_ENABLED' => false, // 是否启用TyAjax模块
