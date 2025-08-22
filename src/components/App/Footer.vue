@@ -1,4 +1,5 @@
 <script setup>
+import Title from 'ant-design-vue/es/typography/Title'
 import { ref, onMounted } from 'vue'
 
 const title = ref('')
@@ -12,7 +13,7 @@ async function fetchTitleData(url) {
     try {
         const response = await fetch(url)
         const data = await response.json()
-        
+
         if (data.code === 200 && data.data && data.data.value) {
             title.value = data.data.value
         } else {
@@ -31,7 +32,7 @@ async function fetchBackupTitle() {
     try {
         const response = await fetch('/ty-json/options/title')
         const data = await response.json()
-        
+
         if (data.code === 200 && data.data && data.data.value) {
             title.value = data.data.value + ' All right reserved'
         }
@@ -43,9 +44,7 @@ async function fetchBackupTitle() {
 </script>
 
 <template>
-    <div class="card-footer bg-base-200 p-6 rounded-b-box">
-        <div class="flex flex-col items-center">
-            <p class="text-sm">© {{ new Date().getFullYear() }} {{ title }}</p>
-        </div>
-    </div>
+        <aside>
+            <p>Copyright © {{ new Date().getFullYear() }} - All right reserved by {{ title }}</p>
+        </aside>
 </template>

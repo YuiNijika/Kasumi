@@ -20,9 +20,9 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 </head>
 
 <body>
-    <div class="container" id="app">
-        <div class="card bg-base-100 shadow-xl">
-        <header>
-            <?php Get::Components('App/Header'); ?>
-        </header>
-        <main class="card-body">
+    <div id="app">
+    <header>
+        <?php Get::Components('App/Header'); ?>
+    </header>
+    <main class="min-h-screen bg-base-200 pt-16">
+        <div class="mx-auto py-10 px-4">

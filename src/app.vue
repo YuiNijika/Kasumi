@@ -3,21 +3,17 @@
 </script>
 
 <template>
-    <div class="container">
-        <div class="card bg-base-100 shadow-xl">
-            <header>
-                <AppHeader />
-            </header>
-            <main class="card-body">
-                <RouterView />
-            </main>
-            <footer>
-                <AppFooter />
-            </footer>
+    <header>
+        <AppHeader />
+    </header>
+    <main class="min-h-screen bg-base-200 pt-16">
+        <div class="mx-auto py-10 px-4">
+            <RouterView />
         </div>
-    </div>
+    </main>
+    <footer class="footer footer-horizontal footer-center text-base-content rounded p-5">
+        <AppFooter />
+    </footer>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

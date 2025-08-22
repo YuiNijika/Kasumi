@@ -8,7 +8,7 @@ return [
         'name' => 'Thumbnail_Enabled',
         'value' => null, // 默认值为 null
         'label' => '缩略图',
-        'description' => '请选择是否展示缩略图',
+        'description' => '请选择是否展示缩略图<small>(仅在列表模式生效)</small>',
         'options' => [
             true => '启用',
             false => '关闭'

@@ -25,12 +25,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 检查本地存储或系统偏好
     const savedTheme = localStorage.getItem('theme') ||
-        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        (window.matchMedia('(prefers-color-scheme: dracula)').matches ? 'dracula' : 'autumn');
     html.setAttribute('data-theme', savedTheme);
 
     themeToggle.addEventListener('click', function () {
         const currentTheme = html.getAttribute('data-theme');
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        const newTheme = currentTheme === 'dracula' ? 'autumn' : 'dracula';
         html.setAttribute('data-theme', newTheme);
         localStorage.setItem('theme', newTheme);
     });
@@ -38,27 +38,35 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <template>
-    <div class="navbar bg-base-100 rounded-t-box">
+    <div class="navbar bg-base-100 shadow-sm fixed top-0 left-0 right-0 z-50">
         <div class="navbar-start">
-            <a class="btn btn-ghost text-xl font-bold">
-                网站名称
-            </a>
-        </div>
-        <div class="navbar-center hidden lg:flex">
-            <ul class="menu menu-horizontal px-1 gap-1">
-                <AppNavbar />
-            </ul>
-        </div>
-        <div class="navbar-end gap-1">
-            <div class="dropdown dropdown-end">
-                <button class="btn btn-ghost btn-circle" onclick="search.showModal()">
+            <div class="dropdown">
+                <div tabindex="0" role="button" class="btn btn-ghost lg:hidden">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
                         stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            d="M4 6h16M4 12h8m-8 6h16" />
                     </svg>
-                </button>
+                </div>
+                <ul tabindex="0" class="menu menu-sm dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
+                    <AppNavbar />
+                </ul>
             </div>
+            <RouterLink to="/" class="btn btn-ghost text-xl">网站名称</RouterLink>
+        </div>
+        <div class="navbar-center hidden lg:flex">
+            <ul class="menu menu-horizontal px-1">
+                <AppNavbar />
+            </ul>
+        </div>
+        <div class="navbar-end">
+            <button class="btn btn-ghost btn-circle" onclick="search.showModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </button>
             <button class="btn btn-ghost btn-circle" id="theme-toggle">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
@@ -66,19 +74,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
             </button>
-            <div class="dropdown dropdown-end lg:hidden">
-                <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                </div>
-                <ul tabindex="0"
-                    class="menu menu-sm dropdown-content mt-2 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-                    <AppNavbar />
-                </ul>
-            </div>
         </div>
     </div>
     <dialog id="search" class="modal">
@@ -99,6 +94,4 @@ document.addEventListener('DOMContentLoaded', function () {
     </dialog>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

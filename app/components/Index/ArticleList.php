@@ -1,8 +1,7 @@
-<script setup>
-
-</script>
-
-<template>
+<?php
+if (!defined('__TYPECHO_ROOT_DIR__')) exit;
+?>
+<div data-component="Index_ArticleList">
     <article class="card bg-base-100 shadow-md article-card">
         <figure>
             <img src="https://i.imgur.com/9E0ZQxW.jpg" alt="鬼灭之刃" class="w-full h-64 object-cover" />
@@ -55,4 +54,4 @@
             </div>
         </div>
     </article>
-</template>
+</div>

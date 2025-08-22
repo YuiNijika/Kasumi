@@ -20,6 +20,18 @@ if (file_exists(__DIR__ . '/core/Main.php')) {
  */
 class Kasumi
 {
+    public static function themePageInit()
+    {
+        Get::Components('AppHeader');
+        if (Get::Is('index') || Get::Is('archive')) {
+            Get::Components('Index/Body');
+        } elseif (Get::Is('single')) {
+            Get::Components('Post/Body');
+        } else {
+            Get::Components('error');
+        }
+        Get::Components('AppFooter');
+    }
     /**
      * 获取随机缩略图URL
      *

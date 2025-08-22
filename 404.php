@@ -12,11 +12,5 @@ const useSeo = [
 $archive = Typecho_Widget::widget('Widget_Archive', array('type' => 'error'));
 
 Get::Components('AppHeader');
-?>
-<div class="error">
-    <div style="text-align: center;">
-        你似乎来到了没有知识存在的荒原
-    </div>
-</div>
-<?php
+Get::Components('error');
 Get::Components('AppFooter');
