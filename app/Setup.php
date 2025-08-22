@@ -18,21 +18,21 @@ return [
             ],
             [
                 'type' => 'Text',
-                'name' => 'Kasumi_Header_Title',
+                'name' => 'Header_Title',
                 'value' => null,
                 'label' => '顶部标题',
                 'description' => '设置导航栏显示标题, 如果为空则显示网站标题。'
             ],
             [
                 'type' => 'Textarea',
-                'name' => 'Kasumi_Header_Navbar',
+                'name' => 'Header_Navbar',
                 'value' => '首页|' . Get::SiteUrl(false),
                 'label' => '顶部导航',
                 'description' => '请以 text|url 的格式填写, 多个导航请换行。',
             ],
             [
                 'type' => 'Text',
-                'name' => 'Kasumi_Footer_Info',
+                'name' => 'Footer_Info',
                 'value' => null,
                 'label' => '页脚信息',
                 'description' => '自定义页脚信息, 用于替换底部版权站点标题。'
@@ -44,7 +44,7 @@ return [
         'fields' => [
             [
                 'type' => 'Textarea',
-                'name' => 'Kasumi_Thumbnail_Custom',
+                'name' => 'Thumbnail_Custom',
                 'value' => get_theme_file_url('assets/images/thumb/1.webp', false) . "\n" .
                 get_theme_file_url('assets/images/thumb/2.webp', false) . "\n" .
                 get_theme_file_url('assets/images/thumb/3.webp', false) . "\n" .

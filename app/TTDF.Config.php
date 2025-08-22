@@ -9,7 +9,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  * TTDF Config
  */
 return [
-    'VITE' => false, // 是否启用Vite开发环境
+    'VITE' => true, // 是否启用Vite开发环境
     'DEBUG' => false, // TTDF Debug
     'FIELDS_ENABLED' => true, // 是否启用自定义字段
     'TYAJAX_ENABLED' => false, // 是否启用TyAjax模块
@@ -18,7 +18,7 @@ return [
     'REST_API' => [
         'ENABLED' => true, // 是否启用REST API
         'ROUTE' => 'ty-json', // REST API路由
-        'OVERRIDE_SETTING' => false, // 主题设置项名称，用于覆盖REST API开关
+        'OVERRIDE_SETTING' => '', // 主题设置项名称，用于覆盖REST API开关
         'TOKEN' => [
             'ENABLED' => false, // 是否启用Token
             'VALUE' => '1778273540', // Token值

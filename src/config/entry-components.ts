@@ -3,7 +3,9 @@ import App_Header from '../components/App/Header.vue'
 import App_Navbar from '../components/App/Navbar.vue'
 import App_Sidebar from '../components/App/Sidebar.vue'
 import Index_ArticleCard from '../components/Index/ArticleCard.vue'
+import Index_ArticleList from '../components/Index/ArticleList.vue'
 import Index_CardBody from '../components/Index/CardBody.vue'
+import Post_BodyCard from '../components/Post/BodyCard.vue'
 
 // 挂载所有组件的函数
 export function mountAllComponents() {
@@ -32,10 +34,20 @@ export function mountAllComponents() {
     const Index_ArticleCardApp = createApp(Index_ArticleCard);
     Index_ArticleCardApp.mount(el);
   });
+  const Index_ArticleListElements = document.querySelectorAll('[data-component="Index_ArticleList"]');
+  Index_ArticleListElements.forEach(el => {
+    const Index_ArticleListApp = createApp(Index_ArticleList);
+    Index_ArticleListApp.mount(el);
+  });
   const Index_CardBodyElements = document.querySelectorAll('[data-component="Index_CardBody"]');
   Index_CardBodyElements.forEach(el => {
     const Index_CardBodyApp = createApp(Index_CardBody);
     Index_CardBodyApp.mount(el);
+  });
+  const Post_BodyCardElements = document.querySelectorAll('[data-component="Post_BodyCard"]');
+  Post_BodyCardElements.forEach(el => {
+    const Post_BodyCardApp = createApp(Post_BodyCard);
+    Post_BodyCardApp.mount(el);
   });
 }
 
