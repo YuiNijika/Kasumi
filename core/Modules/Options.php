@@ -25,13 +25,16 @@ function TTDF_FormElement($type, $name, $value, $label, $description, $options =
         $element = new $class($name, null, null, _t($label), _t($description));
     }
 
-    // 手动设置元素的值，确保使用我们从ttdf表中获取的值
     if ($savedValue !== null) {
         // 特殊处理复选框值
         if ($type === 'Checkbox' && is_string($savedValue)) {
             $savedValue = explode(',', $savedValue);
         }
+        // 强制设置保存的值，而不是默认值
         $element->value($savedValue);
+    } else if ($value !== null) {
+        // 只有在没有保存值的情况下才使用默认值
+        $element->value($value);
     }
 
     return $element;
@@ -89,6 +92,9 @@ function themeConfig($form)
         header('Content-Type: application/json');
 
         try {
+            // 获取当前主题名
+            $themeName = Helper::options()->theme;
+
             // 获取所有设置项
             $tabs = require __DIR__ . '/../../app/Setup.php';
 
@@ -97,6 +103,8 @@ function themeConfig($form)
                 if (isset($tab['fields'])) {
                     foreach ($tab['fields'] as $field) {
                         if (isset($field['name']) && $field['type'] !== 'Html') {
+                            // 为主题设置项添加主题名前缀
+                            $prefixedName = $themeName . '_' . $field['name'];
                             $value = $_POST[$field['name']] ?? null;
 
                             // 处理复选框的多值情况
@@ -105,7 +113,7 @@ function themeConfig($form)
                             }
 
                             // 保存到数据库
-                            DB::setTtdf($field['name'], $value);
+                            DB::setTtdf($prefixedName, $value);
                         }
                     }
                 }
@@ -119,7 +127,6 @@ function themeConfig($form)
         // 确保脚本终止，不执行后续代码
         exit;
     }
-
 ?>
     <style type="text/css">
         /* Typecho CSS 重置部分 */
