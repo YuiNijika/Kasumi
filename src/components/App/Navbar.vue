@@ -22,11 +22,32 @@ onMounted(() => {
         })
 })
 
-// 解析导航数据
+// 解析导航数据 - 修改为支持逗号或换行空格分割
 function parseNavData(navString) {
     if (!navString) return []
 
-    return navString.split('\n').map(item => {
+    // 先按换行符分割，再按逗号分割
+    let items = []
+    
+    // 按换行符分割
+    const lines = navString.split('\n')
+    
+    lines.forEach(line => {
+        // 如果一行中包含逗号，则按逗号分割
+        if (line.includes(',')) {
+            const commaItems = line.split(',').map(item => item.trim()).filter(item => item)
+            items = items.concat(commaItems)
+        } else {
+            // 否则直接添加整行（去除首尾空格）
+            const trimmedLine = line.trim()
+            if (trimmedLine) {
+                items.push(trimmedLine)
+            }
+        }
+    })
+    
+    // 解析每个项目为 {text, url} 格式
+    return items.map(item => {
         const [text, url] = item.split('|')
         return { text: text?.trim() || '', url: url?.trim() || '#' }
     }).filter(item => item.text)

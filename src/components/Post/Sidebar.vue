@@ -1,5 +1,5 @@
 <script setup>
-const cid = window.pageData?.cid || '1'
+
 </script>
 
 <template>

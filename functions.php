@@ -68,7 +68,7 @@ class Kasumi
         }
 
         // 默认缩略图路径
-        return Helper::options()->siteUrl . Helper::options()->themeUrl . '/assets/images/thumb/thumbnail.svg';
+        return Helper::options()->themeUrl . '/assets/images/thumbnail.svg';
     }
 
     /**

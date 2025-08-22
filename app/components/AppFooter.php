@@ -35,12 +35,12 @@ if (!(TTDF_CONFIG['VITE'] ?? false)) {
     <script type="module" src="<?php get_theme_file_url('assets/dist/components.js?ver=' . get_theme_version(false)); ?>"></script>
 <?php } ?>
 <script>
-    var pageData = {
+    window.pageData = {
         'title': '<?php TTDF_SEO_Title(); ?>',
         'keywords': '<?php TTDF_SEO_Keywords(); ?>',
         'description': '<?php TTDF_SEO_Description(); ?>',
         'url': '<?php Get::PageUrl(true) ?>',
-        'cid': '<?php Kasumi_Footer::cid() ?>'
+        'cid': '<?php Kasumi_Footer::cid() ?>',
         'uid': '<?php Kasumi_Footer::uid() ?>'
     }
 </script>

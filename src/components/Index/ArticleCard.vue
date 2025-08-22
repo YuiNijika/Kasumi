@@ -12,7 +12,7 @@
 
             <a class="link link-hover">Click me</a>
 
-            <h3 class="card-title py-3">
+            <h3 class="card-title py-1">
                 <a href="#">2023年10月新番导视：不容错过的5部作品</a>
             </h3>
 

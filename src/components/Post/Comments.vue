@@ -2,8 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 
 // 从页面获取 cid 和 uid
-const cid = window.pageData?.cid || '1'
-const uid = window.pageData?.uid || '0'
+const cid = ref('')
+const uid = ref('')
 
 // 评论列表数据
 const comments = ref([])
@@ -52,14 +52,20 @@ const sortComments = () => {
 
 // 获取评论列表后添加排序
 const fetchComments = async () => {
+
+    // 确保 cid 已经获取到
+    if (!cid.value) {
+        console.warn('cid 尚未获取到，稍后重试')
+        return
+    }
+
     try {
-        const response = await fetch(`/ty-json/comments/cid/${cid}`)
+        const response = await fetch(`/ty-json/comments/cid/${cid.value}`)
         const result = await response.json()
 
         if (result.code === 200 && result.data) {
             const rawData = Array.isArray(result.data) ? result.data : [result.data]
             comments.value = rawData
-            // 获取评论后立即排序
             sortComments()
         }
     } catch (error) {
@@ -67,6 +73,16 @@ const fetchComments = async () => {
     } finally {
         loading.value = false
     }
+}
+
+// 检查并获取 pageData
+const checkPageData = () => {
+    if (window.pageData) {
+        cid.value = window.pageData.cid || '1'
+        uid.value = window.pageData.uid || '0'
+        return true
+    }
+    return false
 }
 
 // 时间格式化函数
@@ -211,7 +227,32 @@ const isMaxNestedLevel = (comment) => {
 
 // 挂载时获取评论
 onMounted(() => {
-    fetchComments()
+    // 先尝试直接获取
+    if (checkPageData()) {
+        fetchComments()
+    } else {
+        // 如果没有获取到，设置轮询
+        let attempts = 0
+        const maxAttempts = 50 // 最多尝试50次（5秒）
+
+        const pollInterval = setInterval(() => {
+            attempts++
+
+            if (checkPageData()) {
+                // 成功获取到数据
+                clearInterval(pollInterval)
+                fetchComments()
+            } else if (attempts >= maxAttempts) {
+                // 超时处理
+                clearInterval(pollInterval)
+                // 使用默认值
+                cid.value = '1'
+                uid.value = '0'
+                fetchComments()
+                console.warn('无法获取 pageData，使用默认值')
+            }
+        }, 100) // 每100ms检查一次
+    }
 })
 </script>
 
@@ -372,9 +413,10 @@ onMounted(() => {
                                         <div class="chat-header">
                                             <span class="font-bold">{{ child1.author }}</span>
                                             <time class="text-xs opacity-50 ml-2">{{ formatDate(child1.created)
-                                                }}</time>
+                                            }}</time>
                                         </div>
-                                        <div class="chat-bubble break-words whitespace-pre-wrap" v-html="child1.text"></div>
+                                        <div class="chat-bubble break-words whitespace-pre-wrap" v-html="child1.text">
+                                        </div>
                                     </div>
 
                                     <div class="mt-2 ml-4">
@@ -440,9 +482,10 @@ onMounted(() => {
                                                 <div class="chat-header">
                                                     <span class="font-bold">{{ child2.author }}</span>
                                                     <time class="text-xs opacity-50 ml-2">{{ formatDate(child2.created)
-                                                        }}</time>
+                                                    }}</time>
                                                 </div>
-                                                <div class="chat-bubble break-words whitespace-pre-wrap" v-html="child2.text"></div>
+                                                <div class="chat-bubble break-words whitespace-pre-wrap"
+                                                    v-html="child2.text"></div>
                                             </div>
 
                                             <div class="mt-2 ml-4">
