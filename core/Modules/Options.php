@@ -6,7 +6,6 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 /**
-<<<<<<< Updated upstream
  * 辅助创建表单元素
  */
 function TTDF_FormElement($type, $name, $value, $label, $description, $options = [])
@@ -14,12 +13,6 @@ function TTDF_FormElement($type, $name, $value, $label, $description, $options =
     // 获取保存的值
     $savedValue = DB::getTtdf($name, $value);
 
-=======
- * 辅助函数：创建表单元素
- */
-function TTDF_FormElement($type, $name, $value, $label, $description, $options = [])
-{
->>>>>>> Stashed changes
     // 确保 _t() 的参数不为 null
     $label = $label ?? '';
     $description = $description ?? '';
@@ -27,7 +20,6 @@ function TTDF_FormElement($type, $name, $value, $label, $description, $options =
     $class = '\\Typecho\\Widget\\Helper\\Form\\Element\\' . $type;
     if ($type === 'Radio' || $type === 'Select' || $type === 'Checkbox') {
         // Radio、Select、Checkbox 类型需要额外的 options 参数
-<<<<<<< Updated upstream
         $element = new $class($name, $options, null, _t($label), _t($description));
     } else {
         $element = new $class($name, null, null, _t($label), _t($description));
@@ -45,15 +37,6 @@ function TTDF_FormElement($type, $name, $value, $label, $description, $options =
     return $element;
 }
 
-=======
-        return new $class($name, $options, $value, _t($label), _t($description));
-    } else {
-        return new $class($name, null, $value, _t($label), _t($description));
-    }
-}
-
-
->>>>>>> Stashed changes
 if (TTDF_CONFIG['FIELDS_ENABLED']) {
     /**
      * 添加字段
@@ -84,7 +67,6 @@ if (TTDF_CONFIG['FIELDS_ENABLED']) {
     }
 }
 
-<<<<<<< Updated upstream
 // 辅助类用于输出HTML
 class EchoHtml extends Typecho_Widget_Helper_Layout
 {
@@ -98,8 +80,6 @@ class EchoHtml extends Typecho_Widget_Helper_Layout
     public function end() {}
 }
 
-=======
->>>>>>> Stashed changes
 function themeConfig($form)
 {
     // 处理表单提交
