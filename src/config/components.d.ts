@@ -8,17 +8,9 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    AppFooter: typeof import('./../components/App/Footer.vue')['default']
-    AppHeader: typeof import('./../components/App/Header.vue')['default']
     AppNavbar: typeof import('./../components/App/Navbar.vue')['default']
-    Error: typeof import('./../components/error.vue')['default']
-    IndexArticleCard: typeof import('./../components/Index/ArticleCard.vue')['default']
-    IndexArticleList: typeof import('./../components/Index/ArticleList.vue')['default']
     IndexBody: typeof import('./../components/Index/Body.vue')['default']
-    PostArticleCard: typeof import('./../components/Post/ArticleCard.vue')['default']
-    PostBody: typeof import('./../components/Post/Body.vue')['default']
-    PostComments: typeof import('./../components/Post/Comments.vue')['default']
-    PostSidebar: typeof import('./../components/Post/Sidebar.vue')['default']
+    IndexCard: typeof import('./../components/Index/Card.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

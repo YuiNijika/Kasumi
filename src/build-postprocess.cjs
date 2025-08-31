@@ -3,7 +3,7 @@ const path = require('path')
 const { parse } = require('@vue/compiler-sfc')
 const { parse: babelParse } = require('@babel/parser')
 const traverse = require('@babel/traverse').default
-const { UIParserFactory, uiConfig } = require('./ui-parser/index.cjs') 
+const UIParserFactory = require('./ui-parser/index.cjs') 
 
 class VueToPhpConverter {
     constructor(uiParser = UIParserFactory.createParser()) { 
@@ -108,8 +108,8 @@ class VueToPhpConverter {
 
     // 转换 Vue 模板为静态 HTML 模板
     convertToStaticTemplate(templateContent, componentData) {
-        // 使用UI解析器处理模板，传入全局压缩配置
-        return this.uiParser.convertToStaticTemplate(templateContent, componentData, uiConfig.compress)
+        // 使用UI解析器处理模板
+        return this.uiParser.convertToStaticTemplate(templateContent, componentData)
     }
 
     // 生成PHP模板内容

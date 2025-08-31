@@ -1,5 +1,6 @@
 const AntdvParser = require('./antdv.cjs');
 const TailwindParser = require('./tailwind.cjs');
+const MduiParser = require('./mdui.cjs');
 
 const uiConfig = {
     framework: 'tailwind',
@@ -13,6 +14,8 @@ class UIParserFactory {
                 return new AntdvParser();
             case 'tailwind':
                 return new TailwindParser();
+            case 'mdui':
+                return new MduiParser();
             default:
                 throw new Error(`Unsupported UI framework: ${uiConfig.framework}`);
         }

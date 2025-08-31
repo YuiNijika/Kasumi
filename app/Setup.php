@@ -8,50 +8,54 @@ return [
             [
                 'type' => 'Text',
                 'name' => 'SubTitle',
-                'value' => null,
+                'value' => '由 Kasumi 主题强力驱动',
                 'label' => '副标题',
                 'description' => '设置网站副标题，如果为空则不显示。'
             ],
             [
                 'type' => 'AddList',
-                'name' => 'Header_Navbar',
-                'value' => '首页|' . Get::SiteUrl(false),
-                'label' => '顶部导航',
-                'description' => '请以 text|url 的格式填写。',
+                'name' => 'navbar_link',
+                'value' => '首页|home|' . Get::SiteUrl(false),
+                'label' => '导航栏链接',
+                'description' => '添加导航栏链接，格式为：名称|图标|链接'
             ],
             [
-                'type' => 'Text',
-                'name' => 'Footer_Info',
-                'value' => null,
-                'label' => '页脚信息',
-                'description' => '自定义页脚信息, 用于替换底部版权站点标题。'
+                'type' => 'DialogSelect',
+                'name' => 'theme_style',
+                'value' => 'theme1',
+                'label' => '主题选择',
+                'description' => '点击按钮打开对话框选择主题，支持单选模式。',
+                'title' => '选择主题',
+                'multiple' => false,
+                'options' => [
+                    'default' => '默认主题',
+                    'blue' => '蓝色主题',
+                    'pink' => '粉色主题',
+                    'green' => '绿色主题',
+                    'yellow' => '黄色主题',
+                    'orange' => '橙色主题',
+                    'red' => '红色主题',
+                    'purple' => '紫色主题',
+                    'white' => '白色主题',
+                ]
             ],
         ]
     ],
-    '文章功能' => [
-        'title' => '文章功能',
+    'index' => [
+        'title' => '首页设置',
         'fields' => [
             [
-                'type' => 'AddList',
-                'name' => 'Thumbnail_Custom',
-                'value' => get_theme_file_url('assets/images/thumb/1.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/2.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/3.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/4.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/5.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/6.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/7.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/8.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/9.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/10.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/11.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/12.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/13.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/14.webp', false) . ',' .
-                    get_theme_file_url('assets/images/thumb/15.webp', false),
-                'label' => '自定义缩略图',
-                'description' => '自定义缩略图, 请输入图片链接, 每行一个, 默认使用随机图片。'
-            ]
+                'type' => 'Radio',
+                'name' => 'index_card_style',
+                'value' => 'small',
+                'label' => '文章列表',
+                'layout' => 'horizontal',
+                'description' => '设置首页文章列表卡片的样式。',
+                'options' => [
+                    'small' => '小卡片',
+                    'big' => '大卡片',
+                ]
+            ],
         ]
-    ]
+    ],
 ];

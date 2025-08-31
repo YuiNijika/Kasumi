@@ -1,55 +1,34 @@
-.card-title a {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-overflow: ellipsis;
+@charset "utf-8";
+/* 
+    Typecho Theme Development Framework
+    TTDF · 一个面向小白简单易懂的Typecho主题模板开发框架
+    Copyright 2025 鼠子Tomoriゞ
+    https://github.com/YuiNijika/Typecho-Theme-Development-Framework
+*/
+.sidebar {
+    height: 100dvh; /* 使用动态视口高度 */
+    transition: transform 0.3s ease;
 }
-/* 按钮 */
-.btn-anime {
-    background-color: hsl(var(--p));
-    color: hsl(var(--pc));
-    border: none;
-    border-radius: 50px;
-    padding: 0.5rem 1.5rem;
-    font-weight: bold;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    transition: all 0.2s ease;
+.main-content {
+    transition: margin-left 0.3s ease;
 }
-
-.btn-anime:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
-}
-
-/* 文章卡片悬停效果 */
-.article-card {
-    transition: all 0.3s ease;
-}
-
-.article-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-}
-
-.article-card .card-body {
-    padding: var(--card-p, 1.0rem);
-}
-
-.article-card figure img {
-    border-radius: 14px;
-}
-
-/* 侧边栏吸附效果 */
-.sidebar-container {
-    position: relative;
-    height: 100%;
-}
-
-.sticky-sidebar {
-    position: sticky;
-    top: 80px;
-    bottom: 20px;
-    overflow-y: auto;
-    max-height: calc(100vh - 40px);
+@media (max-width: 1024px) {
+    .sidebar {
+        position: fixed;
+        z-index: 50;
+        transform: translateX(-100%);
+    }
+    .sidebar.active {
+        transform: translateX(0);
+    }
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background-color: rgba(0,0,0,0.5);
+        z-index: 40;
+    }
+    .sidebar-overlay.active {
+        display: block;
+    }
 }

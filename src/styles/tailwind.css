@@ -3,6 +3,4 @@
  * 在build后需要手动引入样式文件不然不会生效
 */
 @import "tailwindcss";
-@plugin "daisyui" {
-  themes: all;
-}
+@plugin "daisyui";

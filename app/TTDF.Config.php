@@ -10,15 +10,15 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  */
 return [
     'VITE' => false, // 是否启用Vite开发环境
-    'DEBUG' => false, // TTDF Debug
-    'FIELDS_ENABLED' => true, // 是否启用自定义字段
+    'DEBUG' => true, // TTDF Debug
+    'FIELDS_ENABLED' => false, // 是否启用自定义字段
     'TYAJAX_ENABLED' => false, // 是否启用TyAjax模块
     'COMPRESS_HTML' => true, // 是否启用HTML压缩
     'GRAVATAR_PREFIX' => 'https://cravatar.cn/avatar/', // Gravatar前缀
     'REST_API' => [
         'ENABLED' => true, // 是否启用REST API
         'ROUTE' => 'ty-json', // REST API路由
-        'OVERRIDE_SETTING' => '', // 主题设置项名称，用于覆盖REST API开关
+        'OVERRIDE_SETTING' => null, // 主题设置项名称，用于覆盖REST API开关
         'TOKEN' => [
             'ENABLED' => false, // 是否启用Token
             'VALUE' => '1778273540', // Token值
@@ -37,4 +37,4 @@ return [
             'Access-Control-Allow-Methods' => 'GET,POST', // 请求方法
         ],
     ]
-];  
+];

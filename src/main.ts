@@ -10,6 +10,12 @@ if (uiConfig.framework === 'antdv') {
     import('ant-design-vue/dist/reset.css');
 } else if (uiConfig.framework === 'tailwind') {
     import('./styles/tailwind.css');
+} else if (uiConfig.framework === 'mdui') {
+    import('mdui/dist/css/mdui.min.css');
+    // @ts-ignore
+    import('mdui/dist/js/mdui.min.js').then(() => {
+        // 如果需要使用 mdui 的初始化逻辑，可以在这里调用
+    });
 }
 
 // 自动导入 components 目录下的所有 vue 组件

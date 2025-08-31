@@ -1,50 +1,36 @@
 /**
     这是全局css，仅在开发时使用，不会被构建
 */
-.card-title a {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-/* 按钮 */
-.btn-anime {
-    background-color: hsl(var(--p));
-    color: hsl(var(--pc));
-    border: none;
-    border-radius: 50px;
-    padding: 0.5rem 1.5rem;
-    font-weight: bold;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    transition: all 0.2s ease;
+.sidebar {
+    height: 100dvh;
+    /* 使用动态视口高度 */
+    transition: transform 0.3s ease;
 }
 
-.btn-anime:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+.main-content {
+    transition: margin-left 0.3s ease;
 }
 
-/* 文章卡片悬停效果 */
-.article-card {
-    transition: all 0.3s ease;
-}
+@media (max-width: 1024px) {
+    .sidebar {
+        position: fixed;
+        z-index: 50;
+        transform: translateX(-100%);
+    }
 
-.article-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-}
+    .sidebar.active {
+        transform: translateX(0);
+    }
 
-/* 侧边栏吸附效果 */
-.sidebar-container {
-    position: relative;
-    height: 100%;
-}
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 40;
+    }
 
-.sticky-sidebar {
-    position: sticky;
-    top: 80px;
-    bottom: 20px;
-    overflow-y: auto;
-    max-height: calc(100vh - 40px);
+    .sidebar-overlay.active {
+        display: block;
+    }
 }

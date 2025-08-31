@@ -7,7 +7,7 @@ class Kasumi_Footer
         if (Get::Is('single')) {
             GetPost::Cid(true);
         } else {
-            echo '2';
+            echo '0';
         }
     }
     public static function uid()
@@ -18,30 +18,54 @@ class Kasumi_Footer
             echo '0';
         }
     }
+
+    public static function getUserUid()
+    {
+        if (GetUser::Login(false)) {
+            return GetUser::Uid(false);
+        }
+        return '0';
+    }
+
+    public static function SubTitle()
+    {
+        if (Get::Is('single') || Get::Is('category') || Get::Is('tag')) {
+            GetPost::Title(true);
+        } elseif (Get::Is('search')) {
+            echo '搜索结果';
+        } else {
+            echo Get::Options('SubTitle', false) ?: '首页';
+        }
+    }
 }
 ?>
 </div>
 </main>
-<footer class="footer footer-horizontal footer-center text-base-content rounded p-5">
-    <?php Get::Components('App/Footer'); ?>
-</footer>
 </div>
+<script src="<?php get_theme_file_url('assets/main.js?ver=' . get_theme_version(false)); ?>"></script>
+<script src="<?php get_theme_file_url('assets/browser.js?ver=' . get_theme_version(false)); ?>"></script>
+<script src="<?php get_theme_file_url('assets/motyf.js?ver=' . get_theme_version(false)); ?>"></script>
+<script src="<?php get_theme_file_url('assets/nprogress.min.js?ver=' . get_theme_version(false)); ?>"></script>
 <?php
 TTDF_Hook::do_action('load_foot');
 if (!(TTDF_CONFIG['VITE'] ?? false)) {
 ?>
-    <script src="<?php get_theme_file_url('assets/main.js?ver=' . get_theme_version(false)); ?>"></script>
-    <script src="<?php get_theme_file_url('assets/browser.js?ver=' . get_theme_version(false)); ?>"></script>
-    <script type="module" src="<?php get_theme_file_url('assets/dist/components.js?ver=' . get_theme_version(false)); ?>"></script>
+<script type="module" src="<?php get_theme_file_url('assets/dist/components.js?ver=' . get_theme_version(false)); ?>"></script>
 <?php } ?>
 <script>
-    window.pageData = {
-        'title': '<?php TTDF_SEO_Title(); ?>',
-        'keywords': '<?php TTDF_SEO_Keywords(); ?>',
-        'description': '<?php TTDF_SEO_Description(); ?>',
-        'url': '<?php Get::PageUrl(true) ?>',
-        'cid': '<?php Kasumi_Footer::cid() ?>',
-        'uid': '<?php Kasumi_Footer::uid() ?>'
+    window.Kasumi = {
+        'site': {
+            'title': '<?php Get::SiteName(true) ?>',
+            'subTitle': '<?php Kasumi_Footer::SubTitle() ?>',
+            'url': '<?php Get::SiteUrl(true) ?>',
+        },
+        'page': {
+            'url': '<?php Get::PageUrl(true) ?>',
+            'cid': '<?php Kasumi_Footer::cid() ?>',
+        },
+        'user': {
+            'status': '<?php GetUser::Login(true) ?>'
+        }
     }
 </script>
 </body>
