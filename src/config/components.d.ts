@@ -9,8 +9,16 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AppNavbar: typeof import('./../components/App/Navbar.vue')['default']
+    Error: typeof import('./../components/Error.vue')['default']
+    ErrorBody: typeof import('./../components/ErrorBody.vue')['default']
     IndexBody: typeof import('./../components/Index/Body.vue')['default']
     IndexCard: typeof import('./../components/Index/Card.vue')['default']
+    PostBody: typeof import('./../components/Post/Body.vue')['default']
+    PostCard: typeof import('./../components/Post/Card.vue')['default']
+    PostComment: typeof import('./../components/Post/Comment.vue')['default']
+    PostComments: typeof import('./../components/Post/Comments.vue')['default']
+    PostCommon: typeof import('./../components/Post/Common.vue')['default']
+    PostSidebar: typeof import('./../components/Post/Sidebar.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

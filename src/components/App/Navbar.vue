@@ -5,6 +5,8 @@ const title = ref('')
 const subTitle = ref('')
 const url = ref('')
 const KasumiData = ref({})
+const navLinks = ref([])
+const drawerNavLinks = ref([]) 
 
 const log = `
        　  　▃▆█▇▄▖
@@ -18,6 +20,7 @@ const log = `
 ◥██◣　　　　◢▄◤
  　　▀██▅▇▀    
 `
+
 onMounted(() => {
     console.log(log)
     if (typeof window !== 'undefined' && window.Kasumi && window.Kasumi.site?.title) {
@@ -36,6 +39,12 @@ onMounted(() => {
     if (typeof window !== 'undefined' && window.Kasumi) {
         KasumiData.value = window.Kasumi
     }
+    
+    // 获取导航链接数据
+    fetchNavLinks('/ty-json/options/header_navbar_link')
+    
+    // 获取抽屉导航链接数据
+    fetchDrawerNavLinks('/ty-json/options/drawer_navbar_link')
 })
 
 // 获取标题数据的函数
@@ -48,17 +57,83 @@ async function fetchTitleData(url) {
             title.value = data.data.value
         } else {
             // 如果状态码不是200或数据为空
-            if (typeof window !== 'undefined' && window.Qmsg) {
-                window.Qmsg.error('标题获取失败')
+            if (typeof window !== 'undefined' && window.motyf) {
+                window.motyf.error('标题获取失败')
             }
             title.value = '标题获取失败'
         }
     } catch (error) {
-        if (typeof window !== 'undefined' && window.Qmsg) {
-            window.Qmsg.error('标题获取失败')
+        if (typeof window !== 'undefined' && window.motyf) {
+            window.motyf.error('标题获取失败')
         }
         console.error('获取标题数据失败:', error)
         title.value = '标题获取失败'
+    }
+}
+
+// 获取导航链接数据的函数
+async function fetchNavLinks(url) {
+    try {
+        const response = await fetch(url)
+        const data = await response.json()
+
+        if (data.code === 200 && data.data && data.data.value) {
+            // 解析导航链接数据
+            const links = data.data.value.split(',').map(item => {
+                const [name, link] = item.split('|')
+                return { name, link }
+            })
+            navLinks.value = links
+        } else {
+            // 如果状态码不是200或数据为空
+            if (typeof window !== 'undefined' && window.motyf) {
+                window.motyf.error('导航链接获取失败')
+            }
+        }
+    } catch (error) {
+        if (typeof window !== 'undefined' && window.motyf) {
+            window.motyf.error('导航链接获取失败')
+        }
+        console.error('获取导航链接数据失败:', error)
+    }
+}
+
+// 获取抽屉导航链接数据的函数
+async function fetchDrawerNavLinks(url) {
+    try {
+        const response = await fetch(url)
+        const data = await response.json()
+
+        if (data.code === 200 && data.data && data.data.value) {
+            // 解析导航链接数据
+            const links = data.data.value.split(',').map(item => {
+                const [name, link] = item.split('|')
+                return { name, link }
+            })
+            drawerNavLinks.value = links
+        } else {
+            // 如果状态码不是200或数据为空
+            if (typeof window !== 'undefined' && window.motyf) {
+                window.motyf.error('抽屉导航链接获取失败')
+            }
+        }
+    } catch (error) {
+        if (typeof window !== 'undefined' && window.motyf) {
+            window.motyf.error('抽屉导航链接获取失败')
+        }
+        console.error('获取抽屉导航链接数据失败:', error)
+    }
+}
+
+// 判断链接是否为当前网站
+function isExternalLink(link) {
+    try {
+        const currentDomain = window.location.hostname
+        const linkDomain = new URL(link).hostname
+        return currentDomain !== linkDomain
+    } catch (e) {
+        // 如果链接格式不正确，当作外部链接处理
+        return true
     }
 }
 </script>
@@ -76,12 +151,21 @@ async function fetchTitleData(url) {
                     </svg>
                 </label>
             </div>
-            <div class="mx-2 flex-1 px-2">{{ title }}</div>
+            <div class="mx-2 flex-1 px-2">
+                <a href="/">{{ title }}</a>
+            </div>
             <div class="navbar-end">
                 <div class="hidden flex-none lg:block">
                     <ul class="menu menu-horizontal">
-                        <li><a>Navbar Item 1</a></li>
-                        <li><a>Navbar Item 2</a></li>
+                        <li v-for="(link, index) in navLinks" :key="index">
+                            <a 
+                                :href="link.link" 
+                                :target="isExternalLink(link.link) ? '_blank' : '_self'"
+                                :rel="isExternalLink(link.link) ? 'noopener noreferrer' : undefined"
+                            >
+                                {{ link.name }}
+                            </a>
+                        </li>
                     </ul>
                 </div>
                 <button class="btn btn-ghost btn-circle" id="theme-toggle">
@@ -97,8 +181,15 @@ async function fetchTitleData(url) {
         <div class="drawer-side">
             <label for="my-drawer-3" aria-label="close sidebar" class="drawer-overlay"></label>
             <ul class="menu bg-base-200 min-h-full w-80 mt-16 p-4">
-                <li><a>Sidebar Item 1</a></li>
-                <li><a>Sidebar Item 2</a></li>
+                <li v-for="(link, index) in drawerNavLinks" :key="index">
+                    <a 
+                        :href="link.link" 
+                        :target="isExternalLink(link.link) ? '_blank' : '_self'"
+                        :rel="isExternalLink(link.link) ? 'noopener noreferrer' : undefined"
+                    >
+                        {{ link.name }}
+                    </a>
+                </li>
             </ul>
         </div>
     </div>

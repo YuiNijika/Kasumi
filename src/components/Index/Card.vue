@@ -6,12 +6,10 @@
         </figure>
         <div class="card-body">
             <a class="link link-hover">Click me</a>
-            <div class="tooltip" data-tip="hello">
+
             <h3 class="card-title py-1">
-                
                 <a href="#" class="truncate">2023年10月新番导视：不容错过的5部作品</a>
-                
-            </h3></div>
+            </h3>
 
             <div class="card-actions justify-between">
                 <div class="flex items-center gap-2">

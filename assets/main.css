@@ -5,30 +5,3 @@
     Copyright 2025 鼠子Tomoriゞ
     https://github.com/YuiNijika/Typecho-Theme-Development-Framework
 */
-.sidebar {
-    height: 100dvh; /* 使用动态视口高度 */
-    transition: transform 0.3s ease;
-}
-.main-content {
-    transition: margin-left 0.3s ease;
-}
-@media (max-width: 1024px) {
-    .sidebar {
-        position: fixed;
-        z-index: 50;
-        transform: translateX(-100%);
-    }
-    .sidebar.active {
-        transform: translateX(0);
-    }
-    .sidebar-overlay {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background-color: rgba(0,0,0,0.5);
-        z-index: 40;
-    }
-    .sidebar-overlay.active {
-        display: block;
-    }
-}
