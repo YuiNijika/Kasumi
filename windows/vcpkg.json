@@ -1,0 +1,8 @@
+{
+  "name": "kasumi-windows",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "nlohmann-json",
+    "webview2"
+  ]
+}

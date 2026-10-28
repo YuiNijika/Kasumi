@@ -1,0 +1,12 @@
+{
+  "INVALID_ARGS": "Arguments do not match the command schema.",
+  "UNKNOWN_COMMAND": "The command is not registered.",
+  "PERMISSION_DENIED": "The requested permission was denied.",
+  "NOT_SUPPORTED": "The command is not supported on this platform.",
+  "NOT_FOUND": "The requested resource was not found.",
+  "IO_ERROR": "The operation failed because of an I/O error.",
+  "CANCELLED": "The request was cancelled.",
+  "TIMEOUT": "The request timed out.",
+  "BUSY": "The requested resource is busy.",
+  "INTERNAL_ERROR": "The operation failed unexpectedly."
+}

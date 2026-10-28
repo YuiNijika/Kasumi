@@ -1,0 +1,8 @@
+.env
+.workbuddy/
+.temp/
+frontend/node_modules/
+windows/build/
+android/.gradle/
+android/build/
+android/app/build/

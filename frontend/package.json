@@ -1,0 +1,13 @@
+{
+  "name": "@kasumi/bridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen": "python ../tools/codegen.py",
+    "validate:protocol": "python ../tools/validate_protocol.py",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Kasumi permission contract",
+  "type": "object",
+  "properties": {
+    "fs.read": {"type": "object", "description": "Read files inside the Kasumi virtual filesystem.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "fs.write": {"type": "object", "description": "Write files inside the Kasumi virtual filesystem.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "fs.remove": {"type": "object", "description": "Remove files inside the Kasumi virtual filesystem.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "dialog": {"type": "object", "description": "Show native dialogs and file pickers.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "clipboard.read": {"type": "object", "description": "Read text from the system clipboard.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "clipboard.write": {"type": "object", "description": "Write text to the system clipboard.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "notification.show": {"type": "object", "description": "Show a system notification.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "window.control": {"type": "object", "description": "Control the host window or application lifecycle.", "required": ["description"], "properties": {"description": {"type": "string"}}}
+  },
+  "additionalProperties": false
+}

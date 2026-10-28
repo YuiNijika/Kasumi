@@ -1,0 +1,51 @@
+name: Kasumi CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache-dependency-path: frontend/package.json
+      - run: pnpm --dir frontend install --no-frozen-lockfile
+      - run: pnpm --dir frontend run codegen
+      - run: pnpm --dir frontend run validate:protocol
+      - run: pnpm --dir frontend run typecheck
+      - run: pnpm --dir frontend exec tsc --noEmit -p ../tests/tsconfig.json
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/vcpkg
+      - run: cmake -S windows -B windows/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+      - run: cmake --build windows/build --config Release
+      - run: ctest --test-dir windows/build -C Release --output-on-failure
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache-dependency-path: frontend/package.json
+      - run: pnpm --dir frontend install --no-frozen-lockfile
+      - run: pnpm --dir frontend run codegen
+      - run: pnpm --dir frontend run validate:protocol
+      - run: pnpm --dir frontend run typecheck
+      - run: pnpm --dir frontend exec tsc --noEmit -p ../tests/tsconfig.json
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.14.3
+      - run: gradle -p android testDebugUnitTest assembleDebug

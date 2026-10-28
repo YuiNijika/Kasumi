@@ -1,0 +1,725 @@
+#include "ksm_router.h"
+
+#include <algorithm>
+#include <nlohmann/json.hpp>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "../commands/ksm_filesystem.h"
+#include "../commands/ksm_phase1.h"
+#include "../generated/contract.h"
+#include "../platform/ksm_host_services.h"
+#include "../platform/ksm_virtual_path.h"
+#include "ksm_command_registry.h"
+
+namespace {
+
+using Json = nlohmann::json;
+
+const std::set<std::string> kKnownPermissions = {
+    "fs.read",
+    "fs.write",
+    "fs.remove",
+    "dialog",
+    "clipboard.read",
+    "clipboard.write",
+    "notification.show",
+    "window.control"
+};
+
+void SendError(
+    const Json& id,
+    const std::string& code,
+    const std::string& message,
+    const KSMRouter::ResponseSender& send_response
+) {
+    send_response(Json{
+        {"type", "response"},
+        {"id", id},
+        {"ok", false},
+        {"error", {{"code", code}, {"message", message}}}
+    }.dump());
+}
+
+void SendSuccess(
+    const Json& id,
+    const Json& data,
+    const KSMRouter::ResponseSender& send_response
+) {
+    send_response(Json{
+        {"type", "response"},
+        {"id", id},
+        {"ok", true},
+        {"data", data}
+    }.dump());
+}
+
+bool IsString(const Json& args, const char* field) {
+    return args.contains(field) && args.at(field).is_string();
+}
+
+}
+
+KSMRouter::KSMRouter(
+    std::shared_ptr<KSMFileSystem> file_system,
+    std::shared_ptr<KSMHostServices> host_services
+)
+    : file_system_(std::move(file_system)),
+      host_services_(std::move(host_services)),
+      granted_permissions_(kKnownPermissions) {
+}
+
+bool KSMRouter::HasPermission(const std::string& permission) const {
+    std::lock_guard lock(state_mutex_);
+    return granted_permissions_.find(permission) != granted_permissions_.end();
+}
+
+void KSMRouter::EmitEvent(
+    const std::string& event,
+    const std::string& payload_json,
+    const ResponseSender& send_response
+) const {
+    {
+        std::lock_guard lock(state_mutex_);
+        if (subscribed_events_.find(event) == subscribed_events_.end()) {
+            return;
+        }
+    }
+    Json payload = Json::parse(payload_json, nullptr, false);
+    if (payload.is_discarded()) {
+        payload = Json::object();
+    }
+    send_response(Json{
+        {"type", "event"},
+        {"event", event},
+        {"payload", payload}
+    }.dump());
+}
+
+void KSMRouter::HandleMessage(
+    const std::string& message,
+    const ResponseSender& send_response
+) {
+    if (message.size() > 64 * 1024) {
+        SendError(
+            nullptr,
+            "INVALID_ARGS",
+            "Request exceeds the 64KB message limit.",
+            send_response
+        );
+        return;
+    }
+
+    try {
+        const Json request = Json::parse(message);
+        if (!request.is_object()) {
+            SendError(nullptr, "INVALID_ARGS", "Request must be an object.", send_response);
+            return;
+        }
+
+        const Json id = request.contains("id") ? request.at("id") : Json(nullptr);
+        if (
+            request.contains("type") &&
+            request.at("type").is_string() &&
+            request.at("type") == "cancel"
+        ) {
+            return;
+        }
+        if (
+            !request.contains("type") ||
+            !request.at("type").is_string() ||
+            request.at("type") != "request" ||
+            !request.contains("id") ||
+            !request.contains("cmd") ||
+            !request.at("cmd").is_string() ||
+            !request.contains("args") ||
+            !request.at("args").is_object()
+        ) {
+            SendError(
+                id,
+                "INVALID_ARGS",
+                "Request fields are invalid.",
+                send_response
+            );
+            return;
+        }
+
+        const std::string command = request.at("cmd").get<std::string>();
+        const Json& args = request.at("args");
+
+        const auto& known_commands = KSMGeneratedContract::Commands();
+        if (std::find(known_commands.begin(), known_commands.end(), command) == known_commands.end()) {
+            SendError(
+                id,
+                "UNKNOWN_COMMAND",
+                "The command is not registered.",
+                send_response
+            );
+            return;
+        }
+        if (!KSMGeneratedContract::ValidateArgs(command, args)) {
+            SendError(
+                id,
+                "INVALID_ARGS",
+                "Arguments do not match the command schema.",
+                send_response
+            );
+            return;
+        }
+
+        if (command == "ping") {
+            SendSuccess(
+                id,
+                Json{{"pong", KSM::Phase1::Ping().pong}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "capabilities.query") {
+            Json permissions = Json::array();
+            {
+                std::lock_guard lock(state_mutex_);
+                for (const auto& permission : granted_permissions_) {
+                    permissions.push_back(permission);
+                }
+            }
+            SendSuccess(
+                id,
+                Json{
+                    {"platform", "windows"},
+                    {"commands", KSMCommandRegistry::SupportedCommands()},
+                    {"permissions", permissions}
+                },
+                send_response
+            );
+            return;
+        }
+
+        if (command == "app.getInfo") {
+            const std::string version = host_services_
+                ? host_services_->AppVersion()
+                : "0.1.0";
+            const std::string language = host_services_
+                ? host_services_->Language()
+                : "en-US";
+            SendSuccess(
+                id,
+                Json{
+                    {"name", "Kasumi"},
+                    {"version", version},
+                    {"platform", "windows"},
+                    {"language", language}
+                },
+                send_response
+            );
+            return;
+        }
+
+        if (command == "permission.request") {
+            if (
+                !IsString(args, "permission") ||
+                args.at("permission").get<std::string>().empty()
+            ) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "permission is required.",
+                    send_response
+                );
+                return;
+            }
+            const std::string permission = args.at("permission").get<std::string>();
+            const bool known = kKnownPermissions.find(permission) != kKnownPermissions.end();
+            if (known) {
+                std::lock_guard lock(state_mutex_);
+                granted_permissions_.insert(permission);
+            }
+            SendSuccess(id, Json{{"granted", known}}, send_response);
+            return;
+        }
+
+        if (command == "event.subscribe" || command == "event.unsubscribe") {
+            if (!IsString(args, "event") || args.at("event").get<std::string>().empty()) {
+                SendError(id, "INVALID_ARGS", "event is required.", send_response);
+                return;
+            }
+            const std::string event = args.at("event").get<std::string>();
+            const auto& known_events = KSMGeneratedContract::Events();
+            if (std::find(known_events.begin(), known_events.end(), event) == known_events.end()) {
+                SendError(id, "INVALID_ARGS", "event is not registered.", send_response);
+                return;
+            }
+            if (command == "event.subscribe") {
+                {
+                    std::lock_guard lock(state_mutex_);
+                    subscribed_events_.insert(event);
+                }
+                SendSuccess(id, Json{{"subscribed", true}}, send_response);
+            } else {
+                {
+                    std::lock_guard lock(state_mutex_);
+                    subscribed_events_.erase(event);
+                }
+                SendSuccess(id, Json{{"unsubscribed", true}}, send_response);
+            }
+            return;
+        }
+
+        if (command == "fs.readText" ||
+            command == "fs.writeText" ||
+            command == "fs.exists" ||
+            command == "fs.remove") {
+            if (!file_system_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The filesystem is not configured.",
+                    send_response
+                );
+                return;
+            }
+            const char* permission = "fs.read";
+            if (command == "fs.writeText") {
+                permission = "fs.write";
+            } else if (command == "fs.remove") {
+                permission = "fs.remove";
+            }
+            if (!HasPermission(permission)) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            if (!IsString(args, "path") || args.at("path").get<std::string>().empty()) {
+                SendError(id, "INVALID_ARGS", "path is required.", send_response);
+                return;
+            }
+            const std::string path = args.at("path").get<std::string>();
+            if (!KSMVirtualPath::IsSafe(path)) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The path is outside the sandbox.",
+                    send_response
+                );
+                return;
+            }
+            const bool is_picked = KSMVirtualPath::IsPicked(path);
+            if (is_picked && !host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The picked file service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (command == "fs.readText") {
+                const auto value = is_picked
+                    ? host_services_->ReadPickedText(path)
+                    : file_system_->ReadText(path);
+                if (!value) {
+                    SendError(id, "NOT_FOUND", "The file was not found.", send_response);
+                    return;
+                }
+                SendSuccess(id, Json{{"text", *value}}, send_response);
+                return;
+            }
+            if (command == "fs.writeText") {
+                const bool written = is_picked
+                    ? host_services_->WritePickedText(
+                        path,
+                        args.at("content").get<std::string>()
+                    )
+                    : file_system_->WriteText(
+                        path,
+                        args.at("content").get<std::string>()
+                    );
+                if (!written) {
+                    SendError(
+                        id,
+                        "IO_ERROR",
+                        "The file could not be written.",
+                        send_response
+                    );
+                    return;
+                }
+                SendSuccess(id, Json{{"written", true}}, send_response);
+                return;
+            }
+            if (command == "fs.exists") {
+                SendSuccess(
+                    id,
+                    Json{{"exists", is_picked
+                        ? host_services_->PickedExists(path)
+                        : file_system_->Exists(path)}},
+                    send_response
+                );
+                return;
+            }
+            SendSuccess(
+                id,
+                Json{{"removed", is_picked
+                    ? host_services_->RemovePicked(path)
+                    : file_system_->Remove(path)}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "dialog.message" || command == "dialog.confirm") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The dialog service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("dialog")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            if (!IsString(args, "title") || !IsString(args, "message")) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "title and message are required.",
+                    send_response
+                );
+                return;
+            }
+            const std::string title = args.at("title").get<std::string>();
+            const std::string message = args.at("message").get<std::string>();
+            const bool confirmed = command == "dialog.message"
+                ? host_services_->ShowMessage(title, message)
+                : host_services_->Confirm(title, message);
+            SendSuccess(id, Json{{"confirmed", confirmed}}, send_response);
+            return;
+        }
+
+        if (command == "dialog.openFile") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The dialog service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("dialog")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            std::vector<std::string> filters;
+            if (args.contains("filters")) {
+                if (!args.at("filters").is_array()) {
+                    SendError(id, "INVALID_ARGS", "filters must be an array.", send_response);
+                    return;
+                }
+                for (const auto& filter : args.at("filters")) {
+                    if (!filter.is_string()) {
+                        SendError(
+                            id,
+                            "INVALID_ARGS",
+                            "filters must contain strings.",
+                            send_response
+                        );
+                        return;
+                    }
+                    filters.push_back(filter.get<std::string>());
+                }
+            }
+            const auto file = host_services_->OpenFile(filters);
+            Json data = Json::object();
+            data["file"] = file ? Json(*file) : Json(nullptr);
+            SendSuccess(id, data, send_response);
+            return;
+        }
+
+        if (command == "dialog.saveFile") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The dialog service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("dialog")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            std::string suggested_name;
+            if (args.contains("suggestedName")) {
+                if (!args.at("suggestedName").is_string()) {
+                    SendError(
+                        id,
+                        "INVALID_ARGS",
+                        "suggestedName must be a string.",
+                        send_response
+                    );
+                    return;
+                }
+                suggested_name = args.at("suggestedName").get<std::string>();
+            }
+            const auto file = host_services_->SaveFile(suggested_name);
+            Json data = Json::object();
+            data["file"] = file ? Json(*file) : Json(nullptr);
+            SendSuccess(id, data, send_response);
+            return;
+        }
+
+        if (command == "clipboard.readText") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The clipboard service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("clipboard.read")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            const auto text = host_services_->ReadClipboardText();
+            SendSuccess(id, Json{{"text", text.value_or("")}}, send_response);
+            return;
+        }
+
+        if (command == "clipboard.writeText") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The clipboard service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("clipboard.write")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            if (!IsString(args, "text")) {
+                SendError(id, "INVALID_ARGS", "text is required.", send_response);
+                return;
+            }
+            const bool written = host_services_->WriteClipboardText(
+                args.at("text").get<std::string>()
+            );
+            SendSuccess(id, Json{{"written", written}}, send_response);
+            return;
+        }
+
+        if (command == "notification.show") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The notification service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("notification.show")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            if (!IsString(args, "title") || !IsString(args, "body")) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "title and body are required.",
+                    send_response
+                );
+                return;
+            }
+            const bool shown = host_services_->ShowNotification(
+                args.at("title").get<std::string>(),
+                args.at("body").get<std::string>()
+            );
+            SendSuccess(id, Json{{"shown", shown}}, send_response);
+            return;
+        }
+
+        if (command == "window.setTitle") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The window service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("window.control")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            if (!IsString(args, "title")) {
+                SendError(id, "INVALID_ARGS", "title is required.", send_response);
+                return;
+            }
+            const bool updated = host_services_->SetWindowTitle(
+                args.at("title").get<std::string>()
+            );
+            SendSuccess(id, Json{{"updated", updated}}, send_response);
+            return;
+        }
+
+        if (command == "window.minimize" || command == "window.maximize") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The window service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("window.control")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            const bool updated = command == "window.minimize"
+                ? host_services_->MinimizeWindow()
+                : host_services_->MaximizeWindow();
+            SendSuccess(id, Json{{"updated", updated}}, send_response);
+            return;
+        }
+
+        if (command == "window.close") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The window service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("window.control")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            SendSuccess(
+                id,
+                Json{{"closed", host_services_->CloseWindow()}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "app.exit") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The application service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("window.control")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            SendSuccess(
+                id,
+                Json{{"exited", host_services_->ExitApp()}},
+                send_response
+            );
+            return;
+        }
+
+        SendError(
+            id,
+            "NOT_SUPPORTED",
+            "The command is registered but not implemented on this host.",
+            send_response
+        );
+    } catch (const Json::parse_error&) {
+        SendError(
+            nullptr,
+            "INVALID_ARGS",
+            "Request is not valid JSON.",
+            send_response
+        );
+    } catch (const Json::exception&) {
+        SendError(
+            nullptr,
+            "INVALID_ARGS",
+            "Request fields are invalid.",
+            send_response
+        );
+    } catch (const std::exception&) {
+        SendError(
+            nullptr,
+            "INTERNAL_ERROR",
+            "The command failed unexpectedly.",
+            send_response
+        );
+    }
+}
