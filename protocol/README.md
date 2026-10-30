@@ -6,12 +6,12 @@
 
 `protocol/` 只定义跨端契约，不实现命令、执行权限或发送 WebView 消息。
 
-| 文件 | 责任 |
-| --- | --- |
-| `commands.json` | 命令、事件、参数、返回结构、权限和平台支持 |
-| `commands.schema.json` | 命令、事件和参数结构的 JSON Schema 校验规则 |
-| `errors.json` | 双端共用的错误码全集 |
-| `permissions.schema.json` | 权限声明 |
+| 文件                      | 责任                                        |
+| ------------------------- | ------------------------------------------- |
+| `commands.json`           | 命令、事件、参数、返回结构、权限和平台支持  |
+| `commands.schema.json`    | 命令、事件和参数结构的 JSON Schema 校验规则 |
+| `errors.json`             | 双端共用的错误码全集                        |
+| `permissions.schema.json` | 权限声明                                    |
 
 Windows、Android 和前端实现都必须以这些文件为准。协议字符串不加 `KSM` 前缀。
 
@@ -20,33 +20,33 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 `commands.json` 当前定义 **29 个命令和 2 个事件**。产品版本保持 `0.1.0`，新增命令使用
 `since: "1.1.0"`。
 
-| 平台 | 适用命令 | 说明 |
-| --- | ---: | --- |
-| Windows | 28 | 不包含仅 Android 的 `device.getInfo` |
-| Android | 25 | 不包含 Windows 专属窗口命令 |
-| 全集 | 29 | 宿主按平台矩阵过滤 |
+| 平台    | 适用命令 | 说明                                 |
+| ------- | -------: | ------------------------------------ |
+| Windows |       28 | 不包含仅 Android 的 `device.getInfo` |
+| Android |       25 | 不包含 Windows 专属窗口命令          |
+| 全集    |       29 | 宿主按平台矩阵过滤                   |
 
 `ping` 与 `capabilities.query` 是最小通路。其余命令覆盖文件、对话框、剪贴板、通知、
 权限、事件、窗口、下载、外部链接和设备信息。
 
 ## 平台矩阵
 
-| 命令组 | Windows | Android | 权限 |
-| --- | --- | --- | --- |
-| `ping`、`capabilities.query` | 支持 | 支持 | 无 |
-| `app.getInfo`、`app.exit` | 支持 | 支持 | 无 / `window.control` |
-| `fs.readText`、`fs.writeText`、`fs.exists`、`fs.remove` | 支持 | 支持 | `fs.read` / `fs.write` / `fs.remove` |
-| `fs.readDir`、`fs.mkdir`、`fs.stat` | 支持 | 支持 | `fs.read` / `fs.write` |
-| `dialog.message`、`dialog.confirm`、`dialog.openFile`、`dialog.saveFile` | 支持 | 支持 | `dialog` |
-| `clipboard.readText`、`clipboard.writeText` | 支持 | 支持 | `clipboard.read` / `clipboard.write` |
-| `notification.show` | 支持 | 支持 | `notification.show` |
-| `permission.request` | 支持 | 支持 | 无 |
-| `event.subscribe`、`event.unsubscribe` | 支持 | 支持 | 无 |
-| `window.setTitle`、`window.minimize`、`window.maximize`、`window.setSize` | 支持 | 不支持 | `window.control` |
-| `window.close` | 支持 | 支持 | `window.control` |
-| `shell.openExternal` | 支持 | 支持 | `shell.open` |
-| `http.download` | 支持 | 支持 | `http.download` |
-| `device.getInfo` | 不支持 | 支持 | `device.info` |
+| 命令组                                                                    | Windows | Android | 权限                                 |
+| ------------------------------------------------------------------------- | ------- | ------- | ------------------------------------ |
+| `ping`、`capabilities.query`                                              | 支持    | 支持    | 无                                   |
+| `app.getInfo`、`app.exit`                                                 | 支持    | 支持    | 无 / `window.control`                |
+| `fs.readText`、`fs.writeText`、`fs.exists`、`fs.remove`                   | 支持    | 支持    | `fs.read` / `fs.write` / `fs.remove` |
+| `fs.readDir`、`fs.mkdir`、`fs.stat`                                       | 支持    | 支持    | `fs.read` / `fs.write`               |
+| `dialog.message`、`dialog.confirm`、`dialog.openFile`、`dialog.saveFile`  | 支持    | 支持    | `dialog`                             |
+| `clipboard.readText`、`clipboard.writeText`                               | 支持    | 支持    | `clipboard.read` / `clipboard.write` |
+| `notification.show`                                                       | 支持    | 支持    | `notification.show`                  |
+| `permission.request`                                                      | 支持    | 支持    | 无                                   |
+| `event.subscribe`、`event.unsubscribe`                                    | 支持    | 支持    | 无                                   |
+| `window.setTitle`、`window.minimize`、`window.maximize`、`window.setSize` | 支持    | 不支持  | `window.control`                     |
+| `window.close`                                                            | 支持    | 支持    | `window.control`                     |
+| `shell.openExternal`                                                      | 支持    | 支持    | `shell.open`                         |
+| `http.download`                                                           | 支持    | 支持    | `http.download`                      |
+| `device.getInfo`                                                          | 不支持  | 支持    | `device.info`                        |
 
 `capabilities.query` 返回宿主实际实现的命令列表和当前可用权限。Android 对不支持的窗口命令
 返回 `NOT_SUPPORTED`；Windows 对 `device.getInfo` 返回 `NOT_SUPPORTED`。
@@ -78,20 +78,20 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 
 ### `http.download`
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `url` | string | 是 | 只允许 `https://` |
-| `path` | string | 是 | `app://data`、`app://cache` 或 `app://tmp` 下的文件 |
-| `overwrite` | boolean | 否 | 默认 `false` |
+| 字段        | 类型    | 必填 | 说明                                                |
+| ----------- | ------- | ---- | --------------------------------------------------- |
+| `url`       | string  | 是   | 只允许 `https://`                                   |
+| `path`      | string  | 是   | `app://data`、`app://cache` 或 `app://tmp` 下的文件 |
+| `overwrite` | boolean | 否   | 默认 `false`                                        |
 
 返回 `{ path, bytes }`。最多 5 次 HTTPS 重定向、120 秒总超时、100 MiB 上限。目标已存在且
 未允许覆盖时返回 `IO_ERROR`；非法 URL 或路径返回 `INVALID_ARGS` 或 `PERMISSION_DENIED`。
 
 ### `shell.openExternal`
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `url` | string | 是 | 绝对 `http` / `https` URL |
+| 字段  | 类型   | 必填 | 说明                      |
+| ----- | ------ | ---- | ------------------------- |
+| `url` | string | 是   | 绝对 `http` / `https` URL |
 
 返回 `{ opened }`。宿主构造时配置精确 origin 白名单，默认空白名单；未授权 origin 返回
 `PERMISSION_DENIED`。
@@ -104,10 +104,10 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 
 ### `window.setSize`
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `width` | integer | 是 | 逻辑外框宽度，最小 320 |
-| `height` | integer | 是 | 逻辑外框高度，最小 240 |
+| 字段     | 类型    | 必填 | 说明                   |
+| -------- | ------- | ---- | ---------------------- |
+| `width`  | integer | 是   | 逻辑外框宽度，最小 320 |
+| `height` | integer | 是   | 逻辑外框高度，最小 240 |
 
 仅 Windows 可用，返回 `{ updated }`。按当前 DPI 转成物理像素并夹取到工作区；最大化、
 最小化或全屏状态返回 `NOT_SUPPORTED`。
@@ -119,11 +119,11 @@ KSM.initialize();
 const capabilities = await KSM.get();
 
 const result = await KSM.http.download({
-  url: 'https://example.com/file.bin',
-  path: 'app://data/file.bin'
+  url: "https://example.com/file.bin",
+  path: "app://data/file.bin",
 });
 
-await KSM.shell.openExternal({ url: 'https://example.com/docs' });
+await KSM.shell.openExternal({ url: "https://example.com/docs" });
 ```
 
 标准响应：

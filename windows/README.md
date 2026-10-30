@@ -4,17 +4,17 @@
 
 ## 模块边界
 
-| 文件 | 责任 |
-| --- | --- |
-| `src/commands/ksm_phase1.h` | 宿主侧 `KSM` 根入口、生命周期和统一调用 |
-| `src/bridge/ksm_command_registry.h` | Windows 已实现命令清单 |
-| `src/bridge/ksm_router.h` | 参数校验、权限检查和命令分发 |
-| `src/platform/ksm_host_services.h` | 宿主平台服务接口 |
-| `src/platform/ksm_windows_host_services.h` | Win32 文件、对话框、剪贴板、通知、下载、链接和窗口服务 |
-| `src/platform/ksm_webview_host.h` | 工作线程、超时、取消、单响应和事件投递 |
-| `src/platform/ksm_webview2_host.h` | WebView2 创建、消息来源、导航拦截、窗口事件和 UI 线程回投 |
-| `examples/win32-host/` | 可运行的 Win32 + WebView2 示例 |
-| `tests/contract_runner.cpp` | Windows 契约、安全策略和生命周期测试 |
+| 文件                                       | 责任                                                      |
+| ------------------------------------------ | --------------------------------------------------------- |
+| `src/commands/ksm_phase1.h`                | 宿主侧 `KSM` 根入口、生命周期和统一调用                   |
+| `src/bridge/ksm_command_registry.h`        | Windows 已实现命令清单                                    |
+| `src/bridge/ksm_router.h`                  | 参数校验、权限检查和命令分发                              |
+| `src/platform/ksm_host_services.h`         | 宿主平台服务接口                                          |
+| `src/platform/ksm_windows_host_services.h` | Win32 文件、对话框、剪贴板、通知、下载、链接和窗口服务    |
+| `src/platform/ksm_webview_host.h`          | 工作线程、超时、取消、单响应和事件投递                    |
+| `src/platform/ksm_webview2_host.h`         | WebView2 创建、消息来源、导航拦截、窗口事件和 UI 线程回投 |
+| `examples/win32-host/`                     | 可运行的 Win32 + WebView2 示例                            |
+| `tests/contract_runner.cpp`                | Windows 契约、安全策略和生命周期测试                      |
 
 Windows 当前实现 **28/28 个适用命令**。`device.getInfo` 是 Android 专属命令，Windows
 返回 `NOT_SUPPORTED`。
@@ -33,18 +33,18 @@ const std::string response = KSM::Invoke(
 `KSM::Invoke(windowId, ...)` 按窗口维护独立路由器和事件订阅。空 `windowId` 使用默认
 路由上下文。宿主根入口直接调用 `KSMHostServices`，不得通过 `KSM::Invoke` 递归回路由。
 
-| 子模块 | 入口 | 宿主服务 |
-| --- | --- | --- |
-| 文件系统 | `KSM::Fs` | `KSMFileSystem` 与 picked 文件方法 |
-| 对话框 | `KSM::Dialog` | 对话框与文件选择方法 |
-| 剪贴板 | `KSM::Clipboard` | 读写系统剪贴板 |
-| 通知 | `KSM::Notification` | `ShowNotification` |
-| 权限 | `KSM::Permission` | 生成的权限清单 |
-| 窗口 | `KSM::Window` | 标题、最小化、最大化、尺寸和关闭 |
-| HTTP | `KSM::Http` | `Download` |
-| Shell | `KSM::Shell` | `OpenExternal` |
-| 设备 | `KSM::Device` | `GetInfo`，Windows 返回空 |
-| 应用 | `KSM::App` | 版本、语言和退出 |
+| 子模块   | 入口                | 宿主服务                           |
+| -------- | ------------------- | ---------------------------------- |
+| 文件系统 | `KSM::Fs`           | `KSMFileSystem` 与 picked 文件方法 |
+| 对话框   | `KSM::Dialog`       | 对话框与文件选择方法               |
+| 剪贴板   | `KSM::Clipboard`    | 读写系统剪贴板                     |
+| 通知     | `KSM::Notification` | `ShowNotification`                 |
+| 权限     | `KSM::Permission`   | 生成的权限清单                     |
+| 窗口     | `KSM::Window`       | 标题、最小化、最大化、尺寸和关闭   |
+| HTTP     | `KSM::Http`         | `Download`                         |
+| Shell    | `KSM::Shell`        | `OpenExternal`                     |
+| 设备     | `KSM::Device`       | `GetInfo`，Windows 返回空          |
+| 应用     | `KSM::App`          | 版本、语言和退出                   |
 
 ## WebView2 适配
 
@@ -111,10 +111,10 @@ CPack 生成 `windows/build/packages/kasumi-windows-bridge-0.1.0.zip`，包含�
 
 标签发布要求：
 
-| Secret | 用途 |
-| --- | --- |
-| `WINDOWS_CERTIFICATE_BASE64` | Authenticode PFX 的 Base64 |
-| `WINDOWS_CERTIFICATE_PASSWORD` | PFX 口令 |
+| Secret                         | 用途                       |
+| ------------------------------ | -------------------------- |
+| `WINDOWS_CERTIFICATE_BASE64`   | Authenticode PFX 的 Base64 |
+| `WINDOWS_CERTIFICATE_PASSWORD` | PFX 口令                   |
 
 正式标签缺少证书时工作流直接失败。签名使用 SHA-256 和 RFC3161 时间戳，并对每个 EXE/DLL
 执行 `signtool verify /pa /all`。普通 CI 可以构建未签名产物。

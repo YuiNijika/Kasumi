@@ -4,17 +4,17 @@
 
 ## 模块边界
 
-| 文件 | 责任 |
-| --- | --- |
-| `app/src/main/java/dev/kasumi/app/bridge/KSM.kt` | 宿主侧根入口、生命周期、统一调用和原生事件 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMRouter.kt` | JSON 校验、权限检查和命令分发 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMHostServices.kt` | Android 平台服务接口 |
+| 文件                                                         | 责任                                             |
+| ------------------------------------------------------------ | ------------------------------------------------ |
+| `app/src/main/java/dev/kasumi/app/bridge/KSM.kt`             | 宿主侧根入口、生命周期、统一调用和原生事件       |
+| `app/src/main/java/dev/kasumi/app/bridge/KSMRouter.kt`       | JSON 校验、权限检查和命令分发                    |
+| `app/src/main/java/dev/kasumi/app/bridge/KSMHostServices.kt` | Android 平台服务接口                             |
 | `app/src/main/java/dev/kasumi/app/KSMAndroidHostServices.kt` | 对话框、文件、剪贴板、通知、下载、链接和设备信息 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMHttpPolicy.kt` | URL、origin 和重定向策略 |
-| `app/src/main/java/dev/kasumi/app/MainActivity.kt` | WebView、协程、资源加载和生命周期 |
-| `app/src/main/assets/web/` | 带 CSP 的最小宿主页面 |
-| `app/src/test/` | JVM 契约与策略测试 |
-| `app/src/androidTest/` | instrumentation 与真实 Activity 测试 |
+| `app/src/main/java/dev/kasumi/app/bridge/KSMHttpPolicy.kt`   | URL、origin 和重定向策略                         |
+| `app/src/main/java/dev/kasumi/app/MainActivity.kt`           | WebView、协程、资源加载和生命周期                |
+| `app/src/main/assets/web/`                                   | 带 CSP 的最小宿主页面                            |
+| `app/src/test/`                                              | JVM 契约与策略测试                               |
+| `app/src/androidTest/`                                       | instrumentation 与真实 Activity 测试             |
 
 Android 当前实现 **25/25 个适用命令**。Windows 专属的窗口标题、最小化、最大化、尺寸调整
 不提供；`device.getInfo` 仅 Android 提供。
@@ -121,13 +121,13 @@ Android 13 及以上的通知需要先调用 `permission.request` 请求 `notifi
 ./gradlew connectedAndroidTest
 ```
 
-| 测试 | 覆盖内容 |
-| --- | --- |
-| `ContractTest` | 根入口子模块、文件、picked、权限、新 API、关闭后不可用 |
-| `KSMHttpPolicyTest` | HTTPS、凭据、origin、端口、重定向和长度边界 |
-| `NavigationPolicyTest` | WebView 来源和外部导航白名单 |
-| `BridgeInstrumentedTest` | 路径守卫、大文本、事件、picked/bundled 资源、通知权限 |
-| `KSMAndroidHostServicesTest` | 精确 origin 与设备字段 |
+| 测试                         | 覆盖内容                                               |
+| ---------------------------- | ------------------------------------------------------ |
+| `ContractTest`               | 根入口子模块、文件、picked、权限、新 API、关闭后不可用 |
+| `KSMHttpPolicyTest`          | HTTPS、凭据、origin、端口、重定向和长度边界            |
+| `NavigationPolicyTest`       | WebView 来源和外部导航白名单                           |
+| `BridgeInstrumentedTest`     | 路径守卫、大文本、事件、picked/bundled 资源、通知权限  |
+| `KSMAndroidHostServicesTest` | 精确 origin 与设备字段                                 |
 
 当前环境未提供 Gradle，本轮未重跑 Android JVM 与 instrumentation 测试。仍需在 API 34
 模拟器和真机补测文件选择器、通知权限、旋转、`onTrimMemory`、下载取消以及超时/取消竞态。
@@ -136,12 +136,12 @@ Android 13 及以上的通知需要先调用 `permission.request` 请求 `notifi
 
 release 构建从以下环境变量读取签名材料：
 
-| 环境变量 | 用途 |
-| --- | --- |
-| `KASUMI_ANDROID_KEYSTORE` | keystore 文件绝对路径 |
-| `KASUMI_ANDROID_KEYSTORE_PASSWORD` | keystore 口令 |
-| `KASUMI_ANDROID_KEY_ALIAS` | key alias |
-| `KASUMI_ANDROID_KEY_PASSWORD` | key 口令 |
+| 环境变量                           | 用途                  |
+| ---------------------------------- | --------------------- |
+| `KASUMI_ANDROID_KEYSTORE`          | keystore 文件绝对路径 |
+| `KASUMI_ANDROID_KEYSTORE_PASSWORD` | keystore 口令         |
+| `KASUMI_ANDROID_KEY_ALIAS`         | key alias             |
+| `KASUMI_ANDROID_KEY_PASSWORD`      | key 口令              |
 
 四个变量都有效且 keystore 存在时，release 使用该签名配置；否则构建保持未签名。发布工作流
 还会使用 `apksigner verify --print-certs` 校验签名。
