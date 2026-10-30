@@ -21,6 +21,7 @@ jobs:
       - run: pnpm --dir frontend run validate:protocol
       - run: pnpm --dir frontend run typecheck
       - run: pnpm --dir frontend exec tsc --noEmit -p ../tests/tsconfig.json
+      - run: pnpm --dir frontend run test:contract
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: ${{ github.workspace }}/vcpkg
@@ -44,8 +45,16 @@ jobs:
       - run: pnpm --dir frontend run validate:protocol
       - run: pnpm --dir frontend run typecheck
       - run: pnpm --dir frontend exec tsc --noEmit -p ../tests/tsconfig.json
+      - run: pnpm --dir frontend run test:contract
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.14.3
-      - run: gradle -p android testDebugUnitTest assembleDebug
+      - run: gradle -p android testDebugUnitTest assembleDebug assembleDebugAndroidTest
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: gradle -p android connectedDebugAndroidTest

@@ -7,7 +7,9 @@ import {
 import { runFsCases } from './cases/fs.readText.test';
 import { runLifecycleCases } from './cases/bridge-lifecycle.test';
 import { runMessageLimitCase } from './cases/message-limit.test';
+import { runPathGuardCases } from './cases/path-guard.test';
 import { runTimeoutCases } from './cases/timeout.test';
+import { runBuiltInApiCases } from './cases/built-in-api.test';
 import { expectError } from './helpers';
 
 export async function runContractSuite(adapter: ContractAdapter): Promise<void> {
@@ -47,7 +49,9 @@ export async function runContractSuite(adapter: ContractAdapter): Promise<void> 
     adapter.invoke('unknown.command', {}),
     'UNKNOWN_COMMAND'
   );
+  runPathGuardCases();
   await runFsCases(adapter);
+  await runBuiltInApiCases(adapter, capabilities.platform);
   await runLifecycleCases(adapter);
   await runMessageLimitCase(adapter);
   await runTimeoutCases();

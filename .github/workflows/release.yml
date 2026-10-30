@@ -1,0 +1,80 @@
+name: Kasumi release packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache-dependency-path: frontend/package.json
+      - run: pnpm --dir frontend install --no-frozen-lockfile
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/vcpkg
+      - run: python cli/ksm.py package --platform windows
+        env:
+          CMAKE_TOOLCHAIN_FILE: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kasumi-windows-package
+          path: windows/build/packages/*.zip
+          if-no-files-found: error
+
+  android-package:
+    runs-on: ubuntu-latest
+    env:
+      KASUMI_ANDROID_KEYSTORE: ${{ github.workspace }}/release.keystore
+      KASUMI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KASUMI_ANDROID_KEYSTORE_PASSWORD }}
+      KASUMI_ANDROID_KEY_ALIAS: ${{ secrets.KASUMI_ANDROID_KEY_ALIAS }}
+      KASUMI_ANDROID_KEY_PASSWORD: ${{ secrets.KASUMI_ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache-dependency-path: frontend/package.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.14.3
+      - run: pnpm --dir frontend install --no-frozen-lockfile
+      - name: Decode Android signing key
+        env:
+          KASUMI_ANDROID_KEYSTORE_BASE64: ${{ secrets.KASUMI_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KASUMI_ANDROID_KEYSTORE_BASE64" ]; then
+            echo "KASUMI_ANDROID_KEYSTORE_BASE64 is required for release packages."
+            exit 1
+          fi
+          printf '%s' "$KASUMI_ANDROID_KEYSTORE_BASE64" | base64 --decode > release.keystore
+      - run: python cli/ksm.py package --platform android
+      - name: Verify release signature
+        run: |
+          APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner | sort -V | tail -n 1)
+          "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kasumi-android-package
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error

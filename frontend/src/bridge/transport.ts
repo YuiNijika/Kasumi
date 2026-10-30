@@ -45,7 +45,9 @@ export class KSMWebMessageTransport implements KSMTransport {
   public send(message: Parameters<KSMTransport['send']>[0]): void {
     const payload = JSON.stringify(message);
     if (new TextEncoder().encode(payload).byteLength > MAX_MESSAGE_BYTES) {
-      throw new Error('Kasumi messages must not exceed 64KB.');
+      const error = new Error('Kasumi messages must not exceed 64KB.');
+      error.name = 'INVALID_ARGS';
+      throw error;
     }
     this.webview.postMessage(payload);
   }
@@ -74,26 +76,29 @@ export class KSMWebMessageTransport implements KSMTransport {
       handlePayload(event.data);
     };
     const handleWindowMessage = (event: MessageEvent<unknown>): void => {
+      const windowTarget = typeof window === 'undefined' ? undefined : window;
+      if (windowTarget && event.source !== windowTarget) {
+        return;
+      }
       handlePayload(event.data);
     };
     const addWebViewListener = this.webview.addEventListener;
     const hasWebViewMessages = typeof addWebViewListener === 'function';
     const hasOnMessage = 'onmessage' in this.webview;
+    const windowTarget = typeof window === 'undefined' ? undefined : window;
     if (hasWebViewMessages) {
-      addWebViewListener('message', handleWebViewMessage);
+      this.webview.addEventListener?.('message', handleWebViewMessage);
     } else if (hasOnMessage) {
       this.webview.onmessage = handleWebViewMessage;
-    } else {
-      window.addEventListener('message', handleWindowMessage);
     }
+    windowTarget?.addEventListener('message', handleWindowMessage);
     return (): void => {
       if (hasWebViewMessages) {
         this.webview.removeEventListener?.('message', handleWebViewMessage);
       } else if (hasOnMessage) {
         this.webview.onmessage = null;
-      } else {
-        window.removeEventListener('message', handleWindowMessage);
       }
+      windowTarget?.removeEventListener('message', handleWindowMessage);
     };
   }
 }

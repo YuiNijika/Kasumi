@@ -4,12 +4,16 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <chrono>
 #include <string>
 #include <utility>
 
 namespace {
 
 using Json = nlohmann::json;
+
+constexpr long long kDefaultTimeoutMs = 10000;
 
 void SendError(
     const Json& id,
@@ -25,7 +29,11 @@ void SendError(
     }.dump());
 }
 
-}  // namespace
+Json RequestId(const std::string& id) {
+    return id.empty() ? Json(nullptr) : Json(id);
+}
+
+}
 
 KSMWebViewHost::KSMWebViewHost(
     SendMessage send_message,
@@ -39,25 +47,39 @@ KSMWebViewHost::KSMWebViewHost(
     for (std::size_t index = 0; index < kMaxConcurrentCommands; ++index) {
         workers_.emplace_back([this] { WorkerLoop(); });
     }
+    timer_thread_ = std::thread([this] { TimerLoop(); });
 }
 
 KSMWebViewHost::~KSMWebViewHost() {
     {
         std::lock_guard lock(queue_mutex_);
+        for (const auto& [id, state] : active_requests_) {
+            (void)id;
+            state->completed.store(true);
+        }
         stopping_ = true;
     }
     queue_ready_.notify_all();
+    {
+        std::lock_guard lock(timer_mutex_);
+        timer_stopping_ = true;
+    }
+    timer_ready_.notify_all();
     for (auto& worker : workers_) {
         if (worker.joinable()) {
             worker.join();
         }
     }
     workers_.clear();
+    if (timer_thread_.joinable()) {
+        timer_thread_.join();
+    }
 }
 
 void KSMWebViewHost::OnMessageReceived(const std::string& message) {
-    Json request = Json::parse(message, nullptr, false);
+    const Json request = Json::parse(message, nullptr, false);
     std::string id;
+    long long timeout_ms = kDefaultTimeoutMs;
     if (request.is_object()) {
         const auto id_iterator = request.find("id");
         if (id_iterator != request.end() && id_iterator->is_string()) {
@@ -71,53 +93,68 @@ void KSMWebViewHost::OnMessageReceived(const std::string& message) {
             CancelRequest(id);
             return;
         }
+        if (request.contains("timeoutMs")) {
+            const auto& timeout = request.at("timeoutMs");
+            if (
+                (!timeout.is_number_integer() && !timeout.is_number_unsigned()) ||
+                timeout.get<long long>() <= 0
+            ) {
+                SendError(
+                    RequestId(id),
+                    "INVALID_ARGS",
+                    "timeoutMs must be a positive integer.",
+                    [this](const std::string& response) {
+                        PostResponse(response);
+                    }
+                );
+                return;
+            }
+            timeout_ms = timeout.get<long long>();
+        }
     }
 
+    auto state = std::make_shared<RequestState>();
+    state->id = id;
     bool accepted = false;
     {
         std::lock_guard lock(queue_mutex_);
-        if (in_flight_ < kMaxConcurrentCommands) {
+        if (in_flight_ < kMaxConcurrentCommands + kMaxQueuedCommands) {
             ++in_flight_;
-            tasks_.push_back([this, message, id] {
-                if (IsCancelled(id)) {
-                    ClearCancelled(id);
-                    SendError(
-                        id.empty() ? Json(nullptr) : Json(id),
-                        "CANCELLED",
-                        "The request was cancelled.",
-                        [this](const std::string& response) {
-                            PostResponse(response);
-                        }
-                    );
-                } else {
-                    router_.HandleMessage(
-                        message,
-                        [this](const std::string& response) {
-                            PostResponse(response);
-                        }
-                    );
-                }
-                {
-                    std::lock_guard task_lock(queue_mutex_);
-                    --in_flight_;
-                }
-            });
             accepted = true;
         }
     }
-    if (accepted) {
-        queue_ready_.notify_one();
+    if (!accepted) {
+        SendError(
+            RequestId(id),
+            "BUSY",
+            "Too many concurrent commands.",
+            [this](const std::string& response) {
+                PostResponse(response);
+            }
+        );
         return;
     }
 
-    SendError(
-        id.empty() ? Json(nullptr) : Json(id),
-        "BUSY",
-        "Too many concurrent commands.",
-        [this](const std::string& response) {
-            PostResponse(response);
-        }
-    );
+    RegisterRequest(state, timeout_ms);
+    {
+        std::lock_guard lock(queue_mutex_);
+        tasks_.push_back([this, message, state] {
+            if (!state->completed.load()) {
+                router_.HandleMessage(
+                    message,
+                    [this, state](const std::string& response) {
+                        RespondOnce(state, response);
+                    }
+                );
+            }
+            UnregisterRequest(state);
+            {
+                std::lock_guard task_lock(queue_mutex_);
+                --in_flight_;
+            }
+        });
+    }
+    queue_ready_.notify_one();
 }
 
 void KSMWebViewHost::PostResponse(const std::string& message) {
@@ -141,24 +178,71 @@ bool KSMWebViewHost::OnMessageReceivedFromOrigin(
 }
 
 void KSMWebViewHost::CancelRequest(const std::string& id) {
-    std::lock_guard lock(queue_mutex_);
-    cancelled_requests_.insert(id);
-}
-
-bool KSMWebViewHost::IsCancelled(const std::string& id) {
-    if (id.empty()) {
-        return false;
+    std::shared_ptr<RequestState> state;
+    {
+        std::lock_guard lock(queue_mutex_);
+        const auto iterator = active_requests_.find(id);
+        if (iterator != active_requests_.end()) {
+            state = iterator->second;
+        }
     }
-    std::lock_guard lock(queue_mutex_);
-    return cancelled_requests_.find(id) != cancelled_requests_.end();
+    if (state) {
+        RespondOnce(
+            state,
+            Json{
+                {"type", "response"},
+                {"id", id},
+                {"ok", false},
+                {"error", {
+                    {"code", "CANCELLED"},
+                    {"message", "The request was cancelled."}
+                }}
+            }.dump()
+        );
+    }
 }
 
-void KSMWebViewHost::ClearCancelled(const std::string& id) {
-    if (id.empty()) {
+void KSMWebViewHost::RegisterRequest(
+    const std::shared_ptr<RequestState>& state,
+    long long timeout_ms
+) {
+    if (!state->id.empty()) {
+        std::lock_guard lock(queue_mutex_);
+        active_requests_[state->id] = state;
+    }
+    {
+        std::lock_guard lock(timer_mutex_);
+        deadlines_.push_back(Deadline{
+            std::chrono::steady_clock::now() +
+                std::chrono::milliseconds(timeout_ms),
+            state
+        });
+    }
+    timer_ready_.notify_one();
+}
+
+void KSMWebViewHost::UnregisterRequest(
+    const std::shared_ptr<RequestState>& state
+) {
+    if (state->id.empty()) {
         return;
     }
     std::lock_guard lock(queue_mutex_);
-    cancelled_requests_.erase(id);
+    const auto iterator = active_requests_.find(state->id);
+    if (iterator != active_requests_.end() && iterator->second == state) {
+        active_requests_.erase(iterator);
+    }
+}
+
+void KSMWebViewHost::RespondOnce(
+    const std::shared_ptr<RequestState>& state,
+    const std::string& response
+) {
+    bool expected = false;
+    if (!state->completed.compare_exchange_strong(expected, true)) {
+        return;
+    }
+    PostResponse(response);
 }
 
 void KSMWebViewHost::WorkerLoop() {
@@ -169,7 +253,7 @@ void KSMWebViewHost::WorkerLoop() {
             queue_ready_.wait(lock, [this] {
                 return stopping_ || !tasks_.empty();
             });
-            if (stopping_ && tasks_.empty()) {
+            if (stopping_) {
                 return;
             }
             task = std::move(tasks_.front());
@@ -179,8 +263,50 @@ void KSMWebViewHost::WorkerLoop() {
     }
 }
 
+void KSMWebViewHost::TimerLoop() {
+    while (true) {
+        std::shared_ptr<RequestState> expired;
+        {
+            std::unique_lock lock(timer_mutex_);
+            timer_ready_.wait(lock, [this] {
+                return timer_stopping_ || !deadlines_.empty();
+            });
+            if (timer_stopping_) {
+                return;
+            }
+            const auto next = std::min_element(
+                deadlines_.begin(),
+                deadlines_.end(),
+                [](const Deadline& left, const Deadline& right) {
+                    return left.at < right.at;
+                }
+            );
+            if (next->at > std::chrono::steady_clock::now()) {
+                timer_ready_.wait_until(lock, next->at);
+                continue;
+            }
+            expired = next->state;
+            deadlines_.erase(next);
+        }
+        if (!expired->completed.load()) {
+            RespondOnce(
+                expired,
+                Json{
+                    {"type", "response"},
+                    {"id", RequestId(expired->id)},
+                    {"ok", false},
+                    {"error", {
+                        {"code", "TIMEOUT"},
+                        {"message", "The request timed out."}
+                    }}
+                }.dump()
+            );
+        }
+    }
+}
+
 void KSMWebViewHost::NotifyWebViewReloaded() {
-    router_.EmitEvent(
+    router_.EmitSystemEvent(
         "webview.reloaded",
         "{}",
         [this](const std::string& response) {

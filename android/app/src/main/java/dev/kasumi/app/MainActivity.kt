@@ -7,19 +7,27 @@ import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.MimeTypeMap
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
+import dev.kasumi.app.bridge.KSM
 import dev.kasumi.app.bridge.KSMFileSystem
+import dev.kasumi.app.bridge.KSMNavigationPolicy
 import dev.kasumi.app.bridge.KSMRouter
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 
 class MainActivity : Activity() {
@@ -40,14 +48,26 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         webView = WebView(this)
         hostServices = KSMAndroidHostServices(this)
+        val fileSystem = KSMFileSystem(
+            File(filesDir, "data"),
+            cacheDir,
+            File(cacheDir, "tmp")
+        )
         router = KSMRouter(
-            KSMFileSystem(
-                File(filesDir, "data"),
-                cacheDir,
-                File(cacheDir, "tmp")
-            ),
+            fileSystem,
             hostServices
         ) { event ->
+            try {
+                val parsed = JSONObject(event)
+                if (parsed.optString("type") == "event") {
+                    KSM.emitEvent(
+                        parsed.getString("event"),
+                        parsed.optJSONObject("payload") ?: JSONObject()
+                    )
+                }
+            } catch (_: Exception) {
+                // Native event listeners are best effort and cannot affect the WebView.
+            }
             runOnUiThread {
                 if (!isFinishing && !isDestroyed) {
                     webView.evaluateJavascript(
@@ -57,6 +77,7 @@ class MainActivity : Activity() {
                 }
             }
         }
+        KSM.init(router, fileSystem, hostServices)
 
         webView.settings.javaScriptEnabled = true
         webView.settings.allowFileAccess = false
@@ -65,7 +86,34 @@ class MainActivity : Activity() {
             android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
         val assetLoader = WebViewAssetLoader.Builder()
-            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .addPathHandler("/", object : WebViewAssetLoader.PathHandler {
+                override fun handle(path: String): WebResourceResponse? {
+                    val normalized = path.trimStart('/')
+                    if (normalized.isEmpty() || normalized.contains("..")) {
+                        return null
+                    }
+                    return try {
+                        val mimeType = MimeTypeMap.getSingleton()
+                            .getMimeTypeFromExtension(
+                                normalized.substringAfterLast('.', "").lowercase()
+                            )
+                            ?: "application/octet-stream"
+                        WebResourceResponse(
+                            mimeType,
+                            if (mimeType.startsWith("text/") ||
+                                mimeType == "application/javascript"
+                            ) {
+                                "UTF-8"
+                            } else {
+                                null
+                            },
+                            assets.open("web/$normalized")
+                        )
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+            })
             .build()
         webView.webViewClient = object : android.webkit.WebViewClient() {
             override fun shouldInterceptRequest(
@@ -78,7 +126,7 @@ class MainActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 if (isAllowedUrl(url)) {
-                    router.emitEvent("webview.reloaded", JSONObject())
+                    router.emitSystemEvent("webview.reloaded", JSONObject())
                 }
             }
 
@@ -89,6 +137,12 @@ class MainActivity : Activity() {
                 val url = request.url.toString()
                 if (isAllowedUrl(url)) {
                     return false
+                }
+                if (!KSMNavigationPolicy.isAllowedExternalScheme(
+                        request.url.scheme
+                    )
+                ) {
+                    return true
                 }
                 startActivity(Intent(Intent.ACTION_VIEW, request.url))
                 return true
@@ -152,6 +206,14 @@ class MainActivity : Activity() {
                     return@launch
                 }
                 val id = request?.optString("id")?.takeIf { it.isNotEmpty() }
+                val timeoutMs = requestTimeoutMs(request)
+                if (timeoutMs == null) {
+                    postResponse(
+                        { response -> replyProxy.postMessage(response) },
+                        invalidArgsResponse(id)
+                    )
+                    return@launch
+                }
                 if (!commandSlots.tryAcquire()) {
                     postResponse(
                         { response -> replyProxy.postMessage(response) },
@@ -164,16 +226,26 @@ class MainActivity : Activity() {
                     activeRequests[id] = ActiveCommand(job, Thread.currentThread())
                 }
                 try {
-                    val response = if (
-                        id != null && cancelledRequests.remove(id)
-                    ) {
+                    val response = if (id != null && cancelledRequests.remove(id)) {
                         cancelledResponse(id)
                     } else {
-                        val result = router.handleMessage(payload)
-                        if (id != null && cancelledRequests.remove(id)) {
+                        try {
+                            withTimeout(timeoutMs) {
+                                runInterruptible {
+                                    router.handleMessage(payload)
+                                }
+                            }
+                        } catch (_: TimeoutCancellationException) {
+                            if (id != null) {
+                                cancelledRequests.remove(id)
+                            }
+                            timeoutResponse(id)
+                        } catch (_: CancellationException) {
+                            if (id == null) {
+                                throw CancellationException("Command was cancelled.")
+                            }
+                            cancelledRequests.remove(id)
                             cancelledResponse(id)
-                        } else {
-                            result
                         }
                     }
                     if (response.isNotEmpty()) {
@@ -194,13 +266,23 @@ class MainActivity : Activity() {
             }
         }
         setContentView(webView)
-        webView.loadUrl("https://app.local/assets/index.html")
+        webView.loadUrl("https://app.local/index.html")
     }
 
     override fun onDestroy() {
         commandScope.cancel()
+        activeRequests.clear()
+        cancelledRequests.clear()
+        KSM.shutdown()
         webView.destroy()
         super.onDestroy()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (::webView.isInitialized) {
+            webView.clearCache(true)
+        }
     }
 
     override fun onActivityResult(
@@ -260,17 +342,57 @@ class MainActivity : Activity() {
             .toString()
     }
 
+    private fun timeoutResponse(id: String?): String {
+        return JSONObject()
+            .put("type", "response")
+            .put("id", id ?: JSONObject.NULL)
+            .put("ok", false)
+            .put(
+                "error",
+                JSONObject()
+                    .put("code", "TIMEOUT")
+                    .put("message", "The request timed out.")
+            )
+            .toString()
+    }
+
+    private fun invalidArgsResponse(id: String?): String {
+        return JSONObject()
+            .put("type", "response")
+            .put("id", id ?: JSONObject.NULL)
+            .put("ok", false)
+            .put(
+                "error",
+                JSONObject()
+                    .put("code", "INVALID_ARGS")
+                    .put("message", "Request fields are invalid.")
+            )
+            .toString()
+    }
+
+    private fun requestTimeoutMs(request: JSONObject?): Long? {
+        if (request == null || !request.has("timeoutMs")) {
+            return DEFAULT_TIMEOUT_MS
+        }
+        val raw = request.opt("timeoutMs") as? Number ?: return null
+        val value = raw.toLong()
+        if (value <= 0 || raw.toDouble() != value.toDouble()) {
+            return null
+        }
+        return value
+    }
+
     private fun isAllowedUrl(url: String): Boolean {
         val parsed = Uri.parse(url)
-        if (parsed.scheme == "https" && parsed.host == "app.local") {
-            return true
-        }
-        return parsed.scheme == "http" &&
-            parsed.host == "localhost" &&
-            (parsed.port == 5173 || parsed.port == -1)
+        return KSMNavigationPolicy.isAllowedOrigin(
+            parsed.scheme,
+            parsed.host,
+            parsed.port
+        )
     }
 
     companion object {
         private const val MAX_CONCURRENT_COMMANDS = 8
+        private const val DEFAULT_TIMEOUT_MS = 10000L
     }
 }

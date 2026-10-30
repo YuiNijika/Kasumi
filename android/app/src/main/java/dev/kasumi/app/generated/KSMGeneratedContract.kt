@@ -12,6 +12,9 @@ object KSMGeneratedContract {
         "fs.writeText",
         "fs.exists",
         "fs.remove",
+        "fs.readDir",
+        "fs.mkdir",
+        "fs.stat",
         "dialog.message",
         "dialog.confirm",
         "dialog.openFile",
@@ -37,6 +40,9 @@ object KSMGeneratedContract {
         "fs.writeText",
         "fs.exists",
         "fs.remove",
+        "fs.readDir",
+        "fs.mkdir",
+        "fs.stat",
         "dialog.message",
         "dialog.confirm",
         "dialog.openFile",
@@ -62,6 +68,9 @@ object KSMGeneratedContract {
         "fs.writeText",
         "fs.exists",
         "fs.remove",
+        "fs.readDir",
+        "fs.mkdir",
+        "fs.stat",
         "dialog.message",
         "dialog.confirm",
         "dialog.openFile",
@@ -156,6 +165,48 @@ object KSMGeneratedContract {
     "additionalProperties": false
   },
   "fs.remove": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.readDir": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.mkdir": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "recursive": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.stat": {
     "type": "object",
     "properties": {
       "path": {

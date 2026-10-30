@@ -12,6 +12,10 @@ class KSMRouter(
     private val hostServices: KSMHostServices? = null,
     private val eventSender: (String) -> Unit = {}
 ) {
+    companion object {
+        private const val MAX_INLINE_TEXT_BYTES = 64 * 1024
+    }
+
     private val subscribedEvents = ConcurrentHashMap.newKeySet<String>()
     private val grantedPermissions = ConcurrentHashMap.newKeySet<String>().apply {
         addAll(KSMCommandRegistry.permissions)
@@ -21,6 +25,16 @@ class KSMRouter(
         if (event !in subscribedEvents) {
             return
         }
+        eventSender(
+            JSONObject()
+                .put("type", "event")
+                .put("event", event)
+                .put("payload", payload)
+                .toString()
+        )
+    }
+
+    fun emitSystemEvent(event: String, payload: JSONObject) {
         eventSender(
             JSONObject()
                 .put("type", "event")
@@ -83,9 +97,13 @@ class KSMRouter(
                         id,
                         JSONObject()
                             .put("name", "Kasumi")
-                            .put("version", "0.1.0")
+                            .put("version", hostServices?.appVersion() ?: "0.1.0")
                             .put("platform", "android")
-                            .put("language", Locale.getDefault().toLanguageTag())
+                            .put(
+                                "language",
+                                hostServices?.language()
+                                    ?: Locale.getDefault().toLanguageTag()
+                            )
                     )
                     "permission.request" -> {
                         if (
@@ -96,8 +114,14 @@ class KSMRouter(
                         } else {
                             val permission = args.getString("permission")
                             val known = permission in KSMGeneratedContract.permissions
-                            val granted = known &&
-                                (hostServices?.requestPermission(permission) ?: true)
+                            if (!known) {
+                                return errorResponse(
+                                    id,
+                                    "INVALID_ARGS",
+                                    "permission is not registered."
+                                )
+                            }
+                            val granted = hostServices?.requestPermission(permission) ?: true
                             if (granted) {
                                 grantedPermissions.add(permission)
                             } else {
@@ -132,6 +156,9 @@ class KSMRouter(
                     "fs.writeText" -> writeText(id, args)
                     "fs.exists" -> exists(id, args)
                     "fs.remove" -> remove(id, args)
+                    "fs.readDir" -> readDir(id, args)
+                    "fs.mkdir" -> makeDirectory(id, args)
+                    "fs.stat" -> stat(id, args)
                     "dialog.message", "dialog.confirm" -> showDialog(
                         id,
                         command,
@@ -200,11 +227,6 @@ class KSMRouter(
     }
 
     private fun readText(id: Any?, args: JSONObject): String {
-        val fs = fileSystem ?: return errorResponse(
-            id,
-            "NOT_SUPPORTED",
-            "The filesystem is not configured."
-        )
         if (!requirePermission(id, "fs.read")) {
             return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
         }
@@ -215,29 +237,48 @@ class KSMRouter(
         if (!KSMVirtualPath.isSafe(path)) {
             return errorResponse(id, "PERMISSION_DENIED", "The path is outside the sandbox.")
         }
+        val isReadOnly = KSMVirtualPath.isReadOnly(path)
         val isPicked = KSMVirtualPath.isPicked(path)
-        if (isPicked && hostServices == null) {
+        if ((isReadOnly || isPicked) && hostServices == null) {
             return errorResponse(
                 id,
                 "NOT_SUPPORTED",
-                "The picked file service is not configured."
+                if (isReadOnly) {
+                    "The bundled file service is not configured."
+                } else {
+                    "The picked file service is not configured."
+                }
             )
         }
-        val value = if (isPicked) {
-            hostServices?.readPickedText(path)
-        } else {
-            fs.readText(path)
+        val fs = fileSystem
+        if (!isReadOnly && fs == null) {
+            return errorResponse(
+                id,
+                "NOT_SUPPORTED",
+                "The filesystem is not configured."
+            )
         }
-            ?: return errorResponse(id, "NOT_FOUND", "The file was not found.")
-        return successResponse(id, JSONObject().put("text", value))
+        val value = when {
+            isReadOnly -> hostServices?.readBundledText(path)
+            isPicked -> hostServices?.readPickedText(path)
+            else -> fs?.readText(path)
+        }
+        if (value == null) {
+            val exists = when {
+                isReadOnly -> hostServices?.bundledExists(path) == true
+                isPicked -> hostServices?.pickedExists(path) == true
+                else -> fs?.exists(path) == true
+            }
+            return if (exists) {
+                errorResponse(id, "IO_ERROR", "The file could not be read.")
+            } else {
+                errorResponse(id, "NOT_FOUND", "The file was not found.")
+            }
+        }
+        return textResponse(id, value, path)
     }
 
     private fun writeText(id: Any?, args: JSONObject): String {
-        val fs = fileSystem ?: return errorResponse(
-            id,
-            "NOT_SUPPORTED",
-            "The filesystem is not configured."
-        )
         if (!requirePermission(id, "fs.write")) {
             return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
         }
@@ -249,6 +290,14 @@ class KSMRouter(
         if (!KSMVirtualPath.isSafe(path)) {
             return errorResponse(id, "PERMISSION_DENIED", "The path is outside the sandbox.")
         }
+        if (KSMVirtualPath.isReadOnly(path)) {
+            return errorResponse(id, "PERMISSION_DENIED", "The path is read-only.")
+        }
+        val fs = fileSystem ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The filesystem is not configured."
+        )
         val isPicked = KSMVirtualPath.isPicked(path)
         if (isPicked && hostServices == null) {
             return errorResponse(
@@ -269,11 +318,6 @@ class KSMRouter(
     }
 
     private fun exists(id: Any?, args: JSONObject): String {
-        val fs = fileSystem ?: return errorResponse(
-            id,
-            "NOT_SUPPORTED",
-            "The filesystem is not configured."
-        )
         if (!requirePermission(id, "fs.read")) {
             return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
         }
@@ -284,28 +328,36 @@ class KSMRouter(
         if (!KSMVirtualPath.isSafe(path)) {
             return errorResponse(id, "PERMISSION_DENIED", "The path is outside the sandbox.")
         }
+        val isReadOnly = KSMVirtualPath.isReadOnly(path)
         val isPicked = KSMVirtualPath.isPicked(path)
-        if (isPicked && hostServices == null) {
+        if ((isReadOnly || isPicked) && hostServices == null) {
             return errorResponse(
                 id,
                 "NOT_SUPPORTED",
-                "The picked file service is not configured."
+                if (isReadOnly) {
+                    "The bundled file service is not configured."
+                } else {
+                    "The picked file service is not configured."
+                }
             )
         }
-        val exists = if (isPicked) {
-            hostServices?.pickedExists(path) == true
-        } else {
-            fs.exists(path)
+        val fs = fileSystem
+        if (!isReadOnly && fs == null) {
+            return errorResponse(
+                id,
+                "NOT_SUPPORTED",
+                "The filesystem is not configured."
+            )
+        }
+        val exists = when {
+            isReadOnly -> hostServices?.bundledExists(path) == true
+            isPicked -> hostServices?.pickedExists(path) == true
+            else -> fs?.exists(path) == true
         }
         return successResponse(id, JSONObject().put("exists", exists))
     }
 
     private fun remove(id: Any?, args: JSONObject): String {
-        val fs = fileSystem ?: return errorResponse(
-            id,
-            "NOT_SUPPORTED",
-            "The filesystem is not configured."
-        )
         if (!requirePermission(id, "fs.remove")) {
             return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
         }
@@ -316,6 +368,14 @@ class KSMRouter(
         if (!KSMVirtualPath.isSafe(path)) {
             return errorResponse(id, "PERMISSION_DENIED", "The path is outside the sandbox.")
         }
+        if (KSMVirtualPath.isReadOnly(path)) {
+            return errorResponse(id, "PERMISSION_DENIED", "The path is read-only.")
+        }
+        val fs = fileSystem ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The filesystem is not configured."
+        )
         val isPicked = KSMVirtualPath.isPicked(path)
         if (isPicked && hostServices == null) {
             return errorResponse(
@@ -330,6 +390,157 @@ class KSMRouter(
             fs.remove(path)
         }
         return successResponse(id, JSONObject().put("removed", removed))
+    }
+
+    private fun readDir(id: Any?, args: JSONObject): String {
+        if (!requirePermission(id, "fs.read")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val path = args.opt("path")
+        if (path !is String || path.isEmpty()) {
+            return errorResponse(id, "INVALID_ARGS", "path is required.")
+        }
+        if (!KSMVirtualPath.isSafeDirectory(path) || KSMVirtualPath.isPicked(path)) {
+            return errorResponse(
+                id,
+                "PERMISSION_DENIED",
+                "The path is not a readable directory."
+            )
+        }
+        if (KSMVirtualPath.isReadOnly(path) && hostServices == null) {
+            return errorResponse(
+                id,
+                "NOT_SUPPORTED",
+                "The bundled file service is not configured."
+            )
+        }
+        if (!KSMVirtualPath.isReadOnly(path) && fileSystem == null) {
+            return errorResponse(
+                id,
+                "NOT_SUPPORTED",
+                "The filesystem is not configured."
+            )
+        }
+        val entries = when {
+            KSMVirtualPath.isReadOnly(path) -> hostServices?.readBundledDirectory(path)
+            else -> fileSystem?.readDir(path)
+        }
+        if (entries == null) {
+            val metadata = when {
+                KSMVirtualPath.isReadOnly(path) -> hostServices?.bundledStat(path)
+                else -> fileSystem?.stat(path)
+            }
+            return when {
+                metadata != null && metadata.kind != KSMFileKind.DIRECTORY ->
+                    errorResponse(id, "INVALID_ARGS", "The path is not a directory.")
+                metadata != null ->
+                    errorResponse(id, "IO_ERROR", "The directory could not be read.")
+                else -> errorResponse(id, "NOT_FOUND", "The directory was not found.")
+            }
+        }
+        val values = JSONArray()
+        for (entry in entries) {
+            values.put(
+                JSONObject()
+                    .put("name", entry.name)
+                    .put("path", entry.path)
+                    .put("kind", fileKindName(entry.kind))
+                    .put("size", entry.size)
+                    .put("modifiedAt", entry.modifiedAt ?: JSONObject.NULL)
+            )
+        }
+        return successResponse(id, JSONObject().put("entries", values))
+    }
+
+    private fun makeDirectory(id: Any?, args: JSONObject): String {
+        if (!requirePermission(id, "fs.write")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val path = args.opt("path")
+        if (path !is String || path.isEmpty()) {
+            return errorResponse(id, "INVALID_ARGS", "path is required.")
+        }
+        if (
+            !KSMVirtualPath.isSafeDirectory(path) ||
+            KSMVirtualPath.isReadOnly(path) ||
+            KSMVirtualPath.isPicked(path)
+        ) {
+            return errorResponse(
+                id,
+                "PERMISSION_DENIED",
+                "The path is outside the writable sandbox."
+            )
+        }
+        if (args.has("recursive") && args.opt("recursive") !is Boolean) {
+            return errorResponse(id, "INVALID_ARGS", "recursive must be a boolean.")
+        }
+        val recursive = args.optBoolean("recursive", false)
+        val fs = fileSystem ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The filesystem is not configured."
+        )
+        val created = fs.makeDirectory(path, recursive) ?: return errorResponse(
+            id,
+            "IO_ERROR",
+            "The directory could not be created."
+        )
+        return successResponse(id, JSONObject().put("created", created))
+    }
+
+    private fun stat(id: Any?, args: JSONObject): String {
+        if (!requirePermission(id, "fs.read")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val path = args.opt("path")
+        if (path !is String || path.isEmpty()) {
+            return errorResponse(id, "INVALID_ARGS", "path is required.")
+        }
+        if (!KSMVirtualPath.isSafeStat(path) || path == "app://picked") {
+            return errorResponse(id, "PERMISSION_DENIED", "The path is outside the sandbox.")
+        }
+        if (
+            (KSMVirtualPath.isPicked(path) || KSMVirtualPath.isReadOnly(path)) &&
+            hostServices == null
+        ) {
+            return errorResponse(
+                id,
+                "NOT_SUPPORTED",
+                if (KSMVirtualPath.isPicked(path)) {
+                    "The picked file service is not configured."
+                } else {
+                    "The bundled file service is not configured."
+                }
+            )
+        }
+        if (
+            !KSMVirtualPath.isPicked(path) &&
+            !KSMVirtualPath.isReadOnly(path) &&
+            fileSystem == null
+        ) {
+            return errorResponse(
+                id,
+                "NOT_SUPPORTED",
+                "The filesystem is not configured."
+            )
+        }
+        val metadata = when {
+            KSMVirtualPath.isPicked(path) -> hostServices?.pickedStat(path)
+            KSMVirtualPath.isReadOnly(path) -> hostServices?.bundledStat(path)
+            else -> fileSystem?.stat(path)
+        } ?: return errorResponse(id, "NOT_FOUND", "The path was not found.")
+        return successResponse(id, metadataJson(metadata))
+    }
+
+    private fun metadataJson(metadata: KSMFileMetadata): JSONObject {
+        return JSONObject()
+            .put("kind", fileKindName(metadata.kind))
+            .put("size", metadata.size)
+            .put("modifiedAt", metadata.modifiedAt ?: JSONObject.NULL)
+    }
+
+    private fun fileKindName(kind: KSMFileKind): String {
+        return if (kind == KSMFileKind.DIRECTORY) "directory" else "file"
     }
 
     private fun showDialog(id: Any?, command: String, args: JSONObject): String {
@@ -407,7 +618,7 @@ class KSMRouter(
                 "suggestedName must be a string."
             )
         }
-        val file = host.saveFile(suggested as? String ?: "")
+        val file = host.saveFile(suggested ?: "")
         return successResponse(
             id,
             JSONObject().put("file", file ?: JSONObject.NULL)
@@ -457,6 +668,13 @@ class KSMRouter(
             "NOT_SUPPORTED",
             "The notification service is not configured."
         )
+        if (!host.hasRuntimePermission("notification.show")) {
+            return errorResponse(
+                id,
+                "PERMISSION_DENIED",
+                "The requested permission was denied."
+            )
+        }
         val title = args.opt("title")
         val body = args.opt("body")
         if (title !is String || body !is String) {
@@ -472,7 +690,27 @@ class KSMRouter(
         return permission in grantedPermissions
     }
 
-    private fun successResponse(id: Any?, data: JSONObject): String {
+    private fun textResponse(id: Any?, value: String, path: String): String {
+        if (value.toByteArray(Charsets.UTF_8).size <= MAX_INLINE_TEXT_BYTES) {
+            return successResponse(id, value)
+        }
+        if (path.startsWith("app://tmp/read-")) {
+            return successResponse(id, JSONObject().put("file", path))
+        }
+        val fs = fileSystem ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The filesystem is not configured."
+        )
+        val file = fs.createTemporaryText(value) ?: return errorResponse(
+            id,
+            "IO_ERROR",
+            "The large text result could not be staged."
+        )
+        return successResponse(id, JSONObject().put("file", file))
+    }
+
+    private fun successResponse(id: Any?, data: Any): String {
         return JSONObject()
             .put("type", "response")
             .put("id", id ?: JSONObject.NULL)

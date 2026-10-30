@@ -47,6 +47,19 @@ export interface KSMFileHandle {
   file: string;
 }
 
+export type KSMFileKind = 'file' | 'directory';
+
+export interface KSMFileMetadata {
+  kind: KSMFileKind;
+  size: number;
+  modifiedAt: number | null;
+}
+
+export interface KSMDirectoryEntry extends KSMFileMetadata {
+  name: string;
+  path: string;
+}
+
 export interface KSMEvent<TPayload = unknown> {
   type: 'event';
   event: string;
@@ -63,6 +76,9 @@ export interface KSMFsApi {
   writeText(args: { path: string; content: string }): Promise<{ written: boolean }>;
   exists(args: { path: string }): Promise<{ exists: boolean }>;
   remove(args: { path: string }): Promise<{ removed: boolean }>;
+  readDir(args: { path: string }): Promise<{ entries: KSMDirectoryEntry[] }>;
+  mkdir(args: { path: string; recursive?: boolean }): Promise<{ created: boolean }>;
+  stat(args: { path: string }): Promise<KSMFileMetadata>;
 }
 
 export interface KSMWindowApi {

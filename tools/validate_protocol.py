@@ -174,7 +174,14 @@ def validate_contract(contract: Any, permissions: Any, errors: Any) -> None:
                 f"{name} must declare exactly {sorted(REQUIRED_COMMAND_FIELDS)}"
             )
         validate_object_schema(definition["args"], f"{name}.args")
-        validate_object_schema(definition["result"], f"{name}.result")
+        validate_value_schema(definition["result"], f"{name}.result")
+        result_types = definition["result"].get("type")
+        result_types = result_types if isinstance(result_types, list) else [result_types]
+        if (
+            "object" in result_types
+            and definition["result"].get("additionalProperties") is not False
+        ):
+            raise ValueError(f"{name}.result must reject additional properties.")
         validate_string_list(
             definition["permissions"],
             f"{name}.permissions",

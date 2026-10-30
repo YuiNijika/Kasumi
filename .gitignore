@@ -1,6 +1,11 @@
 .env
-.workbuddy/
+.pnpm-store/
+.kotlin-check-src/
+.check-deps/
 .temp/
+__pycache__/
+*.egg-info/
+.venv/
 frontend/node_modules/
 windows/build/
 android/.gradle/

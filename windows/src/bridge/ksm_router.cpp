@@ -18,6 +18,8 @@ namespace {
 
 using Json = nlohmann::json;
 
+constexpr std::size_t kMaxInlineTextBytes = 64 * 1024;
+
 const std::set<std::string> kKnownPermissions = {
     "fs.read",
     "fs.write",
@@ -60,6 +62,29 @@ bool IsString(const Json& args, const char* field) {
     return args.contains(field) && args.at(field).is_string();
 }
 
+const char* FileKindName(KSMFileKind kind) {
+    return kind == KSMFileKind::Directory ? "directory" : "file";
+}
+
+Json MetadataJson(const KSMFileMetadata& metadata) {
+    Json modified_at = nullptr;
+    if (metadata.modified_at_ms) {
+        modified_at = *metadata.modified_at_ms;
+    }
+    return Json{
+        {"kind", FileKindName(metadata.kind)},
+        {"size", metadata.size},
+        {"modifiedAt", modified_at}
+    };
+}
+
+Json DirectoryEntryJson(const KSMDirectoryEntry& entry) {
+    Json value = MetadataJson(entry.metadata);
+    value["name"] = entry.name;
+    value["path"] = entry.path;
+    return value;
+}
+
 }
 
 KSMRouter::KSMRouter(
@@ -87,6 +112,22 @@ void KSMRouter::EmitEvent(
             return;
         }
     }
+    Json payload = Json::parse(payload_json, nullptr, false);
+    if (payload.is_discarded()) {
+        payload = Json::object();
+    }
+    send_response(Json{
+        {"type", "event"},
+        {"event", event},
+        {"payload", payload}
+    }.dump());
+}
+
+void KSMRouter::EmitSystemEvent(
+    const std::string& event,
+    const std::string& payload_json,
+    const ResponseSender& send_response
+) const {
     Json payload = Json::parse(payload_json, nullptr, false);
     if (payload.is_discarded()) {
         payload = Json::object();
@@ -233,11 +274,20 @@ void KSMRouter::HandleMessage(
             }
             const std::string permission = args.at("permission").get<std::string>();
             const bool known = kKnownPermissions.find(permission) != kKnownPermissions.end();
-            if (known) {
+            if (!known) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "permission is not registered.",
+                    send_response
+                );
+                return;
+            }
+            {
                 std::lock_guard lock(state_mutex_);
                 granted_permissions_.insert(permission);
             }
-            SendSuccess(id, Json{{"granted", known}}, send_response);
+            SendSuccess(id, Json{{"granted", true}}, send_response);
             return;
         }
 
@@ -265,6 +315,166 @@ void KSMRouter::HandleMessage(
                 }
                 SendSuccess(id, Json{{"unsubscribed", true}}, send_response);
             }
+            return;
+        }
+
+        if (command == "fs.readDir" ||
+            command == "fs.mkdir" ||
+            command == "fs.stat") {
+            if (!file_system_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The filesystem is not configured.",
+                    send_response
+                );
+                return;
+            }
+            const char* permission = command == "fs.mkdir"
+                ? "fs.write"
+                : "fs.read";
+            if (!HasPermission(permission)) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            if (!IsString(args, "path") || args.at("path").get<std::string>().empty()) {
+                SendError(id, "INVALID_ARGS", "path is required.", send_response);
+                return;
+            }
+            const std::string path = args.at("path").get<std::string>();
+            if (command == "fs.mkdir") {
+                if (
+                    !KSMVirtualPath::IsSafeDirectory(path) ||
+                    KSMVirtualPath::IsPicked(path) ||
+                    KSMVirtualPath::IsReadOnly(path)
+                ) {
+                    SendError(
+                        id,
+                        "PERMISSION_DENIED",
+                        "The path is outside the writable sandbox.",
+                        send_response
+                    );
+                    return;
+                }
+                bool recursive = false;
+                if (args.contains("recursive")) {
+                    if (!args.at("recursive").is_boolean()) {
+                        SendError(
+                            id,
+                            "INVALID_ARGS",
+                            "recursive must be a boolean.",
+                            send_response
+                        );
+                        return;
+                    }
+                    recursive = args.at("recursive").get<bool>();
+                }
+                const auto created = file_system_->MakeDirectory(path, recursive);
+                if (!created) {
+                    SendError(
+                        id,
+                        "IO_ERROR",
+                        "The directory could not be created.",
+                        send_response
+                    );
+                    return;
+                }
+                SendSuccess(id, Json{{"created", *created}}, send_response);
+                return;
+            }
+            if (command == "fs.readDir") {
+                if (
+                    !KSMVirtualPath::IsSafeDirectory(path) ||
+                    KSMVirtualPath::IsPicked(path)
+                ) {
+                    SendError(
+                        id,
+                        "PERMISSION_DENIED",
+                        "The path is not a readable directory.",
+                        send_response
+                    );
+                    return;
+                }
+                const auto entries = file_system_->ReadDir(path);
+                if (!entries) {
+                    const auto metadata = file_system_->Stat(path);
+                    if (metadata && metadata->kind != KSMFileKind::Directory) {
+                        SendError(
+                            id,
+                            "INVALID_ARGS",
+                            "The path is not a directory.",
+                            send_response
+                        );
+                    } else {
+                        SendError(
+                            id,
+                            metadata ? "IO_ERROR" : "NOT_FOUND",
+                            metadata
+                                ? "The directory could not be read."
+                                : "The directory was not found.",
+                            send_response
+                        );
+                    }
+                    return;
+                }
+                Json values = Json::array();
+                for (const auto& entry : *entries) {
+                    values.push_back(DirectoryEntryJson(entry));
+                }
+                SendSuccess(id, Json{{"entries", values}}, send_response);
+                return;
+            }
+            if (
+                !KSMVirtualPath::IsSafeStat(path) ||
+                path == "app://picked"
+            ) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The path is outside the sandbox.",
+                    send_response
+                );
+                return;
+            }
+            if (KSMVirtualPath::IsPicked(path)) {
+                if (!host_services_) {
+                    SendError(
+                        id,
+                        "NOT_SUPPORTED",
+                        "The picked file service is not configured.",
+                        send_response
+                    );
+                    return;
+                }
+                const auto metadata = host_services_->PickedStat(path);
+                if (!metadata) {
+                    SendError(
+                        id,
+                        "NOT_FOUND",
+                        "The file was not found.",
+                        send_response
+                    );
+                    return;
+                }
+                SendSuccess(id, MetadataJson(*metadata), send_response);
+                return;
+            }
+            const auto metadata = file_system_->Stat(path);
+            if (!metadata) {
+                SendError(
+                    id,
+                    "NOT_FOUND",
+                    "The path was not found.",
+                    send_response
+                );
+                return;
+            }
+            SendSuccess(id, MetadataJson(*metadata), send_response);
             return;
         }
 
@@ -325,13 +535,50 @@ void KSMRouter::HandleMessage(
                     ? host_services_->ReadPickedText(path)
                     : file_system_->ReadText(path);
                 if (!value) {
-                    SendError(id, "NOT_FOUND", "The file was not found.", send_response);
+                    const bool exists = is_picked
+                        ? host_services_->PickedExists(path)
+                        : file_system_->Exists(path);
+                    SendError(
+                        id,
+                        exists ? "IO_ERROR" : "NOT_FOUND",
+                        exists
+                            ? "The file could not be read."
+                            : "The file was not found.",
+                        send_response
+                    );
                     return;
                 }
-                SendSuccess(id, Json{{"text", *value}}, send_response);
+                if (value->size() > kMaxInlineTextBytes) {
+                    if (path.starts_with("app://tmp/read-")) {
+                        SendSuccess(id, Json{{"file", path}}, send_response);
+                        return;
+                    }
+                    const auto temporary = file_system_->CreateTemporaryText(*value);
+                    if (!temporary) {
+                        SendError(
+                            id,
+                            "IO_ERROR",
+                            "The large text result could not be staged.",
+                            send_response
+                        );
+                        return;
+                    }
+                    SendSuccess(id, Json{{"file", *temporary}}, send_response);
+                    return;
+                }
+                SendSuccess(id, Json(*value), send_response);
                 return;
             }
             if (command == "fs.writeText") {
+                if (KSMVirtualPath::IsReadOnly(path)) {
+                    SendError(
+                        id,
+                        "PERMISSION_DENIED",
+                        "The path is read-only.",
+                        send_response
+                    );
+                    return;
+                }
                 const bool written = is_picked
                     ? host_services_->WritePickedText(
                         path,
@@ -359,6 +606,15 @@ void KSMRouter::HandleMessage(
                     Json{{"exists", is_picked
                         ? host_services_->PickedExists(path)
                         : file_system_->Exists(path)}},
+                    send_response
+                );
+                return;
+            }
+            if (KSMVirtualPath::IsReadOnly(path)) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The path is read-only.",
                     send_response
                 );
                 return;
@@ -402,10 +658,11 @@ void KSMRouter::HandleMessage(
                 return;
             }
             const std::string title = args.at("title").get<std::string>();
-            const std::string message = args.at("message").get<std::string>();
+            const std::string dialog_message =
+                args.at("message").get<std::string>();
             const bool confirmed = command == "dialog.message"
-                ? host_services_->ShowMessage(title, message)
-                : host_services_->Confirm(title, message);
+                ? host_services_->ShowMessage(title, dialog_message)
+                : host_services_->Confirm(title, dialog_message);
             SendSuccess(id, Json{{"confirmed", confirmed}}, send_response);
             return;
         }

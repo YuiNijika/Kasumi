@@ -4,10 +4,12 @@
 #include <shellapi.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <cwchar>
 #include <fstream>
 #include <iterator>
+#include <system_error>
 #include <vector>
 
 #include "../commands/ksm_filesystem.h"
@@ -244,6 +246,44 @@ bool KSMWindowsHostServices::WritePickedText(
 bool KSMWindowsHostServices::PickedExists(const std::string& path) {
     const auto resolved = ResolvePicked(path);
     return resolved.has_value() && std::filesystem::exists(*resolved);
+}
+
+std::optional<KSMFileMetadata> KSMWindowsHostServices::PickedStat(
+    const std::string& path
+) {
+    const auto resolved = ResolvePicked(path);
+    if (!resolved) {
+        return std::nullopt;
+    }
+    std::error_code error;
+    const auto link_status = std::filesystem::symlink_status(*resolved, error);
+    if (error || link_status.type() == std::filesystem::file_type::symlink) {
+        return std::nullopt;
+    }
+    const auto status = std::filesystem::status(*resolved, error);
+    if (error || !std::filesystem::exists(status)) {
+        return std::nullopt;
+    }
+    std::optional<std::int64_t> modified_at;
+    const auto timestamp = std::filesystem::last_write_time(*resolved, error);
+    if (!error) {
+        const auto system_timestamp =
+            std::chrono::clock_cast<std::chrono::system_clock>(timestamp);
+        modified_at = std::chrono::duration_cast<std::chrono::milliseconds>(
+            system_timestamp.time_since_epoch()
+        ).count();
+    }
+    if (std::filesystem::is_directory(status)) {
+        return KSMFileMetadata{KSMFileKind::Directory, 0, modified_at};
+    }
+    if (!std::filesystem::is_regular_file(status)) {
+        return std::nullopt;
+    }
+    const auto size = std::filesystem::file_size(*resolved, error);
+    if (error) {
+        return std::nullopt;
+    }
+    return KSMFileMetadata{KSMFileKind::File, size, modified_at};
 }
 
 bool KSMWindowsHostServices::RemovePicked(const std::string& path) {

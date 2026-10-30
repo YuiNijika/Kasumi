@@ -1,17 +1,26 @@
 #pragma once
 
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
+
+#include "../platform/ksm_file_metadata.h"
 
 class KSMFileSystem;
 class KSMHostServices;
 
-struct KSM {
+struct KSM final {
+    KSM() = delete;
+
     enum class Platform {
         Windows,
     };
+
+    using EventHandler = std::function<void(const std::string& payload_json)>;
 
     struct Capabilities {
         Platform platform;
@@ -23,37 +32,85 @@ struct KSM {
         bool pong;
     };
 
-    struct Fs {
-        explicit Fs(std::shared_ptr<KSMFileSystem> file_system);
-
-        std::optional<std::string> ReadText(const std::string& path) const;
-        bool WriteText(const std::string& path, const std::string& content) const;
-        bool Exists(const std::string& path) const;
-        bool Remove(const std::string& path) const;
-
-    private:
-        std::shared_ptr<KSMFileSystem> file_system_;
+    struct AppInfo {
+        std::string name;
+        std::string version;
+        Platform platform;
+        std::string language;
     };
 
-    struct Dialog {
-        explicit Dialog(std::shared_ptr<KSMHostServices> host_services);
+    struct Fs final {
+        static std::optional<std::string> ReadText(std::string_view path);
+        static bool WriteText(std::string_view path, std::string_view content);
+        static bool Exists(std::string_view path);
+        static bool Remove(std::string_view path);
+        static std::optional<std::vector<KSMDirectoryEntry>> ReadDir(
+            std::string_view path
+        );
+        static std::optional<bool> MakeDirectory(
+            std::string_view path,
+            bool recursive
+        );
+        static std::optional<KSMFileMetadata> Stat(std::string_view path);
+    };
 
-        bool Message(const std::string& title, const std::string& message) const;
-        bool Confirm(const std::string& title, const std::string& message) const;
-        std::optional<std::string> OpenFile(
+    struct Dialog final {
+        static bool Message(std::string_view title, std::string_view message);
+        static bool Confirm(std::string_view title, std::string_view message);
+        static std::optional<std::string> OpenFile(
             const std::vector<std::string>& filters
-        ) const;
-        std::optional<std::string> SaveFile(
-            const std::string& suggested_name
-        ) const;
-
-    private:
-        std::shared_ptr<KSMHostServices> host_services_;
+        );
+        static std::optional<std::string> SaveFile(std::string_view suggested_name);
     };
 
+    struct Clipboard final {
+        static std::optional<std::string> ReadText();
+        static bool WriteText(std::string_view text);
+    };
+
+    struct Notification final {
+        static bool Show(std::string_view title, std::string_view body);
+    };
+
+    struct Permission final {
+        static std::optional<bool> Request(std::string_view permission);
+    };
+
+    struct Window final {
+        static bool SetTitle(std::string_view title);
+        static bool Minimize();
+        static bool Maximize();
+        static bool Close();
+    };
+
+    struct App final {
+        static std::optional<AppInfo> GetInfo();
+        static bool Exit();
+    };
+
+    static void Init(
+        std::shared_ptr<KSMFileSystem> file_system = nullptr,
+        std::shared_ptr<KSMHostServices> host_services = nullptr
+    );
+    static void Shutdown();
+    static std::string Invoke(
+        std::string_view window_id,
+        std::string_view command,
+        std::string_view args_json
+    );
+    static std::string Invoke(
+        std::string_view command,
+        std::string_view args_json
+    );
+    static std::uint64_t On(std::string_view event, EventHandler handler);
+    static bool Off(std::uint64_t subscription);
+    static void EmitEvent(
+        std::string_view event,
+        std::string_view payload_json
+    );
     static const Capabilities& Get();
 
-    struct Phase1 {
+    struct Phase1 final {
         static PingResult Ping();
         static Capabilities QueryCapabilities();
     };

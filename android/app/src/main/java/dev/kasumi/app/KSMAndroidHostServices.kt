@@ -14,12 +14,17 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import androidx.core.content.ContextCompat
+import dev.kasumi.app.bridge.KSMDirectoryEntry
+import dev.kasumi.app.bridge.KSMFileKind
+import dev.kasumi.app.bridge.KSMFileMetadata
 import dev.kasumi.app.bridge.KSMFileSystem
 import dev.kasumi.app.bridge.KSMHostServices
 import dev.kasumi.app.bridge.KSMVirtualPath
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -55,6 +60,14 @@ class KSMAndroidHostServices(
     private var pendingSaveFile: PendingUri? = null
     private var pendingPermission: PendingPermission? = null
     private val pickedFiles = mutableMapOf<String, Uri>()
+
+    override fun appVersion(): String {
+        return BuildConfig.VERSION_NAME
+    }
+
+    override fun language(): String {
+        return Locale.getDefault().toLanguageTag()
+    }
 
     override fun showMessage(title: String, message: String): Boolean {
         return showDialog(title, message, hasNegativeButton = false)
@@ -150,14 +163,114 @@ class KSMAndroidHostServices(
         }
     }
 
-    override fun removePicked(path: String): Boolean {
-        val uri = synchronized(this) { pickedFiles.remove(path) } ?: return false
+    override fun pickedStat(path: String): KSMFileMetadata? {
+        val uri = resolvePicked(path) ?: return null
         return try {
+            var size = 0L
+            activity.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.SIZE),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val index = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (index >= 0 && !cursor.isNull(index)) {
+                        size = cursor.getLong(index)
+                    }
+                }
+            }
+            if (size <= 0L) {
+                size = activity.contentResolver
+                    .openFileDescriptor(uri, "r")
+                    ?.use { descriptor -> descriptor.statSize }
+                    ?.takeIf { it >= 0L }
+                    ?: 0L
+            }
+            KSMFileMetadata(KSMFileKind.FILE, size, null)
+        } catch (_: RuntimeException) {
+            null
+        }
+    }
+
+    override fun removePicked(path: String): Boolean {
+        val uri = resolvePicked(path) ?: return false
+        val removed = try {
             DocumentsContract.deleteDocument(activity.contentResolver, uri) ||
                 activity.contentResolver.delete(uri, null, null) > 0
         } catch (_: RuntimeException) {
             false
         }
+        if (removed) {
+            synchronized(this) {
+                pickedFiles.remove(path, uri)
+            }
+        }
+        return removed
+    }
+
+    override fun readBundledText(path: String): String? {
+        val assetPath = KSMVirtualPath.bundledAssetPath(path) ?: return null
+        return try {
+            activity.assets.open(assetPath).use { input -> readLimited(input) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun bundledExists(path: String): Boolean {
+        val assetPath = KSMVirtualPath.bundledAssetPath(path) ?: return false
+        return try {
+            activity.assets.open(assetPath).use { true }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    override fun readBundledDirectory(
+        path: String
+    ): List<KSMDirectoryEntry>? {
+        val directoryPath = KSMVirtualPath.bundledAssetDirectoryPath(path)
+            ?: return null
+        val metadata = bundledStat(path) ?: return null
+        if (metadata.kind != KSMFileKind.DIRECTORY) {
+            return null
+        }
+        val names = try {
+            activity.assets.list(directoryPath)?.toList()
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        val parent = KSMVirtualPath.normalizeDirectory(path)
+        return names.mapNotNull { name ->
+            val childPath = "$parent/$name"
+            val child = bundledStat(childPath) ?: return@mapNotNull null
+            KSMDirectoryEntry(
+                name,
+                childPath,
+                child.kind,
+                child.size,
+                child.modifiedAt
+            )
+        }.sortedBy { it.name }
+    }
+
+    override fun bundledStat(path: String): KSMFileMetadata? {
+        val normalized = KSMVirtualPath.normalizeDirectory(path)
+        val filePath = KSMVirtualPath.bundledAssetPath(normalized)
+        if (filePath != null) {
+            val size = bundledFileSize(filePath)
+            if (size != null) {
+                return KSMFileMetadata(KSMFileKind.FILE, size, null)
+            }
+        }
+        val directoryPath = KSMVirtualPath.bundledAssetDirectoryPath(normalized)
+            ?: return null
+        if (!bundledDirectoryExists(directoryPath)) {
+            return null
+        }
+        return KSMFileMetadata(KSMFileKind.DIRECTORY, 0, null)
     }
 
     override fun readClipboardText(): String? {
@@ -254,6 +367,10 @@ class KSMAndroidHostServices(
             pendingPermission = null
         }
         return completed && pending.result.get()
+    }
+
+    override fun hasRuntimePermission(permission: String): Boolean {
+        return permission != "notification.show" || hasNotificationPermission()
     }
 
     override fun closeWindow(): Boolean {
@@ -388,6 +505,42 @@ class KSMAndroidHostServices(
 
     private fun resolvePicked(path: String): Uri? {
         return synchronized(this) { pickedFiles[path] }
+    }
+
+    private fun bundledFileSize(path: String): Long? {
+        val descriptorSize = try {
+            activity.assets.openFd(path).use { descriptor ->
+                descriptor.length.takeIf { it >= 0L }
+            }
+        } catch (_: Exception) {
+            null
+        }
+        if (descriptorSize != null) {
+            return descriptorSize
+        }
+        return try {
+            activity.assets.open(path).use { input ->
+                input.available().toLong()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun bundledDirectoryExists(path: String): Boolean {
+        if (path == "res" || path == "web") {
+            return true
+        }
+        val parent = path.substringBeforeLast('/', "")
+        val name = path.substringAfterLast('/')
+        if (parent.isEmpty() || name.isEmpty()) {
+            return false
+        }
+        return try {
+            activity.assets.list(parent)?.contains(name) == true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun readLimited(input: InputStream): String? {

@@ -23,6 +23,11 @@ public:
         const std::string& payload_json,
         const ResponseSender& send_response
     ) const;
+    void EmitSystemEvent(
+        const std::string& event,
+        const std::string& payload_json,
+        const ResponseSender& send_response
+    ) const;
 
 private:
     bool HasPermission(const std::string& permission) const;

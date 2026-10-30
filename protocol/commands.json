@@ -72,11 +72,11 @@
         "additionalProperties": false
       },
       "result": {
-        "type": "object",
+        "type": ["string", "object"],
         "properties": {
-          "text": {"type": "string"}
+          "file": {"type": "string"}
         },
-        "required": ["text"],
+        "required": ["file"],
         "additionalProperties": false
       },
       "permissions": ["fs.read"],
@@ -146,6 +146,86 @@
       "permissions": ["fs.remove"],
       "platforms": ["windows", "android"],
       "since": "1.0.0"
+    },
+    "fs.readDir": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "minLength": 1}
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "path": {"type": "string"},
+                "kind": {"type": "string", "enum": ["file", "directory"]},
+                "size": {"type": "number"},
+                "modifiedAt": {"type": ["number", "null"]}
+              },
+              "required": ["name", "path", "kind", "size", "modifiedAt"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["entries"],
+        "additionalProperties": false
+      },
+      "permissions": ["fs.read"],
+      "platforms": ["windows", "android"],
+      "since": "1.1.0"
+    },
+    "fs.mkdir": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "recursive": {"type": "boolean"}
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "created": {"type": "boolean"}
+        },
+        "required": ["created"],
+        "additionalProperties": false
+      },
+      "permissions": ["fs.write"],
+      "platforms": ["windows", "android"],
+      "since": "1.1.0"
+    },
+    "fs.stat": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "minLength": 1}
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "kind": {"type": "string", "enum": ["file", "directory"]},
+          "size": {"type": "number"},
+          "modifiedAt": {"type": ["number", "null"]}
+        },
+        "required": ["kind", "size", "modifiedAt"],
+        "additionalProperties": false
+      },
+      "permissions": ["fs.read"],
+      "platforms": ["windows", "android"],
+      "since": "1.1.0"
     },
     "dialog.message": {
       "args": {

@@ -31,6 +31,9 @@ public:
         const std::string& content
     ) override;
     bool PickedExists(const std::string& path) override;
+    std::optional<KSMFileMetadata> PickedStat(
+        const std::string& path
+    ) override;
     bool RemovePicked(const std::string& path) override;
     std::optional<std::string> ReadClipboardText() override;
     bool WriteClipboardText(const std::string& text) override;

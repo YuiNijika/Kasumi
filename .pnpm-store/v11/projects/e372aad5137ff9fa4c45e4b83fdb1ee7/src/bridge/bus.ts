@@ -33,13 +33,17 @@ export class KSMBus {
 
   public dispose(): void {
     this.unsubscribeTransport();
-    for (const pending of this.pending.values()) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error('Kasumi bridge was disposed.'));
-    }
-    this.pending.clear();
+    this.discardPending('Kasumi bridge was disposed.');
     this.eventListeners.clear();
     this.subscribedEvents.clear();
+  }
+
+  public discardPending(message: string): void {
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error(message));
+    }
+    this.pending.clear();
   }
 
   public invoke<TResult, TArgs>(
@@ -62,7 +66,11 @@ export class KSMBus {
     return new Promise<TResult>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        this.transport.send({ type: 'cancel', id });
+        try {
+          this.transport.send({ type: 'cancel', id });
+        } catch {
+          // The host may already be gone when the timeout fires.
+        }
         reject(this.createError('TIMEOUT', `Kasumi request timed out: ${cmd}`));
       }, timeoutMs);
 
@@ -71,7 +79,13 @@ export class KSMBus {
         reject,
         timer
       });
-      this.transport.send(request as KSMRequest<unknown>);
+      try {
+        this.transport.send(request as KSMRequest<unknown>);
+      } catch (error) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(error instanceof Error ? error : new Error('Kasumi message failed.'));
+      }
     });
   }
 
@@ -84,7 +98,11 @@ export class KSMBus {
         this.createError('CANCELLED', `Kasumi request was cancelled: ${id}`)
       );
     }
-    this.transport.send({ type: 'cancel', id });
+    try {
+      this.transport.send({ type: 'cancel', id });
+    } catch {
+      // Cancellation is best effort when the transport is unavailable.
+    }
   }
 
   public on<TPayload>(

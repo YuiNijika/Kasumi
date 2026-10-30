@@ -145,7 +145,7 @@
           "$ref": "#/$defs/objectSchema"
         },
         "result": {
-          "$ref": "#/$defs/objectSchema"
+          "$ref": "#/$defs/valueSchema"
         },
         "permissions": {
           "type": "array",

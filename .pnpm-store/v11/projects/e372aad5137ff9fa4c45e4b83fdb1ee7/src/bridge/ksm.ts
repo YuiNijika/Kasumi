@@ -6,12 +6,21 @@ import {
   validateKSMArgs,
   type KSMCommandName
 } from '../generated/contract';
+import {
+  assertBoolean,
+  assertString,
+  assertVirtualDirectoryPath,
+  assertVirtualPath,
+  assertVirtualStatPath
+} from '../api/guards';
 import type {
   KSMAppInfo,
   KSMAppApi,
   KSMClipboardApi,
+  KSMDirectoryEntry,
   KSMCapabilities,
   KSMDialogApi,
+  KSMFileMetadata,
   KSMFsApi,
   KSMNotificationApi,
   KSMPermissionApi,
@@ -35,10 +44,38 @@ export class KSM {
     exit: (): Promise<{ exited: boolean }> => KSM.invoke('app.exit', {})
   };
   public static readonly fs: KSMFsApi = {
-    readText: (args): Promise<string | { file: string }> => KSM.invoke('fs.readText', args),
-    writeText: (args): Promise<{ written: boolean }> => KSM.invoke('fs.writeText', args),
-    exists: (args): Promise<{ exists: boolean }> => KSM.invoke('fs.exists', args),
-    remove: (args): Promise<{ removed: boolean }> => KSM.invoke('fs.remove', args)
+    readText: (args): Promise<string | { file: string }> => {
+      assertVirtualPath(args.path);
+      return KSM.invoke('fs.readText', args);
+    },
+    writeText: (args): Promise<{ written: boolean }> => {
+      assertVirtualPath(args.path, true);
+      assertString(args.content, 'content');
+      return KSM.invoke('fs.writeText', args);
+    },
+    exists: (args): Promise<{ exists: boolean }> => {
+      assertVirtualPath(args.path);
+      return KSM.invoke('fs.exists', args);
+    },
+    remove: (args): Promise<{ removed: boolean }> => {
+      assertVirtualPath(args.path, true);
+      return KSM.invoke('fs.remove', args);
+    },
+    readDir: (args): Promise<{ entries: KSMDirectoryEntry[] }> => {
+      assertVirtualDirectoryPath(args.path);
+      return KSM.invoke('fs.readDir', args);
+    },
+    mkdir: (args): Promise<{ created: boolean }> => {
+      assertVirtualDirectoryPath(args.path, true);
+      if (args.recursive !== undefined) {
+        assertBoolean(args.recursive, 'recursive');
+      }
+      return KSM.invoke('fs.mkdir', args);
+    },
+    stat: (args): Promise<KSMFileMetadata> => {
+      assertVirtualStatPath(args.path);
+      return KSM.invoke('fs.stat', args);
+    }
   };
   public static readonly dialog: KSMDialogApi = {
     message: (args): Promise<{ confirmed: boolean }> => KSM.invoke('dialog.message', args),
@@ -91,6 +128,10 @@ export class KSM {
     throw new Error('KSM is a static entry point.');
   }
 
+  public static init(transport?: KSMTransport): void {
+    KSM.initialize(transport);
+  }
+
   public static initialize(transport?: KSMTransport): void {
     const resolvedTransport = transport ?? new KSMWebMessageTransport();
     KSM.bus?.dispose();
@@ -109,6 +150,10 @@ export class KSM {
     KSM.cachedCapabilities = undefined;
     KSM.capabilitiesPromise = undefined;
     KSM.eventListenerCounts.clear();
+  }
+
+  public static shutdown(): void {
+    KSM.dispose();
   }
 
   public static async ping(): Promise<{ pong: true }> {
@@ -155,7 +200,9 @@ export class KSM {
       (KSM_COMMANDS as readonly string[]).includes(cmd) &&
       !validateKSMArgs(cmd, args)
     ) {
-      throw new TypeError(`Arguments do not match the ${cmd} contract.`);
+      const error = new Error(`Arguments do not match the ${cmd} contract.`);
+      error.name = 'INVALID_ARGS';
+      throw error;
     }
     return KSM.requireBus().invoke<TResult, TArgs>(cmd, args);
   }
@@ -176,6 +223,13 @@ export class KSM {
     KSM.requireBus().untrackSubscription(event);
   }
 
+  public static on<TPayload>(
+    event: string,
+    listener: (payload: TPayload) => void
+  ): () => void {
+    return KSM.events.on(event, listener);
+  }
+
   private static requireBus(): KSMBus {
     if (!KSM.bus) {
       throw new Error('KSM must be initialized before use.');
@@ -186,6 +240,7 @@ export class KSM {
   private static async recoverAfterReload(): Promise<void> {
     const bus = KSM.requireBus();
     const subscriptions = bus.trackedSubscriptions();
+    bus.discardPending('Kasumi WebView reloaded before the request completed.');
     KSM.cachedCapabilities = undefined;
     await KSM.capabilities();
     for (const event of subscriptions) {

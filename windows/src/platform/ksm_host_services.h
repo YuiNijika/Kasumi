@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "ksm_file_metadata.h"
+
 class KSMHostServices {
 public:
     virtual ~KSMHostServices() = default;
@@ -26,6 +28,9 @@ public:
         const std::string& content
     ) = 0;
     virtual bool PickedExists(const std::string& path) = 0;
+    virtual std::optional<KSMFileMetadata> PickedStat(
+        const std::string& path
+    ) = 0;
     virtual bool RemovePicked(const std::string& path) = 0;
     virtual std::optional<std::string> ReadClipboardText() = 0;
     virtual bool WriteClipboardText(const std::string& text) = 0;

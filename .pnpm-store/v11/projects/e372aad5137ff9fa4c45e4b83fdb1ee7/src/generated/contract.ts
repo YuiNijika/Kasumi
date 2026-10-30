@@ -6,6 +6,9 @@ export const KSM_COMMANDS = [
   "fs.writeText",
   "fs.exists",
   "fs.remove",
+  "fs.readDir",
+  "fs.mkdir",
+  "fs.stat",
   "dialog.message",
   "dialog.confirm",
   "dialog.openFile",
@@ -30,6 +33,9 @@ export const KSM_WINDOWS_COMMANDS = [
   "fs.writeText",
   "fs.exists",
   "fs.remove",
+  "fs.readDir",
+  "fs.mkdir",
+  "fs.stat",
   "dialog.message",
   "dialog.confirm",
   "dialog.openFile",
@@ -54,6 +60,9 @@ export const KSM_ANDROID_COMMANDS = [
   "fs.writeText",
   "fs.exists",
   "fs.remove",
+  "fs.readDir",
+  "fs.mkdir",
+  "fs.stat",
   "dialog.message",
   "dialog.confirm",
   "dialog.openFile",
@@ -174,6 +183,48 @@ const KSM_ARG_SCHEMAS: Readonly<Record<string, KSMValueSchema>> = {
     "additionalProperties": false
   },
   "fs.remove": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.readDir": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.mkdir": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "recursive": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.stat": {
     "type": "object",
     "properties": {
       "path": {

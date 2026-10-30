@@ -11,7 +11,10 @@ bool StartsWith(const std::string& value, const std::string& prefix) {
 }  // namespace
 
 bool KSMWebViewSecurity::IsAllowedOrigin(const std::string& origin) {
-    return origin == "https://app.local" || origin == "http://localhost:5173";
+    return origin == "https://app.local" ||
+        StartsWith(origin, "https://app.local/") ||
+        origin == "http://localhost:5173" ||
+        StartsWith(origin, "http://localhost:5173/");
 }
 
 bool KSMWebViewSecurity::IsAllowedNavigation(const std::string& url) {

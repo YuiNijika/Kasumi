@@ -1,6 +1,7 @@
 {
   "name": "kasumi-windows",
   "version-string": "0.1.0",
+  "builtin-baseline": "d5b6777d666efc1a7f491babfcdab37794c1ae3e",
   "dependencies": [
     "nlohmann-json",
     "webview2"
