@@ -1,8 +1,14 @@
 .env
+$null
+.codex-diff.txt
 .pnpm-store/
 .kotlin-check-src/
 .check-deps/
 .temp/
+.tmp/
+.workbuddy/
+.codex-diff.txt
+$null
 __pycache__/
 *.egg-info/
 .venv/

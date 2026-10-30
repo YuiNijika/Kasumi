@@ -13,6 +13,7 @@ class ContractTest {
     private class TestHostServices : KSMHostServices {
         var clipboardText = "clipboard"
         var pickedText = "picked"
+        var downloadedPath = ""
 
         override fun appVersion(): String {
             return "9.9.9"
@@ -133,6 +134,44 @@ class ContractTest {
             return permission == "clipboard.read"
         }
 
+        override fun download(
+            url: String,
+            path: String,
+            overwrite: Boolean,
+            requestId: String?
+        ): KSMHttpDownloadResult? {
+            if (url != "https://example.com/file.bin") {
+                return null
+            }
+            downloadedPath = path
+            return KSMHttpDownloadResult(path, 42)
+        }
+
+        override fun isExternalUrlAllowed(url: String): Boolean {
+            return url.startsWith("https://example.com/")
+        }
+
+        override fun openExternal(url: String): Boolean {
+            return isExternalUrlAllowed(url)
+        }
+
+        override fun deviceInfo(): KSMDeviceInfo {
+            return KSMDeviceInfo(
+                platform = "android",
+                osVersion = "14",
+                model = "Pixel",
+                manufacturer = "Google",
+                appVersion = "9.9.9",
+                language = "zh-CN",
+                screenWidth = 1080,
+                screenHeight = 2400,
+                density = 2.75f,
+                deviceName = "Contract",
+                timezone = "Asia/Shanghai",
+                architecture = "arm64-v8a"
+            )
+        }
+
         override fun closeWindow(): Boolean {
             return true
         }
@@ -194,6 +233,87 @@ class ContractTest {
                     JSONObject().put("path", "app://data/x.txt")
                 ),
                 "INVALID_ARGS"
+            )
+
+            val download = invoke(
+                router,
+                "http.download",
+                JSONObject()
+                    .put("url", "https://example.com/file.bin")
+                    .put("path", "app://data/file.bin")
+            )
+            assertTrue(download.getBoolean("ok"))
+            assertEquals(
+                "app://data/file.bin",
+                download.getJSONObject("data").getString("path")
+            )
+            assertEquals(42L, download.getJSONObject("data").getLong("bytes"))
+            assertEquals("app://data/file.bin", hostServices.downloadedPath)
+            assertError(
+                invoke(
+                    router,
+                    "http.download",
+                    JSONObject()
+                        .put("url", "http://example.com/file.bin")
+                        .put("path", "app://data/file.bin")
+                ),
+                "INVALID_ARGS"
+            )
+            assertError(
+                invoke(
+                    router,
+                    "http.download",
+                    JSONObject()
+                        .put("url", "https://example.com/file.bin")
+                        .put("path", "app://picked/file.bin")
+                ),
+                "PERMISSION_DENIED"
+            )
+            assertError(
+                invoke(
+                    router,
+                    "http.download",
+                    JSONObject()
+                        .put("url", "https://example.com/file.bin")
+                        .put("path", "app://data/file.bin")
+                        .put("overwrite", "yes")
+                ),
+                "INVALID_ARGS"
+            )
+
+            val external = invoke(
+                router,
+                "shell.openExternal",
+                JSONObject().put("url", "https://example.com/docs")
+            )
+            assertTrue(external.getBoolean("ok"))
+            assertTrue(external.getJSONObject("data").getBoolean("opened"))
+            assertError(
+                invoke(
+                    router,
+                    "shell.openExternal",
+                    JSONObject().put("url", "https://other.example/docs")
+                ),
+                "PERMISSION_DENIED"
+            )
+
+            val device = invoke(router, "device.getInfo", JSONObject())
+            assertTrue(device.getBoolean("ok"))
+            assertEquals(
+                "android",
+                device.getJSONObject("data").getString("platform")
+            )
+            assertEquals(
+                "arm64-v8a",
+                device.getJSONObject("data").getString("architecture")
+            )
+            assertError(
+                invoke(
+                    router,
+                    "window.setSize",
+                    JSONObject().put("width", 800).put("height", 600)
+                ),
+                "NOT_SUPPORTED"
             )
             assertError(
                 invoke(
@@ -456,6 +576,17 @@ class ContractTest {
             assertTrue(KSM.clipboard.writeText("updated"))
             assertEquals("updated", KSM.clipboard.readText())
             assertTrue(KSM.notification.show("Kasumi", "root"))
+            assertEquals(
+                42L,
+                KSM.http.download(
+                    "https://example.com/file.bin",
+                    "app://data/root-download.bin"
+                )?.bytes
+            )
+            assertTrue(
+                KSM.shell.openExternal("https://example.com/docs")
+            )
+            assertEquals("android", KSM.device.getInfo()?.platform)
             assertTrue(KSM.permission.request("clipboard.read"))
             assertThrows(IllegalArgumentException::class.java) {
                 KSM.permission.request("unknown.permission")

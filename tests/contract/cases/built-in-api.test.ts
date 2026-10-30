@@ -166,6 +166,62 @@ export async function runBuiltInApiCases(
   if (!granted.granted) {
     throw new Error('permission.request did not grant a registered permission.');
   }
+  const downloaded = await adapter.invoke<{ path: string; bytes: number }>(
+    'http.download',
+    {
+      url: 'https://example.com/contract.bin',
+      path: 'app://data/download.bin'
+    }
+  );
+  if (
+    downloaded.path !== 'app://data/download.bin' ||
+    downloaded.bytes !== 8
+  ) {
+    throw new Error('http.download returned an invalid result.');
+  }
+  await expectError(
+    adapter.invoke('http.download', {
+      url: 'https://example.com/contract.bin',
+      path: 'app://data/download.bin'
+    }),
+    'IO_ERROR'
+  );
+  const overwritten = await adapter.invoke<{ bytes: number }>(
+    'http.download',
+    {
+      url: 'https://example.com/contract.bin',
+      path: 'app://data/download.bin',
+      overwrite: true
+    }
+  );
+  if (overwritten.bytes !== 8) {
+    throw new Error('http.download did not allow an explicit overwrite.');
+  }
+  const external = await adapter.invoke<{ opened: boolean }>(
+    'shell.openExternal',
+    { url: 'https://example.com/docs' }
+  );
+  if (!external.opened) {
+    throw new Error('shell.openExternal failed for an allowlisted origin.');
+  }
+  await expectError(
+    adapter.invoke('shell.openExternal', {
+      url: 'https://example.com.evil.test/docs'
+    }),
+    'PERMISSION_DENIED'
+  );
+
+  if (platform === 'android') {
+    const device = await adapter.invoke<{
+      platform: string;
+      architecture: string;
+    }>('device.getInfo', {});
+    if (device.platform !== 'android' || !device.architecture) {
+      throw new Error('device.getInfo returned invalid device data.');
+    }
+  } else {
+    await expectError(adapter.invoke('device.getInfo', {}), 'NOT_SUPPORTED');
+  }
 
   if (platform === 'windows') {
     const titled = await adapter.invoke<{ updated: boolean }>(
@@ -175,9 +231,20 @@ export async function runBuiltInApiCases(
     if (!titled.updated) {
       throw new Error('window.setTitle failed.');
     }
+    const resized = await adapter.invoke<{ updated: boolean }>(
+      'window.setSize',
+      { width: 960, height: 720 }
+    );
+    if (!resized.updated) {
+      throw new Error('window.setSize failed.');
+    }
   } else {
     await expectError(
       adapter.invoke('window.setTitle', { title: 'Kasumi' }),
+      'NOT_SUPPORTED'
+    );
+    await expectError(
+      adapter.invoke('window.setSize', { width: 960, height: 720 }),
       'NOT_SUPPORTED'
     );
   }

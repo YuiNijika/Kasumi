@@ -1,70 +1,136 @@
 # Android host
 
-> 提供 Android 宿主侧的 KSM 命令实现和桥接入口。
+> 说明 Android 侧的 KSM 命令实现、WebView 适配、生命周期、测试和发布签名。
 
-## 当前桥接入口
+## 模块边界
 
 | 文件 | 责任 |
 | --- | --- |
-| `app/src/main/java/dev/kasumi/app/bridge/KSM.kt` | 宿主侧根入口、生命周期、统一调用和原生事件监听 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMFs.kt` | 文件系统子模块 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMDialog.kt` | 对话框子模块 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMClipboard.kt` | 剪贴板子模块 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMNotification.kt` | 通知子模块 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMPermission.kt` | 权限子模块 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMWindow.kt` | Android 窗口关闭子模块 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMApp.kt` | 应用信息与退出子模块 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMPhase1.kt` | `ping`、能力和应用信息数据模型 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMCommandRegistry.kt` | Android 已实现命令清单 |
-| `app/src/main/java/dev/kasumi/app/bridge/KSMRouter.kt` | JSON 请求校验、命令分发和标准响应 |
+| `app/src/main/java/dev/kasumi/app/bridge/KSM.kt` | 宿主侧根入口、生命周期、统一调用和原生事件 |
+| `app/src/main/java/dev/kasumi/app/bridge/KSMRouter.kt` | JSON 校验、权限检查和命令分发 |
 | `app/src/main/java/dev/kasumi/app/bridge/KSMHostServices.kt` | Android 平台服务接口 |
-| `app/src/main/java/dev/kasumi/app/KSMAndroidHostServices.kt` | 对话框、文件选择、剪贴板、通知和窗口实现 |
-| `app/src/main/assets/web/index.html` | 带 CSP 的最小宿主页面 |
-| `app/src/test/java/.../ContractTest.kt` | 命令契约测试 |
+| `app/src/main/java/dev/kasumi/app/KSMAndroidHostServices.kt` | 对话框、文件、剪贴板、通知、下载、链接和设备信息 |
+| `app/src/main/java/dev/kasumi/app/bridge/KSMHttpPolicy.kt` | URL、origin 和重定向策略 |
+| `app/src/main/java/dev/kasumi/app/MainActivity.kt` | WebView、协程、资源加载和生命周期 |
+| `app/src/main/assets/web/` | 带 CSP 的最小宿主页面 |
+| `app/src/test/` | JVM 契约与策略测试 |
+| `app/src/androidTest/` | instrumentation 与真实 Activity 测试 |
 
-`KSMRouter.handleMessage` 接收 WebView 消息正文并返回响应正文。`WebViewCompat.addWebMessageListener` 适配器将命令放到 IO 协程执行，最多同时执行 8 条；超过上限返回 `BUSY`，取消消息会中断当前等待并返回 `CANCELLED`。
+Android 当前实现 **25/25 个适用命令**。Windows 专属的窗口标题、最小化、最大化、尺寸调整
+不提供；`device.getInfo` 仅 Android 提供。
 
-`MainActivity` 创建路由器后调用 `KSM.init` 注入同一个路由器和文件系统。宿主侧通过
-`KSM.invoke` 调用命令，通过 `KSM.get` 读取缓存能力，通过 `KSM.fs`、`KSM.dialog`、
-`KSM.clipboard`、`KSM.notification`、`KSM.permission`、`KSM.window` 和 `KSM.app` 访问直接
-能力；`KSM.on` 注册的原生监听由 `KSM.emitEvent` 分发。
+## 宿主入口
 
-`KSM.fs` 与协议路由保持一致：`app://data`、`app://cache`、`app://tmp` 使用
-`KSMFileSystem`，`app://res` 和 `app://assets` 通过资源服务读取，`app://picked/<id>` 通过宿主
-保存的 `content://` 映射读写。直接子模块仍不向调用方暴露真实路径。
+```kotlin
+KSM.init(router, fileSystem, hostServices)
 
-`KSM.fs.readDir` 支持可写沙箱和只读资源，`KSM.fs.makeDirectory` 只允许可写沙箱，
-`KSM.fs.stat` 还支持有效 picked 句柄。目录项按名称排序，`modifiedAt` 为 Unix 毫秒或
-`null`，目录 `size` 为 `0`；符号链接不会被跟随。
+val response = KSM.invoke(
+    "window-1",
+    "http.download",
+    JSONObject()
+        .put("url", "https://example.com/file.bin")
+        .put("path", "app://data/file.bin")
+)
+```
 
-`KSM.permission.request` 只接受生成契约中的权限名，未知权限抛出 `IllegalArgumentException`。
-`KSM.notification.show` 会先检查 `notification.show` 的运行时权限。Android 协议只支持
-`window.close`，因此根入口的 `KSM.window` 不提供桌面端标题、最小化和最大化方法。
-应用信息中的版本与语言来自 `KSMAndroidHostServices`，不再由根入口写死。
+`KSM` 根入口挂载 `fs`、`dialog`、`clipboard`、`notification`、`permission`、`http`、`shell`、
+`device`、`window` 和 `app`。直接子模块用于可信原生代码；前端命令仍必须经过
+`KSMRouter` 的参数、权限和路径校验。
 
-前端 `KSMWebMessageTransport` 会自动识别 Windows 的 `window.chrome.webview` 和 Android 注入的 `window.ksm`。
-命令响应走注入对象，Android 的系统和路由事件走同窗口 `window.postMessage`；传输层同时监听
-两条通路，并拒绝来源不是当前窗口的 `message` 事件。
+`WebViewCompat.addWebMessageListener` 接收消息后放入 IO 协程，最多同时执行 8 条命令。
+超过上限返回 `BUSY`，超时返回 `TIMEOUT`，取消消息会中断任务并返回 `CANCELLED`。
 
-Android 13 及以上的通知需要先调用 `permission.request` 请求 `notification.show`，应用清单已声明 `POST_NOTIFICATIONS`。
-
-WebView 只允许 `https://app.local` 和开发用 `http://localhost:5173`。其他 `http` / `https`
-导航交给系统浏览器，`intent:`、`file:` 等 scheme 会被直接拒绝；`window.open` 被拒绝，生产
-构建关闭 WebView 调试。文件选择器返回 `app://picked/<id>`，真实 `content://` URI 不离开宿主层。
+## 文件与事件
 
 `app://data`、`app://cache`、`app://tmp` 可读写；`app://res` 映射到 APK 的 `assets/res/`，
-`app://assets` 映射到 `assets/web/`，两者只读。超过 64KiB 的读取结果写入
-`app://tmp/read-<id>.txt`，再次读取该句柄时返回同一路径。
-未注册的虚拟根、盘符路径、NTFS 流、反斜杠和越权 `app://picked` 路径都会在原生路由层被拒绝。
+`app://assets` 映射到 `assets/web/`，两者只读。`app://picked/<id>` 通过宿主保存的
+`content://` 映射读写，真实 URI 不离开宿主层。
 
-命令在 IO 协程中执行，最多 8 条并发；超过上限返回 `BUSY`，超时返回 `TIMEOUT`，
-取消返回 `CANCELLED`。`webview.reloaded` 由 `onPageFinished` 作为系统事件发送，
-`window.resized` 由布局变化发送并需要订阅。
+`fs.readDir` 返回按名称排序的目录项；`fs.mkdir` 只允许可写沙箱；`fs.stat` 支持可写沙箱、
+只读资源和有效 picked 句柄。目录 `size` 为 `0`，`modifiedAt` 为 Unix 毫秒或 `null`。
+超过 64KiB 的读取结果写入 `app://tmp/read-<id>.txt`，再次读取同一句柄返回同一路径。
 
-`ContractTest` 覆盖根入口全部子模块、目录读取与创建、文件元数据、只读与 picked 路径、
-未知权限拒绝，以及 `KSM.shutdown()` 后子模块不可用；`NavigationPolicyTest` 验证 WebView
-来源只接受配置的 origin，并限制外部导航为 `http` / `https`。
-仍需在真机上验证通知运行时权限、剪贴板、文件选择器和窗口关闭行为。
+`webview.reloaded` 由 `onPageFinished` 作为系统事件发送；`window.resized` 由布局变化发送，
+需要订阅，尺寸单位是物理内容区像素。
+
+## HTTP、Shell 与 Device
+
+### `http.download`
+
+```kotlin
+val result = KSM.http.download(
+    url = "https://example.com/file.bin",
+    path = "app://data/file.bin",
+    overwrite = false
+)
+```
+
+`KSMAndroidHostServices.download` 使用 `HttpsURLConnection`：
+
+- 只接受 HTTPS，关闭自动重定向并逐跳校验。
+- 最多 5 次重定向，总超时 120 秒，最大 100 MiB。
+- 目标必须是 `app://data`、`app://cache` 或 `app://tmp` 下的文件。
+- 目标已存在且未允许覆盖时返回 `IO_ERROR`。
+- 下载到同目录临时 `.part` 文件，成功后原子提交；失败、取消或异常时删除。
+- 取消消息会 `disconnect` 活动连接；`onTrimMemory` 和 Activity 销毁会取消所有下载。
+
+### `shell.openExternal`
+
+```kotlin
+val opened = KSM.shell.openExternal("https://example.com/docs")
+```
+
+`KSMAndroidHostServices(activity, allowedExternalOrigins)` 默认使用空白名单。origin 比较包含
+scheme、host 和端口，默认端口规范化；未授权 origin 返回 `PERMISSION_DENIED`。只允许绝对
+`http` / `https` URL，使用 `ACTION_VIEW`，不把任意 `content://`、`intent://` 或非 Web scheme
+交给系统。
+
+### `device.getInfo`
+
+```kotlin
+val info = KSM.device.getInfo()
+```
+
+返回 `platform`、`osVersion`、`model`、`manufacturer`、`appVersion`、`language`、
+`screenWidth`、`screenHeight`、`density`、`deviceName`、`timezone` 和 `architecture`。
+屏幕尺寸来自当前窗口度量的物理像素；`deviceName` 读取失败或为空时回退到 `Build.MODEL`。
+不返回 Android ID、序列号、IMEI、广告 ID 或其他持久设备标识。
+
+## 生命周期
+
+`MainActivity` 在 `onCreate` 创建文件系统和宿主服务，在 `onDestroy` 取消命令协程、取消下载、
+关闭 `KSM` 并销毁 WebView。旋转会重建 Activity，旧请求的响应由 Activity 销毁检查抑制。
+`onTrimMemory` 在低内存级别取消活动下载并清理 WebView 缓存。
+
+文件选择器、通知权限和 Activity Result 都通过宿主服务等待结果；超时后清理 pending 状态。
+取消和超时竞态由协程、`activeRequests`、`cancelledRequests` 和下载会话共同处理。
+
+## WebView 安全
+
+WebView 只允许 `https://app.local` 和开发用 `http://localhost:5173`。其他 `http` / `https`
+导航交给系统浏览器，`intent:`、`file:` 等 scheme 会被拒绝；`window.open` 被拒绝，生产构建
+关闭 WebView 调试。CSP、导航拦截和来源校验必须保持开启，不使用 `addJavascriptInterface`。
+
+Android 13 及以上的通知需要先调用 `permission.request` 请求 `notification.show`，应用清单
+已声明 `POST_NOTIFICATIONS`。
+
+## 测试与验证
+
+```bash
+./gradlew test
+./gradlew connectedAndroidTest
+```
+
+| 测试 | 覆盖内容 |
+| --- | --- |
+| `ContractTest` | 根入口子模块、文件、picked、权限、新 API、关闭后不可用 |
+| `KSMHttpPolicyTest` | HTTPS、凭据、origin、端口、重定向和长度边界 |
+| `NavigationPolicyTest` | WebView 来源和外部导航白名单 |
+| `BridgeInstrumentedTest` | 路径守卫、大文本、事件、picked/bundled 资源、通知权限 |
+| `KSMAndroidHostServicesTest` | 精确 origin 与设备字段 |
+
+当前环境未提供 Gradle，本轮未重跑 Android JVM 与 instrumentation 测试。仍需在 API 34
+模拟器和真机补测文件选择器、通知权限、旋转、`onTrimMemory`、下载取消以及超时/取消竞态。
 
 ## 发布签名
 
@@ -77,9 +143,19 @@ release 构建从以下环境变量读取签名材料：
 | `KASUMI_ANDROID_KEY_ALIAS` | key alias |
 | `KASUMI_ANDROID_KEY_PASSWORD` | key 口令 |
 
-四个变量都有效且 keystore 文件存在时，`release` 自动使用该签名配置；否则构建保持未签名，
-便于本地验证。发布工作流还会使用 `apksigner verify --print-certs` 校验签名。
+四个变量都有效且 keystore 存在时，release 使用该签名配置；否则构建保持未签名。发布工作流
+还会使用 `apksigner verify --print-certs` 校验签名。
 
 ```bash
 python cli/ksm.py package --platform android
 ```
+
+## 排查路径
+
+1. 页面空白：检查 `assets/web/index.html`、CSP 和 `WebViewAssetLoader` 映射。
+2. 请求一直超时：检查 `withTimeout`、`runInterruptible` 和主线程回投。
+3. 文件被拒绝：检查虚拟根、picked 句柄和真实 URI 是否越界。
+4. 下载失败：检查 HTTPS、重定向、目标覆盖策略、网络权限和 `.part` 清理。
+5. 外部链接被拒绝：检查 origin 白名单、scheme、host 和端口。
+6. 通知不显示：先请求 `notification.show`，再检查 `POST_NOTIFICATIONS`。
+7. Activity 旋转后异常：检查旧请求是否被取消，迟到响应是否被抑制。

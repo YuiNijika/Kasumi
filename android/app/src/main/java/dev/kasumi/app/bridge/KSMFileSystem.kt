@@ -1,7 +1,9 @@
 package dev.kasumi.app.bridge
 
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
 import java.io.File
-import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicLong
 
 enum class KSMFileKind {
@@ -47,7 +49,7 @@ class KSMFileSystem(
         if (content.toByteArray(Charsets.UTF_8).size > MAX_TEXT_BYTES) {
             return false
         }
-        val file = resolve(path) ?: return false
+        val file = resolveWritableFile(path) ?: return false
         file.parentFile?.mkdirs()
         file.writeText(content)
         return true
@@ -65,7 +67,7 @@ class KSMFileSystem(
         val directory = resolveDirectory(path) ?: return null
         if (
             !directory.isDirectory ||
-            Files.isSymbolicLink(directory.toPath())
+            isSymbolicLink(directory)
         ) {
             return null
         }
@@ -89,7 +91,7 @@ class KSMFileSystem(
         if (directory.exists()) {
             return if (
                 directory.isDirectory &&
-                !Files.isSymbolicLink(directory.toPath())
+                !isSymbolicLink(directory)
             ) {
                 false
             } else {
@@ -106,7 +108,7 @@ class KSMFileSystem(
         }
         return if (
             directory.isDirectory &&
-            !Files.isSymbolicLink(directory.toPath())
+            !isSymbolicLink(directory)
         ) {
             false
         } else {
@@ -122,6 +124,25 @@ class KSMFileSystem(
     fun createTemporaryText(content: String): String? {
         val path = "app://tmp/read-${nextTempId.getAndIncrement()}.txt"
         return if (writeText(path, content)) path else null
+    }
+
+    fun resolveWritableFile(path: String): File? {
+        val file = resolve(path) ?: return null
+        if (isSymbolicLink(file)) {
+            return null
+        }
+        val root = when {
+            path.startsWith("app://data/") -> dataRoot
+            path.startsWith("app://cache/") -> cacheRoot
+            path.startsWith("app://tmp/") -> tempRoot
+            else -> return null
+        }
+        val canonicalRoot = root.canonicalFile
+        val canonicalFile = file.canonicalFile
+        val rootPrefix = canonicalRoot.path + File.separator
+        return file.takeIf {
+            canonicalFile.path.startsWith(rootPrefix)
+        }
     }
 
     private fun resolve(path: String): File? {
@@ -140,7 +161,7 @@ class KSMFileSystem(
     private fun readMetadata(file: File): KSMFileMetadata? {
         if (
             !file.exists() ||
-            Files.isSymbolicLink(file.toPath())
+            isSymbolicLink(file)
         ) {
             return null
         }
@@ -157,6 +178,17 @@ class KSMFileSystem(
                 modifiedAt
             )
             else -> null
+        }
+    }
+
+    private fun isSymbolicLink(file: File): Boolean {
+        return try {
+            val status = Os.lstat(file.path)
+            (status.st_mode and OsConstants.S_IFMT) == OsConstants.S_IFLNK
+        } catch (_: ErrnoException) {
+            false
+        } catch (_: RuntimeException) {
+            false
         }
     }
 }

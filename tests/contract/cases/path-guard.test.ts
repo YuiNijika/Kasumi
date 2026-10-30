@@ -43,6 +43,8 @@ export function runPathGuardCases(): void {
   expectRejected('app://data/file.txt:stream');
   expectRejected('app://data/\\server\\share');
   expectRejected('app://data//server');
+  expectRejected('app://data/./file.txt');
+  expectRejected('app://data/nested//file.txt');
   expectRejected('app://data');
   expectRejected('app://picked/1/2');
   expectRejected('app://other/file.txt');

@@ -41,6 +41,7 @@ class BridgeInstrumentedTest {
     private class HostServices : KSMHostServices {
         var clipboardText = "android"
         var pickedText = "picked"
+        var downloadedPath = ""
 
         override fun appVersion(): String = "0.1.0"
 
@@ -90,6 +91,40 @@ class BridgeInstrumentedTest {
             return path == "app://res/contract.txt"
         }
 
+        override fun readBundledDirectory(
+            path: String
+        ): List<KSMDirectoryEntry>? {
+            return if (path == "app://res") {
+                listOf(
+                    KSMDirectoryEntry(
+                        "contract.txt",
+                        "app://res/contract.txt",
+                        KSMFileKind.FILE,
+                        7,
+                        null
+                    )
+                )
+            } else {
+                null
+            }
+        }
+
+        override fun bundledStat(path: String): KSMFileMetadata? {
+            return when (path) {
+                "app://res" -> KSMFileMetadata(
+                    KSMFileKind.DIRECTORY,
+                    0,
+                    null
+                )
+                "app://res/contract.txt" -> KSMFileMetadata(
+                    KSMFileKind.FILE,
+                    7,
+                    null
+                )
+                else -> null
+            }
+        }
+
         override fun readClipboardText(): String = clipboardText
 
         override fun writeClipboardText(text: String): Boolean {
@@ -103,6 +138,44 @@ class BridgeInstrumentedTest {
 
         override fun requestPermission(permission: String): Boolean {
             return permission == "clipboard.read"
+        }
+
+        override fun download(
+            url: String,
+            path: String,
+            overwrite: Boolean,
+            requestId: String?
+        ): KSMHttpDownloadResult? {
+            if (url != "https://example.com/file.bin") {
+                return null
+            }
+            downloadedPath = path
+            return KSMHttpDownloadResult(path, 42)
+        }
+
+        override fun isExternalUrlAllowed(url: String): Boolean {
+            return url.startsWith("https://example.com/")
+        }
+
+        override fun openExternal(url: String): Boolean {
+            return isExternalUrlAllowed(url)
+        }
+
+        override fun deviceInfo(): KSMDeviceInfo {
+            return KSMDeviceInfo(
+                platform = "android",
+                osVersion = "14",
+                model = "Instrumented",
+                manufacturer = "Kasumi",
+                appVersion = "0.1.0",
+                language = "zh-CN",
+                screenWidth = 1080,
+                screenHeight = 2400,
+                density = 2.75f,
+                deviceName = "Instrumented",
+                timezone = "Asia/Shanghai",
+                architecture = "arm64-v8a"
+            )
         }
 
         override fun closeWindow(): Boolean = true
@@ -196,6 +269,15 @@ class BridgeInstrumentedTest {
                 "bundled",
                 KSM.fs.readText("app://res/contract.txt")
             )
+            assertEquals(
+                KSMFileKind.DIRECTORY,
+                KSM.fs.stat("app://res")?.kind
+            )
+            assertTrue(
+                KSM.fs.readDir("app://res")?.any {
+                    it.name == "contract.txt"
+                } == true
+            )
             assertEquals("picked", KSM.fs.readText("app://picked/1"))
             assertTrue(KSM.fs.writeText("app://picked/1", "updated"))
             assertEquals("updated", KSM.fs.readText("app://picked/1"))
@@ -224,6 +306,15 @@ class BridgeInstrumentedTest {
             assertTrue(KSM.clipboard.writeText("updated"))
             assertEquals("updated", KSM.clipboard.readText())
             assertTrue(KSM.notification.show("Kasumi", "android"))
+            assertEquals(
+                42L,
+                KSM.http.download(
+                    "https://example.com/file.bin",
+                    "app://data/instrumented-download.bin"
+                )?.bytes
+            )
+            assertTrue(KSM.shell.openExternal("https://example.com/docs"))
+            assertEquals("android", KSM.device.getInfo()?.platform)
             assertTrue(KSM.permission.request("clipboard.read"))
             assertThrows(IllegalArgumentException::class.java) {
                 KSM.permission.request("unknown.permission")

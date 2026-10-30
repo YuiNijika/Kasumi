@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../platform/ksm_file_metadata.h"
+#include "../platform/ksm_host_services.h"
 
 class KSMFileSystem;
 class KSMHostServices;
@@ -80,7 +81,24 @@ struct KSM final {
         static bool SetTitle(std::string_view title);
         static bool Minimize();
         static bool Maximize();
+        static bool SetSize(const KSMWindowSize& size);
         static bool Close();
+    };
+
+    struct Http final {
+        static std::optional<KSMHttpDownloadResult> Download(
+            std::string_view url,
+            std::string_view path,
+            bool overwrite = false
+        );
+    };
+
+    struct Shell final {
+        static bool OpenExternal(std::string_view url);
+    };
+
+    struct Device final {
+        static std::optional<KSMDeviceInfo> GetInfo();
     };
 
     struct App final {

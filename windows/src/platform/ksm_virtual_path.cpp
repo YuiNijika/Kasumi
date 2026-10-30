@@ -7,13 +7,33 @@ constexpr char kResourcePrefix[] = "app://res/";
 constexpr char kAssetPrefix[] = "app://assets/";
 
 bool IsSafeRelativePath(const std::string& relative) {
-    return !relative.empty() &&
-        relative.find('\0') == std::string::npos &&
-        relative.find("..") == std::string::npos &&
-        relative.find('~') == std::string::npos &&
-        relative.find(':') == std::string::npos &&
-        relative.find('\\') == std::string::npos &&
-        !relative.starts_with('/');
+    if (
+        relative.empty() ||
+        relative.find('\0') != std::string::npos ||
+        relative.find("..") != std::string::npos ||
+        relative.find('~') != std::string::npos ||
+        relative.find(':') != std::string::npos ||
+        relative.find('\\') != std::string::npos ||
+        relative.starts_with('/')
+    ) {
+        return false;
+    }
+    std::size_t start = 0;
+    while (start <= relative.size()) {
+        const auto end = relative.find('/', start);
+        const auto segment = relative.substr(
+            start,
+            end == std::string::npos ? std::string::npos : end - start
+        );
+        if (segment.empty() || segment == ".") {
+            return false;
+        }
+        if (end == std::string::npos) {
+            break;
+        }
+        start = end + 1;
+    }
+    return true;
 }
 
 bool HasForbiddenPrefix(const std::string& path) {

@@ -8,6 +8,7 @@ object KSMGeneratedContract {
         "ping",
         "capabilities.query",
         "app.getInfo",
+        "device.getInfo",
         "fs.readText",
         "fs.writeText",
         "fs.exists",
@@ -28,7 +29,10 @@ object KSMGeneratedContract {
         "window.setTitle",
         "window.minimize",
         "window.maximize",
+        "window.setSize",
         "window.close",
+        "shell.openExternal",
+        "http.download",
         "app.exit"
     )
 
@@ -56,7 +60,10 @@ object KSMGeneratedContract {
         "window.setTitle",
         "window.minimize",
         "window.maximize",
+        "window.setSize",
         "window.close",
+        "shell.openExternal",
+        "http.download",
         "app.exit"
     )
 
@@ -64,6 +71,7 @@ object KSMGeneratedContract {
         "ping",
         "capabilities.query",
         "app.getInfo",
+        "device.getInfo",
         "fs.readText",
         "fs.writeText",
         "fs.exists",
@@ -82,6 +90,8 @@ object KSMGeneratedContract {
         "event.subscribe",
         "event.unsubscribe",
         "window.close",
+        "shell.openExternal",
+        "http.download",
         "app.exit"
     )
 
@@ -98,7 +108,10 @@ object KSMGeneratedContract {
         "clipboard.read",
         "clipboard.write",
         "notification.show",
-        "window.control"
+        "window.control",
+        "http.download",
+        "shell.open",
+        "device.info"
     )
 
     private const val ARG_SCHEMAS_JSON = """{
@@ -115,6 +128,12 @@ object KSMGeneratedContract {
     "additionalProperties": false
   },
   "app.getInfo": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "device.getInfo": {
     "type": "object",
     "properties": {},
     "required": [],
@@ -371,10 +390,60 @@ object KSMGeneratedContract {
     "required": [],
     "additionalProperties": false
   },
+  "window.setSize": {
+    "type": "object",
+    "properties": {
+      "width": {
+        "type": "integer"
+      },
+      "height": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "width",
+      "height"
+    ],
+    "additionalProperties": false
+  },
   "window.close": {
     "type": "object",
     "properties": {},
     "required": [],
+    "additionalProperties": false
+  },
+  "shell.openExternal": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "url"
+    ],
+    "additionalProperties": false
+  },
+  "http.download": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      },
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "overwrite": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "url",
+      "path"
+    ],
     "additionalProperties": false
   },
   "app.exit": {

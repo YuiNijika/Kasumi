@@ -20,3 +20,23 @@ data class KSMAppInfo(
 data class KSMPingResult(
     val pong: Boolean
 )
+
+data class KSMHttpDownloadResult(
+    val path: String,
+    val bytes: Long
+)
+
+data class KSMDeviceInfo(
+    val platform: String,
+    val osVersion: String,
+    val model: String,
+    val manufacturer: String,
+    val appVersion: String,
+    val language: String,
+    val screenWidth: Int,
+    val screenHeight: Int,
+    val density: Float,
+    val deviceName: String,
+    val timezone: String,
+    val architecture: String
+)

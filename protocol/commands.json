@@ -62,6 +62,49 @@
       "platforms": ["windows", "android"],
       "since": "1.0.0"
     },
+    "device.getInfo": {
+      "args": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "platform": {"type": "string", "enum": ["android"]},
+          "osVersion": {"type": "string"},
+          "model": {"type": "string"},
+          "manufacturer": {"type": "string"},
+          "appVersion": {"type": "string"},
+          "language": {"type": "string"},
+          "screenWidth": {"type": "number"},
+          "screenHeight": {"type": "number"},
+          "density": {"type": "number"},
+          "deviceName": {"type": "string"},
+          "timezone": {"type": "string"},
+          "architecture": {"type": "string"}
+        },
+        "required": [
+          "platform",
+          "osVersion",
+          "model",
+          "manufacturer",
+          "appVersion",
+          "language",
+          "screenWidth",
+          "screenHeight",
+          "density",
+          "deviceName",
+          "timezone",
+          "architecture"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": ["device.info"],
+      "platforms": ["android"],
+      "since": "1.1.0"
+    },
     "fs.readText": {
       "args": {
         "type": "object",
@@ -497,6 +540,28 @@
       "platforms": ["windows"],
       "since": "1.0.0"
     },
+    "window.setSize": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "width": {"type": "integer"},
+          "height": {"type": "integer"}
+        },
+        "required": ["width", "height"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {"type": "boolean"}
+        },
+        "required": ["updated"],
+        "additionalProperties": false
+      },
+      "permissions": ["window.control"],
+      "platforms": ["windows"],
+      "since": "1.1.0"
+    },
     "window.close": {
       "args": {
         "type": "object",
@@ -515,6 +580,51 @@
       "permissions": ["window.control"],
       "platforms": ["windows", "android"],
       "since": "1.0.0"
+    },
+    "shell.openExternal": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "minLength": 1}
+        },
+        "required": ["url"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "opened": {"type": "boolean"}
+        },
+        "required": ["opened"],
+        "additionalProperties": false
+      },
+      "permissions": ["shell.open"],
+      "platforms": ["windows", "android"],
+      "since": "1.1.0"
+    },
+    "http.download": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "overwrite": {"type": "boolean"}
+        },
+        "required": ["url", "path"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string"},
+          "bytes": {"type": "number"}
+        },
+        "required": ["path", "bytes"],
+        "additionalProperties": false
+      },
+      "permissions": ["http.download"],
+      "platforms": ["windows", "android"],
+      "since": "1.1.0"
     },
     "app.exit": {
       "args": {

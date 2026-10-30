@@ -36,7 +36,8 @@ function validateVirtualPath(path: string, options: VirtualPathOptions): void {
   } else if (
     relative.includes(':') ||
     relative.includes('\\') ||
-    relative.startsWith('/')
+    relative.startsWith('/') ||
+    relative.split('/').some((segment) => segment.length === 0 || segment === '.')
   ) {
     throw new TypeError('path contains a forbidden segment.');
   }
@@ -52,9 +53,13 @@ function validateVirtualPath(path: string, options: VirtualPathOptions): void {
   }
 }
 
-export function assertVirtualPath(path: string, writable = false): void {
+export function assertVirtualPath(
+  path: string,
+  writable = false,
+  allowPicked = true
+): void {
   validateVirtualPath(path, {
-    allowPicked: true,
+    allowPicked,
     writable
   });
 }
@@ -80,5 +85,41 @@ export function assertVirtualStatPath(path: string): void {
 export function assertBoolean(value: unknown, field: string): asserts value is boolean {
   if (typeof value !== 'boolean') {
     throw new TypeError(`${field} must be a boolean.`);
+  }
+}
+
+export function assertHttpUrl(
+  value: unknown,
+  field: string,
+  httpsOnly = false
+): asserts value is string {
+  assertString(value, field);
+  if (value.length > 8192) {
+    throw new TypeError(`${field} must not exceed 8192 characters.`);
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new TypeError(`${field} must be an absolute URL.`);
+  }
+
+  if (parsed.username || parsed.password || !parsed.hostname) {
+    throw new TypeError(`${field} must not contain credentials or omit the host.`);
+  }
+  if (parsed.protocol !== 'https:' && (httpsOnly || parsed.protocol !== 'http:')) {
+    throw new TypeError(`${field} must use ${httpsOnly ? 'HTTPS' : 'HTTP or HTTPS'}.`);
+  }
+}
+
+export function assertPositiveInteger(value: unknown, field: string): asserts value is number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    !Number.isSafeInteger(value) ||
+    value <= 0
+  ) {
+    throw new TypeError(`${field} must be a positive integer.`);
   }
 }

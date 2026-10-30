@@ -2,6 +2,7 @@ export const KSM_COMMANDS = [
   "ping",
   "capabilities.query",
   "app.getInfo",
+  "device.getInfo",
   "fs.readText",
   "fs.writeText",
   "fs.exists",
@@ -22,7 +23,10 @@ export const KSM_COMMANDS = [
   "window.setTitle",
   "window.minimize",
   "window.maximize",
+  "window.setSize",
   "window.close",
+  "shell.openExternal",
+  "http.download",
   "app.exit"
 ] as const;
 export const KSM_WINDOWS_COMMANDS = [
@@ -49,13 +53,17 @@ export const KSM_WINDOWS_COMMANDS = [
   "window.setTitle",
   "window.minimize",
   "window.maximize",
+  "window.setSize",
   "window.close",
+  "shell.openExternal",
+  "http.download",
   "app.exit"
 ] as const;
 export const KSM_ANDROID_COMMANDS = [
   "ping",
   "capabilities.query",
   "app.getInfo",
+  "device.getInfo",
   "fs.readText",
   "fs.writeText",
   "fs.exists",
@@ -74,6 +82,8 @@ export const KSM_ANDROID_COMMANDS = [
   "event.subscribe",
   "event.unsubscribe",
   "window.close",
+  "shell.openExternal",
+  "http.download",
   "app.exit"
 ] as const;
 export const KSM_EVENTS = [
@@ -88,7 +98,10 @@ export const KSM_PERMISSIONS = [
   "clipboard.read",
   "clipboard.write",
   "notification.show",
-  "window.control"
+  "window.control",
+  "http.download",
+  "shell.open",
+  "device.info"
 ] as const;
 export const KSM_ERROR_CODES = [
   "INVALID_ARGS",
@@ -133,6 +146,12 @@ const KSM_ARG_SCHEMAS: Readonly<Record<string, KSMValueSchema>> = {
     "additionalProperties": false
   },
   "app.getInfo": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "device.getInfo": {
     "type": "object",
     "properties": {},
     "required": [],
@@ -389,10 +408,60 @@ const KSM_ARG_SCHEMAS: Readonly<Record<string, KSMValueSchema>> = {
     "required": [],
     "additionalProperties": false
   },
+  "window.setSize": {
+    "type": "object",
+    "properties": {
+      "width": {
+        "type": "integer"
+      },
+      "height": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "width",
+      "height"
+    ],
+    "additionalProperties": false
+  },
   "window.close": {
     "type": "object",
     "properties": {},
     "required": [],
+    "additionalProperties": false
+  },
+  "shell.openExternal": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "url"
+    ],
+    "additionalProperties": false
+  },
+  "http.download": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      },
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "overwrite": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "url",
+      "path"
+    ],
     "additionalProperties": false
   },
   "app.exit": {

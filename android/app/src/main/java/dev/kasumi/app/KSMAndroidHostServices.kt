@@ -8,31 +8,50 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import android.provider.Settings
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
 import androidx.core.content.ContextCompat
 import dev.kasumi.app.bridge.KSMDirectoryEntry
+import dev.kasumi.app.bridge.KSMDeviceInfo
 import dev.kasumi.app.bridge.KSMFileKind
 import dev.kasumi.app.bridge.KSMFileMetadata
 import dev.kasumi.app.bridge.KSMFileSystem
 import dev.kasumi.app.bridge.KSMHostServices
+import dev.kasumi.app.bridge.KSMHttpDownloadResult
+import dev.kasumi.app.bridge.KSMHttpPolicy
 import dev.kasumi.app.bridge.KSMVirtualPath
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
 import java.io.InputStream
+import java.net.SocketTimeoutException
 import java.util.Locale
+import java.util.TimeZone
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import javax.net.ssl.HttpsURLConnection
 
 class KSMAndroidHostServices(
-    private val activity: Activity
+    private val activity: Activity,
+    allowedExternalOrigins: Set<String> = emptySet(),
+    private val fileSystem: KSMFileSystem? = null
 ) : KSMHostServices {
     companion object {
         const val REQUEST_OPEN_FILE = 1001
@@ -42,8 +61,20 @@ class KSMAndroidHostServices(
         private const val CHANNEL_ID = "kasumi"
         private const val DIALOG_TIMEOUT_SECONDS = 60L
         private const val URI_TIMEOUT_SECONDS = 60L
+        private const val DOWNLOAD_IO_TIMEOUT_MS = 15000
+        private const val DOWNLOAD_TOTAL_TIMEOUT_MS = 120000L
+        private const val MAX_DOWNLOAD_BYTES = 100L * 1024L * 1024L
+        private const val MAX_REDIRECTS = 5
         private val nextNotificationId = AtomicInteger(1)
         private val nextPickedId = AtomicInteger(1)
+    }
+
+    private data class DownloadSession(
+        val cancelled: AtomicBoolean = AtomicBoolean(false),
+        val connection: AtomicReference<HttpsURLConnection?> = AtomicReference()
+    ) {
+        @Volatile
+        var deadlineTask: ScheduledFuture<*>? = null
     }
 
     private data class PendingUri(
@@ -60,6 +91,13 @@ class KSMAndroidHostServices(
     private var pendingSaveFile: PendingUri? = null
     private var pendingPermission: PendingPermission? = null
     private val pickedFiles = mutableMapOf<String, Uri>()
+    private val allowedOrigins = KSMHttpPolicy.normalizeOrigins(allowedExternalOrigins)
+    private val activeDownloads = ConcurrentHashMap<String, DownloadSession>()
+    private val downloadWatchdog = Executors.newSingleThreadScheduledExecutor { task ->
+        Thread(task, "kasumi-download-watchdog").apply {
+            isDaemon = true
+        }
+    }
 
     override fun appVersion(): String {
         return BuildConfig.VERSION_NAME
@@ -383,6 +421,226 @@ class KSMAndroidHostServices(
         return true
     }
 
+    override fun download(
+        url: String,
+        path: String,
+        overwrite: Boolean,
+        requestId: String?
+    ): KSMHttpDownloadResult? {
+        val target = fileSystem?.resolveWritableFile(path)
+            ?: throw KSMHostException(
+                "PERMISSION_DENIED",
+                "path is outside the writable sandbox."
+            )
+        if (target.isDirectory) {
+            throw KSMHostException("INVALID_ARGS", "path must name a file.")
+        }
+        if (target.exists() && !overwrite) {
+            throw KSMHostException("IO_ERROR", "The target already exists.")
+        }
+        val parent = target.parentFile
+            ?: throw KSMHostException("IO_ERROR", "The target directory is invalid.")
+        if (!parent.exists() && !parent.mkdirs()) {
+            throw KSMHostException("IO_ERROR", "The target directory could not be created.")
+        }
+        val part = File(parent, ".${target.name}.${System.nanoTime()}.part")
+        var current = KSMHttpPolicy.parseHttpUrl(url, httpsOnly = true)
+            ?: throw KSMHostException("INVALID_ARGS", "url must use HTTPS.")
+        var redirects = 0
+        val session = DownloadSession()
+        val downloadKey = requestId ?: "anonymous-${System.nanoTime()}"
+        val deadlineNanos =
+            System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(DOWNLOAD_TOTAL_TIMEOUT_MS)
+        activeDownloads[downloadKey] = session
+        session.deadlineTask = downloadWatchdog.schedule(
+            {
+                session.cancelled.set(true)
+                session.connection.getAndSet(null)?.disconnect()
+            },
+            DOWNLOAD_TOTAL_TIMEOUT_MS,
+            TimeUnit.MILLISECONDS
+        )
+        return try {
+            while (true) {
+                if (session.cancelled.get() || Thread.currentThread().isInterrupted) {
+                    throw downloadCancellation(deadlineNanos)
+                }
+                val remainingMs = TimeUnit.NANOSECONDS.toMillis(
+                    deadlineNanos - System.nanoTime()
+                )
+                if (remainingMs <= 0) {
+                    throw KSMHostException("TIMEOUT", "The download timed out.")
+                }
+                val opened = current.openConnection() as? HttpsURLConnection
+                    ?: throw KSMHostException("IO_ERROR", "The HTTPS connection failed.")
+                session.connection.set(opened)
+                if (session.cancelled.get()) {
+                    throw downloadCancellation(deadlineNanos)
+                }
+                opened.instanceFollowRedirects = false
+                opened.useCaches = false
+                opened.connectTimeout = minOf(
+                    DOWNLOAD_IO_TIMEOUT_MS.toLong(),
+                    remainingMs
+                ).toInt()
+                opened.readTimeout = minOf(
+                    DOWNLOAD_IO_TIMEOUT_MS.toLong(),
+                    remainingMs
+                ).toInt()
+                opened.requestMethod = "GET"
+                opened.setRequestProperty("Accept", "*/*")
+                try {
+                    val status = opened.responseCode
+                    if (session.cancelled.get()) {
+                        throw downloadCancellation(deadlineNanos)
+                    }
+                    if (status in 300..399) {
+                        if (redirects >= MAX_REDIRECTS) {
+                            throw KSMHostException(
+                                "IO_ERROR",
+                                "The download exceeded the redirect limit."
+                            )
+                        }
+                        val location = opened.getHeaderField("Location")
+                            ?: throw KSMHostException(
+                                "IO_ERROR",
+                                "The redirect did not include a location."
+                            )
+                        current = KSMHttpPolicy.resolveHttpsRedirect(current, location)
+                            ?: throw KSMHostException(
+                                "IO_ERROR",
+                                "The redirect did not use HTTPS."
+                            )
+                        redirects += 1
+                        continue
+                    }
+                    if (status !in 200..299) {
+                        throw KSMHostException(
+                            "IO_ERROR",
+                            "The server returned HTTP $status."
+                        )
+                    }
+                    val declaredLength = opened.contentLengthLong
+                    if (declaredLength > MAX_DOWNLOAD_BYTES) {
+                        throw KSMHostException(
+                            "IO_ERROR",
+                            "The download exceeds the maximum size."
+                        )
+                    }
+                    val bytes = opened.inputStream.use { input ->
+                        copyLimited(
+                            input,
+                            part,
+                            MAX_DOWNLOAD_BYTES,
+                            session,
+                            deadlineNanos
+                        )
+                    }
+                    if (target.exists() && !overwrite) {
+                        throw KSMHostException("IO_ERROR", "The target already exists.")
+                    }
+                    if (!commitDownload(part, target, overwrite)) {
+                        throw KSMHostException(
+                            "IO_ERROR",
+                            "The downloaded file could not be committed."
+                        )
+                    }
+                    return KSMHttpDownloadResult(path, bytes)
+                } finally {
+                    opened.disconnect()
+                    session.connection.compareAndSet(opened, null)
+                }
+            }
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw downloadCancellation(deadlineNanos)
+        } catch (error: SocketTimeoutException) {
+            if (session.cancelled.get()) {
+                throw downloadCancellation(deadlineNanos)
+            }
+            throw KSMHostException(
+                "IO_ERROR",
+                error.message ?: "The connection timed out."
+            )
+        } catch (error: IOException) {
+            if (session.cancelled.get()) {
+                throw downloadCancellation(deadlineNanos)
+            }
+            throw KSMHostException("IO_ERROR", error.message ?: "The download failed.")
+        } finally {
+            session.connection.set(null)
+            session.deadlineTask?.cancel(false)
+            activeDownloads.remove(downloadKey, session)
+            part.delete()
+        }
+    }
+
+    override fun cancelRequest(requestId: String) {
+        activeDownloads[requestId]?.let(::cancelDownload)
+    }
+
+    fun cancelAllDownloads() {
+        activeDownloads.values.forEach(::cancelDownload)
+    }
+
+    fun shutdown() {
+        cancelAllDownloads()
+        downloadWatchdog.shutdownNow()
+    }
+
+    override fun isExternalUrlAllowed(url: String): Boolean {
+        return KSMHttpPolicy.isAllowedExternalUrl(url, allowedOrigins)
+    }
+
+    override fun openExternal(url: String): Boolean {
+        if (!isExternalUrlAllowed(url)) {
+            return false
+        }
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        return try {
+            activity.startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
+    }
+
+    override fun deviceInfo(): KSMDeviceInfo {
+        val metrics = activity.resources.displayMetrics
+        val bounds = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            activity.windowManager.currentWindowMetrics.bounds
+        } else {
+            val legacy = android.util.DisplayMetrics()
+            @Suppress("DEPRECATION")
+            activity.windowManager.defaultDisplay.getRealMetrics(legacy)
+            Rect(0, 0, legacy.widthPixels, legacy.heightPixels)
+        }
+        val deviceName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+            Settings.Global.getString(
+                activity.contentResolver,
+                Settings.Global.DEVICE_NAME
+            )
+        } else {
+            null
+        }?.takeIf { it.isNotBlank() } ?: Build.MODEL
+        return KSMDeviceInfo(
+            platform = "android",
+            osVersion = Build.VERSION.RELEASE ?: "unknown",
+            model = Build.MODEL,
+            manufacturer = Build.MANUFACTURER,
+            appVersion = appVersion(),
+            language = language(),
+            screenWidth = bounds.width(),
+            screenHeight = bounds.height(),
+            density = metrics.density,
+            deviceName = deviceName,
+            timezone = TimeZone.getDefault().id,
+            architecture = Build.SUPPORTED_ABIS.firstOrNull() ?: Build.CPU_ABI
+        )
+    }
+
     fun handleActivityResult(
         requestCode: Int,
         resultCode: Int,
@@ -559,6 +817,76 @@ class KSMAndroidHostServices(
             output.write(buffer, 0, read)
         }
         return output.toString(Charsets.UTF_8.name())
+    }
+
+    private fun copyLimited(
+        input: InputStream,
+        outputFile: File,
+        limit: Long,
+        session: DownloadSession,
+        deadlineNanos: Long
+    ): Long {
+        var total = 0L
+        val buffer = ByteArray(8192)
+        outputFile.outputStream().use { output ->
+            while (true) {
+                if (
+                    session.cancelled.get() ||
+                    Thread.currentThread().isInterrupted ||
+                    System.nanoTime() >= deadlineNanos
+                ) {
+                    throw downloadCancellation(deadlineNanos)
+                }
+                val read = input.read(buffer)
+                if (read < 0) {
+                    break
+                }
+                total += read
+                if (total > limit) {
+                    throw IOException("Download exceeds the maximum size.")
+                }
+                output.write(buffer, 0, read)
+            }
+            output.flush()
+        }
+        return total
+    }
+
+    private fun cancelDownload(session: DownloadSession) {
+        session.cancelled.set(true)
+        session.connection.getAndSet(null)?.disconnect()
+        session.deadlineTask?.cancel(false)
+    }
+
+    private fun downloadCancellation(deadlineNanos: Long): KSMHostException {
+        return if (System.nanoTime() >= deadlineNanos) {
+            KSMHostException("TIMEOUT", "The download timed out.")
+        } else {
+            KSMHostException("CANCELLED", "The download was cancelled.")
+        }
+    }
+
+    private fun commitDownload(
+        part: File,
+        target: File,
+        overwrite: Boolean
+    ): Boolean {
+        return try {
+            if (overwrite) {
+                Os.rename(part.path, target.path)
+            } else {
+                Os.link(part.path, target.path)
+                part.delete()
+            }
+            true
+        } catch (error: ErrnoException) {
+            if (error.errno == OsConstants.EEXIST && !overwrite) {
+                throw KSMHostException("IO_ERROR", "The target already exists.")
+            }
+            false
+        } catch (_: RuntimeException) {
+            false
+        }
     }
 
     private fun hasNotificationPermission(): Boolean {

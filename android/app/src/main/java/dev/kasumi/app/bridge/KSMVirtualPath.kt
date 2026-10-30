@@ -98,7 +98,8 @@ object KSMVirtualPath {
             !relative.contains('~') &&
             !relative.contains(':') &&
             !relative.contains('\\') &&
-            !relative.startsWith("/")
+            !relative.startsWith("/") &&
+            relative.split('/').none { it.isEmpty() || it == "." }
     }
 
     fun isPicked(path: String): Boolean {

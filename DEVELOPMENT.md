@@ -1,132 +1,195 @@
 # Kasumi 开发入口
 
-> 从协议契约、前端桥接、Windows 宿主到 Android 宿主的开发顺序、验证入口与排查路径。
+> 从协议契约、前端桥接、Windows 宿主到 Android 宿主的开发顺序、当前进度、验证入口与排查路径。
 
 ## 模块边界
 
 | 模块 | 入口 | 负责内容 |
 | --- | --- | --- |
-| 协议 | `protocol/commands.json` | 命令、事件、权限和平台能力 |
-| 代码生成 | `tools/codegen.py` | 生成 TypeScript、C++、Kotlin 契约常量与校验器 |
+| 协议 | `protocol/commands.json` | 命令、事件、参数、返回结构、权限和平台能力 |
+| 代码生成 | `tools/codegen.py` | 生成 TypeScript、C++、Kotlin 契约常量与参数校验器 |
 | 前端 | `frontend/src/index.ts` | `KSM` 根入口、事件总线和 API 封装 |
 | Windows 根入口 | `windows/src/commands/ksm_phase1.h` | 宿主侧 `KSM` 生命周期、统一调用和原生事件 |
-| Windows | `windows/src/bridge/ksm_router.h` | WebView2 消息路由、权限和命令分发 |
-| Windows 宿主 | `windows/src/platform/ksm_webview_host.h` | 线程池、超时、取消、单响应和事件投递 |
+| Windows 路由 | `windows/src/bridge/ksm_router.h` | 请求校验、权限检查和命令分发 |
+| Windows WebView2 适配 | `windows/src/platform/ksm_webview2_host.h` | WebView2、消息来源、导航拦截、窗口事件和 UI 线程回投 |
 | Android 根入口 | `android/app/src/main/java/dev/kasumi/app/bridge/KSM.kt` | 宿主侧 `KSM` 生命周期、统一调用和原生事件 |
-| Android | `android/app/src/main/java/dev/kasumi/app/bridge/KSMRouter.kt` | WebView 消息路由、权限和命令分发 |
-| Android 宿主 | `android/app/src/main/java/dev/kasumi/app/MainActivity.kt` | WebView、协程、资源加载和系统事件 |
+| Android 路由 | `android/app/src/main/java/dev/kasumi/app/bridge/KSMRouter.kt` | WebView 消息校验、权限检查和命令分发 |
+| Android 宿主 | `android/app/src/main/java/dev/kasumi/app/MainActivity.kt` | WebView、协程、资源加载和生命周期 |
 | 契约测试 | `tests/contract/run.ts` | 前端与双平台模拟宿主的共享行为测试 |
 | CLI | `cli/ksm.py` | 协议校验、代码生成、双端构建、测试和打包入口 |
-| CI | `.github/workflows/ci.yml` | Windows CMake/CTest 与 Android 模拟器契约测试 |
-| 发布打包 | `.github/workflows/release.yml` | Windows ZIP 与已签名 Android APK |
+
+协议字符串不加 `KSM` 前缀；宿主侧类型和入口统一使用 `KSM` 前缀。
 
 ## 当前进度
 
-在线开发文档中的 Phase 1-5 桥接层任务已经完成，当前进入真实宿主集成与平台回归阶段：
+当前协议基线为 **29 个命令、2 个事件**，产品版本保持 `0.1.0`。新增命令从
+`since: "1.1.0"` 开始记录，命令名和参数以 `protocol/commands.json` 为准。
 
-- `protocol/commands.json` 定义 25 个内置命令和 2 个事件，三端使用同一份命令、权限和参数校验器。
-- 前端 `KSM` 根入口提供 `init()`、`shutdown()`、`invoke()`、`on()`、缓存的 `get()` / `capabilities()`。
-- Windows 与 Android 宿主侧 `KSM` 根入口提供 `Init/init`、`Shutdown/shutdown`、`Invoke/invoke`、`On/on` 和缓存的 `Get/get`。
-- Windows 根入口挂载 `Fs`、`Dialog`、`Clipboard`、`Notification`、`Permission`、`Window`、`App`；Android 根入口挂载 `fs`、`dialog`、`clipboard`、`notification`、`permission`、`window`、`app`。
-- Windows `KSM::Invoke(windowId, ...)` 按 `windowId` 维护独立路由器，`windowId` 不再只是请求中的无效字段。
-- 宿主根入口直接调用 `KSMHostServices`，不通过 `KSM::Invoke` / `KSM.invoke` 递归回路由。Android 只暴露平台契约支持的 `window.close`，不伪造桌面窗口能力。
-- Windows `KSM::Fs` 与 Android `KSMFs` 均覆盖可写沙箱、只读 `app://res` / `app://assets` 和 `app://picked/<id>`，与路由命令保持同一能力边界。
-- CLI 提供 `codegen`、`validate`、`build`、`test`、`package`、`dev`，其中构建、测试和打包可用 `--platform windows|android|all` 选择目标。
-- Windows 使用 CPack 生成 `kasumi-windows-bridge-0.1.0.zip`；Android release 从环境变量读取 keystore 与口令，缺少签名材料时只保留未签名本地构建。
-- CI 在 Windows 执行 CMake/CTest，在 Android 执行 JVM 单测、instrumentation 测试编译和 API 34 模拟器契约测试。
-- `fs.readText` 返回 `string` 或 `{ file }`。超过 64KiB 的结果会写入 `app://tmp/read-<id>.txt`，再次读取该临时句柄会返回同一句柄。
-- `app://data`、`app://cache`、`app://tmp` 可读写；`app://picked/<id>` 表示用户选择的文件；`app://res` 与 `app://assets` 只读。
-- `fs.readDir` 返回按名称排序的目录项；`fs.mkdir` 只在可写沙箱创建目录；`fs.stat` 支持可写沙箱、只读资源和有效 picked 句柄。`modifiedAt` 使用 Unix 毫秒或 `null`，目录 `size` 为 `0`。
-- 前端和双端原生路径守卫都会拒绝空字节、`..`、`~`、根路径、盘符绝对路径、盘符相对路径、NTFS 流、反斜杠、未注册虚拟根和越权虚拟根。
-- 单条 JSON 消息限制为 64KB，单文件读写限制为 16MB。
-- `webview.reloaded` 是系统事件，不依赖 `event.subscribe`；`window.resized` 需要正常订阅。
-- 前端传输层同时监听注入对象和同窗口 `message` 事件，Android 通过 `window.postMessage` 发送的系统和路由事件可以进入同一总线。
+| 平台 | 适用命令 | 已实现 | 说明 |
+| --- | ---: | ---: | --- |
+| Windows | 28 | 28 | 不含仅 Android 提供的 `device.getInfo` |
+| Android | 25 | 25 | 不含 Windows 专属的窗口标题、最小化、最大化、尺寸调整 |
+| 协议全集 | 29 | 29 | 两端按平台矩阵过滤，不伪造跨平台能力 |
 
-Windows 与 Android 的桥接层已经实现：
+本轮新增：
 
-- Windows `KSMWebViewHost` 使用 8 个固定工作线程和最多 32 条排队任务，支持 `timeoutMs`、`cancel`、`BUSY` 与单响应保护；销毁时会标记未完成请求并丢弃迟到响应。
-- Windows CMake 目标启用 `UNICODE` / `_UNICODE`，`vcpkg.json` 固定 `builtin-baseline`，避免宽字符资源宏与新版 vcpkg 清单解析导致构建失败。
-- Android 使用 `WebViewCompat.addWebMessageListener`、最多 8 条并发命令、`withTimeout`、`runInterruptible` 和主线程回发。
-- Windows 消息来源同时接受配置 origin 的精确值和带路径的完整文档 URL，并拒绝 `https://app.local.evil.example` 一类近似域名。
-- Android WebView 启用 CSP、导航拦截、`window.open` 拦截，生产环境关闭调试，不使用 `addJavascriptInterface`；外部导航只允许 `http` 和 `https` scheme。
-- Android 13 及以上的通知权限通过 `permission.request` 和 `POST_NOTIFICATIONS` 处理。
+- `http.download`：HTTPS 下载到可写虚拟路径，支持取消、120 秒总超时和 100 MiB 上限。
+- `shell.openExternal`：只允许宿主显式配置的精确 origin，使用系统浏览器打开。
+- `device.getInfo`：仅 Android 提供非持久设备、显示和运行时信息。
+- `window.setSize`：仅 Windows 提供逻辑外框尺寸调整，最小 `320 × 240`。
 
-### 已执行验证
+前端 `KSM` 根入口已挂载 `http`、`shell`、`device` 和 `window.setSize`。Windows 与
+Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Windows 专属窗口方法。
+
+## 协议与生成
+
+新增或修改命令时按以下顺序执行，不得手写平行命令清单：
+
+1. 修改 `protocol/commands.json`、`protocol/commands.schema.json` 和 `protocol/permissions.schema.json`。
+2. 运行 `python tools/validate_protocol.py`。
+3. 运行 `python tools/codegen.py`，同步 `frontend/src/generated/contract.ts`、`windows/src/generated/contract.h` 和 `android/app/src/main/java/dev/kasumi/app/generated/KSMGeneratedContract.kt`。
+4. 实现 Windows `KSMRouter`、Android `KSMRouter` 和宿主服务。
+5. 增加前端 API、契约测试和平台测试。
+
+`capabilities.query` 返回宿主实际支持的 `commands` 和已授予的 `permissions`。前端调用
+`KSM.get()` 读取缓存能力；页面重载后 `KSM` 会清理缓存并重新查询。
+
+## 新增 API 的固定边界
+
+### `http.download`
+
+```ts
+const result = await KSM.http.download({
+  url: 'https://example.com/archive.zip',
+  path: 'app://data/archive.zip',
+  overwrite: false
+});
+```
+
+- 只接受 `https://`，拒绝凭据、无主机、端口异常和超长 URL。
+- 目标是 `app://data`、`app://cache` 或 `app://tmp` 下的文件，不接受目录、`app://picked` 和真实路径。
+- `overwrite` 缺省为 `false`；目标存在时返回 `IO_ERROR`。
+- 最多跟随 5 次 HTTPS 重定向；每一跳都重新校验 HTTPS。
+- 总超时 120 秒，最大 100 MiB；下载到同目录 `.part` 文件，成功后提交，失败或取消时清理。
+- 不提供进度事件；前端超时会发送现有 `cancel` 消息，宿主必须中止网络请求。
+
+### `shell.openExternal`
+
+```ts
+const result = await KSM.shell.openExternal({
+  url: 'https://example.com/docs'
+});
+```
+
+- 只接受绝对 `http` / `https` URL，拒绝用户名密码、`javascript:`、`file:`、`data:` 和 `intent:`。
+- origin 比较包含 scheme、host 和显式端口，默认端口规范化。
+- 宿主构造时传入精确 origin 白名单，默认空白名单，未授权返回 `PERMISSION_DENIED`。
+- 只校验调用时传入的 URL；系统浏览器后续重定向不经过 Kasumi。
+
+### `device.getInfo`
+
+```ts
+const info = await KSM.device.getInfo();
+console.log(info.model, info.screenWidth, info.density);
+```
+
+仅 Android 可用。返回 `platform`、`osVersion`、`model`、`manufacturer`、`appVersion`、
+`language`、`screenWidth`、`screenHeight`、`density`、`deviceName`、`timezone` 和
+`architecture`。不返回 Android ID、序列号、IMEI、广告 ID 或其他持久设备标识。
+
+### `window.setSize`
+
+```ts
+await KSM.window.setSize({ width: 960, height: 720 });
+```
+
+仅 Windows 可用。参数是窗口外框逻辑像素，最小 `320 × 240`；按当前 DPI 转成物理像素，
+夹取到当前显示器工作区。最大化、最小化和全屏状态返回 `NOT_SUPPORTED`，不会自动恢复。
+成功后由 `WM_SIZE` 继续发送 `window.resized`，事件尺寸单位是物理内容区像素。
+
+## 宿主实现
+
+### Windows
+
+- `KSMWindowsHostServices` 提供 WinHTTP 下载、`ShellExecuteW` 外部链接和 Win32 窗口尺寸服务。
+- `KSMWebView2Host` 负责 WebView2 创建、虚拟主机映射、消息来源校验、导航与新窗口拦截、重载和尺寸事件。
+- 每个窗口分配单调递增且不复用的 `windowId`；同一窗口复用同一个路由器和宿主服务实例。
+- `windows/examples/win32-host/` 是可运行的 Win32 + WebView2 示例，加载 `https://app.local/index.html`。
+- 示例依赖 Evergreen WebView2 Runtime，缺失时显示安装提示并退出；ZIP 不内置 Fixed Version Runtime。
+- 标签发布工作流要求 Authenticode 证书，使用 SHA-256 时间戳签名并执行 `signtool verify /pa /all`。
+
+### Android
+
+- `KSMAndroidHostServices` 使用 `HttpsURLConnection` 下载、`ACTION_VIEW` 打开外部链接，并从 `Build`、窗口度量、资源和时区读取设备信息。
+- WebView 使用 `WebViewCompat.addWebMessageListener`，命令在 IO 协程中执行，最多 8 条并发。
+- `onTrimMemory` 会取消活动下载；Activity 销毁、旋转和窗口关闭会停止协程、关闭下载并抑制迟到响应。
+- 通知权限通过 `permission.request` 和 `POST_NOTIFICATIONS` 处理。
+
+## 验证状态
 
 | 检查 | 当前结果 |
 | --- | --- |
-| `python tools/validate_protocol.py` | 通过 |
-| `python tools/codegen.py` | 通过 |
+| `python tools/validate_protocol.py` | 通过，输出 `protocol valid` |
+| `python tools/codegen.py` | 通过，生成契约已同步 |
 | 前端 TypeScript 类型检查 | 通过 |
 | 测试工程 TypeScript 类型检查 | 通过 |
-| `tests/contract/run.ts` | `frontend contract passed for windows and android`，覆盖事件来源隔离、文件读写、目录读取、目录创建、元数据、对话框、剪贴板、通知、权限、窗口和应用命令 |
-| Windows 可移植 C++ 源码 NDK 语法检查 | 通过 |
-| Windows MSVC 源码编译与契约 runner | 通过，输出 `windows contract passed` |
-| Windows CMake/Ninja 构建与 CTest | 通过，`kasumi_contract` 1/1 tests passed |
-| Windows CPack ZIP | 通过，包含公共头文件与 `kasumi_windows_bridge.lib` |
-| Android 主源码 Kotlin 编译 | 通过；`KSMAndroidHostServices` 与 bridge/generated 源码一起编译通过，仅保留 `Notification.Builder(Context)` 弃用警告 |
-| Android `ContractTest` 与 `NavigationPolicyTest` JUnit | `OK (3 tests)`，覆盖根入口全部子模块、只读与 picked 路径、关闭后不可用、来源与外部导航白名单 |
-| Android `BridgeInstrumentedTest` 静态编译 | 通过，覆盖路径守卫、大文本句柄、事件分发、只读与 picked 根入口能力 |
-| `git diff --check` | 通过；仅输出仓库既有的 CRLF 转换警告 |
-| CLI `--help` 与子命令解析 | 通过 |
+| `tests/contract/run.ts` | `frontend contract passed for windows and android` |
+| `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
 
-### 仍需真实宿主验证
+本机未提供 CMake、MSVC 或 Gradle，当前轮次没有重新执行 Windows CMake/CTest 和 Android
+Gradle/instrumentation 构建。提交前必须在 CI 或具备对应工具链的机器上完成以下检查：
 
-- Windows 桥接库已通过 MSVC、CMake、Ninja 和 CTest；仍需在真实 WebView2 窗口生命周期中完成集成运行验证。
-- 实际 WebView2 适配器必须接入 `KSMWebViewHost::NotifyWebViewReloaded`、`NotifyWindowResized`、导航拦截、`window.open` 拦截、CSP 和消息来源校验。
-- Windows 多窗口路由已落在 `KSM::Invoke(windowId, ...)`，真实应用壳仍需保证每个 WebView2 使用稳定且唯一的 `windowId`。
-- Android 仍需在真机或模拟器上验证 `withTimeout + runInterruptible`、资源加载器、运行时权限和 `onTrimMemory`。
-- Windows 阻塞式对话框无法被线程取消真正终止；当前策略是先返回超时或取消，再抑制迟到响应。
-- 宿主根入口的剪贴板、通知和窗口方法已接入平台服务，但仍需在真实 Windows 窗口与 Android 真机上验证系统权限、通知栏和生命周期行为。
-- 本机 vcpkg registry 拉取在 Windows 文件系统上报 `Improper link`，因此 CMake 验证使用了本地 header-only `nlohmann/json` 包配置；GitHub Actions 的 vcpkg 清单安装仍应以 CI 结果为准。
-- 本机 Gradle 因运行环境无法建立 JVM 回环连接，未完成 Gradle DSL、instrumentation test 编译和模拟器测试的本地执行；这些检查已写入 CI，仍需以 CI 结果为准。
-
-## 开发顺序
-
-1. 修改 `protocol/commands.json`、`protocol/commands.schema.json` 和 `protocol/permissions.schema.json`。
-2. 运行 `python tools/validate_protocol.py` 和 `python tools/codegen.py`。
-3. 实现 Windows `KSMRouter` 与 Android `KSMRouter` 的命令分支。
-4. 在 `frontend/src/api/` 增加前端封装，并挂到 `frontend/src/bridge/ksm.ts` 的 `KSM` 根入口。
-5. 在 `tests/contract/cases/` 增加共享用例，并同步 `windows/tests/contract_runner.cpp` 与 `android/app/src/test/.../ContractTest.kt`。
-6. 执行类型检查、前端契约测试和对应平台构建。
+1. Windows CMake + vcpkg `webview2` 构建、`kasumi_contract` 和 `kasumi_win32_example_smoke`。
+2. Windows ZIP 内容检查，以及 Evergreen Runtime 缺失提示和标签签名流程。
+3. Android JVM 单测、API 34 模拟器 connected tests 和真机生命周期测试。
+4. Android 下载取消、通知权限、文件选择器、旋转和 `onTrimMemory` 的真实设备验证。
 
 ## 常用命令
 
 ```bash
 python -m pip install -e .
-ksm --help
 python tools/validate_protocol.py
 python tools/codegen.py
-npx --yes -p typescript@5.6.3 tsc --noEmit -p frontend/tsconfig.json
-npx --yes -p typescript@5.6.3 tsc --noEmit -p tests/tsconfig.json
-npx --yes -p tsx@4.19.2 tsx tests/contract/run.ts
+node frontend/node_modules/typescript/bin/tsc --noEmit -p frontend/tsconfig.json
+node frontend/node_modules/typescript/bin/tsc --noEmit -p tests/tsconfig.json
+node frontend/node_modules/tsx/dist/cli.mjs tests/contract/run.ts
 python cli/ksm.py build --platform all
 python cli/ksm.py test --platform all
+python cli/ksm.py package --platform windows
 python cli/ksm.py package --platform android
 ```
 
-CI 的 Windows 与 Android job 都会先执行前端契约测试，再分别运行 CMake/CTest 和 Android
-JVM 单测、instrumentation 测试编译与 API 34 模拟器测试。标签发布工作流会生成 Windows ZIP
-和已签名 Android APK。
+Windows 构建需要 vcpkg 的 `webview2` 与 `nlohmann-json` 依赖。示例启动前确认 `web/` 与
+EXE 位于同一输出目录。
 
 ## 安全边界
 
 - 前端只使用 `app://` 虚拟路径，不直接访问真实文件路径。
 - 文件选择器返回 `app://picked/<id>`，不向前端暴露真实路径或 `content://` URI。
-- 路径必须先拒绝危险输入，再进行前缀解析；不得先规范化再校验。
-- 业务代码不得直接调用 `window.chrome.webview`、`window.ksm` 或 `WebViewCompat`，必须经过 `KSM`。
-- 单条 JSON 消息不能超过 64KB，单文件读写不能超过 16MB。
-- Android 不得使用 `addJavascriptInterface`，必须保持 CSP、导航拦截和 `window.open` 拦截。
-- Windows 生产环境必须关闭 DevTools，并校验 WebView2 消息来源。
+- 路径先拒绝危险输入，再做虚拟根解析；不得先规范化再放行。
+- 单条 JSON 消息限制为 64KB，单文件读写限制为 16MB。
+- 下载目标只允许可写沙箱，外部链接必须通过精确 origin 白名单。
+- Android 不使用 `addJavascriptInterface`，保持 CSP、导航拦截和 `window.open` 拦截。
+- Windows 生产环境关闭 DevTools，并校验 WebView2 消息来源。
 
 ## 排查路径
 
-1. 确认命令已经写入 `protocol/commands.json`，并运行协议校验和代码生成。
+1. 确认命令已写入 `protocol/commands.json`，并运行协议校验和代码生成。
 2. 确认生成文件包含命令、权限、事件和参数校验器。
-3. 确认 `capabilities.query` 返回平台实际支持的命令。
+3. 确认 `capabilities.query` 返回当前平台实际支持的命令。
 4. 确认请求经过参数校验、权限校验和路径守卫。
-5. 确认响应 `id` 与请求一致，并且每个请求最多收到一个响应。
-6. 检查超时与取消是否由宿主线程池或协程实现，而不是只在前端丢弃 Promise。
-7. 检查 WebView 回调是否切回 UI 线程或主线程。
-8. 检查事件是否由注入对象或同窗口 `window.postMessage` 到达；跨窗口来源会被前端传输层拒绝。
-9. 检查 Windows `windowId` 是否稳定；同一窗口必须复用同一个路由器。
+5. 确认每个请求只返回一次响应，超时和取消会中止宿主任务。
+6. 确认 WebView 回调回到 UI 线程或主线程，且销毁后不再投递迟到响应。
+7. 确认事件来源是当前窗口；`webview.reloaded` 是系统事件，`window.resized` 需要订阅。
+8. 下载失败时检查 URL scheme、重定向、目标是否存在、`.part` 清理和宿主取消链路。
+9. 外部链接失败时检查 origin 白名单、端口、scheme 和系统是否安装浏览器处理器。
+
+## 在线文档同步
+
+在线 API 文档按模块拆分：`kasumi/api/app`、`capabilities`、`fs`、`dialog`、`clipboard`、
+`notification`、`permission`、`event`、`window`、`http`、`shell`、`device` 和 `types`。
+`kasumi/api` 只做索引，`kasumi/development` 记录当前实现进度。
+
+同步流程固定为：先用 `docs-rev.py pull` 拉取原文，再用本地编辑器修改，执行
+`push --dry-run` 检查 diff，确认后推送修订，最后重新拉取或读取线上原文确认内容已生效。
+未确认生效的页面不得写成已上线。

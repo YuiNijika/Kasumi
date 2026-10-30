@@ -14,6 +14,7 @@ import type {
   KSMEvent
 } from '../../../frontend/src/bridge/types';
 import {
+  assertHttpUrl,
   assertVirtualDirectoryPath,
   assertVirtualPath,
   assertVirtualStatPath
@@ -258,6 +259,68 @@ export class MockHost {
       send(this.ok(id, { shown: true }));
       return;
     }
+    if (request.cmd === 'http.download') {
+      const url = this.stringArg(request.args, 'url');
+      const path = this.stringArg(request.args, 'path');
+      try {
+        assertHttpUrl(url, 'url', true);
+        assertVirtualPath(path, true, false);
+      } catch {
+        send(this.error(id, 'PERMISSION_DENIED', 'The download target is invalid.'));
+        return;
+      }
+      const overwrite = isRecord(request.args) && request.args.overwrite === true;
+      if (this.files.has(path) && !overwrite) {
+        send(this.error(id, 'IO_ERROR', 'The target already exists.'));
+        return;
+      }
+      const content = 'download';
+      this.files.set(path, content);
+      send(this.ok(id, {
+        path,
+        bytes: new TextEncoder().encode(content).byteLength
+      }));
+      return;
+    }
+    if (request.cmd === 'shell.openExternal') {
+      const url = this.stringArg(request.args, 'url');
+      let origin: string;
+      try {
+        assertHttpUrl(url, 'url');
+        const parsed = new URL(url);
+        origin = `${parsed.protocol}//${parsed.host}`;
+      } catch {
+        send(this.error(id, 'INVALID_ARGS', 'The external URL is invalid.'));
+        return;
+      }
+      if (origin !== 'https://example.com') {
+        send(this.error(id, 'PERMISSION_DENIED', 'The URL origin is not allowlisted.'));
+        return;
+      }
+      send(this.ok(id, { opened: true }));
+      return;
+    }
+    if (request.cmd === 'device.getInfo') {
+      if (this.platform !== 'android') {
+        send(this.error(id, 'NOT_SUPPORTED', 'The command is not supported.'));
+        return;
+      }
+      send(this.ok(id, {
+        platform: 'android',
+        osVersion: '14',
+        model: 'Pixel',
+        manufacturer: 'Google',
+        appVersion: '0.1.0',
+        language: 'en-US',
+        screenWidth: 1080,
+        screenHeight: 2400,
+        density: 2.75,
+        deviceName: 'Contract',
+        timezone: 'Asia/Shanghai',
+        architecture: 'arm64-v8a'
+      }));
+      return;
+    }
     if (request.cmd === 'window.setTitle') {
       if (this.platform !== 'windows') {
         send(this.error(id, 'NOT_SUPPORTED', 'The command is not supported.'));
@@ -269,6 +332,25 @@ export class MockHost {
     if (request.cmd === 'window.minimize' || request.cmd === 'window.maximize') {
       if (this.platform !== 'windows') {
         send(this.error(id, 'NOT_SUPPORTED', 'The command is not supported.'));
+        return;
+      }
+      send(this.ok(id, { updated: true }));
+      return;
+    }
+    if (request.cmd === 'window.setSize') {
+      if (this.platform !== 'windows') {
+        send(this.error(id, 'NOT_SUPPORTED', 'The command is not supported.'));
+        return;
+      }
+      const width = this.numberArg(request.args, 'width');
+      const height = this.numberArg(request.args, 'height');
+      if (
+        !Number.isSafeInteger(width) ||
+        !Number.isSafeInteger(height) ||
+        width <= 0 ||
+        height <= 0
+      ) {
+        send(this.error(id, 'INVALID_ARGS', 'width and height must be positive integers.'));
         return;
       }
       send(this.ok(id, { updated: true }));
@@ -379,6 +461,13 @@ export class MockHost {
   private stringArg(args: unknown, field: string): string {
     if (!isRecord(args) || typeof args[field] !== 'string') {
       throw new TypeError(`${field} must be a string.`);
+    }
+    return args[field];
+  }
+
+  private numberArg(args: unknown, field: string): number {
+    if (!isRecord(args) || typeof args[field] !== 'number') {
+      throw new TypeError(`${field} must be a number.`);
     }
     return args[field];
   }

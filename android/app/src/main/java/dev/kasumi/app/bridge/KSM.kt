@@ -21,6 +21,9 @@ object KSM {
     val clipboard = KSMClipboard
     val notification = KSMNotification
     val permission = KSMPermission
+    val http = KSMHttp
+    val shell = KSMShell
+    val device = KSMDevice
     val window = KSMWindow
     val app = KSMApp
 

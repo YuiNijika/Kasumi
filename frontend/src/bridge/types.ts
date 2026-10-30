@@ -85,7 +85,13 @@ export interface KSMWindowApi {
   setTitle(title: string): Promise<{ updated: boolean }>;
   minimize(): Promise<{ updated: boolean }>;
   maximize(): Promise<{ updated: boolean }>;
+  setSize(args: KSMWindowSize): Promise<{ updated: boolean }>;
   close(): Promise<{ closed: boolean }>;
+}
+
+export interface KSMWindowSize {
+  width: number;
+  height: number;
 }
 
 export interface KSMAppApi {
@@ -111,6 +117,46 @@ export interface KSMNotificationApi {
 
 export interface KSMPermissionApi {
   request(permission: string): Promise<{ granted: boolean }>;
+}
+
+export interface KSMHttpDownloadResult {
+  path: string;
+  bytes: number;
+}
+
+export interface KSMHttpApi {
+  download(args: {
+    url: string;
+    path: string;
+    overwrite?: boolean;
+  }): Promise<KSMHttpDownloadResult>;
+}
+
+export interface KSMShellOpenResult {
+  opened: boolean;
+}
+
+export interface KSMShellApi {
+  openExternal(args: { url: string }): Promise<KSMShellOpenResult>;
+}
+
+export interface KSMDeviceInfo {
+  platform: 'android';
+  osVersion: string;
+  model: string;
+  manufacturer: string;
+  appVersion: string;
+  language: string;
+  screenWidth: number;
+  screenHeight: number;
+  density: number;
+  deviceName: string;
+  timezone: string;
+  architecture: string;
+}
+
+export interface KSMDeviceApi {
+  getInfo(): Promise<KSMDeviceInfo>;
 }
 
 export interface KSMCapabilities {

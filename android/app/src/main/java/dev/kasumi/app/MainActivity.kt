@@ -47,11 +47,15 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         webView = WebView(this)
-        hostServices = KSMAndroidHostServices(this)
         val fileSystem = KSMFileSystem(
             File(filesDir, "data"),
             cacheDir,
             File(cacheDir, "tmp")
+        )
+        hostServices = KSMAndroidHostServices(
+            activity = this,
+            allowedExternalOrigins = setOf("https://example.com"),
+            fileSystem = fileSystem
         )
         router = KSMRouter(
             fileSystem,
@@ -202,6 +206,7 @@ class MainActivity : Activity() {
                             active.job.cancel()
                             active.thread.interrupt()
                         }
+                        hostServices.cancelRequest(id)
                     }
                     return@launch
                 }
@@ -237,6 +242,7 @@ class MainActivity : Activity() {
                             }
                         } catch (_: TimeoutCancellationException) {
                             if (id != null) {
+                                hostServices.cancelRequest(id)
                                 cancelledRequests.remove(id)
                             }
                             timeoutResponse(id)
@@ -244,6 +250,7 @@ class MainActivity : Activity() {
                             if (id == null) {
                                 throw CancellationException("Command was cancelled.")
                             }
+                            hostServices.cancelRequest(id)
                             cancelledRequests.remove(id)
                             cancelledResponse(id)
                         }
@@ -270,6 +277,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        hostServices.shutdown()
         commandScope.cancel()
         activeRequests.clear()
         cancelledRequests.clear()
@@ -280,6 +288,9 @@ class MainActivity : Activity() {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
+        if (level >= TRIM_MEMORY_RUNNING_LOW) {
+            hostServices.cancelAllDownloads()
+        }
         if (::webView.isInitialized) {
             webView.clearCache(true)
         }

@@ -74,6 +74,28 @@ std::string VirtualChildPath(
     return KSMVirtualPath::NormalizeDirectory(parent) + "/" + name;
 }
 
+bool IsWithin(
+    const std::filesystem::path& candidate,
+    const std::filesystem::path& root
+) {
+    const auto candidate_text = candidate.generic_u8string();
+    const auto root_text = root.generic_u8string();
+    if (candidate_text.size() < root_text.size()) {
+        return false;
+    }
+    if (
+        candidate_text.compare(
+            0,
+            root_text.size(),
+            root_text
+        ) != 0
+    ) {
+        return false;
+    }
+    return candidate_text.size() == root_text.size() ||
+        candidate_text[root_text.size()] == u8'/';
+}
+
 }
 
 KSMFileSystem::KSMFileSystem(
@@ -167,7 +189,7 @@ bool KSMFileSystem::WriteText(
     if (content.size() > kMaxTextBytes) {
         return false;
     }
-    const auto resolved = ResolveWritable(path);
+    const auto resolved = ResolveWritableFile(path);
     if (!resolved) {
         return false;
     }
@@ -307,4 +329,43 @@ std::optional<std::string> KSMFileSystem::CreateTemporaryText(
         return std::nullopt;
     }
     return virtual_path;
+}
+
+std::optional<std::filesystem::path> KSMFileSystem::ResolveWritableFile(
+    const std::string& path
+) const {
+    const auto resolved = ResolveWritable(path);
+    if (!resolved) {
+        return std::nullopt;
+    }
+
+    std::error_code error;
+    const auto link_status = std::filesystem::symlink_status(*resolved, error);
+    if (
+        !error &&
+        link_status.type() == std::filesystem::file_type::symlink
+    ) {
+        return std::nullopt;
+    }
+    if (!error && std::filesystem::is_directory(link_status)) {
+        return std::nullopt;
+    }
+
+    const std::filesystem::path root = path.starts_with("app://data/")
+        ? data_root_
+        : path.starts_with("app://cache/")
+            ? cache_root_
+            : temp_root_;
+    const auto canonical_root = std::filesystem::weakly_canonical(root, error);
+    if (error) {
+        return std::nullopt;
+    }
+    const auto canonical_parent = std::filesystem::weakly_canonical(
+        resolved->parent_path(),
+        error
+    );
+    if (error || !IsWithin(canonical_parent, canonical_root)) {
+        return std::nullopt;
+    }
+    return resolved;
 }

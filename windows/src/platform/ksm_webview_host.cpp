@@ -54,8 +54,8 @@ KSMWebViewHost::~KSMWebViewHost() {
     {
         std::lock_guard lock(queue_mutex_);
         for (const auto& [id, state] : active_requests_) {
-            (void)id;
             state->completed.store(true);
+            router_.CancelRequest(id);
         }
         stopping_ = true;
     }
@@ -187,6 +187,7 @@ void KSMWebViewHost::CancelRequest(const std::string& id) {
         }
     }
     if (state) {
+        router_.CancelRequest(id);
         RespondOnce(
             state,
             Json{
@@ -289,6 +290,7 @@ void KSMWebViewHost::TimerLoop() {
             deadlines_.erase(next);
         }
         if (!expired->completed.load()) {
+            router_.CancelRequest(expired->id);
             RespondOnce(
                 expired,
                 Json{

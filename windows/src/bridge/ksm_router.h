@@ -28,6 +28,7 @@ public:
         const std::string& payload_json,
         const ResponseSender& send_response
     ) const;
+    void CancelRequest(const std::string& request_id);
 
 private:
     bool HasPermission(const std::string& permission) const;

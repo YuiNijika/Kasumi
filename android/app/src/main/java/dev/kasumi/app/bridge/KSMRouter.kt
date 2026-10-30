@@ -169,9 +169,13 @@ class KSMRouter(
                     "clipboard.readText" -> readClipboard(id)
                     "clipboard.writeText" -> writeClipboard(id, args)
                     "notification.show" -> showNotification(id, args)
+                    "device.getInfo" -> deviceInfo(id)
+                    "shell.openExternal" -> openExternal(id, args)
+                    "http.download" -> download(id, args)
                     "window.setTitle",
                     "window.minimize",
-                    "window.maximize" -> errorResponse(
+                    "window.maximize",
+                    "window.setSize" -> errorResponse(
                         id,
                         "NOT_SUPPORTED",
                         "The command is not supported on this platform."
@@ -683,6 +687,105 @@ class KSMRouter(
         return successResponse(
             id,
             JSONObject().put("shown", host.showNotification(title, body))
+        )
+    }
+
+    private fun deviceInfo(id: Any?): String {
+        if (!requirePermission(id, "device.info")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val host = hostServices ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The device service is not configured."
+        )
+        val info = host.deviceInfo() ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The device service is not configured."
+        )
+        return successResponse(
+            id,
+            JSONObject()
+                .put("platform", info.platform)
+                .put("osVersion", info.osVersion)
+                .put("model", info.model)
+                .put("manufacturer", info.manufacturer)
+                .put("appVersion", info.appVersion)
+                .put("language", info.language)
+                .put("screenWidth", info.screenWidth)
+                .put("screenHeight", info.screenHeight)
+                .put("density", info.density)
+                .put("deviceName", info.deviceName)
+                .put("timezone", info.timezone)
+                .put("architecture", info.architecture)
+        )
+    }
+
+    private fun openExternal(id: Any?, args: JSONObject): String {
+        if (!requirePermission(id, "shell.open")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val host = hostServices ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The shell service is not configured."
+        )
+        val url = args.opt("url")
+        if (url !is String || url.isEmpty()) {
+            return errorResponse(id, "INVALID_ARGS", "url is required.")
+        }
+        if (KSMHttpPolicy.parseHttpUrl(url) == null) {
+            return errorResponse(id, "INVALID_ARGS", "url must be an absolute HTTP or HTTPS URL.")
+        }
+        if (!host.isExternalUrlAllowed(url)) {
+            return errorResponse(id, "PERMISSION_DENIED", "The URL origin is not allowlisted.")
+        }
+        return successResponse(id, JSONObject().put("opened", host.openExternal(url)))
+    }
+
+    private fun download(id: Any?, args: JSONObject): String {
+        if (!requirePermission(id, "http.download")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val host = hostServices ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The download service is not configured."
+        )
+        val url = args.opt("url")
+        val path = args.opt("path")
+        if (url !is String || url.isEmpty() || path !is String || path.isEmpty()) {
+            return errorResponse(id, "INVALID_ARGS", "url and path are required.")
+        }
+        if (KSMHttpPolicy.parseHttpUrl(url, httpsOnly = true) == null) {
+            return errorResponse(id, "INVALID_ARGS", "url must use HTTPS.")
+        }
+        if (
+            !KSMVirtualPath.isSafe(path) ||
+            KSMVirtualPath.isReadOnly(path) ||
+            KSMVirtualPath.isPicked(path)
+        ) {
+            return errorResponse(id, "PERMISSION_DENIED", "path is outside the writable sandbox.")
+        }
+        if (args.has("overwrite") && args.opt("overwrite") !is Boolean) {
+            return errorResponse(id, "INVALID_ARGS", "overwrite must be a boolean.")
+        }
+        val overwrite = args.optBoolean("overwrite", false)
+        val result = try {
+            host.download(url, path, overwrite, id as? String)
+        } catch (error: KSMHostException) {
+            return errorResponse(id, error.code, error.message)
+        } ?: return errorResponse(
+            id,
+            "IO_ERROR",
+            "The download could not be completed."
+        )
+        return successResponse(
+            id,
+            JSONObject()
+                .put("path", result.path)
+                .put("bytes", result.bytes)
         )
     }
 

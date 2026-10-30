@@ -8,6 +8,8 @@ import {
 } from '../generated/contract';
 import {
   assertBoolean,
+  assertHttpUrl,
+  assertPositiveInteger,
   assertString,
   assertVirtualDirectoryPath,
   assertVirtualPath,
@@ -17,15 +19,21 @@ import type {
   KSMAppInfo,
   KSMAppApi,
   KSMClipboardApi,
+  KSMDeviceApi,
+  KSMDeviceInfo,
   KSMDirectoryEntry,
   KSMCapabilities,
   KSMDialogApi,
   KSMFileMetadata,
   KSMFsApi,
+  KSMHttpApi,
+  KSMHttpDownloadResult,
   KSMNotificationApi,
   KSMPermissionApi,
+  KSMShellApi,
   KSMTransport,
-  KSMWindowApi
+  KSMWindowApi,
+  KSMWindowSize
 } from './types';
 
 export type KSMTextResult = string | { file: string };
@@ -93,10 +101,34 @@ export class KSM {
   public static readonly permission: KSMPermissionApi = {
     request: (permission): Promise<{ granted: boolean }> => KSM.invoke('permission.request', { permission })
   };
+  public static readonly http: KSMHttpApi = {
+    download: (args): Promise<KSMHttpDownloadResult> => {
+      assertHttpUrl(args.url, 'url', true);
+      assertVirtualPath(args.path, true, false);
+      if (args.overwrite !== undefined) {
+        assertBoolean(args.overwrite, 'overwrite');
+      }
+      return KSM.invoke('http.download', args, 120000);
+    }
+  };
+  public static readonly shell: KSMShellApi = {
+    openExternal: (args): Promise<{ opened: boolean }> => {
+      assertHttpUrl(args.url, 'url');
+      return KSM.invoke('shell.openExternal', args);
+    }
+  };
+  public static readonly device: KSMDeviceApi = {
+    getInfo: (): Promise<KSMDeviceInfo> => KSM.invoke('device.getInfo', {})
+  };
   public static readonly window: KSMWindowApi = {
     setTitle: (title): Promise<{ updated: boolean }> => KSM.invoke('window.setTitle', { title }),
     minimize: (): Promise<{ updated: boolean }> => KSM.invoke('window.minimize', {}),
     maximize: (): Promise<{ updated: boolean }> => KSM.invoke('window.maximize', {}),
+    setSize: (args: KSMWindowSize): Promise<{ updated: boolean }> => {
+      assertPositiveInteger(args.width, 'width');
+      assertPositiveInteger(args.height, 'height');
+      return KSM.invoke('window.setSize', args);
+    },
     close: (): Promise<{ closed: boolean }> => KSM.invoke('window.close', {})
   };
   public static readonly events: KSMEventApi = {
@@ -195,7 +227,11 @@ export class KSM {
     );
   }
 
-  public static async invoke<TResult, TArgs>(cmd: string, args: TArgs): Promise<TResult> {
+  public static async invoke<TResult, TArgs>(
+    cmd: string,
+    args: TArgs,
+    timeoutMs = 10000
+  ): Promise<TResult> {
     if (
       (KSM_COMMANDS as readonly string[]).includes(cmd) &&
       !validateKSMArgs(cmd, args)
@@ -204,7 +240,7 @@ export class KSM {
       error.name = 'INVALID_ARGS';
       throw error;
     }
-    return KSM.requireBus().invoke<TResult, TArgs>(cmd, args);
+    return KSM.requireBus().invoke<TResult, TArgs>(cmd, args, timeoutMs);
   }
 
   public static async subscribe(event: string): Promise<void> {

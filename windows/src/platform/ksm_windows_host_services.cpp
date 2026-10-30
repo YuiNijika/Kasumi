@@ -2,20 +2,35 @@
 
 #include <commdlg.h>
 #include <shellapi.h>
+#include <winhttp.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <cwchar>
 #include <fstream>
 #include <iterator>
+#include <limits>
+#include <memory>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 #include "../commands/ksm_filesystem.h"
 #include "../platform/ksm_virtual_path.h"
 
 namespace {
+
+constexpr std::size_t kMaxDownloadBytes = 100 * 1024 * 1024;
+constexpr std::size_t kDownloadBufferBytes = 64 * 1024;
+constexpr int kDownloadTimeoutMs = 120000;
+constexpr int kDownloadIoTimeoutMs = 15000;
+constexpr int kMaxRedirects = 5;
+constexpr int kMinWindowWidth = 320;
+constexpr int kMinWindowHeight = 240;
+
+std::atomic<std::uint64_t> next_download_part{1};
 
 std::wstring ToWide(const std::string& value) {
     if (value.empty()) {
@@ -100,10 +115,89 @@ std::wstring BuildFilter(const std::vector<std::string>& filters) {
     return result;
 }
 
+bool IsRegularFile(const std::filesystem::path& path) {
+    std::error_code error;
+    return std::filesystem::is_regular_file(path, error) && !error;
 }
 
-KSMWindowsHostServices::KSMWindowsHostServices(HWND window)
-    : window_(window) {
+bool IsDirectory(const std::filesystem::path& path) {
+    std::error_code error;
+    return std::filesystem::is_directory(path, error) && !error;
+}
+
+std::string HttpErrorText(const char* operation) {
+    return std::string(operation) + " failed with WinHTTP error " +
+        std::to_string(GetLastError()) + ".";
+}
+
+std::optional<std::wstring> QueryRequestHeader(
+    HINTERNET request,
+    DWORD header
+) {
+    DWORD size = 0;
+    if (
+        WinHttpQueryHeaders(
+            request,
+            header,
+            WINHTTP_HEADER_NAME_BY_INDEX,
+            nullptr,
+            &size,
+            WINHTTP_NO_HEADER_INDEX
+        ) ||
+        GetLastError() != ERROR_INSUFFICIENT_BUFFER
+    ) {
+        return std::nullopt;
+    }
+    std::wstring value(
+        (size / sizeof(wchar_t)) + 1,
+        L'\0'
+    );
+    if (!WinHttpQueryHeaders(
+        request,
+        header,
+        WINHTTP_HEADER_NAME_BY_INDEX,
+        value.data(),
+        &size,
+        WINHTTP_NO_HEADER_INDEX
+    )) {
+        return std::nullopt;
+    }
+    value.resize(wcsnlen(value.c_str(), value.size()));
+    return value;
+}
+
+bool IsFullscreenWindow(HWND window) {
+    RECT window_rect{};
+    if (!GetWindowRect(window, &window_rect)) {
+        return false;
+    }
+    const HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO info{};
+    info.cbSize = sizeof(info);
+    if (!GetMonitorInfoW(monitor, &info)) {
+        return false;
+    }
+    const LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
+    const bool has_caption = (style & WS_CAPTION) == WS_CAPTION;
+    return !has_caption &&
+        window_rect.left <= info.rcMonitor.left &&
+        window_rect.top <= info.rcMonitor.top &&
+        window_rect.right >= info.rcMonitor.right &&
+        window_rect.bottom >= info.rcMonitor.bottom;
+}
+
+}
+
+KSMWindowsHostServices::KSMWindowsHostServices(
+    HWND window,
+    std::vector<std::string> allowed_external_origins,
+    std::shared_ptr<KSMFileSystem> file_system
+)
+    : window_(window),
+      file_system_(std::move(file_system)),
+      allowed_external_origins_(
+          KSMUrlPolicy::NormalizeOrigins(allowed_external_origins)
+      ) {
 }
 
 std::string KSMWindowsHostServices::AppVersion() const {
@@ -403,4 +497,525 @@ bool KSMWindowsHostServices::CloseWindow() {
 
 bool KSMWindowsHostServices::ExitApp() {
     return window_ && PostMessageW(window_, WM_CLOSE, 0, 0) != FALSE;
+}
+
+void KSMWindowsHostServices::CloseDownloadHandles(
+    const std::shared_ptr<DownloadState>& state
+) {
+    std::lock_guard lock(state->mutex);
+    if (state->request) {
+        WinHttpCloseHandle(state->request);
+        state->request = nullptr;
+    }
+    if (state->connect) {
+        WinHttpCloseHandle(state->connect);
+        state->connect = nullptr;
+    }
+    if (state->session) {
+        WinHttpCloseHandle(state->session);
+        state->session = nullptr;
+    }
+}
+
+void KSMWindowsHostServices::SetDownloadHandles(
+    const std::shared_ptr<DownloadState>& state,
+    HINTERNET session,
+    HINTERNET connect,
+    HINTERNET request
+) {
+    std::lock_guard lock(state->mutex);
+    if (state->request) {
+        WinHttpCloseHandle(state->request);
+    }
+    if (state->connect) {
+        WinHttpCloseHandle(state->connect);
+    }
+    if (state->session) {
+        WinHttpCloseHandle(state->session);
+    }
+    state->session = session;
+    state->connect = connect;
+    state->request = request;
+}
+
+bool KSMWindowsHostServices::IsDownloadCancelled(
+    const std::shared_ptr<DownloadState>& state
+) const {
+    return state->cancelled.load();
+}
+
+std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
+    const std::string& url,
+    const std::string& path,
+    bool overwrite,
+    const std::string& request_id
+) {
+    if (!file_system_) {
+        throw KSMHostException(
+            "NOT_SUPPORTED",
+            "The download service is not configured."
+        );
+    }
+    if (!KSMUrlPolicy::ParseHttpUrl(url, true)) {
+        throw KSMHostException("INVALID_ARGS", "url must use HTTPS.");
+    }
+
+    auto target = file_system_->ResolveWritableFile(path);
+    if (!target) {
+        throw KSMHostException(
+            "PERMISSION_DENIED",
+            "path is outside the writable sandbox."
+        );
+    }
+    if (IsDirectory(*target)) {
+        throw KSMHostException("INVALID_ARGS", "path must name a file.");
+    }
+    if (std::filesystem::exists(*target) && !overwrite) {
+        throw KSMHostException("IO_ERROR", "The target already exists.");
+    }
+
+    std::error_code directory_error;
+    std::filesystem::create_directories(target->parent_path(), directory_error);
+    if (directory_error) {
+        throw KSMHostException(
+            "IO_ERROR",
+            "The target directory could not be created."
+        );
+    }
+    target = file_system_->ResolveWritableFile(path);
+    if (!target) {
+        throw KSMHostException(
+            "PERMISSION_DENIED",
+            "path is outside the writable sandbox."
+        );
+    }
+
+    const std::filesystem::path part = target->parent_path() /
+        (L"." + target->filename().wstring() + L"." +
+            std::to_wstring(next_download_part.fetch_add(1)) + L".part");
+    std::ofstream output(part, std::ios::binary | std::ios::trunc);
+    if (!output) {
+        throw KSMHostException("IO_ERROR", "The temporary file could not be created.");
+    }
+
+    const std::string key = request_id.empty()
+        ? "anonymous-" + std::to_string(next_download_part.fetch_add(1))
+        : request_id;
+    auto state = std::make_shared<DownloadState>();
+    {
+        std::lock_guard lock(download_mutex_);
+        downloads_[key] = state;
+    }
+
+    const auto cleanup = [this, &key, &part, &state]() {
+        CloseDownloadHandles(state);
+        {
+            std::lock_guard lock(download_mutex_);
+            const auto iterator = downloads_.find(key);
+            if (iterator != downloads_.end() && iterator->second == state) {
+                downloads_.erase(iterator);
+            }
+        }
+        std::error_code error;
+        std::filesystem::remove(part, error);
+    };
+
+    const auto deadline = std::chrono::steady_clock::now() +
+        std::chrono::milliseconds(kDownloadTimeoutMs);
+    std::string current_url = url;
+    std::uint64_t total_bytes = 0;
+
+    try {
+        for (int redirects = 0; ; ++redirects) {
+            if (IsDownloadCancelled(state)) {
+                throw KSMHostException("CANCELLED", "The download was cancelled.");
+            }
+            if (std::chrono::steady_clock::now() >= deadline) {
+                throw KSMHostException("TIMEOUT", "The download timed out.");
+            }
+
+            const auto parsed = KSMUrlPolicy::ParseHttpUrl(current_url, true);
+            if (!parsed) {
+                throw KSMHostException("IO_ERROR", "The redirect target is invalid.");
+            }
+            HINTERNET session = WinHttpOpen(
+                L"Kasumi/0.1",
+                WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                WINHTTP_NO_PROXY_NAME,
+                WINHTTP_NO_PROXY_BYPASS,
+                0
+            );
+            if (!session) {
+                throw KSMHostException(
+                    "IO_ERROR",
+                    HttpErrorText("Opening the HTTP session")
+                );
+            }
+            WinHttpSetTimeouts(
+                session,
+                kDownloadIoTimeoutMs,
+                kDownloadIoTimeoutMs,
+                kDownloadIoTimeoutMs,
+                kDownloadIoTimeoutMs
+            );
+
+            const std::wstring host = ToWide(parsed->origin.host);
+            HINTERNET connect = WinHttpConnect(
+                session,
+                host.c_str(),
+                static_cast<INTERNET_PORT>(parsed->origin.port),
+                0
+            );
+            if (!connect) {
+                SetDownloadHandles(state, session, nullptr, nullptr);
+                throw KSMHostException(
+                    "IO_ERROR",
+                    HttpErrorText("Connecting to the server")
+                );
+            }
+
+            const std::wstring request_path = ToWide(
+                parsed->path + parsed->query
+            );
+            HINTERNET request = WinHttpOpenRequest(
+                connect,
+                L"GET",
+                request_path.c_str(),
+                nullptr,
+                WINHTTP_NO_REFERER,
+                WINHTTP_DEFAULT_ACCEPT_TYPES,
+                WINHTTP_FLAG_SECURE
+            );
+            if (!request) {
+                SetDownloadHandles(state, session, connect, nullptr);
+                throw KSMHostException(
+                    "IO_ERROR",
+                    HttpErrorText("Opening the HTTP request")
+                );
+            }
+            SetDownloadHandles(state, session, connect, request);
+            if (IsDownloadCancelled(state)) {
+                throw KSMHostException("CANCELLED", "The download was cancelled.");
+            }
+
+            DWORD disable_redirects = WINHTTP_DISABLE_REDIRECTS;
+            WinHttpSetOption(
+                request,
+                WINHTTP_OPTION_DISABLE_FEATURE,
+                &disable_redirects,
+                sizeof(disable_redirects)
+            );
+            if (!WinHttpSendRequest(
+                request,
+                WINHTTP_NO_ADDITIONAL_HEADERS,
+                0,
+                WINHTTP_NO_REQUEST_DATA,
+                0,
+                0,
+                0
+            )) {
+                if (IsDownloadCancelled(state)) {
+                    throw KSMHostException("CANCELLED", "The download was cancelled.");
+                }
+                if (std::chrono::steady_clock::now() >= deadline) {
+                    throw KSMHostException("TIMEOUT", "The download timed out.");
+                }
+                throw KSMHostException(
+                    "IO_ERROR",
+                    HttpErrorText("Sending the HTTP request")
+                );
+            }
+            if (!WinHttpReceiveResponse(request, nullptr)) {
+                if (IsDownloadCancelled(state)) {
+                    throw KSMHostException("CANCELLED", "The download was cancelled.");
+                }
+                if (std::chrono::steady_clock::now() >= deadline) {
+                    throw KSMHostException("TIMEOUT", "The download timed out.");
+                }
+                throw KSMHostException(
+                    "IO_ERROR",
+                    HttpErrorText("Receiving the HTTP response")
+                );
+            }
+
+            DWORD status = 0;
+            DWORD status_size = sizeof(status);
+            if (!WinHttpQueryHeaders(
+                request,
+                WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                WINHTTP_HEADER_NAME_BY_INDEX,
+                &status,
+                &status_size,
+                WINHTTP_NO_HEADER_INDEX
+            )) {
+                throw KSMHostException(
+                    "IO_ERROR",
+                    HttpErrorText("Reading the HTTP status")
+                );
+            }
+
+            if (status >= 300 && status < 400) {
+                if (redirects >= kMaxRedirects) {
+                    throw KSMHostException(
+                        "IO_ERROR",
+                        "The download exceeded the redirect limit."
+                    );
+                }
+                const auto location = QueryRequestHeader(
+                    request,
+                    WINHTTP_QUERY_LOCATION
+                );
+                if (!location) {
+                    throw KSMHostException(
+                        "IO_ERROR",
+                        "The redirect did not include a location."
+                    );
+                }
+                const auto next = KSMUrlPolicy::ResolveHttpsRedirect(
+                    current_url,
+                    ToUtf8(*location)
+                );
+                if (!next) {
+                    throw KSMHostException(
+                        "IO_ERROR",
+                        "The redirect did not use HTTPS."
+                    );
+                }
+                CloseDownloadHandles(state);
+                current_url = *next;
+                continue;
+            }
+            if (status < 200 || status >= 300) {
+                throw KSMHostException(
+                    "IO_ERROR",
+                    "The server returned HTTP " + std::to_string(status) + "."
+                );
+            }
+
+            DWORD declared_length = 0;
+            DWORD declared_size = sizeof(declared_length);
+            if (WinHttpQueryHeaders(
+                request,
+                WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
+                WINHTTP_HEADER_NAME_BY_INDEX,
+                &declared_length,
+                &declared_size,
+                WINHTTP_NO_HEADER_INDEX
+            ) && declared_length > kMaxDownloadBytes) {
+                throw KSMHostException(
+                    "IO_ERROR",
+                    "The download exceeds the maximum size."
+                );
+            }
+
+            std::vector<unsigned char> buffer(kDownloadBufferBytes);
+            while (true) {
+                if (IsDownloadCancelled(state)) {
+                    throw KSMHostException("CANCELLED", "The download was cancelled.");
+                }
+                if (std::chrono::steady_clock::now() >= deadline) {
+                    throw KSMHostException("TIMEOUT", "The download timed out.");
+                }
+                DWORD read = 0;
+                if (!WinHttpReadData(
+                    request,
+                    buffer.data(),
+                    static_cast<DWORD>(buffer.size()),
+                    &read
+                )) {
+                    if (IsDownloadCancelled(state)) {
+                        throw KSMHostException("CANCELLED", "The download was cancelled.");
+                    }
+                    if (std::chrono::steady_clock::now() >= deadline) {
+                        throw KSMHostException("TIMEOUT", "The download timed out.");
+                    }
+                    throw KSMHostException(
+                        "IO_ERROR",
+                        HttpErrorText("Reading the HTTP response body")
+                    );
+                }
+                if (read == 0) {
+                    break;
+                }
+                total_bytes += read;
+                if (total_bytes > kMaxDownloadBytes) {
+                    throw KSMHostException(
+                        "IO_ERROR",
+                        "The download exceeds the maximum size."
+                    );
+                }
+                output.write(
+                    reinterpret_cast<const char*>(buffer.data()),
+                    static_cast<std::streamsize>(read)
+                );
+                if (!output.good()) {
+                    throw KSMHostException(
+                        "IO_ERROR",
+                        "The downloaded file could not be written."
+                    );
+                }
+            }
+
+            output.flush();
+            if (!output.good()) {
+                throw KSMHostException(
+                    "IO_ERROR",
+                    "The downloaded file could not be written."
+                );
+            }
+            output.close();
+            CloseDownloadHandles(state);
+
+            if (std::filesystem::exists(*target) && !overwrite) {
+                throw KSMHostException("IO_ERROR", "The target already exists.");
+            }
+            DWORD move_flags = MOVEFILE_WRITE_THROUGH;
+            if (overwrite) {
+                move_flags |= MOVEFILE_REPLACE_EXISTING;
+            }
+            if (!MoveFileExW(part.c_str(), target->c_str(), move_flags)) {
+                throw KSMHostException(
+                    "IO_ERROR",
+                    "The downloaded file could not be committed."
+                );
+            }
+
+            {
+                std::lock_guard lock(download_mutex_);
+                const auto iterator = downloads_.find(key);
+                if (iterator != downloads_.end() && iterator->second == state) {
+                    downloads_.erase(iterator);
+                }
+            }
+            return KSMHttpDownloadResult{
+                path,
+                total_bytes
+            };
+        }
+    } catch (...) {
+        output.close();
+        cleanup();
+        throw;
+    }
+}
+
+bool KSMWindowsHostServices::IsExternalUrlAllowed(
+    const std::string& url
+) const {
+    return KSMUrlPolicy::IsAllowedExternalUrl(
+        url,
+        allowed_external_origins_
+    );
+}
+
+bool KSMWindowsHostServices::OpenExternal(const std::string& url) {
+    if (!KSMUrlPolicy::IsAllowedExternalUrl(url, allowed_external_origins_)) {
+        throw KSMHostException(
+            "PERMISSION_DENIED",
+            "The URL origin is not allowlisted."
+        );
+    }
+    const std::wstring wide_url = ToWide(url);
+    const HINSTANCE result = ShellExecuteW(
+        window_,
+        L"open",
+        wide_url.c_str(),
+        nullptr,
+        nullptr,
+        SW_SHOWNORMAL
+    );
+    return reinterpret_cast<INT_PTR>(result) > 32;
+}
+
+bool KSMWindowsHostServices::SetWindowSize(const KSMWindowSize& size) {
+    if (!window_) {
+        return false;
+    }
+    if (
+        IsIconic(window_) ||
+        IsZoomed(window_) ||
+        IsFullscreenWindow(window_)
+    ) {
+        throw KSMHostException(
+            "NOT_SUPPORTED",
+            "The window cannot be resized in its current state."
+        );
+    }
+    if (
+        size.width < kMinWindowWidth ||
+        size.height < kMinWindowHeight
+    ) {
+        throw KSMHostException(
+            "INVALID_ARGS",
+            "width must be at least 320 and height at least 240."
+        );
+    }
+
+    UINT dpi = GetDpiForWindow(window_);
+    if (dpi == 0) {
+        dpi = GetDpiForSystem();
+    }
+    if (dpi == 0) {
+        dpi = 96;
+    }
+    int width = MulDiv(size.width, static_cast<int>(dpi), 96);
+    int height = MulDiv(size.height, static_cast<int>(dpi), 96);
+
+    const HMONITOR monitor = MonitorFromWindow(window_, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO info{};
+    info.cbSize = sizeof(info);
+    if (!GetMonitorInfoW(monitor, &info)) {
+        return false;
+    }
+    const int work_width = info.rcWork.right - info.rcWork.left;
+    const int work_height = info.rcWork.bottom - info.rcWork.top;
+    if (work_width < kMinWindowWidth || work_height < kMinWindowHeight) {
+        return false;
+    }
+    width = std::clamp(width, kMinWindowWidth, work_width);
+    height = std::clamp(height, kMinWindowHeight, work_height);
+
+    RECT current{};
+    if (!GetWindowRect(window_, &current)) {
+        return false;
+    }
+    const int x = std::clamp(
+        current.left,
+        static_cast<int>(info.rcWork.left),
+        static_cast<int>(info.rcWork.right) - width
+    );
+    const int y = std::clamp(
+        current.top,
+        static_cast<int>(info.rcWork.top),
+        static_cast<int>(info.rcWork.bottom) - height
+    );
+    return SetWindowPos(
+        window_,
+        nullptr,
+        x,
+        y,
+        width,
+        height,
+        SWP_NOZORDER | SWP_NOACTIVATE
+    ) != FALSE;
+}
+
+std::optional<KSMDeviceInfo> KSMWindowsHostServices::GetDeviceInfo() const {
+    return std::nullopt;
+}
+
+void KSMWindowsHostServices::CancelRequest(const std::string& request_id) {
+    std::shared_ptr<DownloadState> state;
+    {
+        std::lock_guard lock(download_mutex_);
+        const auto iterator = downloads_.find(request_id);
+        if (iterator != downloads_.end()) {
+            state = iterator->second;
+        }
+    }
+    if (!state) {
+        return;
+    }
+    state->cancelled.store(true);
+    CloseDownloadHandles(state);
 }

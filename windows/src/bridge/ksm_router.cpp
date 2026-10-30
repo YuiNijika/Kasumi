@@ -1,6 +1,8 @@
 #include "ksm_router.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <nlohmann/json.hpp>
 #include <set>
 #include <string>
@@ -11,6 +13,7 @@
 #include "../commands/ksm_phase1.h"
 #include "../generated/contract.h"
 #include "../platform/ksm_host_services.h"
+#include "../platform/ksm_url_policy.h"
 #include "../platform/ksm_virtual_path.h"
 #include "ksm_command_registry.h"
 
@@ -19,17 +22,6 @@ namespace {
 using Json = nlohmann::json;
 
 constexpr std::size_t kMaxInlineTextBytes = 64 * 1024;
-
-const std::set<std::string> kKnownPermissions = {
-    "fs.read",
-    "fs.write",
-    "fs.remove",
-    "dialog",
-    "clipboard.read",
-    "clipboard.write",
-    "notification.show",
-    "window.control"
-};
 
 void SendError(
     const Json& id,
@@ -92,8 +84,15 @@ KSMRouter::KSMRouter(
     std::shared_ptr<KSMHostServices> host_services
 )
     : file_system_(std::move(file_system)),
-      host_services_(std::move(host_services)),
-      granted_permissions_(kKnownPermissions) {
+      host_services_(std::move(host_services)) {
+    const auto& permissions = KSMGeneratedContract::Permissions();
+    granted_permissions_.insert(permissions.begin(), permissions.end());
+}
+
+void KSMRouter::CancelRequest(const std::string& request_id) {
+    if (host_services_) {
+        host_services_->CancelRequest(request_id);
+    }
 }
 
 bool KSMRouter::HasPermission(const std::string& permission) const {
@@ -153,6 +152,7 @@ void KSMRouter::HandleMessage(
         return;
     }
 
+    Json response_id = nullptr;
     try {
         const Json request = Json::parse(message);
         if (!request.is_object()) {
@@ -161,11 +161,15 @@ void KSMRouter::HandleMessage(
         }
 
         const Json id = request.contains("id") ? request.at("id") : Json(nullptr);
+        response_id = id;
         if (
             request.contains("type") &&
             request.at("type").is_string() &&
             request.at("type") == "cancel"
         ) {
+            if (id.is_string()) {
+                CancelRequest(id.get<std::string>());
+            }
             return;
         }
         if (
@@ -259,6 +263,16 @@ void KSMRouter::HandleMessage(
             return;
         }
 
+        if (command == "device.getInfo") {
+            SendError(
+                id,
+                "NOT_SUPPORTED",
+                "device.getInfo is only available on Android.",
+                send_response
+            );
+            return;
+        }
+
         if (command == "permission.request") {
             if (
                 !IsString(args, "permission") ||
@@ -273,7 +287,12 @@ void KSMRouter::HandleMessage(
                 return;
             }
             const std::string permission = args.at("permission").get<std::string>();
-            const bool known = kKnownPermissions.find(permission) != kKnownPermissions.end();
+            const auto& permissions = KSMGeneratedContract::Permissions();
+            const bool known = std::find(
+                permissions.begin(),
+                permissions.end(),
+                permission
+            ) != permissions.end();
             if (!known) {
                 SendError(
                     id,
@@ -897,6 +916,212 @@ void KSMRouter::HandleMessage(
             return;
         }
 
+        if (command == "window.setSize") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The window service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("window.control")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            const auto& width_value = args.at("width");
+            const auto& height_value = args.at("height");
+            if (
+                (!width_value.is_number_integer() &&
+                    !width_value.is_number_unsigned()) ||
+                (!height_value.is_number_integer() &&
+                    !height_value.is_number_unsigned())
+            ) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "width and height must be integers.",
+                    send_response
+                );
+                return;
+            }
+            const std::int64_t width = width_value.get<std::int64_t>();
+            const std::int64_t height = height_value.get<std::int64_t>();
+            if (
+                width < 320 ||
+                height < 240 ||
+                width > std::numeric_limits<int>::max() ||
+                height > std::numeric_limits<int>::max()
+            ) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "width must be at least 320 and height at least 240.",
+                    send_response
+                );
+                return;
+            }
+            const bool updated = host_services_->SetWindowSize(
+                KSMWindowSize{
+                    static_cast<int>(width),
+                    static_cast<int>(height)
+                }
+            );
+            SendSuccess(id, Json{{"updated", updated}}, send_response);
+            return;
+        }
+
+        if (command == "shell.openExternal") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The shell service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("shell.open")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            if (
+                !IsString(args, "url") ||
+                !KSMUrlPolicy::ParseHttpUrl(
+                    args.at("url").get<std::string>()
+                )
+            ) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "url must be an absolute HTTP or HTTPS URL.",
+                    send_response
+                );
+                return;
+            }
+            const std::string url = args.at("url").get<std::string>();
+            if (!host_services_->IsExternalUrlAllowed(url)) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The URL origin is not allowlisted.",
+                    send_response
+                );
+                return;
+            }
+            SendSuccess(
+                id,
+                Json{{"opened", host_services_->OpenExternal(url)}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "http.download") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The download service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("http.download")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            if (
+                !IsString(args, "url") ||
+                !IsString(args, "path")
+            ) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "url and path are required.",
+                    send_response
+                );
+                return;
+            }
+            const std::string url = args.at("url").get<std::string>();
+            const std::string path = args.at("path").get<std::string>();
+            if (!KSMUrlPolicy::ParseHttpUrl(url, true)) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "url must use HTTPS.",
+                    send_response
+                );
+                return;
+            }
+            if (
+                !KSMVirtualPath::IsSafe(path) ||
+                KSMVirtualPath::IsReadOnly(path) ||
+                KSMVirtualPath::IsPicked(path)
+            ) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "path is outside the writable sandbox.",
+                    send_response
+                );
+                return;
+            }
+            bool overwrite = false;
+            if (args.contains("overwrite")) {
+                if (!args.at("overwrite").is_boolean()) {
+                    SendError(
+                        id,
+                        "INVALID_ARGS",
+                        "overwrite must be a boolean.",
+                        send_response
+                    );
+                    return;
+                }
+                overwrite = args.at("overwrite").get<bool>();
+            }
+            const std::string request_id = id.is_string()
+                ? id.get<std::string>()
+                : "";
+            const auto result = host_services_->Download(
+                url,
+                path,
+                overwrite,
+                request_id
+            );
+            if (!result) {
+                SendError(
+                    id,
+                    "IO_ERROR",
+                    "The download could not be completed.",
+                    send_response
+                );
+                return;
+            }
+            SendSuccess(
+                id,
+                Json{{"path", result->path}, {"bytes", result->bytes}},
+                send_response
+            );
+            return;
+        }
+
         if (command == "window.close") {
             if (!host_services_) {
                 SendError(
@@ -969,6 +1194,13 @@ void KSMRouter::HandleMessage(
             nullptr,
             "INVALID_ARGS",
             "Request fields are invalid.",
+            send_response
+        );
+    } catch (const KSMHostException& error) {
+        SendError(
+            response_id,
+            error.code(),
+            error.what(),
             send_response
         );
     } catch (const std::exception&) {

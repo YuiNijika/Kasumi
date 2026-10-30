@@ -10,7 +10,10 @@
     "clipboard.read": {"type": "object", "description": "Read text from the system clipboard.", "required": ["description"], "properties": {"description": {"type": "string"}}},
     "clipboard.write": {"type": "object", "description": "Write text to the system clipboard.", "required": ["description"], "properties": {"description": {"type": "string"}}},
     "notification.show": {"type": "object", "description": "Show a system notification.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "window.control": {"type": "object", "description": "Control the host window or application lifecycle.", "required": ["description"], "properties": {"description": {"type": "string"}}}
+    "window.control": {"type": "object", "description": "Control the host window or application lifecycle.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "http.download": {"type": "object", "description": "Download HTTPS resources into the Kasumi virtual filesystem.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "shell.open": {"type": "object", "description": "Open allowlisted web origins in the system browser.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "device.info": {"type": "object", "description": "Read non-identifying Android device and display information.", "required": ["description"], "properties": {"description": {"type": "string"}}}
   },
   "additionalProperties": false
 }

@@ -463,9 +463,44 @@ bool KSM::Window::Maximize() {
     return host_services && host_services->MaximizeWindow();
 }
 
+bool KSM::Window::SetSize(const KSMWindowSize& size) {
+    const auto host_services = GetHostServices();
+    return host_services && host_services->SetWindowSize(size);
+}
+
 bool KSM::Window::Close() {
     const auto host_services = GetHostServices();
     return host_services && host_services->CloseWindow();
+}
+
+std::optional<KSMHttpDownloadResult> KSM::Http::Download(
+    std::string_view url,
+    std::string_view path,
+    bool overwrite
+) {
+    const auto host_services = GetHostServices();
+    return host_services
+        ? host_services->Download(
+            std::string(url),
+            std::string(path),
+            overwrite,
+            ""
+        )
+        : std::nullopt;
+}
+
+bool KSM::Shell::OpenExternal(std::string_view url) {
+    const auto host_services = GetHostServices();
+    return host_services &&
+        host_services->IsExternalUrlAllowed(std::string(url)) &&
+        host_services->OpenExternal(std::string(url));
+}
+
+std::optional<KSMDeviceInfo> KSM::Device::GetInfo() {
+    const auto host_services = GetHostServices();
+    return host_services
+        ? host_services->GetDeviceInfo()
+        : std::nullopt;
 }
 
 std::optional<KSM::AppInfo> KSM::App::GetInfo() {

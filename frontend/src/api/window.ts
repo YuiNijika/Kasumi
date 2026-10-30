@@ -1,5 +1,6 @@
 import { KSM } from '../bridge/ksm';
-import { assertString } from './guards';
+import { assertPositiveInteger, assertString } from './guards';
+import type { KSMWindowSize } from '../bridge/types';
 
 export function setTitle(title: string): Promise<{ updated: boolean }> {
   assertString(title, 'title');
@@ -12,6 +13,12 @@ export function minimize(): Promise<{ updated: boolean }> {
 
 export function maximize(): Promise<{ updated: boolean }> {
   return KSM.invoke('window.maximize', {});
+}
+
+export function setSize(args: KSMWindowSize): Promise<{ updated: boolean }> {
+  assertPositiveInteger(args.width, 'width');
+  assertPositiveInteger(args.height, 'height');
+  return KSM.invoke('window.setSize', args);
 }
 
 export function close(): Promise<{ closed: boolean }> {

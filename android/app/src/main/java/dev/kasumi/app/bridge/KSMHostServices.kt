@@ -25,4 +25,19 @@ interface KSMHostServices {
     fun hasRuntimePermission(permission: String): Boolean = true
     fun closeWindow(): Boolean
     fun exitApp(): Boolean
+    fun download(
+        url: String,
+        path: String,
+        overwrite: Boolean,
+        requestId: String? = null
+    ): KSMHttpDownloadResult? = null
+    fun isExternalUrlAllowed(url: String): Boolean = false
+    fun openExternal(url: String): Boolean = false
+    fun deviceInfo(): KSMDeviceInfo? = null
+    fun cancelRequest(requestId: String) {}
 }
+
+class KSMHostException(
+    val code: String,
+    override val message: String
+) : Exception(message)

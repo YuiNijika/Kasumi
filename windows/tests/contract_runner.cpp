@@ -19,6 +19,7 @@
 #include "../src/commands/ksm_filesystem.h"
 #include "../src/commands/ksm_phase1.h"
 #include "../src/platform/ksm_host_services.h"
+#include "../src/platform/ksm_url_policy.h"
 #include "../src/platform/ksm_webview_security.h"
 #include "../src/platform/ksm_webview_host.h"
 
@@ -210,6 +211,35 @@ public:
 
     bool ExitApp() override {
         return true;
+    }
+
+    std::optional<KSMHttpDownloadResult> Download(
+        const std::string& url,
+        const std::string& path,
+        bool overwrite,
+        const std::string& request_id
+    ) override {
+        if (
+            url != "https://example.com/file.bin" ||
+            path != "app://data/file.bin" ||
+            overwrite ||
+            request_id != "contract"
+        ) {
+            return std::nullopt;
+        }
+        return KSMHttpDownloadResult{path, 42};
+    }
+
+    bool IsExternalUrlAllowed(const std::string& url) const override {
+        return url.starts_with("https://example.com/");
+    }
+
+    bool OpenExternal(const std::string& url) override {
+        return IsExternalUrlAllowed(url);
+    }
+
+    bool SetWindowSize(const KSMWindowSize& size) override {
+        return size.width >= 320 && size.height >= 240;
     }
 };
 
@@ -485,6 +515,157 @@ void TestWebViewSecurity() {
             );
         }
     }
+}
+
+void TestUrlPolicy() {
+    const auto parsed = KSMUrlPolicy::ParseHttpUrl(
+        "https://Example.com:443/path?q=1",
+        true
+    );
+    if (
+        !parsed ||
+        parsed->origin.scheme != "https" ||
+        parsed->origin.host != "example.com" ||
+        parsed->origin.port != 443 ||
+        parsed->path != "/path" ||
+        parsed->query != "?q=1"
+    ) {
+        throw std::runtime_error("The URL policy did not normalize an HTTPS URL.");
+    }
+    for (const auto& value : {
+        "http://example.com/file",
+        "https://user@example.com/file",
+        "https://example.com:0/file",
+        "file:///tmp/file",
+        "javascript:alert(1)"
+    }) {
+        if (KSMUrlPolicy::ParseHttpUrl(value, true)) {
+            throw std::runtime_error(
+                std::string("The URL policy accepted an invalid URL: ") + value
+            );
+        }
+    }
+    const auto redirect = KSMUrlPolicy::ResolveHttpsRedirect(
+        "https://example.com/a/b?old=1",
+        "../c?new=1"
+    );
+    if (
+        !redirect ||
+        *redirect != "https://example.com/c?new=1"
+    ) {
+        throw std::runtime_error("The URL policy did not resolve a relative redirect.");
+    }
+    if (KSMUrlPolicy::ResolveHttpsRedirect(
+        "https://example.com/a",
+        "http://example.com/b"
+    )) {
+        throw std::runtime_error("The URL policy accepted an HTTP redirect.");
+    }
+}
+
+void TestNewCommands(
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    auto services = std::make_shared<BlockingHostServices>();
+    KSMRouter router(file_system, services);
+
+    const auto download = Invoke(
+        router,
+        "http.download",
+        Json{
+            {"url", "https://example.com/file.bin"},
+            {"path", "app://data/file.bin"}
+        }
+    );
+    ExpectOk(download);
+    if (
+        download.at("data").at("path") != "app://data/file.bin" ||
+        download.at("data").at("bytes") != 42
+    ) {
+        throw std::runtime_error("http.download returned unexpected data.");
+    }
+    ExpectError(
+        Invoke(
+            router,
+            "http.download",
+            Json{
+                {"url", "http://example.com/file.bin"},
+                {"path", "app://data/file.bin"}
+            }
+        ),
+        "INVALID_ARGS"
+    );
+    ExpectError(
+        Invoke(
+            router,
+            "http.download",
+            Json{
+                {"url", "https://example.com/file.bin"},
+                {"path", "app://picked/file.bin"}
+            }
+        ),
+        "PERMISSION_DENIED"
+    );
+    ExpectError(
+        Invoke(
+            router,
+            "http.download",
+            Json{
+                {"url", "https://example.com/file.bin"},
+                {"path", "app://data/file.bin"},
+                {"overwrite", "yes"}
+            }
+        ),
+        "INVALID_ARGS"
+    );
+
+    ExpectOk(Invoke(
+        router,
+        "shell.openExternal",
+        Json{{"url", "https://example.com/docs"}}
+    ));
+    ExpectError(
+        Invoke(
+            router,
+            "shell.openExternal",
+            Json{{"url", "https://other.example/docs"}}
+        ),
+        "PERMISSION_DENIED"
+    );
+    ExpectError(
+        Invoke(
+            router,
+            "shell.openExternal",
+            Json{{"url", "file:///tmp/index.html"}}
+        ),
+        "INVALID_ARGS"
+    );
+
+    ExpectOk(Invoke(
+        router,
+        "window.setSize",
+        Json{{"width", 800}, {"height", 600}}
+    ));
+    ExpectError(
+        Invoke(
+            router,
+            "window.setSize",
+            Json{{"width", 319}, {"height", 600}}
+        ),
+        "INVALID_ARGS"
+    );
+    ExpectError(
+        Invoke(
+            router,
+            "window.setSize",
+            Json{{"width", 800.5}, {"height", 600}}
+        ),
+        "INVALID_ARGS"
+    );
+    ExpectError(
+        Invoke(router, "device.getInfo", Json::object()),
+        "NOT_SUPPORTED"
+    );
 }
 
 }
@@ -787,6 +968,8 @@ int main() {
         TestHostShutdownDropsResponses(file_system);
         TestKsmRoot(file_system);
         TestWebViewSecurity();
+        TestUrlPolicy();
+        TestNewCommands(file_system);
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         std::error_code ignored;

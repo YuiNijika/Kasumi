@@ -29,6 +29,12 @@ inline const Json& ArgSchemas() {
     "required": [],
     "additionalProperties": false
   },
+  "device.getInfo": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
   "fs.readText": {
     "type": "object",
     "properties": {
@@ -280,10 +286,60 @@ inline const Json& ArgSchemas() {
     "required": [],
     "additionalProperties": false
   },
+  "window.setSize": {
+    "type": "object",
+    "properties": {
+      "width": {
+        "type": "integer"
+      },
+      "height": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "width",
+      "height"
+    ],
+    "additionalProperties": false
+  },
   "window.close": {
     "type": "object",
     "properties": {},
     "required": [],
+    "additionalProperties": false
+  },
+  "shell.openExternal": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "url"
+    ],
+    "additionalProperties": false
+  },
+  "http.download": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      },
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "overwrite": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "url",
+      "path"
+    ],
     "additionalProperties": false
   },
   "app.exit": {
@@ -393,21 +449,21 @@ public:
 
 inline const std::vector<std::string>& KSMGeneratedContract::Commands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.close", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "http.download", "app.exit"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::WindowsCommands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.close", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "http.download", "app.exit"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::AndroidCommands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.close", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.close", "shell.openExternal", "http.download", "app.exit"
     };
     return values;
 }
@@ -421,7 +477,7 @@ inline const std::vector<std::string>& KSMGeneratedContract::Events() {
 
 inline const std::vector<std::string>& KSMGeneratedContract::Permissions() {
     static const std::vector<std::string> values = {
-        "fs.read", "fs.write", "fs.remove", "dialog", "clipboard.read", "clipboard.write", "notification.show", "window.control"
+        "fs.read", "fs.write", "fs.remove", "dialog", "clipboard.read", "clipboard.write", "notification.show", "window.control", "http.download", "shell.open", "device.info"
     };
     return values;
 }

@@ -15,6 +15,8 @@ add_library(kasumi_windows_bridge STATIC
     src/platform/ksm_virtual_path.cpp
     src/platform/ksm_webview_host.cpp
     src/platform/ksm_webview_security.cpp
+    src/platform/ksm_url_policy.cpp
+    src/platform/ksm_webview2_host.cpp
     src/platform/ksm_windows_host_services.cpp
 )
 
@@ -24,7 +26,41 @@ target_link_libraries(kasumi_windows_bridge PUBLIC nlohmann_json::nlohmann_json)
 
 if (WIN32)
     target_compile_definitions(kasumi_windows_bridge PUBLIC UNICODE _UNICODE)
-    target_link_libraries(kasumi_windows_bridge PUBLIC comdlg32 shell32 user32)
+    find_package(unofficial-webview2 CONFIG REQUIRED)
+    target_link_libraries(
+        kasumi_windows_bridge
+        PUBLIC
+            comdlg32
+            comctl32
+            ole32
+            shell32
+            user32
+            winhttp
+            unofficial::webview2::webview2
+    )
+
+    add_executable(
+        kasumi_win32_example
+        WIN32
+        examples/win32-host/main.cpp
+    )
+    target_link_libraries(
+        kasumi_win32_example
+        PRIVATE
+            kasumi_windows_bridge
+            comctl32
+            ole32
+            shell32
+            unofficial::webview2::webview2
+    )
+    target_compile_definitions(kasumi_win32_example PRIVATE UNICODE _UNICODE)
+    add_custom_command(
+        TARGET kasumi_win32_example
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/examples/win32-host/web"
+            "$<TARGET_FILE_DIR:kasumi_win32_example>/web"
+    )
 endif()
 
 include(CTest)
@@ -32,6 +68,16 @@ if (BUILD_TESTING)
     add_executable(kasumi_contract_runner tests/contract_runner.cpp)
     target_link_libraries(kasumi_contract_runner PRIVATE kasumi_windows_bridge)
     add_test(NAME kasumi_contract COMMAND kasumi_contract_runner)
+    if (WIN32)
+        add_test(
+            NAME kasumi_win32_example_smoke
+            COMMAND kasumi_win32_example --smoke-test
+        )
+        set_tests_properties(
+            kasumi_win32_example_smoke
+            PROPERTIES TIMEOUT 30
+        )
+    endif()
 endif()
 
 install(TARGETS kasumi_windows_bridge ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
@@ -40,6 +86,19 @@ install(
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h"
 )
+if (WIN32)
+    install(TARGETS kasumi_win32_example RUNTIME DESTINATION .)
+    install(
+        DIRECTORY examples/win32-host/web
+        DESTINATION .
+    )
+    install(
+        FILES examples/win32-host/README.md
+        DESTINATION .
+        RENAME EXAMPLE_HOST.md
+    )
+endif()
+install(FILES README.md DESTINATION .)
 
 set(CPACK_PACKAGE_NAME "Kasumi Windows Bridge")
 set(CPACK_PACKAGE_VENDOR "Kasumi")

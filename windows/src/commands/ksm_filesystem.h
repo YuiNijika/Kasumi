@@ -35,6 +35,9 @@ public:
     std::optional<std::string> CreateTemporaryText(
         const std::string& content
     ) const;
+    std::optional<std::filesystem::path> ResolveWritableFile(
+        const std::string& path
+    ) const;
 
 private:
     std::optional<std::filesystem::path> ResolveReadable(
