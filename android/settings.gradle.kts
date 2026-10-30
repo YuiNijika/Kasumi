@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Kasumi"
 include(":app")
+include(":kasumi")

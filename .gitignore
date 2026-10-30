@@ -7,11 +7,17 @@ $null
 .check-deps/
 .temp/
 .tmp/
+.workbuddy/
 __pycache__/
 *.egg-info/
 .venv/
 frontend/node_modules/
 windows/build/
+windows/examples/win32-host/build/
 android/.gradle/
+examples/android-host/.gradle/
 android/build/
 android/app/build/
+android/kasumi/build/
+examples/android-host/build/
+examples/android-host/app/build/

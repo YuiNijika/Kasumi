@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f3eee3">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+    <title>Kasumi能力示例</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+    <div class="page">
+        <header class="topbar">
+            <a class="brand" href="index.html" aria-label="Kasumi示例首页">
+                <span class="brand-mark" aria-hidden="true">K</span>
+                <span class="brand-text">
+                    <strong translate="no">KASUMI</strong>
+                    <small>ABILITY FIELD GUIDE</small>
+                </span>
+            </a>
+            <div id="connection" class="connection" role="status" aria-live="polite">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span id="connection-label">正在连接宿主…</span>
+            </div>
+        </header>
+
+        <main id="main" class="layout">
+            <section class="intro" aria-labelledby="page-title">
+                <p class="eyebrow">一套契约，两端运行</p>
+                <h1 id="page-title">把系统能力<br>变成<br><em>真实动作</em>。</h1>
+                <p class="lede">
+                    这是 Kasumi的完整基础能力示例。文件、对话框、剪贴板、通知、窗口、
+                    网络与设备信息都会经过真实宿主；平台没有提供的能力会在这里明确标出。
+                </p>
+
+                <dl class="runtime-facts" aria-label="运行时信息">
+                    <div class="fact">
+                        <dt>平台</dt>
+                        <dd id="platform-value">读取中…</dd>
+                    </div>
+                    <div class="fact">
+                        <dt>应用版本</dt>
+                        <dd id="version-value">读取中…</dd>
+                    </div>
+                    <div class="fact">
+                        <dt>可用能力</dt>
+                        <dd id="capability-value">读取中…</dd>
+                    </div>
+                </dl>
+
+                <section class="quick-start" aria-labelledby="quick-start-title">
+                    <div class="section-heading compact">
+                        <div>
+                            <p class="eyebrow">先确认连接</p>
+                            <h2 id="quick-start-title">从一条回路开始</h2>
+                        </div>
+                        <button id="ping-button" class="button button-primary" type="button">
+                            运行连接检查
+                        </button>
+                    </div>
+                    <p class="hint">
+                        成功后会填入应用信息与当前平台的能力清单。后续操作都使用同一套消息通道。
+                    </p>
+                </section>
+
+                <section class="activity" aria-labelledby="activity-title">
+                    <div class="activity-heading">
+                        <h2 id="activity-title">活动记录</h2>
+                        <div class="activity-actions">
+                            <span id="activity-count" class="activity-count">0条</span>
+                            <button id="clear-activity-button" class="text-button" type="button">
+                                清空
+                            </button>
+                        </div>
+                    </div>
+                    <ol id="activity-list" class="activity-list" aria-live="polite"></ol>
+                    <p id="empty-state" class="empty-state">还没有操作。先运行一次连接检查。</p>
+                </section>
+            </section>
+
+            <div class="modules">
+                <section class="module" aria-labelledby="overview-title">
+                    <div class="module-heading">
+                        <span class="module-index" aria-hidden="true">01</span>
+                        <div>
+                            <p class="eyebrow">应用与能力</p>
+                            <h2 id="overview-title">运行概览</h2>
+                        </div>
+                        <span class="module-badge">全平台</span>
+                    </div>
+                    <div class="detail-grid" id="app-details">
+                        <div class="detail">
+                            <span>应用名称</span>
+                            <strong id="app-name">尚未读取</strong>
+                        </div>
+                        <div class="detail">
+                            <span>界面语言</span>
+                            <strong id="app-language">尚未读取</strong>
+                        </div>
+                    </div>
+                    <div class="button-row">
+                        <button id="refresh-app-button" class="button button-secondary" type="button">
+                            刷新概览
+                        </button>
+                        <button id="exit-button" class="button button-danger" type="button" data-command="app.exit">
+                            退出示例
+                        </button>
+                    </div>
+                </section>
+
+                <section class="module" aria-labelledby="files-title">
+                    <div class="module-heading">
+                        <span class="module-index" aria-hidden="true">02</span>
+                        <div>
+                            <p class="eyebrow">沙箱文件</p>
+                            <h2 id="files-title">读写与目录</h2>
+                        </div>
+                        <span class="module-badge">全平台</span>
+                    </div>
+                    <p class="module-copy">
+                        所有路径都限制在 <code>app://data</code>等虚拟根内。这里会创建目录、写入文本，
+                        再读取目录和元数据，最后可以删除示例文件。
+                    </p>
+                    <label class="field-label" for="file-content">要写入的内容</label>
+                    <textarea id="file-content" rows="4" maxlength="8000" spellcheck="false">Kasumi示例写入于当前时间：</textarea>
+                    <div class="button-row">
+                        <button id="file-roundtrip-button" class="button button-secondary" type="button">
+                            完整读写流程
+                        </button>
+                        <button id="file-list-button" class="button button-quiet" type="button"
+                            data-command="fs.readDir">
+                            查看数据目录
+                        </button>
+                        <button id="file-clear-button" class="button button-quiet" type="button"
+                            data-command="fs.remove">
+                            删除示例文件
+                        </button>
+                    </div>
+                    <pre id="file-result" class="result-panel" aria-live="polite">等待文件操作…</pre>
+                </section>
+
+                <section class="module" aria-labelledby="dialogs-title">
+                    <div class="module-heading">
+                        <span class="module-index" aria-hidden="true">03</span>
+                        <div>
+                            <p class="eyebrow">原生对话框</p>
+                            <h2 id="dialogs-title">选择与确认</h2>
+                        </div>
+                        <span class="module-badge">全平台</span>
+                    </div>
+                    <p class="module-copy">
+                        文件选择器返回宿主生成的 <code>app://picked/&lt;id&gt;</code>句柄，不向前端暴露真实路径。
+                        选中文本文件后可以直接读取内容。
+                    </p>
+                    <div class="button-row">
+                        <button id="dialog-message-button" class="button button-secondary" type="button"
+                            data-command="dialog.message">
+                            显示消息
+                        </button>
+                        <button id="dialog-confirm-button" class="button button-secondary" type="button"
+                            data-command="dialog.confirm">
+                            请求确认
+                        </button>
+                        <button id="dialog-open-button" class="button button-quiet" type="button"
+                            data-command="dialog.openFile">
+                            选择文本文件
+                        </button>
+                        <button id="dialog-save-button" class="button button-quiet" type="button"
+                            data-command="dialog.saveFile">
+                            另存为
+                        </button>
+                    </div>
+                    <pre id="dialog-result" class="result-panel" aria-live="polite">尚未选择文件…</pre>
+                </section>
+
+                <section class="module" aria-labelledby="clipboard-title">
+                    <div class="module-heading">
+                        <span class="module-index" aria-hidden="true">04</span>
+                        <div>
+                            <p class="eyebrow">系统剪贴板</p>
+                            <h2 id="clipboard-title">带走一段文字</h2>
+                        </div>
+                        <span class="module-badge">全平台</span>
+                    </div>
+                    <label class="field-label" for="clipboard-input">剪贴板内容</label>
+                    <div class="inline-field">
+                        <input id="clipboard-input" type="text" value="从 Kasumi示例复制的一段文字" autocomplete="off">
+                        <button id="clipboard-write-button" class="button button-secondary" type="button"
+                            data-command="clipboard.writeText">
+                            写入
+                        </button>
+                    </div>
+                    <button id="clipboard-read-button" class="button button-quiet" type="button"
+                        data-command="clipboard.readText">
+                        读回剪贴板
+                    </button>
+                </section>
+
+                <section class="module" aria-labelledby="notification-title">
+                    <div class="module-heading">
+                        <span class="module-index" aria-hidden="true">05</span>
+                        <div>
+                            <p class="eyebrow">通知与权限</p>
+                            <h2 id="notification-title">让系统提醒你</h2>
+                        </div>
+                        <span class="module-badge">全平台</span>
+                    </div>
+                    <p class="module-copy">
+                        Android13及以上需要先请求通知权限；Windows会使用系统托盘通知。
+                        权限请求和通知发送是两个明确步骤。
+                    </p>
+                    <div class="button-row">
+                        <button id="notification-permission-button" class="button button-secondary" type="button"
+                            data-command="permission.request">
+                            请求通知权限
+                        </button>
+                        <button id="notification-show-button" class="button button-primary" type="button"
+                            data-command="notification.show">
+                            发送通知
+                        </button>
+                    </div>
+                    <p id="notification-state" class="inline-status" aria-live="polite">通知权限状态未知。</p>
+                </section>
+
+                <section class="module" aria-labelledby="window-title">
+                    <div class="module-heading">
+                        <span class="module-index" aria-hidden="true">06</span>
+                        <div>
+                            <p class="eyebrow">窗口控制</p>
+                            <h2 id="window-title">调整这一扇窗</h2>
+                        </div>
+                        <span id="window-badge" class="module-badge">读取中</span>
+                    </div>
+                    <p id="window-copy" class="module-copy">
+                        窗口标题、最小化、最大化和尺寸调整由 Windows提供；Android只提供关闭窗口。
+                    </p>
+                    <div class="size-fields">
+                        <div>
+                            <label class="field-label" for="window-width">外框宽度</label>
+                            <input id="window-width" type="number" min="320" step="1" value="920" inputmode="numeric">
+                        </div>
+                        <div>
+                            <label class="field-label" for="window-height">外框高度</label>
+                            <input id="window-height" type="number" min="240" step="1" value="680" inputmode="numeric">
+                        </div>
+                    </div>
+                    <div class="button-row">
+                        <button id="window-title-button" class="button button-quiet" type="button"
+                            data-command="window.setTitle">
+                            修改标题
+                        </button>
+                        <button id="window-size-button" class="button button-secondary" type="button"
+                            data-command="window.setSize">
+                            应用尺寸
+                        </button>
+                        <button id="window-minimize-button" class="button button-quiet" type="button"
+                            data-command="window.minimize">
+                            最小化
+                        </button>
+                        <button id="window-maximize-button" class="button button-quiet" type="button"
+                            data-command="window.maximize">
+                            最大化
+                        </button>
+                        <button id="window-close-button" class="button button-danger" type="button"
+                            data-command="window.close">
+                            关闭窗口
+                        </button>
+                    </div>
+                    <p id="window-event-state" class="inline-status" aria-live="polite">
+                        等待订阅尺寸事件…
+                    </p>
+                </section>
+
+                <section class="module" aria-labelledby="network-title">
+                    <div class="module-heading">
+                        <span class="module-index" aria-hidden="true">07</span>
+                        <div>
+                            <p class="eyebrow">网络出口</p>
+                            <h2 id="network-title">下载与外部链接</h2>
+                        </div>
+                        <span class="module-badge">全平台</span>
+                    </div>
+                    <p class="module-copy">
+                        下载仅接受 HTTPS，并写入可写虚拟根。外部链接必须命中宿主的精确 origin
+                        白名单；当前示例只允许 <code>https://example.com</code>。
+                    </p>
+                    <label class="field-label" for="download-path">下载目标路径</label>
+                    <input id="download-path" type="text" value="app://data/showcase-example.html" autocomplete="off"
+                        spellcheck="false">
+                    <div class="button-row">
+                        <button id="download-button" class="button button-primary" type="button"
+                            data-command="http.download">
+                            下载示例页面
+                        </button>
+                        <button id="external-button" class="button button-secondary" type="button"
+                            data-command="shell.openExternal">
+                            打开示例站点
+                        </button>
+                    </div>
+                </section>
+
+                <section id="device-module" class="module" aria-labelledby="device-title">
+                    <div class="module-heading">
+                        <span class="module-index" aria-hidden="true">08</span>
+                        <div>
+                            <p class="eyebrow">设备信息</p>
+                            <h2 id="device-title">认识运行环境</h2>
+                        </div>
+                        <span id="device-badge" class="module-badge">读取中</span>
+                    </div>
+                    <p class="module-copy">
+                        这里只读取系统版本、机型、显示尺寸、语言与时区等运行时信息，
+                        不读取 Android ID、序列号、IMEI、广告 ID或其他持久标识。
+                    </p>
+                    <button id="device-button" class="button button-secondary" type="button"
+                        data-command="device.getInfo">
+                        读取设备信息
+                    </button>
+                    <dl id="device-details" class="device-grid"></dl>
+                </section>
+
+                <section class="module" aria-labelledby="events-title">
+                    <div class="module-heading">
+                        <span class="module-index" aria-hidden="true">09</span>
+                        <div>
+                            <p class="eyebrow">事件总线</p>
+                            <h2 id="events-title">观察窗口变化</h2>
+                        </div>
+                        <span class="module-badge">全平台</span>
+                    </div>
+                    <p class="module-copy">
+                        示例启动时会订阅 <code>window.resized</code>。调整窗口后，事件会带着内容区物理像素尺寸返回。
+                    </p>
+                    <div class="event-strip">
+                        <div>
+                            <span>当前内容区</span>
+                            <strong id="resize-value">等待事件</strong>
+                        </div>
+                        <div>
+                            <span>页面重载</span>
+                            <strong id="reload-value">尚未发生</strong>
+                        </div>
+                    </div>
+                    <button id="reload-button" class="button button-quiet" type="button" data-command="window.reload">
+                        重新加载页面
+                    </button>
+                </section>
+            </div>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>

@@ -9,8 +9,8 @@
 #include <memory>
 #include <string>
 
-#include "../../src/commands/ksm_filesystem.h"
-#include "../../src/platform/ksm_webview2_host.h"
+#include <kasumi/commands/ksm_filesystem.h>
+#include <kasumi/platform/ksm_webview2_host.h>
 
 namespace {
 

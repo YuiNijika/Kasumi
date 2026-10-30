@@ -51,7 +51,8 @@ import javax.net.ssl.HttpsURLConnection
 class KSMAndroidHostServices(
     private val activity: Activity,
     allowedExternalOrigins: Set<String> = emptySet(),
-    private val fileSystem: KSMFileSystem? = null
+    private val fileSystem: KSMFileSystem? = null,
+    private val appVersion: String = "0.1.0"
 ) : KSMHostServices {
     companion object {
         const val REQUEST_OPEN_FILE = 1001
@@ -100,7 +101,28 @@ class KSMAndroidHostServices(
     }
 
     override fun appVersion(): String {
-        return BuildConfig.VERSION_NAME
+        if (appVersion.isNotBlank()) {
+            return appVersion
+        }
+        return try {
+            val versionName = if (
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            ) {
+                activity.packageManager.getPackageInfo(
+                    activity.packageName,
+                    PackageManager.PackageInfoFlags.of(0)
+                ).versionName
+            } else {
+                @Suppress("DEPRECATION")
+                activity.packageManager.getPackageInfo(
+                    activity.packageName,
+                    0
+                ).versionName
+            }
+            versionName?.takeIf { it.isNotBlank() } ?: "0.1.0"
+        } catch (_: Exception) {
+            "0.1.0"
+        }
     }
 
     override fun language(): String {

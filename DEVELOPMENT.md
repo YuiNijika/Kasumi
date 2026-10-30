@@ -12,13 +12,18 @@
 | Windows 根入口 | `windows/src/commands/ksm_phase1.h` | 宿主侧 `KSM` 生命周期、统一调用和原生事件 |
 | Windows 路由 | `windows/src/bridge/ksm_router.h` | 请求校验、权限检查和命令分发 |
 | Windows WebView2 适配 | `windows/src/platform/ksm_webview2_host.h` | WebView2、消息来源、导航拦截、窗口事件和 UI 线程回投 |
-| Android 根入口 | `android/app/src/main/java/dev/kasumi/app/bridge/KSM.kt` | 宿主侧 `KSM` 生命周期、统一调用和原生事件 |
-| Android 路由 | `android/app/src/main/java/dev/kasumi/app/bridge/KSMRouter.kt` | WebView 消息校验、权限检查和命令分发 |
-| Android 宿主 | `android/app/src/main/java/dev/kasumi/app/MainActivity.kt` | WebView、协程、资源加载和生命周期 |
+| Windows SDK 包 | `windows/CMakeLists.txt` | 静态库、公共头文件、CMake package config 和 CPack |
+| Windows 示例 | `windows/examples/win32-host/` | 独立消费者工程，使用已安装 SDK |
+| Android SDK | `android/kasumi/` | AAR、宿主服务、路由、生成契约和公开 API |
+| Android 示例 | `examples/android-host/` | 独立消费者工程，使用本地 Maven 中的 AAR |
+| Android 测试宿主 | `android/app/` | 框架维护者的 JVM 与 instrumentation 测试宿主 |
 | 契约测试 | `tests/contract/run.ts` | 前端与双平台模拟宿主的共享行为测试 |
 | CLI | `cli/ksm.py` | 协议校验、代码生成、双端构建、测试和打包入口 |
 
 协议字符串不加 `KSM` 前缀；宿主侧类型和入口统一使用 `KSM` 前缀。
+
+SDK 与示例必须分开构建。消费者只接收静态库、公共头文件、AAR 或 Maven 坐标，不把
+`windows/src/*.cpp` 或 `android/kasumi/src/**/*.kt` 复制进应用工程。
 
 ## 当前进度
 
@@ -41,13 +46,20 @@
 前端 `KSM` 根入口已挂载 `http`、`shell`、`device` 和 `window.setSize`。Windows 与
 Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Windows 专属窗口方法。
 
+发布边界已完成：
+
+- Windows SDK 产出 `kasumi-windows-sdk-0.1.0.zip`，示例单独产出可执行程序 ZIP。
+- Android SDK 产出 `kasumi-android-sdk-0.1.0.aar`，示例单独产出 APK。
+- `windows/examples/win32-host/` 通过 `find_package(Kasumi CONFIG REQUIRED)` 消费 SDK。
+- `examples/android-host/` 通过 `dev.kasumi:kasumi:0.1.0` 消费本地 Maven 中的 AAR。
+
 ## 协议与生成
 
 新增或修改命令时按以下顺序执行，不得手写平行命令清单：
 
 1. 修改 `protocol/commands.json`、`protocol/commands.schema.json` 和 `protocol/permissions.schema.json`。
 2. 运行 `python tools/validate_protocol.py`。
-3. 运行 `python tools/codegen.py`，同步 `frontend/src/generated/contract.ts`、`windows/src/generated/contract.h` 和 `android/app/src/main/java/dev/kasumi/app/generated/KSMGeneratedContract.kt`。
+3. 运行 `python tools/codegen.py`，同步 `frontend/src/generated/contract.ts`、`windows/src/generated/contract.h` 和 `android/kasumi/src/main/java/dev/kasumi/app/generated/KSMGeneratedContract.kt`。
 4. 实现 Windows `KSMRouter`、Android `KSMRouter` 和宿主服务。
 5. 增加前端 API、契约测试和平台测试。
 
@@ -114,12 +126,16 @@ await KSM.window.setSize({ width: 960, height: 720 });
 - `KSMWindowsHostServices` 提供 WinHTTP 下载、`ShellExecuteW` 外部链接和 Win32 窗口尺寸服务。
 - `KSMWebView2Host` 负责 WebView2 创建、虚拟主机映射、消息来源校验、导航与新窗口拦截、重载和尺寸事件。
 - 每个窗口分配单调递增且不复用的 `windowId`；同一窗口复用同一个路由器和宿主服务实例。
-- `windows/examples/win32-host/` 是可运行的 Win32 + WebView2 示例，加载 `https://app.local/index.html`。
+- `windows/` 只构建 SDK；`windows/examples/win32-host/` 是独立消费者，加载 `https://app.local/index.html`。
+- SDK 安装目录包含 `include/kasumi/`、`kasumi_windows_bridge.lib` 和 `lib/cmake/Kasumi/`。
 - 示例依赖 Evergreen WebView2 Runtime，缺失时显示安装提示并退出；ZIP 不内置 Fixed Version Runtime。
 - 标签发布工作流要求 Authenticode 证书，使用 SHA-256 时间戳签名并执行 `signtool verify /pa /all`。
 
 ### Android
 
+- `android/kasumi/` 是发布 AAR 的 Android Library 模块；`android/app/` 只保留维护者测试宿主。
+- 本地 Maven 仓库位于 `android/kasumi/build/repo`，示例通过 `dev.kasumi:kasumi:0.1.0` 解析。
+- `examples/android-host/` 是独立消费者工程，不通过 Gradle 源码替换依赖框架模块。
 - `KSMAndroidHostServices` 使用 `HttpsURLConnection` 下载、`ACTION_VIEW` 打开外部链接，并从 `Build`、窗口度量、资源和时区读取设备信息。
 - WebView 使用 `WebViewCompat.addWebMessageListener`，命令在 IO 协程中执行，最多 8 条并发。
 - `onTrimMemory` 会取消活动下载；Activity 销毁、旋转和窗口关闭会停止协程、关闭下载并抑制迟到响应。
@@ -153,14 +169,20 @@ python tools/codegen.py
 node frontend/node_modules/typescript/bin/tsc --noEmit -p frontend/tsconfig.json
 node frontend/node_modules/typescript/bin/tsc --noEmit -p tests/tsconfig.json
 node frontend/node_modules/tsx/dist/cli.mjs tests/contract/run.ts
-python cli/ksm.py build --platform all
-python cli/ksm.py test --platform all
-python cli/ksm.py package --platform windows
-python cli/ksm.py package --platform android
+python cli/ksm.py build --platform windows --target sdk
+python cli/ksm.py build --platform windows --target example
+python cli/ksm.py build --platform android --target sdk
+python cli/ksm.py build --platform android --target example
+python cli/ksm.py test --platform all --target sdk
+python cli/ksm.py test --platform all --target example
+python cli/ksm.py package --platform windows --target sdk
+python cli/ksm.py package --platform windows --target example
+python cli/ksm.py package --platform android --target sdk
+python cli/ksm.py package --platform android --target example
 ```
 
-Windows 构建需要 vcpkg 的 `webview2` 与 `nlohmann-json` 依赖。示例启动前确认 `web/` 与
-EXE 位于同一输出目录。
+Windows 构建需要 vcpkg 的 `webview2` 与 `nlohmann-json` 依赖。SDK 安装到
+`windows/build/sdk/install`；示例启动前确认 `web/` 与 EXE 位于同一输出目录。
 
 ## 安全边界
 
@@ -189,6 +211,8 @@ EXE 位于同一输出目录。
 在线 API 文档按模块拆分：`kasumi/api/app`、`capabilities`、`fs`、`dialog`、`clipboard`、
 `notification`、`permission`、`event`、`window`、`http`、`shell`、`device` 和 `types`。
 `kasumi/api` 只做索引，`kasumi/development` 记录当前实现进度。
+
+本轮 SDK/示例分离与共享能力页变更仍待同步到线上草稿。同步前不得把相关页面描述为已上线。
 
 同步流程固定为：先用 `docs-rev.py pull` 拉取原文，再用本地编辑器修改，执行
 `push --dry-run` 检查 diff，确认后推送修订，最后重新拉取或读取线上原文确认内容已生效。

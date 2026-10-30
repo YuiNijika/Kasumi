@@ -14,7 +14,7 @@ WINDOWS = ROOT / "windows" / "src" / "generated"
 ANDROID = (
     ROOT
     / "android"
-    / "app"
+    / "kasumi"
     / "src"
     / "main"
     / "java"
