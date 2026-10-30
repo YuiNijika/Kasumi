@@ -2,13 +2,11 @@
 $null
 .codex-diff.txt
 .pnpm-store/
+.androidx-check/
 .kotlin-check-src/
 .check-deps/
 .temp/
 .tmp/
-.workbuddy/
-.codex-diff.txt
-$null
 __pycache__/
 *.egg-info/
 .venv/
