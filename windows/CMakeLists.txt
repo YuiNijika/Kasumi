@@ -1,8 +1,7 @@
-cmake_minimum_required(VERSION3.25)
+cmake_minimum_required(VERSION 3.25)
 
-project(kasumi_windows VERSION0.1.0 LANGUAGES CXX)
+project(kasumi_windows VERSION 0.1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
@@ -19,9 +18,13 @@ add_library(
     src/platform/ksm_webview_host.cpp
     src/platform/ksm_webview_security.cpp
     src/platform/ksm_url_policy.cpp
+    src/platform/ksm_web_resource.cpp
     src/platform/ksm_webview2_host.cpp
+    src/platform/ksm_win32_resource_provider.cpp
     src/platform/ksm_windows_host_services.cpp
 )
+
+target_compile_features(kasumi_windows_bridge PUBLIC cxx_std_20)
 
 target_include_directories(
     kasumi_windows_bridge
@@ -53,6 +56,7 @@ if (WIN32)
             comctl32
             ole32
             shell32
+            shlwapi
             user32
             winhttp
             unofficial::webview2::webview2

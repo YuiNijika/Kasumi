@@ -11,7 +11,7 @@
 | 前端 | `frontend/src/index.ts` | `KSM` 根入口、事件总线和 API 封装 |
 | Windows 根入口 | `windows/src/commands/ksm_phase1.h` | 宿主侧 `KSM` 生命周期、统一调用和原生事件 |
 | Windows 路由 | `windows/src/bridge/ksm_router.h` | 请求校验、权限检查和命令分发 |
-| Windows WebView2 适配 | `windows/src/platform/ksm_webview2_host.h` | WebView2、消息来源、导航拦截、窗口事件和 UI 线程回投 |
+| Windows WebView2 适配 | `windows/src/platform/ksm_webview2_host.h` | WebView2、内嵌资源、消息来源、导航拦截、窗口事件和 UI 线程回投 |
 | Windows SDK 包 | `windows/CMakeLists.txt` | 静态库、公共头文件、CMake package config 和 CPack |
 | Windows 示例 | `windows/examples/win32-host/` | 独立消费者工程，使用已安装 SDK |
 | Android SDK | `android/kasumi/` | AAR、宿主服务、路由、生成契约和公开 API |
@@ -52,6 +52,7 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
 - Android SDK 产出 `kasumi-android-sdk-0.1.0.aar`，示例单独产出 APK。
 - `windows/examples/win32-host/` 通过 `find_package(Kasumi CONFIG REQUIRED)` 消费 SDK。
 - `examples/android-host/` 通过 `dev.kasumi:kasumi:0.1.0` 消费本地 Maven 中的 AAR。
+- Windows SDK 包不包含 `.cpp`，Android Maven 发布不生成 sources JAR。
 
 ## 协议与生成
 
@@ -124,9 +125,11 @@ await KSM.window.setSize({ width: 960, height: 720 });
 ### Windows
 
 - `KSMWindowsHostServices` 提供 WinHTTP 下载、`ShellExecuteW` 外部链接和 Win32 窗口尺寸服务。
-- `KSMWebView2Host` 负责 WebView2 创建、虚拟主机映射、消息来源校验、导航与新窗口拦截、重载和尺寸事件。
+- `KSMWebView2Host` 负责 WebView2 创建、内嵌或外置资源响应、消息来源校验、导航与新窗口拦截、重载和尺寸事件。
 - 每个窗口分配单调递增且不复用的 `windowId`；同一窗口复用同一个路由器和宿主服务实例。
 - `windows/` 只构建 SDK；`windows/examples/win32-host/` 是独立消费者，加载 `https://app.local/index.html`。
+- 默认构建把 `examples/showcase/` 编译进 EXE，输出目录不包含 `web/`；WebView2 使用系统默认 profile。
+- `KASUMI_EXAMPLE_EXTERNAL_WEB=ON` 切换为外置 `web/`，命令行等价参数为 `--external-web`；运行时可用 `--web-root` 和 `--user-data-folder` 覆盖路径。
 - SDK 安装目录包含 `include/kasumi/`、`kasumi_windows_bridge.lib` 和 `lib/cmake/Kasumi/`。
 - 示例依赖 Evergreen WebView2 Runtime，缺失时显示安装提示并退出；ZIP 不内置 Fixed Version Runtime。
 - 标签发布工作流要求 Authenticode 证书，使用 SHA-256 时间戳签名并执行 `signtool verify /pa /all`。
@@ -152,13 +155,23 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `tests/contract/run.ts` | `frontend contract passed for windows and android` |
 | `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
 
-本机未提供 CMake、MSVC 或 Gradle，当前轮次没有重新执行 Windows CMake/CTest 和 Android
-Gradle/instrumentation 构建。提交前必须在 CI 或具备对应工具链的机器上完成以下检查：
+Windows 已完成 SDK、内嵌 Web 示例构建和真实桌面 smoke test，`kasumi_contract` 与
+`kasumi_win32_example_smoke` 均通过。默认示例输出只有 EXE 与 `WebView2Loader.dll`，
+没有 `web/` 或 `KasumiData/`。SDK ZIP 只包含公共头文件、静态库、CMake 配置和 README；
+默认示例 ZIP 只包含 EXE 与 `WebView2Loader.dll`，外置模式 ZIP 额外包含 `web/`。
 
-1. Windows CMake + vcpkg `webview2` 构建、`kasumi_contract` 和 `kasumi_win32_example_smoke`。
-2. Windows ZIP 内容检查，以及 Evergreen Runtime 缺失提示和标签签名流程。
-3. Android JVM 单测、API 34 模拟器 connected tests 和真机生命周期测试。
-4. Android 下载取消、通知权限、文件选择器、旋转和 `onTrimMemory` 的真实设备验证。
+Android 已完成 6 个 JVM 测试、AAR 发布、维护者 APK、instrumentation 测试 APK 和独立
+示例 APK 构建。AAR 和本地 Maven 发布物不包含 Kotlin 源码或 sources JAR，示例 APK 的
+Web 资源位于 `assets/`。本机 JDK 的 `TEMP` 包含短文件名时，Gradle 的 AF_UNIX 连接会
+报告 `Unable to establish loopback connection`，需要显式指定 socket 目录。
+API 34 模拟器已完成 3 项 connected tests，并验证示例页面实际加载。Android 宿主统一使用
+`KSMWebAssetLoader.create(context, assetRoot)`；该入口固定域名 `app.local`，避免
+`WebViewAssetLoader` 默认域名不匹配导致 `ERR_NAME_NOT_RESOLVED`。
+
+仍需在真机完成以下检查：
+
+1. Android 下载取消、通知权限、文件选择器、旋转和 `onTrimMemory` 的真实设备验证。
+2. Windows Evergreen Runtime 缺失提示和标签签名流程。
 
 ## 常用命令
 
@@ -177,12 +190,23 @@ python cli/ksm.py test --platform all --target sdk
 python cli/ksm.py test --platform all --target example
 python cli/ksm.py package --platform windows --target sdk
 python cli/ksm.py package --platform windows --target example
+python cli/ksm.py package --platform windows --target example --external-web
 python cli/ksm.py package --platform android --target sdk
 python cli/ksm.py package --platform android --target example
 ```
 
 Windows 构建需要 vcpkg 的 `webview2` 与 `nlohmann-json` 依赖。SDK 安装到
-`windows/build/sdk/install`；示例启动前确认 `web/` 与 EXE 位于同一输出目录。
+`windows/build/sdk/install`；默认示例使用 EXE 内嵌 Web 资源，不需要把 `web/` 放到
+输出目录。
+
+Android 构建使用 JDK 21。若 Gradle 在本机启动 daemon 时报告 loopback 连接失败，将
+`jdk.net.unixdomain.tmpdir` 指向不含短文件名的可写目录。`cli/ksm.py` 在 Windows 上会
+自动设置 `.tmp/afunix`，手动调用 Gradle 时可使用：
+
+```bash
+JAVA_TOOL_OPTIONS="-Djdk.net.unixdomain.tmpdir=<workspace>/.tmp/afunix" \
+gradle -p android :kasumi:assembleRelease :kasumi:publishReleasePublicationToLocalRepository
+```
 
 ## 安全边界
 
@@ -212,7 +236,12 @@ Windows 构建需要 vcpkg 的 `webview2` 与 `nlohmann-json` 依赖。SDK 安�
 `notification`、`permission`、`event`、`window`、`http`、`shell`、`device` 和 `types`。
 `kasumi/api` 只做索引，`kasumi/development` 记录当前实现进度。
 
-本轮 SDK/示例分离与共享能力页变更仍待同步到线上草稿。同步前不得把相关页面描述为已上线。
+此前 10 个线上修订已覆盖 `kasumi/development`、`kasumi/index`、`kasumi/api`、`fs`、
+`types`、`window`、`http`、`shell`、`device` 和 `event`，当前状态为 `approved`。
+本轮又提交了 `kasumi/development` 修订 `bf80e59e-76c8-4b00-b2f9-342908f31352`，
+补充当前实现进度、命令矩阵和 Android `app.local` 资源加载修复，状态已变为
+`approved`，但重新拉取仍返回旧正文。
+发布状态以站点实际页面为准，未发布前不得描述为已上线。
 
 同步流程固定为：先用 `docs-rev.py pull` 拉取原文，再用本地编辑器修改，执行
 `push --dry-run` 检查 diff，确认后推送修订，最后重新拉取或读取线上原文确认内容已生效。

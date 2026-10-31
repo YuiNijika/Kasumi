@@ -20,8 +20,18 @@ ANDROID_SDK_PACKAGE_DIR = ROOT / "android" / "build" / "packages"
 ANDROID_EXAMPLE_PACKAGE_DIR = ROOT / "examples" / "android-host" / "build" / "packages"
 
 
-def run(command: list[str], cwd: Path = ROOT) -> None:
-    subprocess.run(command, cwd=cwd, check=True)
+def run(
+    command: list[str],
+    cwd: Path = ROOT,
+    env: dict[str, str] | None = None,
+) -> None:
+    executable = shutil.which(command[0]) or command[0]
+    subprocess.run(
+        [executable, *command[1:]],
+        cwd=cwd,
+        check=True,
+        env=env,
+    )
 
 
 def codegen() -> None:
@@ -48,11 +58,26 @@ def resolve_targets(target: str) -> tuple[str, ...]:
     return TARGETS[:-1] if target == "all" else (target,)
 
 
-def require_gradle() -> str:
+def android_gradle(project: Path) -> tuple[str, Path]:
     executable = shutil.which("gradle")
-    if executable is None:
-        raise RuntimeError("gradle is required for Android tasks.")
-    return executable
+    if executable is not None:
+        return executable, ROOT
+    wrapper = project / ("gradlew.bat" if os.name == "nt" else "gradlew")
+    if wrapper.is_file():
+        return str(wrapper), project
+    raise RuntimeError("gradle is required for Android tasks.")
+
+
+def android_gradle_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    if os.name != "nt" or "JAVA_TOOL_OPTIONS" in environment:
+        return environment
+    socket_dir = ROOT / ".tmp" / "afunix"
+    socket_dir.mkdir(parents=True, exist_ok=True)
+    environment["JAVA_TOOL_OPTIONS"] = (
+        f"-Djdk.net.unixdomain.tmpdir={socket_dir.resolve()}"
+    )
+    return environment
 
 
 def cmake_toolchain_arguments() -> list[str]:
@@ -87,7 +112,7 @@ def build_windows_sdk() -> None:
     )
 
 
-def build_windows_example() -> None:
+def build_windows_example(external_web: bool = False) -> None:
     build_windows_sdk()
     configure = [
         "cmake",
@@ -97,6 +122,7 @@ def build_windows_example() -> None:
         str(WINDOWS_EXAMPLE_BUILD),
         "-DCMAKE_BUILD_TYPE=Release",
         f"-DCMAKE_PREFIX_PATH={WINDOWS_SDK_INSTALL}",
+        f"-DKASUMI_EXAMPLE_EXTERNAL_WEB={'ON' if external_web else 'OFF'}",
         *cmake_toolchain_arguments(),
     ]
     run(configure)
@@ -112,36 +138,43 @@ def build_windows_example() -> None:
 
 
 def build_android_sdk() -> None:
+    executable, cwd = android_gradle(ROOT / "android")
     run(
         [
-            require_gradle(),
-            "-p",
-            str(ROOT / "android"),
+            executable,
             ":kasumi:assembleRelease",
             ":kasumi:publishReleasePublicationToLocalRepository",
-        ]
+        ],
+        cwd=cwd,
+        env=android_gradle_environment(),
     )
 
 
 def build_android_example() -> None:
     build_android_sdk()
+    project = ROOT / "examples" / "android-host"
+    executable, cwd = android_gradle(project)
     run(
         [
-            require_gradle(),
-            "-p",
-            str(ROOT / "examples" / "android-host"),
+            executable,
             "assembleDebug",
-        ]
+        ],
+        cwd=cwd,
+        env=android_gradle_environment(),
     )
 
 
-def build(platforms: tuple[str, ...], targets: tuple[str, ...]) -> None:
+def build(
+    platforms: tuple[str, ...],
+    targets: tuple[str, ...],
+    external_web: bool = False,
+) -> None:
     frontend_checks()
     if "windows" in platforms:
         if "sdk" in targets:
             build_windows_sdk()
         if "example" in targets:
-            build_windows_example()
+            build_windows_example(external_web)
     if "android" in platforms:
         if "sdk" in targets:
             build_android_sdk()
@@ -176,15 +209,16 @@ def test_windows() -> None:
 
 def test_android() -> None:
     build_android_sdk()
+    executable, cwd = android_gradle(ROOT / "android")
     run(
         [
-            require_gradle(),
-            "-p",
-            str(ROOT / "android"),
+            executable,
             ":kasumi:testDebugUnitTest",
             ":app:testDebugUnitTest",
             ":app:assembleDebugAndroidTest",
-        ]
+        ],
+        cwd=cwd,
+        env=android_gradle_environment(),
     )
     build_android_example()
 
@@ -218,18 +252,43 @@ def package_windows_sdk() -> None:
     )
 
 
-def package_windows_example() -> None:
-    build_windows_example()
+def windows_example_output_directory() -> Path:
+    release = WINDOWS_EXAMPLE_BUILD / "Release"
+    return release if release.is_dir() else WINDOWS_EXAMPLE_BUILD
+
+
+def package_windows_example(external_web: bool = False) -> None:
+    build_windows_example(external_web)
+    output = windows_example_output_directory()
     package_dir = WINDOWS_EXAMPLE_BUILD / "packages"
     package_dir.mkdir(parents=True, exist_ok=True)
-    archive = package_dir / "kasumi-win32-example-0.1.0"
-    if archive.with_suffix(".zip").exists():
-        archive.with_suffix(".zip").unlink()
+    staging = package_dir / "kasumi-win32-example-0.1.0"
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir()
+
+    executable = output / "kasumi_win32_example.exe"
+    if not executable.is_file():
+        raise FileNotFoundError(f"Windows example executable not found: {executable}")
+    shutil.copy2(executable, staging / executable.name)
+
+    loader = output / "WebView2Loader.dll"
+    if loader.is_file():
+        shutil.copy2(loader, staging / loader.name)
+
+    if external_web:
+        web = output / "web"
+        if not web.is_dir():
+            raise FileNotFoundError(f"External web assets not found: {web}")
+        shutil.copytree(web, staging / "web")
+
+    archive = package_dir / "kasumi-win32-example-0.1.0.zip"
+    if archive.exists():
+        archive.unlink()
     shutil.make_archive(
-        str(archive),
+        str(package_dir / "kasumi-win32-example-0.1.0"),
         "zip",
-        root_dir=WINDOWS_EXAMPLE_BUILD,
-        base_dir="Release",
+        root_dir=staging,
     )
 
 
@@ -271,13 +330,17 @@ def package_android_example() -> None:
     )
 
 
-def package(platforms: tuple[str, ...], targets: tuple[str, ...]) -> None:
+def package(
+    platforms: tuple[str, ...],
+    targets: tuple[str, ...],
+    external_web: bool = False,
+) -> None:
     frontend_checks()
     if "windows" in platforms:
         if "sdk" in targets:
             package_windows_sdk()
         if "example" in targets:
-            package_windows_example()
+            package_windows_example(external_web)
     if "android" in platforms:
         if "sdk" in targets:
             package_android_sdk()
@@ -307,6 +370,14 @@ def add_target_option(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_external_web_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--external-web",
+        action="store_true",
+        help="build or package the Windows example with external web assets",
+    )
+
+
 def start() -> None:
     parser = argparse.ArgumentParser(prog="ksm")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -316,6 +387,7 @@ def start() -> None:
     build_parser = subparsers.add_parser("build")
     add_platform_option(build_parser)
     add_target_option(build_parser)
+    add_external_web_option(build_parser)
 
     test_parser = subparsers.add_parser("test")
     add_platform_option(test_parser)
@@ -324,6 +396,7 @@ def start() -> None:
     package_parser = subparsers.add_parser("package")
     add_platform_option(package_parser)
     add_target_option(package_parser)
+    add_external_web_option(package_parser)
 
     subparsers.add_parser("dev")
     args = parser.parse_args()
@@ -336,6 +409,7 @@ def start() -> None:
         build(
             resolve_platforms(args.platform),
             resolve_targets(args.target),
+            args.external_web,
         )
     elif args.command == "test":
         test(
@@ -346,6 +420,7 @@ def start() -> None:
         package(
             resolve_platforms(args.platform),
             resolve_targets(args.target),
+            args.external_web,
         )
     else:
         dev()

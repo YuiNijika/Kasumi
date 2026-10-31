@@ -113,7 +113,9 @@ object KSMVirtualPath {
     fun pickedPath(token: String): String = "$PICKED_PREFIX$token"
 
     fun isReadOnly(path: String): Boolean {
-        return path.startsWith(RESOURCE_PREFIX) ||
+        return path == "app://res" ||
+            path == "app://assets" ||
+            path.startsWith(RESOURCE_PREFIX) ||
             path.startsWith(ASSET_PREFIX)
     }
 

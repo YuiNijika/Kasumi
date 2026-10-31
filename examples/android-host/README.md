@@ -26,14 +26,17 @@ python cli/ksm.py build --platform android --target sdk
 再构建独立示例：
 
 ```bash
-gradle -p examples/android-host assembleDebug
+cd examples/android-host
+./gradlew assembleDebug
 ```
 
 生成的 APK 位于 `examples/android-host/app/build/outputs/apk/debug/app-debug.apk`。
 
 ## 运行边界
 
-- WebView 只加载 `https://app.local/index.html`，资源由 `WebViewAssetLoader` 提供。
+- WebView 只加载 `https://app.local/index.html`，资源由
+  `KSMWebAssetLoader.create(context)` 提供。该入口固定域名 `app.local`；直接使用
+  `WebViewAssetLoader` 默认域名 `appassets.androidplatform.net` 不会匹配该 URL。
 - 外部链接白名单只包含 `https://example.com`。
 - 下载目标限制在 `app://data`、`app://cache` 和 `app://tmp`。
 - 文件选择器只向前端返回 `app://picked/<id>`。
@@ -42,7 +45,8 @@ gradle -p examples/android-host assembleDebug
 ## 排查
 
 1. 依赖解析失败：先确认本地 Maven 仓库存在 `dev/kasumi/kasumi/0.1.0/`。
-2. 页面空白：检查 `assets.srcDir` 是否指向 `examples/showcase`。
+2. 页面报 `ERR_NAME_NOT_RESOLVED`：确认宿主使用 `KSMWebAssetLoader.create(context)`，
+   且 `assets.srcDir` 指向 `examples/showcase`。
 3. 请求超时：确认 `WebViewCompat.addWebMessageListener` 的来源和 `ksm` 通道名称。
 4. 外部链接被拒绝：检查 `allowedExternalOrigins` 的 scheme、host 和端口。
 5. 生命周期异常：确认旧 Activity 销毁后不再投递迟到响应。

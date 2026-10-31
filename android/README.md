@@ -31,8 +31,9 @@ python cli/ksm.py build --platform android --target sdk
 该命令执行：
 
 ```bash
-gradle -p android :kasumi:assembleRelease
-gradle -p android :kasumi:publishReleasePublicationToLocalRepository
+cd android
+./gradlew :kasumi:assembleRelease
+./gradlew :kasumi:publishReleasePublicationToLocalRepository
 ```
 
 AAR 位于 `android/kasumi/build/outputs/aar/kasumi-release.aar`，本地 Maven 仓库位于
@@ -44,11 +45,19 @@ dependencies {
 }
 ```
 
+发布变体只输出 AAR、POM 和 Gradle Module Metadata，不生成 sources JAR，也不把
+`android/kasumi/src/**/*.kt` 复制给消费者。
+
+Windows上如果 `TEMP`包含 `ADMINI~1`一类短文件名，先设置
+`JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=<workspace>/.tmp/afunix`
+再运行 Wrapper，否则 JDK21的 wepoll初始化会报告 loopback连接失败。
+
 独立示例工程位于 `examples/android-host/`，只消费 AAR，不包含框架 Kotlin 源码：
 
 ```bash
 python cli/ksm.py build --platform android --target sdk
-gradle -p examples/android-host assembleDebug
+cd examples/android-host
+./gradlew assembleDebug
 ```
 
 ## 宿主入口
@@ -159,6 +168,30 @@ WebView 只允许 `https://app.local` 和开发用 `http://localhost:5173`。其
 被拒绝，生产构建关闭 WebView 调试。CSP、导航拦截和来源校验必须保持开启，不使用
 `addJavascriptInterface`。
 
+使用 `KSMWebAssetLoader.create(context, assetRoot)` 创建资源加载器。该入口固定域名
+`app.local`，并拒绝包含路径穿越的资源和请求路径。AndroidX 默认域名是
+`appassets.androidplatform.net`，直接构造 `WebViewAssetLoader.Builder` 时漏设域名会让
+`https://app.local/index.html` 落到系统 DNS 并报 `ERR_NAME_NOT_RESOLVED`。
+
+```kotlin
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import dev.kasumi.app.bridge.KSMWebAssetLoader
+
+val assetLoader = KSMWebAssetLoader.create(this, "web")
+webView.webViewClient = object : WebViewClient() {
+    override fun shouldInterceptRequest(
+        view: WebView,
+        request: WebResourceRequest
+    ): WebResourceResponse? {
+        return assetLoader.shouldInterceptRequest(request.url)
+    }
+}
+webView.loadUrl("https://app.local/index.html")
+```
+
 Android 13 及以上的通知需要先调用 `permission.request` 请求 `notification.show`，
 SDK 清单已声明 `POST_NOTIFICATIONS`。
 
@@ -210,7 +243,7 @@ python cli/ksm.py package --platform android --target example
 ## 排查路径
 
 1. 依赖解析失败：确认本地 Maven 仓库存在 `dev/kasumi/kasumi/0.1.0/`。
-2. 页面空白：检查 `assets/web/index.html`、CSP 和 `WebViewAssetLoader` 映射。
+2. 页面空白：检查 `assets/web/index.html`、CSP 和 `KSMWebAssetLoader` 的资源根。
 3. 请求一直超时：检查 `withTimeout`、`runInterruptible` 和主线程回投。
 4. 文件被拒绝：检查虚拟根、picked 句柄和真实 URI 是否越界。
 5. 下载失败：检查 HTTPS、重定向、目标覆盖策略、网络权限和 `.part` 清理。

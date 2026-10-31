@@ -14,8 +14,10 @@
 | `src/bridge/ksm_router.h` | 参数校验、权限检查和命令分发 |
 | `src/platform/ksm_host_services.h` | 宿主平台服务接口 |
 | `src/platform/ksm_windows_host_services.h` | 文件、对话框、剪贴板、通知、下载、链接和窗口服务 |
+| `src/platform/ksm_web_resource.h` | 内嵌 Web 资源提供器接口和 URL 到资源路径解析 |
+| `src/platform/ksm_win32_resource_provider.h` | 从 Win32 `RCDATA` 读取页面、样式和脚本 |
 | `src/platform/ksm_webview_host.h` | 工作线程、超时、取消、单响应和事件投递 |
-| `src/platform/ksm_webview2_host.h` | WebView2 创建、来源校验、导航拦截和 UI 线程回投 |
+| `src/platform/ksm_webview2_host.h` | WebView2 创建、内嵌资源响应、来源校验、导航拦截和 UI 线程回投 |
 | `tests/contract_runner.cpp` | Windows 契约、安全策略和生命周期测试 |
 | `examples/win32-host/` | 独立 Win32 + WebView2 示例工程 |
 
@@ -84,8 +86,9 @@ C++ 实现文件。依赖通过 `vcpkg.json` 固定为 `nlohmann-json` 与 `webv
 ## 独立示例
 
 示例工程位于 `windows/examples/win32-host/`，使用
-`find_package(Kasumi CONFIG REQUIRED)`。Web 资源来自共享目录
-`examples/showcase/`，构建时复制为 EXE 同级的 `web/`。
+`find_package(Kasumi CONFIG REQUIRED)`。默认构建会把共享目录
+`examples/showcase/` 编译进 EXE，输出目录不需要 `web/`，WebView2 也使用系统默认
+用户数据目录。消费者只获得静态库、公共头文件和导入目标，不获得框架 `.cpp` 源码。
 
 ```powershell
 python cli/ksm.py build --platform windows --target sdk
@@ -99,20 +102,40 @@ cmake --build windows/examples/win32-host/build --config Release
 ```
 
 示例要求 Evergreen WebView2 Runtime。缺失时显示安装提示并退出，不内置 Fixed Version
-Runtime。宿主数据写入 `%LOCALAPPDATA%\Kasumi\Example`。
+Runtime。宿主应用数据写入 `%LOCALAPPDATA%\Kasumi\Example`，默认不会在项目目录创建
+`KasumiData/`。
+
+需要直接替换页面文件时，可以启用外置模式：
+
+```powershell
+cmake -S windows/examples/win32-host `
+  -B windows/examples/win32-host/build-external `
+  -DKASUMI_EXAMPLE_EXTERNAL_WEB=ON `
+  -DCMAKE_PREFIX_PATH="$PWD/windows/build/sdk/install" `
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+```
+
+外置模式会把资源复制为 EXE 同级的 `web/`。运行时参数 `--web-root <dir>` 和
+`--user-data-folder <dir>` 可分别覆盖 Web 根目录和 WebView2 用户数据目录。
+命令行构建与打包可传入 `--external-web` 选择该模式，默认始终生成内嵌资源产物。
 
 ## WebView2 适配
 
-`KSMWebView2Host` 构造时接收窗口、文件系统、外部 origin 白名单、Web 根目录和独立
-用户数据目录。初始化时：
+`KSMWebView2Host` 构造时接收窗口、文件系统、外部 origin 白名单、可选 Web 根目录、
+可选用户数据目录和可选资源提供器。初始化时：
 
 1. 检测 Evergreen WebView2 Runtime。
 2. 创建 WebView2 环境、Controller 和 CoreWebView2。
-3. 将 `https://app.local` 映射到 Web 根目录。
+3. `web_root` 为空时通过 `WebResourceRequested` 返回 EXE 内嵌资源；非空时把
+   `https://app.local` 映射到该目录。
 4. 关闭 DevTools、默认上下文菜单和状态栏。
 5. 校验消息来源，拦截非 `app.local` 或开发 origin 的导航和 `window.open`。
 6. 通过 `PostMessageAsJson` 回到 UI 线程发送响应。
 7. 在 `WM_SIZE` 时发送物理内容区尺寸的 `window.resized` 事件。
+
+`user_data_folder` 为空时向 WebView2 传 `nullptr`，使用系统默认 profile。内嵌模式为
+`app://res` 和 `app://assets` 提供只读目录枚举与文件读取，CSP 由 `index.html` 响应
+头注入。
 
 每个窗口分配单调递增且不复用的 `windowId`。同一窗口复用同一个路由器和宿主服务实例，
 关闭后从注册表移除并抑制迟到响应。
@@ -159,7 +182,8 @@ python cli/ksm.py package --platform windows --target example
 - SDK 产物：`windows/build/sdk/packages/kasumi-windows-sdk-0.1.0.zip`。
 - 示例产物：`windows/examples/win32-host/build/packages/kasumi-win32-example-0.1.0.zip`。
 - SDK ZIP 只包含静态库、公共头文件、CMake 包配置和 README。
-- 示例 ZIP 包含 EXE 与 `web/`，不包含框架源码。
+- 默认示例 ZIP 包含 EXE、`WebView2Loader.dll` 和内嵌 Web 资源，不包含 `web/` 或框架源码。
+- 外置模式 ZIP 额外包含 `web/`。
 
 标签发布要求：
 
@@ -176,7 +200,7 @@ EXE/DLL 执行 `signtool verify /pa /all`。普通 CI 可以构建未签名产�
 1. 启动提示缺少 WebView2 Runtime：安装 Evergreen Runtime 后重新运行。
 2. `find_package(Kasumi)` 失败：检查 `CMAKE_PREFIX_PATH` 是否指向 SDK 安装目录。
 3. 链接失败：确认消费者链接的是 `Kasumi::kasumi_windows_bridge`。
-4. 页面空白：确认 `web/index.html` 与 EXE 同级，虚拟主机映射成功。
+4. 页面空白：默认模式检查内嵌资源是否重新生成；外置模式检查 `web/index.html` 与 EXE 同级。
 5. 请求一直超时：检查 WebView2 消息是否回到 UI 线程，来源是否为 `https://app.local`。
 6. 外部链接被拒绝：检查 origin 是否包含正确 scheme、host 和端口。
 7. 下载失败：检查 HTTPS、重定向、目标路径、覆盖策略和 `.part` 清理。

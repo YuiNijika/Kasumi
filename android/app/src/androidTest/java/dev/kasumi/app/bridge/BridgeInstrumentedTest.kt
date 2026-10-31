@@ -1,10 +1,13 @@
 package dev.kasumi.app.bridge
 
+import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -339,5 +342,30 @@ class BridgeInstrumentedTest {
             KSM.shutdown()
             root.deleteRecursively()
         }
+    }
+
+    @Test
+    fun assetLoaderServesAppLocalDomain() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val loader = KSMWebAssetLoader.create(context, "web")
+
+        val response = loader.shouldInterceptRequest(
+            Uri.parse("https://app.local/index.html")
+        )
+        assertNotNull(response)
+        response?.data?.use { stream ->
+            assertTrue(stream.readBytes().isNotEmpty())
+        }
+
+        assertNull(
+            loader.shouldInterceptRequest(
+                Uri.parse("https://appassets.androidplatform.net/index.html")
+            )
+        )
+        assertNull(
+            loader.shouldInterceptRequest(
+                Uri.parse("https://app.local/../secret.txt")
+            )
+        )
     }
 }

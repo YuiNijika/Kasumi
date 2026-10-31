@@ -2,6 +2,7 @@ package dev.kasumi.app.bridge
 
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import dev.kasumi.app.KSMAndroidHostServices
 import dev.kasumi.app.MainActivity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

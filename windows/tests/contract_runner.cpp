@@ -92,7 +92,7 @@ public:
             const Json response = Json::parse(*iterator);
             if (predicate(response)) {
                 responses_.erase(iterator);
-                return response;
+ return std::optional<Json>(response);
             }
         }
         return std::nullopt;

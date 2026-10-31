@@ -4,18 +4,17 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.webkit.MimeTypeMap
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.webkit.JavaScriptReplyProxy
-import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import dev.kasumi.app.KSMAndroidHostServices
 import dev.kasumi.app.bridge.KSM
 import dev.kasumi.app.bridge.KSMFileSystem
 import dev.kasumi.app.bridge.KSMNavigationPolicy
 import dev.kasumi.app.bridge.KSMRouter
+import dev.kasumi.app.bridge.KSMWebAssetLoader
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
@@ -126,38 +125,7 @@ class MainActivity : Activity() {
             android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
-        val assetLoader = WebViewAssetLoader.Builder()
-            .addPathHandler("/", object : WebViewAssetLoader.PathHandler {
-                override fun handle(path: String): WebResourceResponse? {
-                    val normalized = path.trimStart('/')
-                    if (normalized.isEmpty() || normalized.contains("..")) {
-                        return null
-                    }
-                    return try {
-                        val extension = normalized
-                            .substringAfterLast('.', "")
-                            .lowercase()
-                        val mimeType = MimeTypeMap.getSingleton()
-                            .getMimeTypeFromExtension(extension)
-                            ?: "application/octet-stream"
-                        WebResourceResponse(
-                            mimeType,
-                            if (
-                                mimeType.startsWith("text/") ||
-                                mimeType == "application/javascript"
-                            ) {
-                                "UTF-8"
-                            } else {
-                                null
-                            },
- assets.open(normalized)
-                        )
-                    } catch (_: Exception) {
-                        null
-                    }
-                }
-            })
-            .build()
+        val assetLoader = KSMWebAssetLoader.create(this)
 
         webView.webViewClient = object : android.webkit.WebViewClient() {
             override fun shouldInterceptRequest(

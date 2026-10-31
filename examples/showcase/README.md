@@ -35,8 +35,9 @@ cmake --build windows/examples/win32-host/build --config Release
 .\windows\examples\win32-host\build\Release\kasumi_win32_example.exe
 ```
 
-CMake 会把本目录复制为示例 EXE 同级的 `web/`。页面加载地址是
-`https://app.local/index.html`。
+CMake 默认把本目录编译为示例 EXE 内的 Win32 资源，输出目录不包含 `web/`。页面加载
+地址是 `https://app.local/index.html`。需要直接替换页面文件时，使用
+`-DKASUMI_EXAMPLE_EXTERNAL_WEB=ON` 构建，此时才会复制为 EXE 同级的 `web/`。
 
 ### Android
 

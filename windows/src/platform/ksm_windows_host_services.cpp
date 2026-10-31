@@ -979,13 +979,13 @@ bool KSMWindowsHostServices::SetWindowSize(const KSMWindowSize& size) {
     if (!GetWindowRect(window_, &current)) {
         return false;
     }
-    const int x = std::clamp(
-        current.left,
+ const int x = std::clamp(
+ static_cast<int>(current.left),
         static_cast<int>(info.rcWork.left),
         static_cast<int>(info.rcWork.right) - width
     );
-    const int y = std::clamp(
-        current.top,
+ const int y = std::clamp(
+ static_cast<int>(current.top),
         static_cast<int>(info.rcWork.top),
         static_cast<int>(info.rcWork.bottom) - height
     );

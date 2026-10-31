@@ -27,6 +27,7 @@ import dev.kasumi.app.bridge.KSMDeviceInfo
 import dev.kasumi.app.bridge.KSMFileKind
 import dev.kasumi.app.bridge.KSMFileMetadata
 import dev.kasumi.app.bridge.KSMFileSystem
+import dev.kasumi.app.bridge.KSMHostException
 import dev.kasumi.app.bridge.KSMHostServices
 import dev.kasumi.app.bridge.KSMHttpDownloadResult
 import dev.kasumi.app.bridge.KSMHttpPolicy
@@ -573,6 +574,7 @@ class KSMAndroidHostServices(
                     session.connection.compareAndSet(opened, null)
                 }
             }
+                throw KSMHostException("IO_ERROR", "The download ended unexpectedly.")
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
             throw downloadCancellation(deadlineNanos)
