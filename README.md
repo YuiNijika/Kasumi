@@ -7,6 +7,6 @@
 </table>
 
 <div align="center">
-    KirakiraDokidoki<br />
+    <h2>KirakiraDokidoki</h2>
     一套 Web 前端构建更原生、轻量、快速的应用程序
 </div>
