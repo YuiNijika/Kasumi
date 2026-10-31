@@ -12,7 +12,7 @@
 | `commands.schema.json`    | 命令、事件和参数结构的 JSON Schema 校验规则 |
 | `errors.json`             | 双端共用的错误码全集                        |
 | `permissions.schema.json` | 权限声明                                    |
-| `kasumi.config.schema.json` | 应用配置、包名、版本和命令 allowlist       |
+| `kasumi.config.schema.json` | 应用配置、包名、版本、命令 allowlist 和 Windows 标题栏开关 |
 
 Windows、Android 和前端实现都必须以这些文件为准。协议字符串不加 `KSM` 前缀。
 
@@ -56,6 +56,9 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 `commands.json` 平台矩阵展开全部命令；也可使用显式数组，此时 `ping` 与
 `capabilities.query` 必填，未知命令、重复命令和跨平台命令直接拒绝。运行时的
 `capabilities.query` 只返回配置后的命令，已知但未启用的命令返回 `NOT_SUPPORTED`。
+
+Windows 可额外设置 `decorations` 布尔值，默认 `true`。设为 `false` 时宿主隐藏原生标题栏，
+但保留窗口缩放和工作区行为；应用需自行提供标题栏控件。Android 不接受该字段。
 
 ## 参数与生成
 

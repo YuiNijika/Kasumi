@@ -45,6 +45,11 @@
               }
             }
           ]
+        },
+        "decorations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the native Windows title bar. Set to false to provide custom window controls."
         }
       }
     },

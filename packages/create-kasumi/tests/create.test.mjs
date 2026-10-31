@@ -106,6 +106,7 @@ test('initializes a source-only project without framework source', async () => {
     assert.equal(config.android.packageName, 'dev.kasumi.my_app');
     assert.equal(config.android.version, '0.1.0');
     assert.equal(config.windows.commands, 'all');
+    assert.equal(config.windows.decorations, true);
     assert.equal(config.android.commands, 'all');
     assert.equal(
       await exists(

@@ -25,7 +25,8 @@ public:
                   std::wstring start_url = L"https://app.local/index.html",
                   bool dev_mode = false,
                   std::string app_version = "0.1.0",
-                  std::vector<std::string> allowed_commands = {});
+                  std::vector<std::string> allowed_commands = {},
+                  bool decorations = true);
   ~KSMWebView2Host();
 
   KSMWebView2Host(const KSMWebView2Host &) = delete;

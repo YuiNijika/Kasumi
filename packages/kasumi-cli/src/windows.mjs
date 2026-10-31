@@ -31,6 +31,7 @@ export async function buildWindows(projectRoot, config, options = {}) {
     `-DKASUMI_APP_PACKAGE_NAME=${config.packageName}`,
     `-DKASUMI_APP_VERSION=${config.version}`,
     `-DKASUMI_APP_COMMANDS=${config.commands.join(',')}`,
+    `-DKASUMI_WINDOW_DECORATIONS=${config.decorations === false ? 'OFF' : 'ON'}`,
     `-DKASUMI_EXTERNAL_WEB=${options.externalWeb ? 'ON' : 'OFF'}`,
     `-DKASUMI_BUNDLE_WEBVIEW2_LOADER=${options.bundleWebview2Loader ? 'ON' : 'OFF'}`
   ];

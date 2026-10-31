@@ -62,7 +62,8 @@ pnpm ksm build --all
   "windows": {
     "packageName": "my-app",
     "version": "0.1.0",
-    "commands": "all"
+    "commands": "all",
+    "decorations": true
   },
   "android": {
     "packageName": "dev.kasumi.my_app",
@@ -82,6 +83,28 @@ pnpm ksm build --all
 显式 allowlist 中出现重复命令、未知命令、跨平台命令或缺少 `ping`、
 `capabilities.query` 时，配置校验会直接失败。`"all"` 会在配置加载阶段展开为当前平台的
 完整命令列表，运行时行为与显式数组一致。
+
+`windows.decorations` 控制 Windows 原生标题栏，默认值为 `true`。设置为 `false` 后，
+系统标题栏会隐藏，但窗口边框、拖动边缘、最小尺寸和工作区约束仍然保留。Kasumi 不会
+自动生成最小化、最大化和关闭按钮，页面需要自行提供这些控件并调用
+`KSM.window.minimize()`、`KSM.window.maximize()` 和 `KSM.window.close()`。
+
+自定义标题栏需要声明可拖拽区域，并把交互控件排除在拖拽区域之外：
+
+```css
+.titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar button,
+.titlebar input {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+```
+
+Android 没有 `decorations` 字段，平台校验会拒绝该字段。
 
 ## 前端调用
 

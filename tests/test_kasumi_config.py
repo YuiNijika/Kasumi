@@ -41,12 +41,74 @@ class KasumiConfigTest(unittest.TestCase):
             config.windows.commands,
             ("ping", "capabilities.query"),
         )
+        self.assertTrue(config.windows.decorations)
         self.assertEqual(config.android.package_name, "dev.kasumi.example")
         self.assertEqual(config.android.version, "1.2.3-beta.1")
         self.assertEqual(
             config.android.commands,
             ("ping", "capabilities.query", "device.getInfo"),
         )
+
+    def test_accepts_hidden_windows_decorations(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "decorations": False,
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        config = load_config(path)
+
+        self.assertFalse(config.windows.decorations)
+
+    def test_rejects_invalid_windows_decorations(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "decorations": "false",
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        with self.assertRaisesRegex(ConfigError, "decorations must be a boolean"):
+            load_config(path)
+
+    def test_rejects_android_decorations(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "decorations": False,
+                },
+            }
+        )
+
+        with self.assertRaisesRegex(ConfigError, "unknown fields: decorations"):
+            load_config(path)
 
     def test_expands_all_commands_by_platform(self) -> None:
         path = self.write_config(

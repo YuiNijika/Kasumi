@@ -21,6 +21,7 @@ add_library(
     src/commands/ksm_phase1.cpp
     src/commands/ksm_filesystem.cpp
     src/platform/ksm_virtual_path.cpp
+    src/platform/ksm_window_frame.cpp
     src/platform/ksm_webview_host.cpp
     src/platform/ksm_webview_security.cpp
     src/platform/ksm_url_policy.cpp

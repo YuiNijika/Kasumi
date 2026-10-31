@@ -94,6 +94,95 @@ test('loads a valid application configuration', async () => {
     const config = await readConfig(temporaryRoot, 'kasumi.config.json');
     assert.equal(config.windows.packageName, 'sample-app');
     assert.equal(config.android.packageName, 'dev.kasumi.sample');
+    assert.equal(config.windows.decorations, true);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('accepts hidden Windows decorations', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          decorations: false
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        }
+      }),
+      'utf8'
+    );
+    const config = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.equal(config.windows.decorations, false);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('rejects invalid Windows decorations values', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          decorations: 'false'
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        }
+      }),
+      'utf8'
+    );
+    await assert.rejects(
+      readConfig(temporaryRoot, 'kasumi.config.json'),
+      /decorations must be a boolean/
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('rejects decorations on Android', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          decorations: false
+        }
+      }),
+      'utf8'
+    );
+    await assert.rejects(
+      readConfig(temporaryRoot, 'kasumi.config.json'),
+      /unknown fields: decorations/
+    );
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }

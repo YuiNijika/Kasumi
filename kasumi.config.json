@@ -3,7 +3,8 @@
   "windows": {
     "packageName": "kasumi-win32-example",
     "version": "0.1.0",
-    "commands": "all"
+    "commands": "all",
+    "decorations": true
   },
   "android": {
     "packageName": "dev.kasumi.example",

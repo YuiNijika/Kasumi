@@ -31,6 +31,8 @@ Windows 批处理入口统一交给 `cmd.exe` 启动，因此 pnpm、Gradle Wrap
 
 ## 配置
 
-项目配置只包含 Windows 与 Android 各自的包名、版本和命令 allowlist。`commands` 使用
-`"all"` 时会按平台协议矩阵展开全部命令；显式数组仍会拒绝未知字段、非法包名、
+项目配置包含 Windows 与 Android 各自的包名、版本和命令 allowlist。Windows 还可设置
+可选的 `decorations` 布尔值，默认 `true`；设为 `false` 会隐藏原生标题栏。`commands`
+使用 `"all"` 时会按平台协议矩阵展开全部命令；显式数组仍会拒绝未知字段、非法包名、
 非 SemVer 版本、未知命令和跨平台命令，并要求包含 `ping` 与 `capabilities.query`。
+Android 不接受 `decorations` 字段。

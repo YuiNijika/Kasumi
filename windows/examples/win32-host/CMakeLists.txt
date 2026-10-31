@@ -45,6 +45,12 @@ option(
     OFF
 )
 
+option(
+    KASUMI_WINDOW_DECORATIONS
+    "Show the native Windows title bar"
+    ON
+)
+
 find_package(Kasumi CONFIG REQUIRED)
 
 add_executable(
@@ -131,6 +137,7 @@ target_compile_definitions(
         KASUMI_APP_PACKAGE_NAME="${KASUMI_APP_PACKAGE_NAME}"
         KASUMI_APP_VERSION="${KASUMI_APP_VERSION}"
         KASUMI_APP_COMMANDS="${KASUMI_APP_COMMANDS}"
+        KASUMI_WINDOW_DECORATIONS=$<BOOL:${KASUMI_WINDOW_DECORATIONS}>
 )
 
 set(

@@ -31,6 +31,7 @@ class PlatformConfig:
     package_name: str
     version: str
     commands: tuple[str, ...]
+    decorations: bool = True
 
 
 @dataclass(frozen=True)
@@ -67,12 +68,16 @@ def _platform_config(
     platform_name: str,
     platform: str,
     package_pattern: re.Pattern[str],
+    allow_decorations: bool = False,
 ) -> PlatformConfig:
     location = platform
     data = _expect_object(value, location)
+    allowed_fields = {"packageName", "version", "commands"}
+    if allow_decorations:
+        allowed_fields.add("decorations")
     _reject_unknown_keys(
         data,
-        {"packageName", "version", "commands"},
+        allowed_fields,
         location,
     )
     if "packageName" not in data:
@@ -97,12 +102,21 @@ def _platform_config(
             f"{location}.version must be a semantic version."
         )
 
+    decorations = True
+    if allow_decorations and "decorations" in data:
+        if not isinstance(data["decorations"], bool):
+            raise ConfigError(
+                f"{location}.decorations must be a boolean."
+            )
+        decorations = data["decorations"]
+
     commands = _parse_commands(data["commands"], platform_name, location)
 
     return PlatformConfig(
         package_name=package_name,
         version=version,
         commands=commands,
+        decorations=decorations,
     )
 
 
@@ -171,6 +185,7 @@ def load_config(path: Path) -> KasumiConfig:
             "windows",
             "configuration.windows",
             WINDOWS_PACKAGE_PATTERN,
+            True,
         ),
         android=_platform_config(
             data["android"],

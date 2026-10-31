@@ -13,6 +13,7 @@
 #include <vector>
 
 #include <kasumi/commands/ksm_filesystem.h>
+#include <kasumi/platform/ksm_window_frame.h>
 #include <kasumi/platform/ksm_webview2_host.h>
 #include <kasumi/platform/ksm_win32_resource_provider.h>
 
@@ -26,6 +27,11 @@ constexpr wchar_t kWindowClass[] = L"KasumiExampleHostWindow";
 constexpr wchar_t kWindowTitle[] = L"Kasumi Host Lab";
 constexpr int kWindowWidth = 1080;
 constexpr int kWindowHeight = 720;
+#if defined(KASUMI_WINDOW_DECORATIONS)
+constexpr bool kWindowDecorations = KASUMI_WINDOW_DECORATIONS != 0;
+#else
+constexpr bool kWindowDecorations = true;
+#endif
 
 std::wstring ToWide(const std::string &value) {
   if (value.empty()) {
@@ -201,6 +207,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   if (!window) {
     return 1;
   }
+  if (!KSMWindowFrame::Configure(window, kWindowDecorations)) {
+    MessageBoxW(window, L"The application window frame could not be configured.",
+                kWindowTitle, MB_OK | MB_ICONERROR);
+    DestroyWindow(window);
+    return 1;
+  }
 
   const auto executable_dir = ExecutableDirectory();
   std::filesystem::path web_root;
@@ -280,7 +292,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   auto host = std::make_unique<KSMWebView2Host>(
       window, file_system, std::vector<std::string>{"https://example.com"},
       web_root, webview_data, smoke_test, web_resources, start_url, dev_mode,
-      KASUMI_APP_VERSION, ConfiguredCommands());
+      KASUMI_APP_VERSION, ConfiguredCommands(), kWindowDecorations);
 
   if (!host->Initialize(
           [window, smoke_test](bool success, const std::string &error) {

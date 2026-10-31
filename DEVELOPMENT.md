@@ -6,12 +6,13 @@
 
 | 模块 | 入口 | 负责内容 |
 | --- | --- | --- |
-| 应用配置 | `kasumi.config.json` | Windows 与 Android 各自的包名、版本和命令 allowlist |
+| 应用配置 | `kasumi.config.json` | 两端包名、版本、命令 allowlist 和 Windows 标题栏开关 |
 | 协议 | `protocol/commands.json` | 命令、事件、参数、返回结构、权限和平台能力 |
 | 代码生成 | `tools/codegen.py` | 生成 TypeScript、C++、Kotlin 契约常量与参数校验器 |
 | 前端 | `frontend/src/index.ts` | `KSM` 根入口、事件总线和 API 封装 |
 | Windows 根入口 | `windows/src/commands/ksm_phase1.h` | 宿主侧 `KSM` 生命周期、统一调用和原生事件 |
 | Windows 路由 | `windows/src/bridge/ksm_router.h` | 请求校验、权限检查和命令分发 |
+| Windows 窗口框架 | `windows/src/platform/ksm_window_frame.h` | 原生标题栏隐藏、缩放边框和工作区处理 |
 | Windows WebView2 适配 | `windows/src/platform/ksm_webview2_host.h` | WebView2、内嵌资源、消息来源、导航拦截、窗口事件和 UI 线程回投 |
 | Windows SDK 包 | `windows/CMakeLists.txt` | 静态库、公共头文件、CMake package config 和 CPack |
 | Windows 示例 | `windows/examples/win32-host/` | 独立消费者工程，使用已安装 SDK |
@@ -62,7 +63,7 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
 ## 应用配置
 
 根目录 `kasumi.config.json` 是 Windows 和 Android 共用的应用配置入口。当前只保留平台
-包名、版本和启用命令，不引入 Tauri 的窗口、图标、权限或打包扩展字段。
+包名、版本、启用命令和 Windows 标题栏开关，不引入 Tauri 的图标、权限或打包扩展字段。
 
 ```json
 {
@@ -70,7 +71,8 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
   "windows": {
     "packageName": "kasumi-win32-example",
     "version": "0.1.0",
-    "commands": "all"
+    "commands": "all",
+    "decorations": true
   },
   "android": {
     "packageName": "dev.kasumi.example",
@@ -85,6 +87,7 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
 | Windows | `packageName` | EXE 版本资源中的内部名称和打包目录名 |
 | Windows | `version` | EXE 文件版本、产品版本、打包文件名和 `app.getInfo.version` |
 | Windows | `commands` | 注入 `KSM::Init` 的命令 allowlist，并过滤 `capabilities.query` |
+| Windows | `decorations` | 是否显示原生标题栏，默认 `true`；`false` 使用页面自定义标题栏 |
 | Android | `packageName` | Gradle `applicationId` 与 `adb` 启动、停止、卸载目标 |
 | Android | `version` | Gradle `versionName` 与 `app.getInfo.version` |
 | Android | `commands` | 注入 `KSMRouter` 的命令 allowlist，并过滤 `capabilities.query` |
@@ -94,6 +97,12 @@ CLI 默认读取仓库根目录的 `kasumi.config.json`。其他路径通过 `--
 显式列出的命令。`build`、`test`、`package` 和 `dev` 都会先校验配置。缺失字段、未知字段、
 重复命令、空数组、未知命令、跨平台命令、非法 Android 包名或非 SemVer 版本会直接失败。
 数组模式仍要求包含 `ping` 与 `capabilities.query`。
+
+`windows.decorations: false` 只移除系统标题栏，不创建窗口控件。应用需要通过
+`KSM.window.minimize()`、`KSM.window.maximize()` 和 `KSM.window.close()` 实现标题栏操作，
+并在拖拽区域使用 `app-region: drag`，在按钮和输入控件上使用 `app-region: no-drag`。
+Win32 宿主保留可缩放边框，因此边缘缩放、最小尺寸和工作区夹取行为不变。Android 不接受
+`decorations` 字段。
 
 已知但未列入 allowlist 的命令返回 `NOT_SUPPORTED`，不会继续进入参数校验或宿主服务。
 Windows 的 `KSM` 原生便捷方法、Android 的 `KSM.fs` 等原生子模块和前端桥接都遵守同一份

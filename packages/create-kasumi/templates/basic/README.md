@@ -14,7 +14,7 @@
 | `android/` | Android WebView 应用宿主 |
 | `vendor/windows/kasumi/` | 从 Release 下载的 Windows SDK |
 | `vendor/android/repo/` | 从 Release 下载的 Android Maven 仓库 |
-| `kasumi.config.json` | 两端包名、版本与命令能力配置 |
+| `kasumi.config.json` | 两端包名、版本、命令能力和 Windows 标题栏配置 |
 
 ## 开始
 
@@ -43,6 +43,21 @@ Android 需要 JDK 21 与 Android SDK。项目自带 Gradle Wrapper，不需要�
 
 默认配置使用 `"commands": "all"`。需要最小权限时改成显式数组，并保留 `ping` 与
 `capabilities.query`。
+
+### 自定义 Windows 标题栏
+
+将 `kasumi.config.json` 中的 `windows.decorations` 设为 `false`，然后自行实现窗口按钮：
+
+```ts
+import { KSM } from "kasumi-bridge";
+
+await KSM.window.minimize();
+await KSM.window.maximize();
+await KSM.window.close();
+```
+
+标题栏拖拽区域使用 `app-region: drag`，按钮和输入控件使用 `app-region: no-drag`。
+原生缩放边框、最小尺寸和工作区约束仍由 Win32 宿主处理。Android 不接受 `decorations`。
 
 ## 排查
 

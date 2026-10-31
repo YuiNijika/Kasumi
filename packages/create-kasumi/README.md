@@ -64,6 +64,23 @@ my-app/
 }
 ```
 
+Windows 还可以设置 `"decorations": false` 隐藏系统标题栏。此时应用需要自行提供最小化、
+最大化和关闭按钮，并在页面中声明可拖拽的标题栏区域：
+
+```css
+.titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+```
+
+Android 没有该字段，配置中写入 `decorations` 会被拒绝。
+
 ## 发布
 
 标签 `v<version>` 会触发 npm 包发布和 GitHub Release 资产生成。发布前先在本地

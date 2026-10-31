@@ -24,6 +24,7 @@
 #include "ksm_web_resource.h"
 #include "ksm_webview_host.h"
 #include "ksm_webview_security.h"
+#include "ksm_window_frame.h"
 #include "ksm_windows_host_services.h"
 
 namespace {
@@ -105,12 +106,13 @@ struct KSMWebView2Host::Impl {
        std::filesystem::path user_data_folder, bool smoke_test,
        std::shared_ptr<KSMWebResourceProvider> web_resources,
        std::wstring start_url, bool dev_mode, std::string app_version,
-       std::vector<std::string> allowed_commands)
+       std::vector<std::string> allowed_commands, bool decorations)
       : window(window), window_id_value(++next_window_id),
         web_root(std::move(web_root)),
         user_data_folder(std::move(user_data_folder)), smoke_test(smoke_test),
         web_resources(std::move(web_resources)),
         start_url(std::move(start_url)), dev_mode(dev_mode),
+        decorations(decorations),
         services(std::make_shared<KSMWindowsHostServices>(
             window, std::move(allowed_origins), file_system,
             std::move(app_version))),
@@ -234,6 +236,12 @@ struct KSMWebView2Host::Impl {
       settings->put_AreDevToolsEnabled(dev_mode ? TRUE : FALSE);
       settings->put_AreDefaultContextMenusEnabled(FALSE);
       settings->put_IsStatusBarEnabled(FALSE);
+      if (!decorations) {
+        ComPtr<ICoreWebView2Settings9> settings9;
+        if (SUCCEEDED(settings.As(&settings9)) && settings9) {
+          settings9->put_IsNonClientRegionSupportEnabled(TRUE);
+        }
+      }
     }
 
     if (!web_root.empty()) {
@@ -394,6 +402,7 @@ struct KSMWebView2Host::Impl {
       return;
     }
     controller_->put_Bounds(bounds);
+    KSMWindowFrame::RefreshResizeHitTesting(window);
     const int width = bounds.right - bounds.left;
     const int height = bounds.bottom - bounds.top;
     if (width > 0 && height > 0) {
@@ -509,6 +518,7 @@ struct KSMWebView2Host::Impl {
   std::shared_ptr<KSMWebResourceProvider> web_resources;
   std::wstring start_url;
   bool dev_mode;
+  bool decorations;
   std::shared_ptr<KSMWindowsHostServices> services;
   KSMWebViewHost webview_host;
   ComPtr<ICoreWebView2Environment> environment_;
@@ -539,12 +549,12 @@ KSMWebView2Host::KSMWebView2Host(
     std::filesystem::path web_root, std::filesystem::path user_data_folder,
     bool smoke_test, std::shared_ptr<KSMWebResourceProvider> web_resources,
     std::wstring start_url, bool dev_mode, std::string app_version,
-    std::vector<std::string> allowed_commands)
+    std::vector<std::string> allowed_commands, bool decorations)
     : impl_(std::make_unique<Impl>(
           window, std::move(file_system), std::move(allowed_external_origins),
           std::move(web_root), std::move(user_data_folder), smoke_test,
           std::move(web_resources), std::move(start_url), dev_mode,
-          std::move(app_version), std::move(allowed_commands))) {}
+          std::move(app_version), std::move(allowed_commands), decorations)) {}
 
 KSMWebView2Host::~KSMWebView2Host() = default;
 

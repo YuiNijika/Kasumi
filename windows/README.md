@@ -17,7 +17,8 @@
 | `src/platform/ksm_web_resource.h` | 内嵌 Web 资源提供器接口和 URL 到资源路径解析 |
 | `src/platform/ksm_win32_resource_provider.h` | 从 Win32 `RCDATA` 读取页面、样式和脚本 |
 | `src/platform/ksm_webview_host.h` | 工作线程、超时、取消、单响应和事件投递 |
-| `src/platform/ksm_webview2_host.h` | WebView2 创建、内嵌资源响应、来源校验、导航拦截和 UI 线程回投 |
+| `src/platform/ksm_window_frame.h` | 无标题栏窗口样式、缩放边框、最小尺寸和工作区处理 |
+| `src/platform/ksm_webview2_host.h` | WebView2 创建、内嵌资源响应、来源校验、导航拦截、非客户区拖拽和 UI 线程回投 |
 | `tests/contract_runner.cpp` | Windows 契约、安全策略和生命周期测试 |
 | `examples/win32-host/` | 独立 Win32 + WebView2 示例工程 |
 
@@ -27,7 +28,7 @@ Windows 返回 `NOT_SUPPORTED`。
 ## 应用配置
 
 Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageName`、
-`windows.version` 和 `windows.commands`：
+`windows.version`、`windows.commands` 和可选的 `windows.decorations`：
 
 ```json
 {
@@ -39,7 +40,8 @@ Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageNam
       "capabilities.query",
       "app.getInfo",
       "fs.readText"
-    ]
+    ],
+    "decorations": true
   }
 }
 ```
@@ -50,12 +52,57 @@ Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageNam
 `ping` 与 `capabilities.query` 必须保留；未列入的命令返回 `NOT_SUPPORTED`。
 `pnpm ksm` 构建与打包默认读取该文件，也可用 `--config <path>` 指定其他配置。
 
+### 隐藏系统标题栏
+
+`decorations` 默认是 `true`。设置为 `false` 后，Win32 宿主保留可缩放边框、最小尺寸和
+工作区约束，只隐藏系统标题栏。Kasumi 不会自动绘制窗口按钮，页面需要自行实现标题栏：
+
+```tsx
+import { KSM } from "kasumi-bridge";
+
+export function Titlebar() {
+  return (
+    <header className="titlebar">
+      <span>My App</span>
+      <button type="button" onClick={() => void KSM.window.minimize()}>
+        最小化
+      </button>
+      <button type="button" onClick={() => void KSM.window.maximize()}>
+        最大化
+      </button>
+      <button type="button" onClick={() => void KSM.window.close()}>
+        关闭
+      </button>
+    </header>
+  );
+}
+```
+
+拖拽区域和交互控件必须分开声明：
+
+```css
+.titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.titlebar button,
+.titlebar input {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+```
+
+WebView2 的非客户区支持在宿主初始化时启用。若运行时版本过旧，CSS 拖拽区域可能不生效，
+但系统标题栏仍保持隐藏状态。
+
 直接使用 CMake 时可传入对应缓存变量：
 
 ```powershell
 cmake -S windows/examples/win32-host `
   -B windows/examples/win32-host/build `
   -DKASUMI_APP_PACKAGE_NAME=kasumi-win32-example `
+  -DKASUMI_WINDOW_DECORATIONS=OFF `
   -DKASUMI_APP_VERSION=0.1.0 `
   -DKASUMI_APP_COMMANDS="ping,capabilities.query,app.getInfo,fs.readText" `
   -DCMAKE_PREFIX_PATH="$PWD/windows/build/sdk/install"

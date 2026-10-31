@@ -3,7 +3,8 @@
   "windows": {
     "packageName": "__WINDOWS_PACKAGE_NAME__",
     "version": "__KASUMI_VERSION__",
-    "commands": "all"
+    "commands": "all",
+    "decorations": true
   },
   "android": {
     "packageName": "__ANDROID_PACKAGE_NAME__",

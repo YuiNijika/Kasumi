@@ -38,10 +38,10 @@ cmake --build windows/examples/win32-host/build --config Release
 Runtime。默认不生成或复制 `WebView2Loader.dll`。
 
 示例默认使用仓库根目录 `kasumi.config.json` 中的 `windows.packageName`、
-`windows.version` 和 `windows.commands`。`pnpm ksm build --windows --target example`
+`windows.version`、`windows.commands` 和 `windows.decorations`。`pnpm ksm build --windows --target example`
 会自动读取并传入 CMake；直接配置工程时可使用 `-DKASUMI_APP_PACKAGE_NAME`、
-`-DKASUMI_APP_VERSION` 和逗号分隔的 `-DKASUMI_APP_COMMANDS`。未启用的命令返回
-`NOT_SUPPORTED`。
+`-DKASUMI_APP_VERSION`、逗号分隔的 `-DKASUMI_APP_COMMANDS` 和
+`-DKASUMI_WINDOW_DECORATIONS=OFF`。未启用的命令返回 `NOT_SUPPORTED`。
 
 ## 可选配置
 
@@ -99,6 +99,8 @@ CTest 使用 `--smoke-test` 隐藏启动窗口，加载页面后执行 `ping`，
 3. 运行连接检查、文件往返、窗口尺寸、下载和外部链接，活动记录应显示结果。
 4. 最大化或最小化窗口后调整尺寸，宿主应返回 `NOT_SUPPORTED`。
 5. 下载失败、超时或取消后，目标目录不应留下 `.part` 文件。
+6. 设置 `windows.decorations: false` 后，系统标题栏应消失，页面拖拽区域应能移动窗口，
+   边缘和窗口控件仍可正常使用。
 
 ## 排查
 

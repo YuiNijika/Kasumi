@@ -45,7 +45,8 @@ export async function readConfig(projectRoot, configPath) {
       payload.windows,
       'configuration.windows',
       WINDOWS_PACKAGE_PATTERN,
-      commandData.windows
+      commandData.windows,
+      true
     ),
     android: parsePlatform(
       payload.android,
@@ -56,11 +57,21 @@ export async function readConfig(projectRoot, configPath) {
   };
 }
 
-function parsePlatform(value, location, packagePattern, availableCommands) {
+function parsePlatform(
+  value,
+  location,
+  packagePattern,
+  availableCommands,
+  allowDecorations = false
+) {
   if (!isObject(value)) {
     throw new ConfigError(`${location} must be an object.`);
   }
-  rejectUnknown(value, new Set(['packageName', 'version', 'commands']), location);
+  const allowedFields = new Set(['packageName', 'version', 'commands']);
+  if (allowDecorations) {
+    allowedFields.add('decorations');
+  }
+  rejectUnknown(value, allowedFields, location);
   for (const field of ['packageName', 'version', 'commands']) {
     if (!(field in value)) {
       throw new ConfigError(`${location}.${field} is required.`);
@@ -72,6 +83,13 @@ function parsePlatform(value, location, packagePattern, availableCommands) {
   if (typeof value.version !== 'string' || !SEMVER_PATTERN.test(value.version)) {
     throw new ConfigError(`${location}.version must be a semantic version.`);
   }
+  if (
+    allowDecorations &&
+    'decorations' in value &&
+    typeof value.decorations !== 'boolean'
+  ) {
+    throw new ConfigError(`${location}.decorations must be a boolean.`);
+  }
   const commands = parseCommands(value.commands, location, availableCommands);
   const seen = new Set(commands);
   for (const required of ['ping', 'capabilities.query']) {
@@ -79,11 +97,15 @@ function parsePlatform(value, location, packagePattern, availableCommands) {
       throw new ConfigError(`${location}.commands must include core command: ${required}.`);
     }
   }
-  return {
+  const result = {
     packageName: value.packageName,
     version: value.version,
     commands
   };
+  if (allowDecorations) {
+    result.decorations = value.decorations ?? true;
+  }
+  return result;
 }
 
 function parseCommands(value, location, availableCommands) {

@@ -418,6 +418,7 @@ def build_windows_example(
         f"-DKASUMI_APP_PACKAGE_NAME={config.windows.package_name}",
         f"-DKASUMI_APP_VERSION={config.windows.version}",
         f"-DKASUMI_APP_COMMANDS={','.join(config.windows.commands)}",
+        f"-DKASUMI_WINDOW_DECORATIONS={'ON' if config.windows.decorations else 'OFF'}",
         *cmake_toolchain_arguments(
             bundle_webview2_loader,
             False,
