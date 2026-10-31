@@ -15,6 +15,9 @@
     "test": "pnpm ksm test --all --target sdk",
     "typecheck": "tsc --noEmit -p frontend/tsconfig.json && tsc --noEmit -p tests/tsconfig.json",
     "test:contract": "tsx tests/contract/run.ts",
+    "test:packages": "node --test packages/create-kasumi/tests/*.test.mjs packages/kasumi-cli/tests/*.test.mjs",
+    "build:bridge": "pnpm --filter kasumi-bridge build",
+    "pack:packages": "pnpm build:bridge && pnpm --filter kasumi-cli pack && pnpm --filter kasumi-bridge pack && pnpm --filter create-kasumi pack",
     "validate:protocol": "pnpm ksm validate",
     "codegen": "pnpm ksm codegen"
   },

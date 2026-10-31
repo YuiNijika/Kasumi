@@ -1,0 +1,12 @@
+node_modules/
+frontend/dist/
+.ksm/
+dist/
+vendor/windows/kasumi/
+vendor/android/repo/
+.gradle/
+local.properties
+*.apk
+*.exe
+*.zip
+.DS_Store

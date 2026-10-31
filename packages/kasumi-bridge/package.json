@@ -1,0 +1,32 @@
+{
+  "name": "kasumi-bridge",
+  "version": "0.1.0",
+  "description": "TypeScript frontend bridge for Kasumi applications",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "pnpm run build"
+  },
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YuiNijika/Kasumi.git"
+  },
+  "homepage": "https://blog.miomoe.cn/docs/kasumi"
+}

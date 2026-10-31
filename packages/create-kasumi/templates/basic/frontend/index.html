@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#eef1e8">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:5173 ws://127.0.0.1:5173; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    >
+    <title>__APP_TITLE__</title>
+  </head>
+  <body>
+    <main class="shell">
+      <p class="eyebrow">Kasumi Application</p>
+      <h1>__APP_TITLE__</h1>
+      <p class="lede">
+        这个页面已经通过 `kasumi-bridge` 连接到原生宿主。先运行一次连接检查，再开始添加功能。
+      </p>
+      <section class="status-card" aria-labelledby="status-title">
+        <div class="status-heading">
+          <div>
+            <p class="eyebrow">Runtime</p>
+            <h2 id="status-title">连接状态</h2>
+          </div>
+          <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+        </div>
+        <dl class="facts">
+          <div>
+            <dt>平台</dt>
+            <dd id="platform">检测中</dd>
+          </div>
+          <div>
+            <dt>应用版本</dt>
+            <dd id="version">检测中</dd>
+          </div>
+          <div>
+            <dt>可用能力</dt>
+            <dd id="capabilities">检测中</dd>
+          </div>
+        </dl>
+        <p id="message" class="message" role="status" aria-live="polite">
+          正在连接宿主…
+        </p>
+        <button id="ping" class="button" type="button">重新检查</button>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

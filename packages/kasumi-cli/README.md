@@ -1,0 +1,30 @@
+# kasumi-cli
+
+Kasumi 应用项目的构建与开发入口。生成项目通过根目录 `package.json` 调用它：
+
+```bash
+pnpm ksm dev
+pnpm ksm build --windows
+pnpm ksm build --android
+pnpm ksm build --all
+pnpm ksm package --all
+pnpm ksm doctor
+```
+
+CLI 只读取项目内的 `kasumi.config.json`、`frontend/`、`windows/`、`android/` 和
+`vendor/`，不会修改或复制 Kasumi 框架源码。
+
+## 前置条件
+
+- Node.js 20 或更高版本
+- Windows 构建需要 CMake、Visual Studio C++ 工具链和 vcpkg
+- Android 构建需要 JDK 21、Android SDK 和 Gradle
+- Android 开发运行还需要 `adb`
+
+Windows SDK 的 CMake package 依赖 `nlohmann-json` 与 `unofficial-webview2`。设置
+`VCPKG_ROOT` 或 `CMAKE_TOOLCHAIN_FILE` 后，CLI 会把 vcpkg toolchain 传给 CMake。
+
+## 配置
+
+项目配置只包含 Windows 与 Android 各自的包名、版本和命令 allowlist。未知字段、
+非法包名、非 SemVer 版本、未知命令和跨平台命令会直接拒绝。

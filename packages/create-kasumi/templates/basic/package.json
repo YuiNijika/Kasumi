@@ -1,0 +1,27 @@
+{
+  "name": "__PROJECT_NAME__",
+  "version": "__KASUMI_VERSION__",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ksm": "ksm",
+    "dev": "ksm dev",
+    "dev:windows": "ksm dev --windows",
+    "dev:android": "ksm dev --android",
+    "build": "ksm build",
+    "build:windows": "ksm build --windows",
+    "build:android": "ksm build --android",
+    "build:all": "ksm build --all",
+    "package": "ksm package",
+    "typecheck": "tsc --noEmit -p frontend/tsconfig.json"
+  },
+  "dependencies": {
+    "kasumi-bridge": "^__KASUMI_VERSION__"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "kasumi-cli": "^__KASUMI_VERSION__",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0"
+  }
+}

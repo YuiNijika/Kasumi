@@ -14,6 +14,8 @@ __pycache__/
 *.egg-info/
 .venv/
 /node_modules/
+packages/kasumi-bridge/dist/
+*.tgz
 local.properties
 windows/build/
 windows/examples/win32-host/build/

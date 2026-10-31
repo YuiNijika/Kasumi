@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/YuiNijika/Kasumi/main/protocol/kasumi.config.schema.json",
+  "windows": {
+    "packageName": "__WINDOWS_PACKAGE_NAME__",
+    "version": "__KASUMI_VERSION__",
+    "commands": __WINDOWS_COMMANDS_JSON__
+  },
+  "android": {
+    "packageName": "__ANDROID_PACKAGE_NAME__",
+    "version": "__KASUMI_VERSION__",
+    "commands": __ANDROID_COMMANDS_JSON__
+  }
+}

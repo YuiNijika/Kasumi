@@ -660,6 +660,15 @@ def package_android_sdk() -> None:
         source,
         ANDROID_SDK_PACKAGE_DIR / "kasumi-android-sdk-0.1.0.aar",
     )
+    maven_repository = ROOT / "android" / "kasumi" / "build" / "repo"
+    archive = ANDROID_SDK_PACKAGE_DIR / "kasumi-android-maven-0.1.0"
+    if archive.with_suffix(".zip").exists():
+        archive.with_suffix(".zip").unlink()
+    shutil.make_archive(
+        str(archive),
+        "zip",
+        root_dir=maven_repository,
+    )
 
 
 def package_android_example(config: KasumiConfig) -> None:

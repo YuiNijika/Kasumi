@@ -20,7 +20,10 @@
 | Android 测试宿主 | `android/app/` | 框架维护者的 JVM 与 instrumentation 测试宿主 |
 | 契约测试 | `tests/contract/run.ts` | 前端与双平台模拟宿主的共享行为测试 |
 | CLI | `cli/ksm.py` | 协议校验、代码生成、双端构建、测试和打包入口 |
-| 包管理入口 | `package.json` | 唯一前端依赖、TypeScript、契约测试和 `pnpm ksm` 命令入口 |
+| 包管理入口 | `package.json` | 唯一应用依赖、TypeScript、契约测试和 `pnpm ksm` 命令入口 |
+| 项目初始化 | `packages/create-kasumi/` | 发布为 `create-kasumi`，生成前后端分离的应用项目 |
+| 应用 CLI | `packages/kasumi-cli/` | 发布为 `kasumi-cli`，在生成项目中提供 `ksm` 命令 |
+| 前端桥接 | `packages/kasumi-bridge/` | 发布为 `kasumi-bridge`，提供 `KSM` TypeScript API |
 
 协议字符串不加 `KSM` 前缀；宿主侧类型和入口统一使用 `KSM` 前缀。
 
@@ -216,6 +219,15 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm dev` | Windows 宿主加载 `http://localhost:5173/index.html` |
 | `pnpm ksm dev --android` | 模拟器通过 `adb reverse` 加载开发页面 |
 | `pnpm ksm test --all --target sdk` | 双端契约、配置校验、allowlist、JVM 测试和示例 smoke test 通过 |
+| `pnpm test:packages` | `create-kasumi` 初始化、命名、配置校验和协议命令矩阵测试通过 |
+| `pnpm build:bridge` | `kasumi-bridge` 生成 ESM 与 TypeScript 声明 |
+| `pnpm --filter create-kasumi pack` | npm tarball 包含模板、命令数据和 bin 入口 |
+| `npm exec --package create-kasumi-0.1.0.tgz` | 从实际 npm tarball 初始化项目通过 |
+| 生成项目 `pnpm typecheck` | 模板 TypeScript 配置通过 |
+| 生成项目 `vite build` | 前端构建输出到 `frontend/dist/` 通过 |
+| 本地 Release HTTP 端到端 | 下载 manifest、校验 SHA-256、解压 Windows SDK 与 Android Maven 仓库通过 |
+| Windows SDK ZIP 布局 | CPack 输出扁平目录，兼容旧版单顶层目录自动展开 |
+| `pnpm ksm package --android --target sdk` | AAR 与 `kasumi-android-maven-0.1.0.zip` 生成通过 |
 | `kasumi_win32_example_smoke` | Windows 示例启动、ping 与退出通过 |
 | `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
 
@@ -240,9 +252,10 @@ API 34 模拟器已完成 3 项 connected tests，并验证示例页面实际加
 
 ## pnpm 命令入口
 
-根目录 `package.json` 是唯一的 JavaScript/TypeScript 依赖和命令入口。`frontend/`
+根目录 `package.json` 是应用项目的 JavaScript/TypeScript 依赖和命令入口。`frontend/`
 只保留 Web 源码与 `tsconfig.json`，不再维护独立的 `package.json`、锁文件或
-`node_modules`。底层命令仍调用 `cli/ksm.py`：
+`node_modules`。`packages/*/package.json` 只用于发布独立工具包，不参与应用运行时。
+底层命令仍调用 `cli/ksm.py`：
 
 ```bash
 pnpm ksm build
@@ -276,6 +289,68 @@ triplet，并写入独立的 `windows/build/sdk-webview2-loader` 与
 `windows/examples/win32-host/build-webview2-loader` 目录。
 
 如果 Python 不在 `PATH`，设置 `KASUMI_PYTHON` 指向 Python 3.10+ 可执行文件。
+
+## 创建应用与发布包
+
+发布后的用户入口与 Tauri 类似：
+
+```bash
+pnpm create kasumi
+pnpm create kasumi my-app
+pnpm create kasumi my-app --all
+```
+
+`create-kasumi` 只生成应用代码和平台宿主，不会把 `windows/src/*.cpp` 或
+`android/kasumi/src/**/*.kt` 复制到用户项目。生成结构保持一份根 `package.json`：
+
+```text
+my-app/
+├─ package.json
+├─ kasumi.config.json
+├─ frontend/
+├─ windows/
+├─ android/
+└─ vendor/
+   ├─ windows/kasumi/
+   └─ android/repo/
+```
+
+初始化器从 GitHub Release 下载两个 SDK 资产，并校验 Release manifest 中的 SHA-256：
+
+| 资产 | 用途 |
+| --- | --- |
+| `kasumi-windows-sdk-<version>.zip` | Windows CMake package、公共头文件和静态库 |
+| `kasumi-android-maven-<version>.zip` | Android AAR 及其 POM/module 元数据 |
+| `kasumi-release.json` | 版本、文件名、大小和 SHA-256 |
+
+Windows SDK ZIP 使用扁平布局，解压后直接得到 `include/`、`lib/` 和 `README.md`。
+初始化器仍兼容旧版带单个顶层目录的 ZIP，避免历史 Release 无法安装。
+
+用户项目安装三个 npm 包：
+
+| npm 包 | 作用 |
+| --- | --- |
+| `kasumi-bridge` | 前端 `KSM` API 与事件总线 |
+| `kasumi-cli` | `ksm dev/build/package/test/doctor` |
+| `create-kasumi` | 仅用于 `pnpm create kasumi`，不进入应用运行时 |
+
+生成项目通过 `pnpm ksm build --windows`、`pnpm ksm build --android` 或
+`pnpm ksm build --all` 构建。Windows 默认将 `frontend/dist/` 嵌入 EXE；Android
+将 `frontend/dist/` 作为 `assets/` 打包。两者都不复制框架源码。
+
+发布前先验证包内容：
+
+```bash
+pnpm test:packages
+pnpm build:bridge
+pnpm --filter kasumi-cli pack
+pnpm --filter kasumi-bridge pack
+pnpm --filter create-kasumi pack
+```
+
+标签发布工作流使用 `NPM_TOKEN` 发布三个 npm 包，并在 GitHub Release 中上传
+Windows SDK、Android Maven 仓库、AAR、示例 ZIP、APK 和 `kasumi-release.json`。
+正式标签发布仍要求 Windows Authenticode 与 Android APK 签名。
 
 ## 常用命令
 
@@ -351,6 +426,10 @@ gradle -p android :kasumi:assembleRelease :kasumi:publishReleasePublicationToLoc
 本轮又提交了 `kasumi/development` 修订 `bf80e59e-76c8-4b00-b2f9-342908f31352`，
 补充当前实现进度、命令矩阵和 Android `app.local` 资源加载修复，状态已变为
 `approved`，但重新拉取仍返回旧正文。
+本轮发布入口修订已提交为 `kasumi/index` `755b90a0-0a5f-41d8-aa14-92267e4afdc3`、
+`kasumi/configuration` `2c97f846-97ab-4969-b143-195d640e63e3` 和
+`kasumi/development` `0f3cc5d1-9b98-48cb-bb2c-08d4534290a6`，当前状态为
+`pending`，尚未确认线上生效。
 发布状态以站点实际页面为准，未发布前不得描述为已上线。
 
 同步流程固定为：先用 `docs-rev.py pull` 拉取原文，再用本地编辑器修改，执行

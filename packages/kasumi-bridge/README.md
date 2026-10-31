@@ -1,0 +1,16 @@
+# kasumi-bridge
+
+Kasumi 前端的 TypeScript 入口。它提供 `KSM` 根对象、模块 API、事件订阅、超时、
+取消、请求大小限制和能力缓存。
+
+```ts
+import { KSM } from 'kasumi-bridge';
+
+KSM.init();
+
+const result = await KSM.ping();
+const capabilities = await KSM.get();
+```
+
+`kasumi-bridge` 只通过宿主提供的 WebView 消息通道通信。页面来源校验、命令
+allowlist、权限、路径守卫和平台限制仍由 Windows 或 Android 宿主执行。
