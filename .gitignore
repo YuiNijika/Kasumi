@@ -1,5 +1,6 @@
 .env
 $null
+pnpm-lock.yaml
 .codex-diff.txt
 .pnpm-store/
 .androidx-check/
