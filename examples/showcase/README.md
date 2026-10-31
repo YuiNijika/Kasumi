@@ -25,6 +25,8 @@ Windows 和 Android 都先构建 SDK，再由独立示例工程消费产物。�
 ### Windows
 
 ```powershell
+pnpm ksm dev
+pnpm ksm build --windows --target example
 python cli/ksm.py build --platform windows --target sdk
 cmake -S windows/examples/win32-host `
   -B windows/examples/win32-host/build `
@@ -42,6 +44,8 @@ CMake 默认把本目录编译为示例 EXE 内的 Win32 资源，输出目录�
 ### Android
 
 ```bash
+pnpm ksm dev --android
+pnpm ksm build --android --target example
 python cli/ksm.py build --platform android --target sdk
 gradle -p examples/android-host assembleDebug
 ```
@@ -75,9 +79,10 @@ SDK 会先发布到 `android/kasumi/build/repo`，独立示例再从该 Maven �
 
 ## 排查路径
 
-1. 页面提示未连接：确认宿主创建了 WebView，并加载 `https://app.local/index.html`。
+1. 页面提示未连接：确认宿主创建了 WebView，并加载 `https://app.local/index.html`
+   或开发地址 `http://localhost:5173/index.html`。
 2. 请求全部超时：检查消息是否为字符串，以及响应 `id` 是否与请求一致。
-3. Android 无法调用：确认 `window.ksm` 存在且来源为 `https://app.local`。
+3. Android 无法调用：确认 `window.ksm` 存在且来源为 `https://app.local` 或开发地址。
 4. 文件操作被拒绝：检查路径是否位于 `app://data`、`app://cache` 或 `app://tmp`。
 5. 下载返回 `IO_ERROR`：检查目标是否存在，以及 `overwrite` 是否显式开启。
 6. 外部链接返回 `PERMISSION_DENIED`：检查宿主构造函数中的 origin 白名单。

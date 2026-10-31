@@ -76,7 +76,7 @@ class MainActivity : Activity() {
 
         configureWebView()
         setContentView(webView)
-        webView.loadUrl("https://app.local/index.html")
+        webView.loadUrl(entryUrl())
     }
 
     override fun onDestroy() {
@@ -397,8 +397,23 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun entryUrl(): String {
+        val requested = intent?.getStringExtra(EXTRA_DEV_URL)
+            ?: return PRODUCTION_ENTRY_URL
+        val parsed = Uri.parse(requested)
+        val isDevelopmentEntry =
+            parsed.scheme == "http" &&
+                parsed.host == "localhost" &&
+                parsed.port == DEV_PORT &&
+                parsed.path == "/index.html"
+        return if (isDevelopmentEntry) requested else PRODUCTION_ENTRY_URL
+    }
+
     companion object {
         private const val MAX_CONCURRENT_COMMANDS = 8
         private const val DEFAULT_TIMEOUT_MS = 10000L
+        private const val DEV_PORT = 5173
+        private const val EXTRA_DEV_URL = "ksmDevUrl"
+        private const val PRODUCTION_ENTRY_URL = "https://app.local/index.html"
     }
 }

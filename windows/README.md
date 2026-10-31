@@ -57,6 +57,7 @@ const std::string response = KSM::Invoke(
 ## SDK 构建
 
 ```powershell
+pnpm ksm build --windows --target sdk
 python cli/ksm.py build --platform windows --target sdk
 ```
 
@@ -91,6 +92,8 @@ C++ 实现文件。依赖通过 `vcpkg.json` 固定为 `nlohmann-json` 与 `webv
 用户数据目录。消费者只获得静态库、公共头文件和导入目标，不获得框架 `.cpp` 源码。
 
 ```powershell
+pnpm ksm dev
+pnpm ksm build --windows --target example
 python cli/ksm.py build --platform windows --target sdk
 cmake -S windows/examples/win32-host `
   -B windows/examples/win32-host/build `

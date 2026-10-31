@@ -5,12 +5,20 @@ import os
 import shutil
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
+from functools import lru_cache
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PLATFORMS = ("windows", "android")
 TARGETS = ("sdk", "example", "all")
+DEV_HOST = "127.0.0.1"
+DEV_PORT = 5173
+DEV_URL = f"http://localhost:{DEV_PORT}/index.html"
+SHOWCASE_DIR = ROOT / "examples" / "showcase"
 WINDOWS_SDK_BUILD = ROOT / "windows" / "build" / "sdk"
 WINDOWS_SDK_INSTALL = WINDOWS_SDK_BUILD / "install"
 WINDOWS_EXAMPLE_DIR = ROOT / "windows" / "examples" / "win32-host"
@@ -54,6 +62,21 @@ def resolve_platforms(platform: str) -> tuple[str, ...]:
     return PLATFORMS if platform == "all" else (platform,)
 
 
+def resolve_platform_selection(args: argparse.Namespace) -> tuple[str, ...]:
+    selected: set[str] = set()
+    if args.platform:
+        selected.update(resolve_platforms(args.platform))
+    if args.windows:
+        selected.add("windows")
+    if args.android:
+        selected.add("android")
+    if args.all_platforms:
+        selected.update(PLATFORMS)
+    if not selected:
+        selected.update(resolve_platforms(args.platform_default))
+    return tuple(platform for platform in PLATFORMS if platform in selected)
+
+
 def resolve_targets(target: str) -> tuple[str, ...]:
     return TARGETS[:-1] if target == "all" else (target,)
 
@@ -68,8 +91,62 @@ def android_gradle(project: Path) -> tuple[str, Path]:
     raise RuntimeError("gradle is required for Android tasks.")
 
 
+def java_major_version(home: Path) -> int | None:
+    release = home / "release"
+    if not release.is_file():
+        return None
+    for line in release.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("JAVA_VERSION="):
+            continue
+        version = line.partition("=")[2].strip().strip('"')
+        major = version.split(".", 1)[0]
+        return int(major) if major.isdigit() else None
+    return None
+
+
+def select_android_java_home() -> Path | None:
+    configured = os.environ.get("KASUMI_JAVA_HOME")
+    if configured and Path(configured).is_dir():
+        return Path(configured)
+
+    current = os.environ.get("JAVA_HOME")
+    if current:
+        current_home = Path(current)
+        major = java_major_version(current_home)
+        if current_home.is_dir() and major is not None and 17 <= major <= 21:
+            return current_home
+
+    candidates: list[Path] = []
+    if current:
+        candidates.extend(Path(current).parent.glob("jdk-21*"))
+    candidates.extend(
+        [
+            *Path(os.environ.get("ProgramFiles", "")).glob(
+                "Eclipse Adoptium/jdk-21*"
+            ),
+            *Path(os.environ.get("ProgramFiles", "")).glob("Java/jdk-21*"),
+            Path(os.environ.get("ProgramFiles", ""))
+            / "Android"
+            / "Android Studio"
+            / "jbr",
+        ]
+    )
+    for candidate in candidates:
+        if candidate.is_dir() and java_major_version(candidate) is not None:
+            return candidate
+    return None
+
+
 def android_gradle_environment() -> dict[str, str]:
     environment = os.environ.copy()
+    gradle_home = ROOT / ".tmp" / "gradle-home"
+    gradle_home.mkdir(parents=True, exist_ok=True)
+    environment.setdefault("GRADLE_USER_HOME", str(gradle_home))
+    java_home = select_android_java_home()
+    if java_home:
+        environment["JAVA_HOME"] = str(java_home)
+        java_bin = str(java_home / "bin")
+        environment["PATH"] = java_bin + os.pathsep + environment.get("PATH", "")
     if os.name != "nt" or "JAVA_TOOL_OPTIONS" in environment:
         return environment
     socket_dir = ROOT / ".tmp" / "afunix"
@@ -78,6 +155,75 @@ def android_gradle_environment() -> dict[str, str]:
         f"-Djdk.net.unixdomain.tmpdir={socket_dir.resolve()}"
     )
     return environment
+
+
+@lru_cache(maxsize=1)
+def cmake_bin_directory() -> Path | None:
+    executable = shutil.which("cmake")
+    if executable:
+        return Path(executable).resolve().parent
+
+    vswhere_candidates = [
+        Path(os.environ.get("ProgramFiles(x86)", ""))
+        / "Microsoft Visual Studio"
+        / "Installer"
+        / "vswhere.exe",
+        Path(os.environ.get("ProgramFiles", ""))
+        / "Microsoft Visual Studio"
+        / "Installer"
+        / "vswhere.exe",
+    ]
+    for vswhere in vswhere_candidates:
+        if not vswhere.is_file():
+            continue
+        result = subprocess.run(
+            [
+                str(vswhere),
+                "-latest",
+                "-products",
+                "*",
+                "-property",
+                "installationPath",
+            ],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        for line in result.stdout.splitlines():
+            installation = Path(line.strip())
+            candidate = (
+                installation
+                / "Common7"
+                / "IDE"
+                / "CommonExtensions"
+                / "Microsoft"
+                / "CMake"
+                / "CMake"
+                / "bin"
+            )
+            if (candidate / "cmake.exe").is_file():
+                return candidate
+
+    standalone = Path(os.environ.get("ProgramFiles", "")) / "CMake" / "bin"
+    if (standalone / "cmake.exe").is_file():
+        return standalone
+    return None
+
+
+def cmake_tool(name: str) -> str:
+    override = os.environ.get(f"{name.upper()}_COMMAND")
+    if override:
+        return override
+    executable_name = f"{name}.exe" if os.name == "nt" else name
+    directory = cmake_bin_directory()
+    if directory:
+        candidate = directory / executable_name
+        if candidate.is_file():
+            return str(candidate)
+    executable = shutil.which(name)
+    if executable:
+        return executable
+    raise RuntimeError(f"{name} is required for Windows builds.")
 
 
 def cmake_toolchain_arguments() -> list[str]:
@@ -89,7 +235,7 @@ def cmake_toolchain_arguments() -> list[str]:
 
 def build_windows_sdk() -> None:
     configure = [
-        "cmake",
+        cmake_tool("cmake"),
         "-S",
         str(ROOT / "windows"),
         "-B",
@@ -101,7 +247,7 @@ def build_windows_sdk() -> None:
     run(configure)
     run(
         [
-            "cmake",
+            cmake_tool("cmake"),
             "--build",
             str(WINDOWS_SDK_BUILD),
             "--config",
@@ -115,7 +261,7 @@ def build_windows_sdk() -> None:
 def build_windows_example(external_web: bool = False) -> None:
     build_windows_sdk()
     configure = [
-        "cmake",
+        cmake_tool("cmake"),
         "-S",
         str(WINDOWS_EXAMPLE_DIR),
         "-B",
@@ -128,7 +274,7 @@ def build_windows_example(external_web: bool = False) -> None:
     run(configure)
     run(
         [
-            "cmake",
+            cmake_tool("cmake"),
             "--build",
             str(WINDOWS_EXAMPLE_BUILD),
             "--config",
@@ -186,7 +332,7 @@ def test_windows() -> None:
     build_windows_sdk()
     run(
         [
-            "ctest",
+            cmake_tool("ctest"),
             "--test-dir",
             str(WINDOWS_SDK_BUILD),
             "-C",
@@ -197,7 +343,7 @@ def test_windows() -> None:
     build_windows_example()
     run(
         [
-            "ctest",
+            cmake_tool("ctest"),
             "--test-dir",
             str(WINDOWS_EXAMPLE_BUILD),
             "-C",
@@ -241,7 +387,7 @@ def package_windows_sdk() -> None:
     build_windows_sdk()
     run(
         [
-            "cpack",
+            cmake_tool("cpack"),
             "--config",
             str(WINDOWS_SDK_BUILD / "CPackConfig.cmake"),
             "-C",
@@ -348,17 +494,225 @@ def package(
             package_android_example()
 
 
-def dev() -> None:
-    run(["pnpm", "--dir", "frontend", "run", "dev"])
+def android_adb() -> str:
+    candidates = [os.environ.get("ADB"), shutil.which("adb")]
+    sdk_roots = [
+        os.environ.get("ANDROID_HOME"),
+        os.environ.get("ANDROID_SDK_ROOT"),
+    ]
+    local_properties = ROOT / "android" / "local.properties"
+    if local_properties.is_file():
+        for line in local_properties.read_text(encoding="utf-8").splitlines():
+            if line.startswith("sdk.dir="):
+                sdk_roots.append(line.partition("=")[2])
+                break
+    executable_name = "adb.exe" if os.name == "nt" else "adb"
+    for sdk_root in sdk_roots:
+        if sdk_root:
+            candidates.append(str(Path(sdk_root) / "platform-tools" / executable_name))
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return candidate
+    raise RuntimeError("adb is required for Android development.")
 
 
-def add_platform_option(parser: argparse.ArgumentParser) -> None:
+def android_adb_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    if os.name != "nt":
+        return environment
+    home = os.path.expanduser("~")
+    drive, tail = os.path.splitdrive(home)
+    environment["HOME"] = home
+    environment["USERPROFILE"] = home
+    environment["HOMEDRIVE"] = drive
+    environment["HOMEPATH"] = tail
+    return environment
+
+
+def start_dev_server() -> subprocess.Popen[bytes]:
+    if not (SHOWCASE_DIR / "index.html").is_file():
+        raise FileNotFoundError(f"Showcase entry not found: {SHOWCASE_DIR / 'index.html'}")
+    server = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "http.server",
+            str(DEV_PORT),
+            "--bind",
+            DEV_HOST,
+            "--directory",
+            str(SHOWCASE_DIR),
+        ],
+        cwd=ROOT,
+    )
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        if server.poll() is not None:
+            raise RuntimeError("The development server exited before it became ready.")
+        try:
+            with urllib.request.urlopen(DEV_URL, timeout=0.5):
+                return server
+        except (OSError, urllib.error.URLError):
+            time.sleep(0.2)
+    server.terminate()
+    raise RuntimeError(f"The development server did not become ready: {DEV_URL}")
+
+
+def stop_dev_server(server: subprocess.Popen[bytes]) -> None:
+    if server.poll() is not None:
+        return
+    server.terminate()
+    try:
+        server.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        server.kill()
+        server.wait()
+
+
+def install_android_apk(
+    adb: str,
+    apk: Path,
+    environment: dict[str, str],
+) -> None:
+    result = subprocess.run(
+        [adb, "install", "-r", str(apk)],
+        capture_output=True,
+        env=environment,
+        text=True,
+    )
+    output = f"{result.stdout}{result.stderr}"
+    if output:
+        print(output, end="")
+    if result.returncode == 0:
+        return
+    if "INSTALL_FAILED_UPDATE_INCOMPATIBLE" not in output:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            result.args,
+            output=output,
+        )
+    subprocess.run(
+        [adb, "uninstall", "dev.kasumi.example"],
+        check=False,
+        env=environment,
+    )
+    run([adb, "install", str(apk)], env=environment)
+
+
+def dev_windows() -> None:
+    build_windows_example()
+    server = start_dev_server()
+    try:
+        executable = windows_example_output_directory() / "kasumi_win32_example.exe"
+        if not executable.is_file():
+            raise FileNotFoundError(f"Windows example executable not found: {executable}")
+        print(f"Windows development app is running against {DEV_URL}")
+        run([str(executable), "--url", DEV_URL, "--dev"], cwd=executable.parent)
+    finally:
+        stop_dev_server(server)
+
+
+def dev_android() -> None:
+    build_android_example()
+    adb = android_adb()
+    environment = android_adb_environment()
+    apk = (
+        ROOT
+        / "examples"
+        / "android-host"
+        / "app"
+        / "build"
+        / "outputs"
+        / "apk"
+        / "debug"
+        / "app-debug.apk"
+    )
+    if not apk.is_file():
+        raise FileNotFoundError(f"Android example APK not found: {apk}")
+    run(
+        [adb, "reverse", f"tcp:{DEV_PORT}", f"tcp:{DEV_PORT}"],
+        env=environment,
+    )
+    server: subprocess.Popen[bytes] | None = None
+    try:
+        server = start_dev_server()
+        install_android_apk(adb, apk, environment)
+        run(
+            [adb, "shell", "am", "force-stop", "dev.kasumi.example"],
+            env=environment,
+        )
+        run(
+            [
+                adb,
+                "shell",
+                "am",
+                "start",
+                "-n",
+                "dev.kasumi.example/.MainActivity",
+                "--es",
+                "ksmDevUrl",
+                DEV_URL,
+            ],
+            env=environment,
+        )
+        print(f"Android development app is running against {DEV_URL}")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            pass
+    finally:
+        if server:
+            stop_dev_server(server)
+        subprocess.run(
+            [adb, "shell", "am", "force-stop", "dev.kasumi.example"],
+            check=False,
+            env=environment,
+        )
+        subprocess.run(
+            [adb, "reverse", "--remove", f"tcp:{DEV_PORT}"],
+            check=False,
+            env=environment,
+        )
+
+
+def dev(platforms: tuple[str, ...]) -> None:
+    if len(platforms) != 1:
+        raise RuntimeError("dev requires exactly one platform.")
+    frontend_checks()
+    if platforms[0] == "windows":
+        dev_windows()
+        return
+    dev_android()
+
+
+def add_platform_option(
+    parser: argparse.ArgumentParser,
+    default: str = "all",
+) -> None:
     parser.add_argument(
         "--platform",
         choices=("all", *PLATFORMS),
-        default="all",
+        default=None,
         help="select the target platform",
     )
+    parser.add_argument(
+        "--windows",
+        action="store_true",
+        help="select the Windows platform",
+    )
+    parser.add_argument(
+        "--android",
+        action="store_true",
+        help="select the Android platform",
+    )
+    parser.add_argument(
+        "--all",
+        dest="all_platforms",
+        action="store_true",
+        help="select Windows and Android",
+    )
+    parser.set_defaults(platform_default=default)
 
 
 def add_target_option(parser: argparse.ArgumentParser) -> None:
@@ -384,8 +738,11 @@ def start() -> None:
     subparsers.add_parser("codegen")
     subparsers.add_parser("validate")
 
-    build_parser = subparsers.add_parser("build")
-    add_platform_option(build_parser)
+    build_parser = subparsers.add_parser(
+        "build",
+        description="Build Windows by default. Use --android or --all for other targets.",
+    )
+    add_platform_option(build_parser, default="windows")
     add_target_option(build_parser)
     add_external_web_option(build_parser)
 
@@ -398,7 +755,11 @@ def start() -> None:
     add_target_option(package_parser)
     add_external_web_option(package_parser)
 
-    subparsers.add_parser("dev")
+    dev_parser = subparsers.add_parser(
+        "dev",
+        description="Run the Windows development host by default.",
+    )
+    add_platform_option(dev_parser, default="windows")
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -407,23 +768,23 @@ def start() -> None:
         codegen()
     elif args.command == "build":
         build(
-            resolve_platforms(args.platform),
+            resolve_platform_selection(args),
             resolve_targets(args.target),
             args.external_web,
         )
     elif args.command == "test":
         test(
-            resolve_platforms(args.platform),
+            resolve_platform_selection(args),
             resolve_targets(args.target),
         )
     elif args.command == "package":
         package(
-            resolve_platforms(args.platform),
+            resolve_platform_selection(args),
             resolve_targets(args.target),
             args.external_web,
         )
     else:
-        dev()
+        dev(resolve_platform_selection(args))
 
 
 if __name__ == "__main__":

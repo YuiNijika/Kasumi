@@ -13,6 +13,7 @@ KasumiData/
 __pycache__/
 *.egg-info/
 .venv/
+/node_modules/
 frontend/node_modules/
 local.properties
 windows/build/

@@ -21,7 +21,9 @@ public:
                   std::filesystem::path web_root,
                   std::filesystem::path user_data_folder,
                   bool smoke_test = false,
-                  std::shared_ptr<KSMWebResourceProvider> web_resources = {});
+                  std::shared_ptr<KSMWebResourceProvider> web_resources = {},
+                  std::wstring start_url = L"https://app.local/index.html",
+                  bool dev_mode = false);
   ~KSMWebView2Host();
 
   KSMWebView2Host(const KSMWebView2Host &) = delete;

@@ -25,6 +25,7 @@ Android 当前实现 **25/25 个适用命令**。Windows 专属的窗口标题�
 ## SDK 构建
 
 ```bash
+pnpm ksm build --android --target sdk
 python cli/ksm.py build --platform android --target sdk
 ```
 
@@ -55,6 +56,8 @@ Windows上如果 `TEMP`包含 `ADMINI~1`一类短文件名，先设置
 独立示例工程位于 `examples/android-host/`，只消费 AAR，不包含框架 Kotlin 源码：
 
 ```bash
+pnpm ksm build --android --target example
+pnpm ksm dev --android
 python cli/ksm.py build --platform android --target sdk
 cd examples/android-host
 ./gradlew assembleDebug

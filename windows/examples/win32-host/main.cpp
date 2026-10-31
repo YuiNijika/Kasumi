@@ -140,6 +140,10 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam,
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   const bool smoke_test = HasCommandLineFlag(L"--smoke-test");
+  const bool dev_mode = HasCommandLineFlag(L"--dev");
+  const auto requested_url = CommandLineValue(L"--url");
+  const std::wstring start_url =
+      requested_url.value_or(L"https://app.local/index.html");
   const HRESULT com_result = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
   if (FAILED(com_result) && com_result != RPC_E_CHANGED_MODE) {
     return 1;
@@ -254,7 +258,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
 
   auto host = std::make_unique<KSMWebView2Host>(
       window, file_system, std::vector<std::string>{"https://example.com"},
-      web_root, webview_data, smoke_test, web_resources);
+      web_root, webview_data, smoke_test, web_resources, start_url, dev_mode);
 
   if (!host->Initialize(
           [window, smoke_test](bool success, const std::string &error) {

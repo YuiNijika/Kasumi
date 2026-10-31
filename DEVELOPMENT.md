@@ -153,6 +153,13 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | 前端 TypeScript 类型检查 | 通过 |
 | 测试工程 TypeScript 类型检查 | 通过 |
 | `tests/contract/run.ts` | `frontend contract passed for windows and android` |
+| `pnpm ksm build` | 默认 Windows 构建通过 |
+| `pnpm ksm build --android` | Android SDK 与示例构建通过 |
+| `pnpm ksm build --all` | Windows 与 Android SDK 构建通过 |
+| `pnpm ksm dev` | Windows 宿主加载 `http://localhost:5173/index.html` |
+| `pnpm ksm dev --android` | 模拟器通过 `adb reverse` 加载开发页面 |
+| `pnpm ksm test --android --target sdk` | 契约测试与 Android JVM 测试通过 |
+| `kasumi_win32_example_smoke` | Windows 示例启动、ping 与退出通过 |
 | `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
 
 Windows 已完成 SDK、内嵌 Web 示例构建和真实桌面 smoke test，`kasumi_contract` 与
@@ -173,9 +180,33 @@ API 34 模拟器已完成 3 项 connected tests，并验证示例页面实际加
 1. Android 下载取消、通知权限、文件选择器、旋转和 `onTrimMemory` 的真实设备验证。
 2. Windows Evergreen Runtime 缺失提示和标签签名流程。
 
+## pnpm 命令入口
+
+根目录通过 `package.json` 暴露统一的 `pnpm ksm` 入口，底层仍调用 `cli/ksm.py`：
+
+```bash
+pnpm ksm build
+pnpm ksm build --windows
+pnpm ksm build --android
+pnpm ksm build --all
+pnpm ksm dev
+pnpm ksm dev --android
+```
+
+`build` 默认只构建 Windows；`--all` 同时构建 Windows 和 Android。旧的
+`--platform windows|android|all` 继续可用。`dev` 默认启动 Windows 宿主，Android
+开发模式会启动 `http://localhost:5173` 静态服务器、执行 `adb reverse`、安装示例 APK
+并从该地址加载页面。
+
+如果 Python 不在 `PATH`，设置 `KASUMI_PYTHON` 指向 Python 3.10+ 可执行文件。
+
 ## 常用命令
 
 ```bash
+pnpm ksm build --windows --target sdk
+pnpm ksm build --android --target example
+pnpm ksm dev
+pnpm ksm dev --android
 python -m pip install -e .
 python tools/validate_protocol.py
 python tools/codegen.py
@@ -201,7 +232,8 @@ Windows 构建需要 vcpkg 的 `webview2` 与 `nlohmann-json` 依赖。SDK 安�
 
 Android 构建使用 JDK 21。若 Gradle 在本机启动 daemon 时报告 loopback 连接失败，将
 `jdk.net.unixdomain.tmpdir` 指向不含短文件名的可写目录。`cli/ksm.py` 在 Windows 上会
-自动设置 `.tmp/afunix`，手动调用 Gradle 时可使用：
+自动设置 `.tmp/afunix`，并在当前 JDK 不受支持时查找同级的 `jdk-21`。也可以通过
+`KASUMI_JAVA_HOME` 显式指定 JDK。手动调用 Gradle 时可使用：
 
 ```bash
 JAVA_TOOL_OPTIONS="-Djdk.net.unixdomain.tmpdir=<workspace>/.tmp/afunix" \

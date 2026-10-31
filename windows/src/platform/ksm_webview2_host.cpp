@@ -81,11 +81,13 @@ struct KSMWebView2Host::Impl {
   Impl(HWND window, std::shared_ptr<KSMFileSystem> file_system,
        std::vector<std::string> allowed_origins, std::filesystem::path web_root,
        std::filesystem::path user_data_folder, bool smoke_test,
-       std::shared_ptr<KSMWebResourceProvider> web_resources)
+       std::shared_ptr<KSMWebResourceProvider> web_resources,
+       std::wstring start_url, bool dev_mode)
       : window(window), window_id_value(++next_window_id),
         web_root(std::move(web_root)),
         user_data_folder(std::move(user_data_folder)), smoke_test(smoke_test),
         web_resources(std::move(web_resources)),
+        start_url(std::move(start_url)), dev_mode(dev_mode),
         services(std::make_shared<KSMWindowsHostServices>(
             window, std::move(allowed_origins), file_system)),
         webview_host(
@@ -202,7 +204,7 @@ struct KSMWebView2Host::Impl {
       settings->put_IsScriptEnabled(TRUE);
       settings->put_IsWebMessageEnabled(TRUE);
       settings->put_AreDefaultScriptDialogsEnabled(TRUE);
-      settings->put_AreDevToolsEnabled(FALSE);
+      settings->put_AreDevToolsEnabled(dev_mode ? TRUE : FALSE);
       settings->put_AreDefaultContextMenusEnabled(FALSE);
       settings->put_IsStatusBarEnabled(FALSE);
     }
@@ -348,8 +350,11 @@ struct KSMWebView2Host::Impl {
 
   void NavigateToStartPage() {
     if (webview) {
-      webview->Navigate(smoke_test ? L"https://app.local/index.html?smoke=1"
-                                   : L"https://app.local/index.html");
+      std::wstring url = start_url;
+      if (smoke_test) {
+        url += url.find(L'?') == std::wstring::npos ? L"?smoke=1" : L"&smoke=1";
+      }
+      webview->Navigate(url.c_str());
     }
   }
 
@@ -475,6 +480,8 @@ struct KSMWebView2Host::Impl {
   std::filesystem::path user_data_folder;
   bool smoke_test;
   std::shared_ptr<KSMWebResourceProvider> web_resources;
+  std::wstring start_url;
+  bool dev_mode;
   std::shared_ptr<KSMWindowsHostServices> services;
   KSMWebViewHost webview_host;
   ComPtr<ICoreWebView2Environment> environment_;
@@ -503,11 +510,12 @@ KSMWebView2Host::KSMWebView2Host(
     HWND window, std::shared_ptr<KSMFileSystem> file_system,
     std::vector<std::string> allowed_external_origins,
     std::filesystem::path web_root, std::filesystem::path user_data_folder,
-    bool smoke_test, std::shared_ptr<KSMWebResourceProvider> web_resources)
+    bool smoke_test, std::shared_ptr<KSMWebResourceProvider> web_resources,
+    std::wstring start_url, bool dev_mode)
     : impl_(std::make_unique<Impl>(
           window, std::move(file_system), std::move(allowed_external_origins),
           std::move(web_root), std::move(user_data_folder), smoke_test,
-          std::move(web_resources))) {}
+          std::move(web_resources), std::move(start_url), dev_mode)) {}
 
 KSMWebView2Host::~KSMWebView2Host() = default;
 

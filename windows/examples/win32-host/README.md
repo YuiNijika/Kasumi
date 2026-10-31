@@ -54,11 +54,14 @@ cmake --build windows/examples/win32-host/build-external --config Release
 | --- | --- |
 | `--web-root <dir>` | 使用指定目录作为外置 Web 根目录 |
 | `--user-data-folder <dir>` | 使用指定 WebView2 用户数据目录 |
+| `--url <url>` | 覆盖启动页面，开发模式使用 `http://localhost:5173/index.html` |
+| `--dev` | 开启 WebView DevTools，仅供开发宿主使用 |
 
 不传 `--user-data-folder` 时，普通启动使用 WebView2 系统默认 profile。`--smoke-test`
 只为自动化测试使用独立临时 profile。
 使用 `python cli/ksm.py build --platform windows --target example --external-web` 或
 `package` 的同一参数，可以直接让命令行构建选择外置模式。
+`pnpm ksm dev` 会启动 `examples/showcase` 静态服务器，并以 `--url` 和 `--dev` 启动该宿主。
 
 ## 验证点
 
@@ -71,7 +74,8 @@ CTest 使用 `--smoke-test` 隐藏启动窗口，加载页面后执行 `ping`，
 
 手工验证：
 
-1. 窗口地址必须是 `https://app.local/index.html`，不能直接使用 `file://`。
+1. 生产地址必须是 `https://app.local/index.html`，开发地址只能是
+   `http://localhost:5173/index.html`，不能直接使用 `file://`。
 2. 页面消息来源必须匹配 `https://app.local`，近似域名和端口变体必须被拒绝。
 3. 运行连接检查、文件往返、窗口尺寸、下载和外部链接，活动记录应显示结果。
 4. 最大化或最小化窗口后调整尺寸，宿主应返回 `NOT_SUPPORTED`。

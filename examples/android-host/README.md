@@ -31,6 +31,9 @@ cd examples/android-host
 ```
 
 生成的 APK 位于 `examples/android-host/app/build/outputs/apk/debug/app-debug.apk`。
+连接设备或启动模拟器后，可在仓库根目录运行 `pnpm ksm dev --android`。该命令会启动
+`http://localhost:5173` 静态服务器，通过 `adb reverse` 把端口转发到设备，并安装、启动
+示例应用。
 
 ## 运行边界
 
