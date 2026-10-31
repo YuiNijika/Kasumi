@@ -98,7 +98,3 @@ async function isDirectory(value) {
     return false;
   }
 }
-
-export function formatCommandArray(commands) {
-  return JSON.stringify(commands, null, 2).replaceAll('\n', '\n    ');
-}

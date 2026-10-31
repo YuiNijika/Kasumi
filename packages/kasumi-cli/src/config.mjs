@@ -72,11 +72,31 @@ function parsePlatform(value, location, packagePattern, availableCommands) {
   if (typeof value.version !== 'string' || !SEMVER_PATTERN.test(value.version)) {
     throw new ConfigError(`${location}.version must be a semantic version.`);
   }
-  if (!Array.isArray(value.commands) || value.commands.length === 0) {
-    throw new ConfigError(`${location}.commands must be a non-empty array.`);
+  const commands = parseCommands(value.commands, location, availableCommands);
+  const seen = new Set(commands);
+  for (const required of ['ping', 'capabilities.query']) {
+    if (!seen.has(required)) {
+      throw new ConfigError(`${location}.commands must include core command: ${required}.`);
+    }
+  }
+  return {
+    packageName: value.packageName,
+    version: value.version,
+    commands
+  };
+}
+
+function parseCommands(value, location, availableCommands) {
+  if (value === 'all') {
+    return [...availableCommands];
+  }
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ConfigError(
+      `${location}.commands must be "all" or a non-empty array.`
+    );
   }
   const seen = new Set();
-  for (const [index, command] of value.commands.entries()) {
+  for (const [index, command] of value.entries()) {
     if (typeof command !== 'string' || !COMMAND_PATTERN.test(command)) {
       throw new ConfigError(`${location}.commands[${index}] has an invalid format.`);
     }
@@ -90,16 +110,7 @@ function parsePlatform(value, location, packagePattern, availableCommands) {
     }
     seen.add(command);
   }
-  for (const required of ['ping', 'capabilities.query']) {
-    if (!seen.has(required)) {
-      throw new ConfigError(`${location}.commands must include core command: ${required}.`);
-    }
-  }
-  return {
-    packageName: value.packageName,
-    version: value.version,
-    commands: [...value.commands]
-  };
+  return [...value];
 }
 
 function rejectUnknown(value, allowed, location) {

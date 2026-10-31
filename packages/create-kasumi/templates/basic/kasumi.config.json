@@ -3,11 +3,11 @@
   "windows": {
     "packageName": "__WINDOWS_PACKAGE_NAME__",
     "version": "__KASUMI_VERSION__",
-    "commands": __WINDOWS_COMMANDS_JSON__
+    "commands": "all"
   },
   "android": {
     "packageName": "__ANDROID_PACKAGE_NAME__",
     "version": "__KASUMI_VERSION__",
-    "commands": __ANDROID_COMMANDS_JSON__
+    "commands": "all"
   }
 }

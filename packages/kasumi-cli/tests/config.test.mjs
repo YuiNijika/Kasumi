@@ -99,6 +99,36 @@ test('loads a valid application configuration', async () => {
   }
 });
 
+test('expands all to the platform command matrix', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: 'all'
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: 'all'
+        }
+      }),
+      'utf8'
+    );
+    const config = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.equal(config.windows.commands.length, 28);
+    assert.equal(config.android.commands.length, 25);
+    assert.equal(config.windows.commands.includes('device.getInfo'), false);
+    assert.equal(config.android.commands.includes('device.getInfo'), true);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
 test('rejects cross-platform commands', async () => {
   const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
   try {

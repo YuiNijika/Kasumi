@@ -12,7 +12,7 @@ import {
   projectTitle
 } from './naming.mjs';
 import { installSdk } from './sdk.mjs';
-import { formatCommandArray, renderTemplate } from './template.mjs';
+import { renderTemplate } from './template.mjs';
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(sourceDirectory, '..', 'package.json');
@@ -49,8 +49,6 @@ export async function run(argv) {
     __ANDROID_PACKAGE_NAME__: androidPackage,
     __ANDROID_PACKAGE_PATH__: androidPackage.replaceAll('.', '/'),
     __KASUMI_VERSION__: kasumiVersion,
-    __WINDOWS_COMMANDS_JSON__: formatCommandArray(platformCommands.windows),
-    __ANDROID_COMMANDS_JSON__: formatCommandArray(platformCommands.android),
     __ANDROID_COMMANDS_CSV__: platformCommands.android.join(',')
   };
 

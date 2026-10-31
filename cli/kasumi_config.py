@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,9 @@ SEMVER_PATTERN = re.compile(
 WINDOWS_PACKAGE_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 ANDROID_PACKAGE_PATTERN = re.compile(
     r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$"
+)
+PROTOCOL_COMMANDS_FILE = (
+    Path(__file__).resolve().parent.parent / "protocol" / "commands.json"
 )
 
 
@@ -60,6 +64,7 @@ def _reject_unknown_keys(
 
 def _platform_config(
     value: Any,
+    platform_name: str,
     platform: str,
     package_pattern: re.Pattern[str],
 ) -> PlatformConfig:
@@ -92,11 +97,29 @@ def _platform_config(
             f"{location}.version must be a semantic version."
         )
 
-    raw_commands = data["commands"]
-    if not isinstance(raw_commands, list) or not raw_commands:
-        raise ConfigError(f"{location}.commands must be a non-empty array.")
+    commands = _parse_commands(data["commands"], platform_name, location)
+
+    return PlatformConfig(
+        package_name=package_name,
+        version=version,
+        commands=commands,
+    )
+
+
+def _parse_commands(
+    value: Any,
+    platform: str,
+    location: str,
+) -> tuple[str, ...]:
+    if value == "all":
+        return _available_commands(platform)
+    if not isinstance(value, list) or not value:
+        raise ConfigError(
+            f"{location}.commands must be \"all\" or a non-empty array."
+        )
+
     commands: list[str] = []
-    for index, raw_command in enumerate(raw_commands):
+    for index, raw_command in enumerate(value):
         command = _expect_string(
             raw_command,
             f"{location}.commands[{index}]",
@@ -106,12 +129,22 @@ def _platform_config(
                 f"{location}.commands contains a duplicate: {command}."
             )
         commands.append(command)
+    return tuple(commands)
 
-    return PlatformConfig(
-        package_name=package_name,
-        version=version,
-        commands=tuple(commands),
-    )
+
+@lru_cache(maxsize=2)
+def _available_commands(platform: str) -> tuple[str, ...]:
+    payload = json.loads(PROTOCOL_COMMANDS_FILE.read_text(encoding="utf-8"))
+    commands = payload.get("commands")
+    if not isinstance(commands, dict):
+        raise RuntimeError("protocol/commands.json has no commands object.")
+
+    result: list[str] = []
+    for name, command in commands.items():
+        platforms = command.get("platforms") if isinstance(command, dict) else None
+        if isinstance(name, str) and isinstance(platforms, list) and platform in platforms:
+            result.append(name)
+    return tuple(result)
 
 
 def load_config(path: Path) -> KasumiConfig:
@@ -135,11 +168,13 @@ def load_config(path: Path) -> KasumiConfig:
     return KasumiConfig(
         windows=_platform_config(
             data["windows"],
+            "windows",
             "configuration.windows",
             WINDOWS_PACKAGE_PATTERN,
         ),
         android=_platform_config(
             data["android"],
+            "android",
             "configuration.android",
             ANDROID_PACKAGE_PATTERN,
         ),

@@ -50,6 +50,20 @@ my-app/
 └─ vendor/
 ```
 
+`kasumi.config.json` 的平台 `commands` 默认使用 `"all"`，加载时按协议矩阵展开。需要收窄
+能力时改为显式数组，并保留 `ping` 与 `capabilities.query`：
+
+```json
+{
+  "windows": {
+    "commands": ["ping", "capabilities.query", "app.getInfo"]
+  },
+  "android": {
+    "commands": ["ping", "capabilities.query", "device.getInfo"]
+  }
+}
+```
+
 ## 发布
 
 标签 `v<version>` 会触发 npm 包发布和 GitHub Release 资产生成。发布前先在本地

@@ -3,66 +3,11 @@
   "windows": {
     "packageName": "kasumi-win32-example",
     "version": "0.1.0",
-    "commands": [
-      "ping",
-      "capabilities.query",
-      "app.getInfo",
-      "fs.readText",
-      "fs.writeText",
-      "fs.exists",
-      "fs.remove",
-      "fs.readDir",
-      "fs.mkdir",
-      "fs.stat",
-      "dialog.message",
-      "dialog.confirm",
-      "dialog.openFile",
-      "dialog.saveFile",
-      "clipboard.readText",
-      "clipboard.writeText",
-      "notification.show",
-      "permission.request",
-      "event.subscribe",
-      "event.unsubscribe",
-      "window.setTitle",
-      "window.minimize",
-      "window.maximize",
-      "window.setSize",
-      "window.close",
-      "shell.openExternal",
-      "http.download",
-      "app.exit"
-    ]
+    "commands": "all"
   },
   "android": {
     "packageName": "dev.kasumi.example",
     "version": "0.1.0",
-    "commands": [
-      "ping",
-      "capabilities.query",
-      "app.getInfo",
-      "device.getInfo",
-      "fs.readText",
-      "fs.writeText",
-      "fs.exists",
-      "fs.remove",
-      "fs.readDir",
-      "fs.mkdir",
-      "fs.stat",
-      "dialog.message",
-      "dialog.confirm",
-      "dialog.openFile",
-      "dialog.saveFile",
-      "clipboard.readText",
-      "clipboard.writeText",
-      "notification.show",
-      "permission.request",
-      "event.subscribe",
-      "event.unsubscribe",
-      "window.close",
-      "shell.openExternal",
-      "http.download",
-      "app.exit"
-    ]
+    "commands": "all"
   }
 }

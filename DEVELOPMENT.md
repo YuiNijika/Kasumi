@@ -70,23 +70,12 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
   "windows": {
     "packageName": "kasumi-win32-example",
     "version": "0.1.0",
-    "commands": [
-      "ping",
-      "capabilities.query",
-      "app.getInfo",
-      "fs.readText"
-    ]
+    "commands": "all"
   },
   "android": {
     "packageName": "dev.kasumi.example",
     "version": "0.1.0",
-    "commands": [
-      "ping",
-      "capabilities.query",
-      "app.getInfo",
-      "device.getInfo",
-      "fs.readText"
-    ]
+    "commands": "all"
   }
 }
 ```
@@ -101,9 +90,10 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
 | Android | `commands` | 注入 `KSMRouter` 的命令 allowlist，并过滤 `capabilities.query` |
 
 CLI 默认读取仓库根目录的 `kasumi.config.json`。其他路径通过 `--config <path>` 指定。
-`build`、`test`、`package` 和 `dev` 都会先校验配置。缺失字段、未知字段、重复命令、
-空命令数组、未知命令、跨平台命令、非法 Android 包名或非 SemVer 版本会直接失败。
-`ping` 与 `capabilities.query` 是必需命令。
+`commands` 可写为 `"all"`，按当前平台协议矩阵展开全部命令；也可以写非空数组，只启用
+显式列出的命令。`build`、`test`、`package` 和 `dev` 都会先校验配置。缺失字段、未知字段、
+重复命令、空数组、未知命令、跨平台命令、非法 Android 包名或非 SemVer 版本会直接失败。
+数组模式仍要求包含 `ping` 与 `capabilities.query`。
 
 已知但未列入 allowlist 的命令返回 `NOT_SUPPORTED`，不会继续进入参数校验或宿主服务。
 Windows 的 `KSM` 原生便捷方法、Android 的 `KSM.fs` 等原生子模块和前端桥接都遵守同一份

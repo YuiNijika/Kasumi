@@ -14,7 +14,7 @@
 | `android/` | Android WebView 应用宿主 |
 | `vendor/windows/kasumi/` | 从 Release 下载的 Windows SDK |
 | `vendor/android/repo/` | 从 Release 下载的 Android Maven 仓库 |
-| `kasumi.config.json` | 两端包名、版本与命令 allowlist |
+| `kasumi.config.json` | 两端包名、版本与命令能力配置 |
 
 ## 开始
 
@@ -40,6 +40,9 @@ dist/android/__ANDROID_PACKAGE_NAME__-__KASUMI_VERSION__.apk
 
 Windows 需要 CMake、Visual Studio C++ 工具链、vcpkg 和 Evergreen WebView2 Runtime。
 Android 需要 JDK 21 与 Android SDK。项目自带 Gradle Wrapper，不需要额外安装 Gradle。
+
+默认配置使用 `"commands": "all"`。需要最小权限时改成显式数组，并保留 `ping` 与
+`capabilities.query`。
 
 ## 排查
 

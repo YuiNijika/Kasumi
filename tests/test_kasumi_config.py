@@ -48,6 +48,29 @@ class KasumiConfigTest(unittest.TestCase):
             ("ping", "capabilities.query", "device.getInfo"),
         )
 
+    def test_expands_all_commands_by_platform(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": "all",
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": "all",
+                },
+            }
+        )
+
+        config = load_config(path)
+
+        self.assertEqual(len(config.windows.commands), 28)
+        self.assertEqual(len(config.android.commands), 25)
+        self.assertNotIn("device.getInfo", config.windows.commands)
+        self.assertIn("device.getInfo", config.android.commands)
+
     def test_rejects_missing_platform(self) -> None:
         path = self.write_config(
             {
