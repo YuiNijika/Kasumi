@@ -20,8 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --no-frozen-lockfile
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: ${{ github.workspace }}/vcpkg
@@ -118,7 +117,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache-dependency-path: pnpm-lock.yaml
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -127,7 +125,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.14.3
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --no-frozen-lockfile
       - name: Decode Android signing key
         env:
           KASUMI_ANDROID_KEYSTORE_BASE64: ${{ secrets.KASUMI_ANDROID_KEYSTORE_BASE64 }}
@@ -174,6 +172,7 @@ jobs:
       - name: Build release manifest
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          python tools/check_release_version.py "$VERSION"
           WINDOWS_SDK=$(find release/windows -name "kasumi-windows-sdk-*.zip" -print -quit)
           ANDROID_MAVEN=$(find release/android -name "kasumi-android-maven-*.zip" -print -quit)
           python tools/release_manifest.py \

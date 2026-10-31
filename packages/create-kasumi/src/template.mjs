@@ -1,4 +1,5 @@
 import {
+  copyFile,
   mkdir,
   readFile,
   readdir,
@@ -10,6 +11,14 @@ import { fileURLToPath } from 'node:url';
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const templateDirectory = path.join(sourceDirectory, '..', 'templates');
+const BINARY_EXTENSIONS = new Set([
+  '.ico',
+  '.jar',
+  '.png',
+  '.ttf',
+  '.woff',
+  '.woff2'
+]);
 
 export function resolveTemplate(name) {
   if (!/^[a-z0-9-]+$/.test(name)) {
@@ -51,8 +60,12 @@ async function copyDirectory(source, destination, replacements, force) {
     if (!force && (await exists(destinationPath))) {
       throw new Error(`Refusing to overwrite: ${destinationPath}`);
     }
-    const content = await readFile(sourcePath, 'utf8');
     await mkdir(path.dirname(destinationPath), { recursive: true });
+    if (BINARY_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+      await copyFile(sourcePath, destinationPath);
+      continue;
+    }
+    const content = await readFile(sourcePath, 'utf8');
     await writeFile(
       destinationPath,
       replaceText(content, replacements),

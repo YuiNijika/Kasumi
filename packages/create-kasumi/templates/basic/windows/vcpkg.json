@@ -1,0 +1,8 @@
+{
+  "name": "kasumi-app",
+  "version-string": "__KASUMI_VERSION__",
+  "dependencies": [
+    "nlohmann-json",
+    "webview2"
+  ]
+}

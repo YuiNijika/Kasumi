@@ -35,16 +35,16 @@ pnpm ksm dev --android
 
 ```text
 dist/windows/__WINDOWS_PACKAGE_NAME__.exe
-dist/android/__WINDOWS_PACKAGE_NAME__-__KASUMI_VERSION__.apk
+dist/android/__ANDROID_PACKAGE_NAME__-__KASUMI_VERSION__.apk
 ```
 
 Windows 需要 CMake、Visual Studio C++ 工具链、vcpkg 和 Evergreen WebView2 Runtime。
-Android 需要 JDK 21、Android SDK 和 Gradle。
+Android 需要 JDK 21 与 Android SDK。项目自带 Gradle Wrapper，不需要额外安装 Gradle。
 
 ## 排查
 
 1. `kasumi.config.json` 非法：运行 `pnpm ksm doctor` 查看具体字段。
 2. Windows 找不到 SDK：重新运行 `pnpm create kasumi`，或恢复 `vendor/windows/kasumi/`。
-3. Windows 找不到依赖：设置 `VCPKG_ROOT`，确认 vcpkg 已安装 `webview2` 和 `nlohmann-json`。
+3. Windows 找不到依赖：设置 `VCPKG_ROOT`，CMake 会按 `windows/vcpkg.json` 自动安装 `webview2` 和 `nlohmann-json`。
 4. Android 依赖解析失败：确认 `vendor/android/repo/` 内存在 `dev/kasumi/kasumi/`。
 5. Android 页面空白：确认先完成 `frontend/dist/` 构建，并检查 `assets` 配置。

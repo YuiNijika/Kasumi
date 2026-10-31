@@ -35,5 +35,8 @@ export function androidPackageName(projectName) {
   if (!ANDROID_SEGMENT_PATTERN.test(safeSegment)) {
     throw new Error(`Unable to derive an Android package name from ${projectName}.`);
   }
-  return `dev.kasumi.${safeSegment}`;
+  const packageName = `dev.kasumi.${safeSegment}`;
+  return packageName === 'dev.kasumi.app'
+    ? `dev.kasumi.apps.${safeSegment}`
+    : packageName;
 }

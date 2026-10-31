@@ -6,6 +6,7 @@ import { parseArgs } from './args.mjs';
 import { readConfig } from './config.mjs';
 import {
   buildAndroid,
+  findGradle,
   runAndroidDevelopment
 } from './android.mjs';
 import {
@@ -14,6 +15,7 @@ import {
 } from './frontend.mjs';
 import {
   buildWindows,
+  findCMake,
   runWindowsDevelopment
 } from './windows.mjs';
 import {
@@ -125,9 +127,18 @@ async function doctor(projectRoot, config) {
       await exists(path.join(projectRoot, 'vendor', 'android', 'repo'))
     )
   );
-  checks.push(check('CMake', findCommand('cmake') ?? 'not found', Boolean(findCommand('cmake'))));
-  checks.push(check('Gradle', findCommand('gradle') ?? 'not found', Boolean(findCommand('gradle'))));
-  checks.push(check('adb', findCommand('adb') ?? 'not found', Boolean(findCommand('adb'))));
+  const cmake = await findCMake();
+  checks.push(check('CMake', cmake ?? 'not found', Boolean(cmake)));
+  const gradle = await findGradle(projectRoot).catch(() => undefined);
+  checks.push(
+    check(
+      'Gradle',
+      gradle ? [...gradle.prefix, gradle.command].join(' ') : 'not found',
+      Boolean(gradle)
+    )
+  );
+  const adb = findCommand('adb') ?? (await findAndroidAdb());
+  checks.push(check('adb', adb ?? 'not found', Boolean(adb)));
   const toolchain =
     process.env.CMAKE_TOOLCHAIN_FILE ??
     (process.env.VCPKG_ROOT
@@ -150,6 +161,20 @@ async function doctor(projectRoot, config) {
 
 function check(label, value, ok) {
   return { label, value, ok };
+}
+
+async function findAndroidAdb() {
+  const executable = process.platform === 'win32' ? 'adb.exe' : 'adb';
+  const roots = [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT].filter(
+    Boolean
+  );
+  for (const root of roots) {
+    const candidate = path.join(root, 'platform-tools', executable);
+    if (await exists(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 async function findProjectRoot(start) {

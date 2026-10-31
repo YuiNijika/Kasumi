@@ -12,6 +12,12 @@ pnpm create kasumi my-app --all
 并从对应 GitHub Release 拉取 Windows SDK 与 Android Maven 仓库。框架的 C++ 和
 Kotlin 源码不会进入用户项目。
 
+模板内置三类构建所需的元数据：
+
+- `pnpm-workspace.yaml` 允许 pnpm 执行 `esbuild` 安装脚本。
+- `windows/vcpkg.json` 声明 `webview2` 与 `nlohmann-json`。
+- `android/gradle/wrapper/` 与 `gradlew*` 固定 Gradle 8.14.3。
+
 ## 命令选项
 
 ```text
@@ -23,7 +29,7 @@ Kotlin 源码不会进入用户项目。
 --no-install              不执行依赖安装
 --no-sdk                  不下载平台 SDK
 --force                   允许写入非空目录
---kasumi-version <ver>    Kasumi 版本，默认 0.1.0
+--kasumi-version <ver>    Kasumi 版本，默认与 create-kasumi 一致
 --release-base-url <url>  覆盖 Release 下载地址
 ```
 
@@ -32,10 +38,15 @@ Kotlin 源码不会进入用户项目。
 ```text
 my-app/
 ├─ package.json
+├─ pnpm-workspace.yaml
 ├─ kasumi.config.json
 ├─ frontend/
 ├─ windows/
+│  └─ vcpkg.json
 ├─ android/
+│  ├─ gradlew
+│  ├─ gradlew.bat
+│  └─ gradle/wrapper/
 └─ vendor/
 ```
 

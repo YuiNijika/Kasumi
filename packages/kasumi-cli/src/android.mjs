@@ -11,7 +11,8 @@ export async function buildAndroid(projectRoot, config) {
     );
   }
   const gradle = await findGradle(projectRoot);
-  await mkdir(path.join(projectRoot, '.ksm', 'afunix'), { recursive: true });
+  const unixDomainDirectory = path.join(projectRoot, '.ksm', 'afunix');
+  await mkdir(unixDomainDirectory, { recursive: true });
   const args = [
     '-p',
     path.join(projectRoot, 'android'),
@@ -22,7 +23,7 @@ export async function buildAndroid(projectRoot, config) {
   ];
   await run(gradle.command, [...gradle.prefix, ...args], {
     cwd: projectRoot,
-    env: gradleEnvironment()
+    env: gradleEnvironment(unixDomainDirectory)
   });
   const source = path.join(
     projectRoot,
@@ -106,7 +107,7 @@ export async function runAndroidDevelopment(projectRoot, config, server) {
   }).catch(() => {});
 }
 
-async function findGradle(projectRoot) {
+export async function findGradle(projectRoot) {
   const configured = process.env.GRADLE;
   if (configured) {
     return { command: configured, prefix: [] };
@@ -117,7 +118,9 @@ async function findGradle(projectRoot) {
     process.platform === 'win32' ? 'gradlew.bat' : 'gradlew'
   );
   if (await exists(wrapper)) {
-    return { command: wrapper, prefix: [] };
+    return process.platform === 'win32'
+      ? { command: wrapper, prefix: [] }
+      : { command: 'sh', prefix: [wrapper] };
   }
   const gradle = findCommand('gradle');
   if (!gradle) {
@@ -128,11 +131,12 @@ async function findGradle(projectRoot) {
   return { command: gradle, prefix: [] };
 }
 
-function gradleEnvironment() {
+function gradleEnvironment(unixDomainDirectory) {
   const environment = { ...process.env };
   if (process.platform === 'win32' && !environment.JAVA_TOOL_OPTIONS) {
+    const normalized = unixDomainDirectory.replaceAll('\\', '/');
     environment.JAVA_TOOL_OPTIONS =
-      '-Djdk.net.unixdomain.tmpdir=.ksm/afunix';
+      `-Djdk.net.unixdomain.tmpdir="${normalized}"`;
   }
   return environment;
 }

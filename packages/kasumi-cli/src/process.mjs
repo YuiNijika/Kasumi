@@ -20,6 +20,20 @@ export function commandName(command) {
   return `${command}.exe`;
 }
 
+export function commandInvocation(command, args) {
+  const executable = commandName(command);
+  if (process.platform !== 'win32' || !/\.(?:cmd|bat)$/i.test(executable)) {
+    return { command: executable, args };
+  }
+  const commandLine = [executable, ...args]
+    .map(quoteWindowsArgument)
+    .join(' ');
+  return {
+    command: process.env.ComSpec ?? 'cmd.exe',
+    args: ['/d', '/s', '/c', commandLine]
+  };
+}
+
 export function findCommand(command) {
   const lookup = process.platform === 'win32' ? 'where.exe' : 'which';
   const result = spawnSync(lookup, [command], {
@@ -36,14 +50,15 @@ export function findCommand(command) {
 }
 
 export async function run(command, args, options = {}) {
-  const executable = commandName(command);
+  const invocation = commandInvocation(command, args);
   console.log(`> ${[command, ...args].join(' ')}`);
   await new Promise((resolve, reject) => {
-    const child = spawn(executable, args, {
+    const child = spawn(invocation.command, invocation.args, {
       cwd: options.cwd,
       env: options.env ?? process.env,
       stdio: 'inherit',
-      shell: false
+      shell: false,
+      windowsVerbatimArguments: options.windowsVerbatimArguments === true
     });
     child.once('error', reject);
     child.once('exit', (code, signal) => {
@@ -61,10 +76,24 @@ export async function run(command, args, options = {}) {
 }
 
 export function spawnLongRunning(command, args, options = {}) {
-  return spawn(commandName(command), args, {
+  const invocation = commandInvocation(command, args);
+  return spawn(invocation.command, invocation.args, {
     cwd: options.cwd,
     env: options.env ?? process.env,
     stdio: 'inherit',
     shell: false
   });
+}
+
+function quoteWindowsArgument(value) {
+  if (value.length === 0) {
+    return '""';
+  }
+  if (!/[\s"&|<>^()]/.test(value)) {
+    return value;
+  }
+  const escaped = value
+    .replace(/(\\*)"/g, '$1$1\\"')
+    .replace(/(\\+)$/, '$1$1');
+  return `"${escaped}"`;
 }

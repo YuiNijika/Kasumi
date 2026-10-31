@@ -1,12 +1,20 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { parseArgs } from '../src/args.mjs';
+import { findGradle } from '../src/android.mjs';
 import { ConfigError, readConfig } from '../src/config.mjs';
+import { commandInvocation } from '../src/process.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
@@ -23,6 +31,44 @@ test('parseArgs defaults build to Windows and supports all platforms', () => {
 test('parseArgs supports short help and version flags', () => {
   assert.equal(parseArgs(['-h']).help, true);
   assert.equal(parseArgs(['-v']).version, true);
+});
+
+test('wraps Windows batch commands through the system shell', () => {
+  const invocation = commandInvocation('gradlew.bat', ['--version']);
+  if (process.platform === 'win32') {
+    assert.equal(invocation.command, process.env.ComSpec ?? 'cmd.exe');
+    assert.deepEqual(invocation.args.slice(0, 3), ['/d', '/s', '/c']);
+    assert.match(invocation.args[3], /gradlew\.bat --version/);
+    return;
+  }
+  assert.equal(invocation.command, 'gradlew.bat');
+  assert.deepEqual(invocation.args, ['--version']);
+});
+
+test('prefers the project Gradle wrapper', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-gradle-test-'));
+  try {
+    await mkdir(path.join(temporaryRoot, 'android'), { recursive: true });
+    await writeFile(
+      path.join(
+        temporaryRoot,
+        'android',
+        process.platform === 'win32' ? 'gradlew.bat' : 'gradlew'
+      ),
+      '',
+      'utf8'
+    );
+    const result = await findGradle(temporaryRoot);
+    if (process.platform === 'win32') {
+      assert.match(result.command, /gradlew\.bat$/);
+      assert.deepEqual(result.prefix, []);
+      return;
+    }
+    assert.equal(result.command, 'sh');
+    assert.match(result.prefix[0], /gradlew$/);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
 });
 
 test('loads a valid application configuration', async () => {

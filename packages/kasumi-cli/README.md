@@ -18,11 +18,16 @@ CLI 只读取项目内的 `kasumi.config.json`、`frontend/`、`windows/`、`and
 
 - Node.js 20 或更高版本
 - Windows 构建需要 CMake、Visual Studio C++ 工具链和 vcpkg
-- Android 构建需要 JDK 21、Android SDK 和 Gradle
+- Android 构建需要 JDK 21、Android SDK；项目自带 Gradle Wrapper
 - Android 开发运行还需要 `adb`
 
 Windows SDK 的 CMake package 依赖 `nlohmann-json` 与 `unofficial-webview2`。设置
-`VCPKG_ROOT` 或 `CMAKE_TOOLCHAIN_FILE` 后，CLI 会把 vcpkg toolchain 传给 CMake。
+`VCPKG_ROOT` 或 `CMAKE_TOOLCHAIN_FILE` 后，CLI 会把 vcpkg toolchain 传给 CMake，
+并按项目内的 `windows/vcpkg.json` 安装依赖。
+
+Windows 批处理入口统一交给 `cmd.exe` 启动，因此 pnpm、Gradle Wrapper 等项目脚本
+不依赖 Node 的 `shell` 选项。Android 构建优先使用项目自带 Wrapper，只有 Wrapper
+缺失时才查找系统 Gradle。
 
 ## 配置
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   mkdtemp,
   readFile,
@@ -14,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from '../src/args.mjs';
 import { run } from '../src/cli.mjs';
 import { platformCommands } from '../src/commands.mjs';
+import { commandInvocation } from '../src/install.mjs';
 import {
   androidPackageName,
   normalizeProjectName
@@ -55,6 +57,19 @@ test('naming derives valid npm and Android names', () => {
   assert.equal(normalizeProjectName('My App'), 'my-app');
   assert.equal(androidPackageName('my-app'), 'dev.kasumi.my_app');
   assert.equal(androidPackageName('2fa-tool'), 'dev.kasumi.app_2fa_tool');
+  assert.equal(androidPackageName('app'), 'dev.kasumi.apps.app');
+});
+
+test('wraps Windows package manager scripts through the system shell', () => {
+  const invocation = commandInvocation('pnpm.cmd', ['install']);
+  if (process.platform === 'win32') {
+    assert.equal(invocation.command, process.env.ComSpec ?? 'cmd.exe');
+    assert.deepEqual(invocation.args.slice(0, 3), ['/d', '/s', '/c']);
+    assert.match(invocation.args[3], /pnpm\.cmd install/);
+    return;
+  }
+  assert.equal(invocation.command, 'pnpm.cmd');
+  assert.deepEqual(invocation.args, ['install']);
 });
 
 test('template command allowlists match the protocol', async () => {
@@ -114,8 +129,63 @@ test('initializes a source-only project without framework source', async () => {
       false
     );
     assert.equal(await exists(path.join(destination, '.gitignore')), true);
+    assert.equal(
+      await exists(
+        path.join(
+          destination,
+          'android',
+          'gradle',
+          'wrapper',
+          'gradle-wrapper.jar'
+        )
+      ),
+      true
+    );
+    assert.equal(
+      await exists(path.join(destination, 'android', 'gradlew.bat')),
+      true
+    );
+    const templateWrapper = path.join(
+      testDirectory,
+      '..',
+      'templates',
+      'basic',
+      'android',
+      'gradle',
+      'wrapper',
+      'gradle-wrapper.jar'
+    );
+    const generatedWrapper = path.join(
+      destination,
+      'android',
+      'gradle',
+      'wrapper',
+      'gradle-wrapper.jar'
+    );
+    assert.equal(
+      sha256(await readFile(generatedWrapper)),
+      sha256(await readFile(templateWrapper))
+    );
+    assert.equal(
+      await readFile(
+        path.join(destination, 'pnpm-workspace.yaml'),
+        'utf8'
+      ),
+      'allowBuilds:\n  esbuild: true\n'
+    );
+    const vcpkg = JSON.parse(
+      await readFile(
+        path.join(destination, 'windows', 'vcpkg.json'),
+        'utf8'
+      )
+    );
+    assert.equal(vcpkg['version-string'], '0.1.0');
+    assert.deepEqual(vcpkg.dependencies, ['nlohmann-json', 'webview2']);
     const files = await collectFiles(destination);
     for (const file of files) {
+      if (path.extname(file).toLowerCase() === '.jar') {
+        continue;
+      }
       const content = await readFile(file, 'utf8');
       assert.equal(/__[A-Z_]+__/.test(content), false, file);
     }
@@ -159,4 +229,8 @@ async function exists(file) {
   } catch {
     return false;
   }
+}
+
+function sha256(content) {
+  return createHash('sha256').update(content).digest('hex');
 }

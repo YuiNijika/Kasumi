@@ -22,10 +22,13 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
-          cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --no-frozen-lockfile
       - run: pnpm test:packages
       - run: pnpm build:bridge
+      - name: Verify tag version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: python tools/check_release_version.py "${GITHUB_REF_NAME#v}"
+        shell: bash
       - name: Publish kasumi-bridge
         run: pnpm --filter kasumi-bridge publish --access public --no-git-checks
         env:

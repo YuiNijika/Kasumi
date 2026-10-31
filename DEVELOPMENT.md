@@ -219,14 +219,18 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm dev` | Windows 宿主加载 `http://localhost:5173/index.html` |
 | `pnpm ksm dev --android` | 模拟器通过 `adb reverse` 加载开发页面 |
 | `pnpm ksm test --all --target sdk` | 双端契约、配置校验、allowlist、JVM 测试和示例 smoke test 通过 |
-| `pnpm test:packages` | `create-kasumi` 初始化、命名、配置校验和协议命令矩阵测试通过 |
+| `pnpm test:packages` | 15 个包测试通过，覆盖初始化、命名、批处理入口、Gradle Wrapper 和协议命令矩阵 |
 | `pnpm build:bridge` | `kasumi-bridge` 生成 ESM 与 TypeScript 声明 |
-| `pnpm --filter create-kasumi pack` | npm tarball 包含模板、命令数据和 bin 入口 |
+| `pnpm --filter create-kasumi pack` | npm tarball 包含模板、Gradle Wrapper、vcpkg manifest、命令数据和 bin 入口 |
 | `npm exec --package create-kasumi-0.1.0.tgz` | 从实际 npm tarball 初始化项目通过 |
 | 生成项目 `pnpm typecheck` | 模板 TypeScript 配置通过 |
 | 生成项目 `vite build` | 前端构建输出到 `frontend/dist/` 通过 |
 | 本地 Release HTTP 端到端 | 下载 manifest、校验 SHA-256、解压 Windows SDK 与 Android Maven 仓库通过 |
 | Windows SDK ZIP 布局 | CPack 输出扁平目录，兼容旧版单顶层目录自动展开 |
+| 生成项目 Windows 构建 | `pnpm ksm build --windows` 产出 EXE，vcpkg 按 manifest 自动安装依赖 |
+| 生成项目 Windows smoke test | WebView2 加载、前端 `ping`、`app.exit` 后 2.3 秒内退出 |
+| 生成项目 Android 构建 | JDK 21 + 自带 Gradle Wrapper 产出 debug APK |
+| Windows 批处理入口 | `pnpm.cmd` 与 `gradlew.bat` 均通过 `cmd.exe` 启动，不再触发 `spawn EINVAL` |
 | `pnpm ksm package --android --target sdk` | AAR 与 `kasumi-android-maven-0.1.0.zip` 生成通过 |
 | `kasumi_win32_example_smoke` | Windows 示例启动、ping 与退出通过 |
 | `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
@@ -240,7 +244,9 @@ Windows 已完成 SDK、内嵌 Web 示例构建和真实桌面 smoke test，`kas
 Android 已完成 7 个 JVM 测试、AAR 发布、维护者 APK、instrumentation 测试 APK 和独立
 示例 APK 构建。AAR 和本地 Maven 发布物不包含 Kotlin 源码或 sources JAR，示例 APK 的
 Web 资源位于 `assets/`。本机 JDK 的 `TEMP` 包含短文件名时，Gradle 的 AF_UNIX 连接会
-报告 `Unable to establish loopback connection`，需要显式指定 socket 目录。
+报告 `Unable to establish loopback connection`，需要显式指定 socket 目录。发布版
+`kasumi-cli` 会把项目内 `.ksm/afunix` 解析为绝对路径后写入
+`jdk.net.unixdomain.tmpdir`，并优先使用模板自带的 Gradle 8.14.3 Wrapper。
 API 34 模拟器已完成 3 项 connected tests，并验证示例页面实际加载。Android 宿主统一使用
 `KSMWebAssetLoader.create(context, assetRoot)`；该入口固定域名 `app.local`，避免
 `WebViewAssetLoader` 默认域名不匹配导致 `ERR_NAME_NOT_RESOLVED`。
@@ -351,6 +357,10 @@ pnpm --filter create-kasumi pack
 标签发布工作流使用 `NPM_TOKEN` 发布三个 npm 包，并在 GitHub Release 中上传
 Windows SDK、Android Maven 仓库、AAR、示例 ZIP、APK 和 `kasumi-release.json`。
 正式标签发布仍要求 Windows Authenticode 与 Android APK 签名。
+
+当前 npm registry 上 `create-kasumi`、`kasumi-cli` 和 `kasumi-bridge` 均未占用；
+本机 npm 尚未登录，因此本轮只完成 tarball 与模拟 Release 的端到端验证，没有执行
+真实 npm 或 GitHub Release 发布。
 
 ## 常用命令
 

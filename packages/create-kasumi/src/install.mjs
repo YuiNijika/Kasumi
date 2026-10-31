@@ -16,7 +16,8 @@ export async function installDependencies(directory, packageManager) {
     ? `${packageManager}.cmd`
     : packageManager;
   console.log(`Installing dependencies with ${packageManager}`);
-  await run(command, ['install'], directory);
+  const invocation = commandInvocation(command, ['install']);
+  await run(invocation.command, invocation.args, directory);
 }
 
 function run(command, args, cwd) {
@@ -39,4 +40,28 @@ function run(command, args, cwd) {
       );
     });
   });
+}
+
+export function commandInvocation(command, args) {
+  if (process.platform !== 'win32' || !command.endsWith('.cmd')) {
+    return { command, args };
+  }
+  const commandLine = [command, ...args].map(quoteWindowsArgument).join(' ');
+  return {
+    command: process.env.ComSpec ?? 'cmd.exe',
+    args: ['/d', '/s', '/c', commandLine]
+  };
+}
+
+function quoteWindowsArgument(value) {
+  if (value.length === 0) {
+    return '""';
+  }
+  if (!/[\s"&|<>^()]/.test(value)) {
+    return value;
+  }
+  const escaped = value
+    .replace(/(\\*)"/g, '$1$1\\"')
+    .replace(/(\\+)$/, '$1$1');
+  return `"${escaped}"`;
 }

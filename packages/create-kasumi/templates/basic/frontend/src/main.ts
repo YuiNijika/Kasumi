@@ -53,4 +53,17 @@ function requiredElement<T extends HTMLElement = HTMLElement>(id: string): T {
 elements.button.addEventListener('click', () => {
   void connect();
 });
-void connect();
+
+if (new URLSearchParams(window.location.search).has('smoke')) {
+  void runSmokeTest();
+} else {
+  void connect();
+}
+
+async function runSmokeTest(): Promise<void> {
+  const pong = await KSM.ping();
+  if (!pong.pong) {
+    throw new Error('宿主返回了无效的连接检查结果。');
+  }
+  await KSM.app.exit();
+}
