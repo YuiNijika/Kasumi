@@ -10,6 +10,12 @@ option(
     OFF
 )
 
+option(
+    KASUMI_BUNDLE_WEBVIEW2_LOADER
+    "Bundle WebView2Loader.dll instead of statically linking the loader"
+    OFF
+)
+
 find_package(Kasumi CONFIG REQUIRED)
 
 add_executable(
@@ -19,6 +25,48 @@ add_executable(
 )
 
 target_compile_features(kasumi_win32_example PRIVATE cxx_std_20)
+
+get_target_property(
+    KASUMI_WEBVIEW2_LOADER_TYPE
+    unofficial::webview2::webview2
+    TYPE
+)
+if(KASUMI_BUNDLE_WEBVIEW2_LOADER)
+    if(NOT KASUMI_WEBVIEW2_LOADER_TYPE STREQUAL "SHARED_LIBRARY")
+        message(
+            FATAL_ERROR
+            "KASUMI_BUNDLE_WEBVIEW2_LOADER=ON requires the vcpkg "
+            "x64-windows triplet."
+        )
+    endif()
+    get_target_property(
+        KASUMI_WEBVIEW2_LOADER_DLL
+        unofficial::webview2::webview2
+        IMPORTED_LOCATION
+    )
+    add_custom_command(
+        TARGET kasumi_win32_example
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${KASUMI_WEBVIEW2_LOADER_DLL}"
+            "$<TARGET_FILE_DIR:kasumi_win32_example>/WebView2Loader.dll"
+    )
+else()
+    if(NOT KASUMI_WEBVIEW2_LOADER_TYPE STREQUAL "STATIC_LIBRARY")
+        message(
+            FATAL_ERROR
+            "System WebView2 mode requires the vcpkg "
+            "x64-windows-static-md triplet. Pass "
+            "-DKASUMI_BUNDLE_WEBVIEW2_LOADER=ON to bundle the loader DLL."
+        )
+    endif()
+    add_custom_command(
+        TARGET kasumi_win32_example
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rm -f
+            "$<TARGET_FILE_DIR:kasumi_win32_example>/WebView2Loader.dll"
+    )
+endif()
 
 set(
     KASUMI_EXAMPLE_GENERATED_DIR

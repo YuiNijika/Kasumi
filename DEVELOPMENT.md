@@ -128,10 +128,11 @@ await KSM.window.setSize({ width: 960, height: 720 });
 - `KSMWebView2Host` 负责 WebView2 创建、内嵌或外置资源响应、消息来源校验、导航与新窗口拦截、重载和尺寸事件。
 - 每个窗口分配单调递增且不复用的 `windowId`；同一窗口复用同一个路由器和宿主服务实例。
 - `windows/` 只构建 SDK；`windows/examples/win32-host/` 是独立消费者，加载 `https://app.local/index.html`。
-- 默认构建把 `examples/showcase/` 编译进 EXE，输出目录不包含 `web/`；WebView2 使用系统默认 profile。
+- 默认构建把 `examples/showcase/` 编译进 EXE，输出目录不包含 `web/`；WebView2 Loader 静态链接，用户数据写入 `%LOCALAPPDATA%\Kasumi\Example\WebView2`。
 - `KASUMI_EXAMPLE_EXTERNAL_WEB=ON` 切换为外置 `web/`，命令行等价参数为 `--external-web`；运行时可用 `--web-root` 和 `--user-data-folder` 覆盖路径。
 - SDK 安装目录包含 `include/kasumi/`、`kasumi_windows_bridge.lib` 和 `lib/cmake/Kasumi/`。
-- 示例依赖 Evergreen WebView2 Runtime，缺失时显示安装提示并退出；ZIP 不内置 Fixed Version Runtime。
+- 示例依赖系统 Evergreen WebView2 Runtime，缺失时显示安装提示并退出；默认不生成 `WebView2Loader.dll` 或 `kasumi_win32_example.exe.WebView2`，ZIP 也不内置 Fixed Version Runtime。
+- `--with-webview2-loader` 或 `KASUMI_BUNDLE_WEBVIEW2_LOADER=ON` 才会使用动态 Loader 并在输出目录生成、打包 `WebView2Loader.dll`。
 - 标签发布工作流要求 Authenticode 证书，使用 SHA-256 时间戳签名并执行 `signtool verify /pa /all`。
 
 ### Android
@@ -156,6 +157,9 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm build` | 默认 Windows 构建通过 |
 | `pnpm ksm build --android` | Android SDK 与示例构建通过 |
 | `pnpm ksm build --all` | Windows 与 Android SDK 构建通过 |
+| `pnpm ksm build --windows --target example` | 默认输出仅 EXE，无 `WebView2Loader.dll` 或 `.WebView2` |
+| `pnpm ksm build --windows --target example --with-webview2-loader` | 可选输出包含 `WebView2Loader.dll` |
+| `pnpm ksm package --windows --target example` | 默认 ZIP 仅包含 EXE |
 | `pnpm ksm dev` | Windows 宿主加载 `http://localhost:5173/index.html` |
 | `pnpm ksm dev --android` | 模拟器通过 `adb reverse` 加载开发页面 |
 | `pnpm ksm test --android --target sdk` | 契约测试与 Android JVM 测试通过 |
@@ -163,9 +167,10 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
 
 Windows 已完成 SDK、内嵌 Web 示例构建和真实桌面 smoke test，`kasumi_contract` 与
-`kasumi_win32_example_smoke` 均通过。默认示例输出只有 EXE 与 `WebView2Loader.dll`，
-没有 `web/` 或 `KasumiData/`。SDK ZIP 只包含公共头文件、静态库、CMake 配置和 README；
-默认示例 ZIP 只包含 EXE 与 `WebView2Loader.dll`，外置模式 ZIP 额外包含 `web/`。
+`kasumi_win32_example_smoke` 均通过。默认示例输出只有 EXE，没有 `WebView2Loader.dll`、
+`kasumi_win32_example.exe.WebView2`、`web/` 或 `KasumiData/`。SDK ZIP 只包含公共头文件、
+静态库、CMake 配置和 README；默认示例 ZIP 只包含 EXE，显式启用 Loader 打包时才额外包含
+`WebView2Loader.dll`，外置模式 ZIP 额外包含 `web/`。
 
 Android 已完成 6 个 JVM 测试、AAR 发布、维护者 APK、instrumentation 测试 APK 和独立
 示例 APK 构建。AAR 和本地 Maven 发布物不包含 Kotlin 源码或 sources JAR，示例 APK 的
@@ -189,6 +194,7 @@ pnpm ksm build
 pnpm ksm build --windows
 pnpm ksm build --android
 pnpm ksm build --all
+pnpm ksm build --windows --with-webview2-loader
 pnpm ksm dev
 pnpm ksm dev --android
 ```
@@ -198,6 +204,12 @@ pnpm ksm dev --android
 开发模式会启动 `http://localhost:5173` 静态服务器、执行 `adb reverse`、安装示例 APK
 并从该地址加载页面。
 
+Windows 默认使用 vcpkg 的 `x64-windows-static-md` triplet，静态链接 WebView2 Loader，
+因此输出目录不需要 `WebView2Loader.dll`，运行时使用系统已安装的 Evergreen Runtime。
+需要随应用分发 Loader 时传入 `--with-webview2-loader`，该模式使用 `x64-windows`
+triplet，并写入独立的 `windows/build/sdk-webview2-loader` 与
+`windows/examples/win32-host/build-webview2-loader` 目录。
+
 如果 Python 不在 `PATH`，设置 `KASUMI_PYTHON` 指向 Python 3.10+ 可执行文件。
 
 ## 常用命令
@@ -205,6 +217,7 @@ pnpm ksm dev --android
 ```bash
 pnpm ksm build --windows --target sdk
 pnpm ksm build --android --target example
+pnpm ksm build --windows --target example --with-webview2-loader
 pnpm ksm dev
 pnpm ksm dev --android
 python -m pip install -e .
@@ -226,9 +239,10 @@ python cli/ksm.py package --platform android --target sdk
 python cli/ksm.py package --platform android --target example
 ```
 
-Windows 构建需要 vcpkg 的 `webview2` 与 `nlohmann-json` 依赖。SDK 安装到
-`windows/build/sdk/install`；默认示例使用 EXE 内嵌 Web 资源，不需要把 `web/` 放到
-输出目录。
+Windows 构建需要 vcpkg 的 `webview2` 与 `nlohmann-json` 依赖。默认 SDK 安装到
+`windows/build/sdk/install`，依赖安装到 `.tmp/vcpkg-installed`；Loader 模式安装到
+`.tmp/vcpkg-installed-webview2-loader`。默认示例使用 EXE 内嵌 Web 资源，不需要把
+`web/` 放到输出目录。
 
 Android 构建使用 JDK 21。若 Gradle 在本机启动 daemon 时报告 loopback 连接失败，将
 `jdk.net.unixdomain.tmpdir` 指向不含短文件名的可写目录。`cli/ksm.py` 在 Windows 上会

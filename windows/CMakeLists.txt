@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.25)
 
 project(kasumi_windows VERSION 0.1.0 LANGUAGES CXX)
 
+option(
+    KASUMI_BUNDLE_WEBVIEW2_LOADER
+    "Bundle WebView2Loader.dll instead of statically linking the loader"
+    OFF
+)
+
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
@@ -49,6 +55,29 @@ if (WIN32)
     )
 
     find_package(unofficial-webview2 CONFIG REQUIRED)
+    get_target_property(
+        KASUMI_WEBVIEW2_LOADER_TYPE
+        unofficial::webview2::webview2
+        TYPE
+    )
+    if(KASUMI_BUNDLE_WEBVIEW2_LOADER)
+        if(NOT KASUMI_WEBVIEW2_LOADER_TYPE STREQUAL "SHARED_LIBRARY")
+            message(
+                FATAL_ERROR
+                "KASUMI_BUNDLE_WEBVIEW2_LOADER=ON requires the vcpkg "
+                "x64-windows triplet."
+            )
+        endif()
+    else()
+        if(NOT KASUMI_WEBVIEW2_LOADER_TYPE STREQUAL "STATIC_LIBRARY")
+            message(
+                FATAL_ERROR
+                "System WebView2 mode requires the vcpkg "
+                "x64-windows-static-md triplet. Pass "
+                "-DKASUMI_BUNDLE_WEBVIEW2_LOADER=ON to bundle the loader DLL."
+            )
+        endif()
+    endif()
     target_link_libraries(
         kasumi_windows_bridge
         PUBLIC

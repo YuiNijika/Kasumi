@@ -18,6 +18,9 @@ frontend/node_modules/
 local.properties
 windows/build/
 windows/examples/win32-host/build/
+windows/examples/win32-host/build-webview2-loader/
+*.exe.WebView2/
+WebView2Loader.dll
 android/.gradle/
 examples/android-host/.gradle/
 android/build/
@@ -25,3 +28,4 @@ android/app/build/
 android/kasumi/build/
 examples/android-host/build/
 examples/android-host/app/build/
+windows/examples/win32-host/build-webview2-loader

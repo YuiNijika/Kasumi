@@ -217,6 +217,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   } else if (smoke_test) {
     webview_data =
         *local_data / L"WebView2Smoke" / std::to_wstring(GetCurrentProcessId());
+  } else {
+    webview_data = *local_data / L"WebView2";
   }
   std::shared_ptr<KSMFileSystem> file_system;
 #if defined(KASUMI_EXAMPLE_EXTERNAL_WEB)

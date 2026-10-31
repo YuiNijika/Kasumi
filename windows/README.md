@@ -83,17 +83,23 @@ windows/build/sdk/install/
 
 消费者只链接导入目标 `Kasumi::kasumi_windows_bridge`，不编译 `windows/src/` 下的
 C++ 实现文件。依赖通过 `vcpkg.json` 固定为 `nlohmann-json` 与 `webview2`。
+默认构建使用 `x64-windows-static-md` triplet；只有启用动态 Loader 时才使用
+`x64-windows`。`cli/ksm.py` 会分别使用 `.tmp/vcpkg-installed` 和
+`.tmp/vcpkg-installed-webview2-loader`，避免两种模式互相清理依赖。
 
 ## 独立示例
 
 示例工程位于 `windows/examples/win32-host/`，使用
 `find_package(Kasumi CONFIG REQUIRED)`。默认构建会把共享目录
-`examples/showcase/` 编译进 EXE，输出目录不需要 `web/`，WebView2 也使用系统默认
-用户数据目录。消费者只获得静态库、公共头文件和导入目标，不获得框架 `.cpp` 源码。
+`examples/showcase/` 编译进 EXE，输出目录不需要 `web/`。WebView2 Loader 默认静态
+链接，WebView2 用户数据写入 `%LOCALAPPDATA%\Kasumi\Example\WebView2`，不会在 EXE
+旁生成 `.WebView2` 目录。消费者只获得静态库、公共头文件和导入目标，不获得框架
+`.cpp` 源码。
 
 ```powershell
 pnpm ksm dev
 pnpm ksm build --windows --target example
+pnpm ksm build --windows --target example --with-webview2-loader
 python cli/ksm.py build --platform windows --target sdk
 cmake -S windows/examples/win32-host `
   -B windows/examples/win32-host/build `
@@ -105,8 +111,11 @@ cmake --build windows/examples/win32-host/build --config Release
 ```
 
 示例要求 Evergreen WebView2 Runtime。缺失时显示安装提示并退出，不内置 Fixed Version
-Runtime。宿主应用数据写入 `%LOCALAPPDATA%\Kasumi\Example`，默认不会在项目目录创建
-`KasumiData/`。
+Runtime。默认使用静态 WebView2 Loader，不生成 `WebView2Loader.dll`。只有显式传入
+`--with-webview2-loader` 或设置 `KASUMI_BUNDLE_WEBVIEW2_LOADER=ON` 时，才会改用动态
+Loader 并把 `WebView2Loader.dll` 复制到 EXE 同级。宿主应用数据写入
+`%LOCALAPPDATA%\Kasumi\Example`，默认不会在项目目录创建 `KasumiData/` 或
+`kasumi_win32_example.exe.WebView2`。
 
 需要直接替换页面文件时，可以启用外置模式：
 
@@ -136,9 +145,10 @@ cmake -S windows/examples/win32-host `
 6. 通过 `PostMessageAsJson` 回到 UI 线程发送响应。
 7. 在 `WM_SIZE` 时发送物理内容区尺寸的 `window.resized` 事件。
 
-`user_data_folder` 为空时向 WebView2 传 `nullptr`，使用系统默认 profile。内嵌模式为
-`app://res` 和 `app://assets` 提供只读目录枚举与文件读取，CSP 由 `index.html` 响应
-头注入。
+`user_data_folder` 为空时使用
+`%LOCALAPPDATA%\Kasumi\WebView2\<executable-name>`，不会让 WebView2 在 EXE 旁创建
+默认 profile。内嵌模式为 `app://res` 和 `app://assets` 提供只读目录枚举与文件读取，
+CSP 由 `index.html` 响应头注入。
 
 每个窗口分配单调递增且不复用的 `windowId`。同一窗口复用同一个路由器和宿主服务实例，
 关闭后从注册表移除并抑制迟到响应。
@@ -180,13 +190,14 @@ python cli/ksm.py test --platform windows --target example
 ```powershell
 python cli/ksm.py package --platform windows --target sdk
 python cli/ksm.py package --platform windows --target example
+pnpm ksm package --windows --target example --with-webview2-loader
 ```
 
 - SDK 产物：`windows/build/sdk/packages/kasumi-windows-sdk-0.1.0.zip`。
 - 示例产物：`windows/examples/win32-host/build/packages/kasumi-win32-example-0.1.0.zip`。
 - SDK ZIP 只包含静态库、公共头文件、CMake 包配置和 README。
-- 默认示例 ZIP 包含 EXE、`WebView2Loader.dll` 和内嵌 Web 资源，不包含 `web/` 或框架源码。
-- 外置模式 ZIP 额外包含 `web/`。
+- 默认示例 ZIP 只包含 EXE 和内嵌 Web 资源，不包含 `WebView2Loader.dll`、`.WebView2`、`web/` 或框架源码。
+- `--with-webview2-loader` 模式额外包含 `WebView2Loader.dll`；外置模式额外包含 `web/`。
 
 标签发布要求：
 

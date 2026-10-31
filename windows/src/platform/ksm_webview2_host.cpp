@@ -3,6 +3,7 @@
 #include <WebView2.h>
 #include <WebView2EnvironmentOptions.h>
 #include <commctrl.h>
+#include <shlobj.h>
 #include <shlwapi.h>
 #include <wrl/client.h>
 #include <wrl/event.h>
@@ -13,6 +14,7 @@
 #include <chrono>
 #include <deque>
 #include <functional>
+#include <iterator>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -73,6 +75,26 @@ std::wstring RuntimeVersionWide() {
   std::wstring result(version);
   CoTaskMemFree(version);
   return result;
+}
+
+std::filesystem::path DefaultUserDataFolder() {
+  PWSTR local_app_data = nullptr;
+  if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_CREATE,
+                                  nullptr, &local_app_data)) ||
+      local_app_data == nullptr) {
+    return {};
+  }
+  std::filesystem::path result(local_app_data);
+  CoTaskMemFree(local_app_data);
+
+  wchar_t executable_path[MAX_PATH]{};
+  const DWORD length = GetModuleFileNameW(
+      nullptr, executable_path, static_cast<DWORD>(std::size(executable_path)));
+  const std::wstring executable_name =
+      length > 0 && length < std::size(executable_path)
+          ? std::filesystem::path(executable_path).stem().wstring()
+          : L"Kasumi";
+  return result / L"Kasumi" / L"WebView2" / executable_name;
 }
 
 } // namespace
@@ -187,7 +209,9 @@ struct KSMWebView2Host::Impl {
       // controller callback runs.
       options->put_AdditionalBrowserArguments(L"--no-sandbox");
     }
-    const std::wstring data_folder = user_data_folder.wstring();
+    const std::filesystem::path resolved_user_data_folder =
+        user_data_folder.empty() ? DefaultUserDataFolder() : user_data_folder;
+    const std::wstring data_folder = resolved_user_data_folder.wstring();
     const HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
         nullptr, data_folder.empty() ? nullptr : data_folder.c_str(),
         options.Get(), environment_handler_.Get());

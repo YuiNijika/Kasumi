@@ -19,13 +19,13 @@ DEV_HOST = "127.0.0.1"
 DEV_PORT = 5173
 DEV_URL = f"http://localhost:{DEV_PORT}/index.html"
 SHOWCASE_DIR = ROOT / "examples" / "showcase"
-WINDOWS_SDK_BUILD = ROOT / "windows" / "build" / "sdk"
-WINDOWS_SDK_INSTALL = WINDOWS_SDK_BUILD / "install"
+WINDOWS_SDK_BUILD_ROOT = ROOT / "windows" / "build"
 WINDOWS_EXAMPLE_DIR = ROOT / "windows" / "examples" / "win32-host"
-WINDOWS_EXAMPLE_BUILD = WINDOWS_EXAMPLE_DIR / "build"
 ANDROID_LOCAL_REPO = ROOT / "android" / "kasumi" / "build" / "repo"
 ANDROID_SDK_PACKAGE_DIR = ROOT / "android" / "build" / "packages"
 ANDROID_EXAMPLE_PACKAGE_DIR = ROOT / "examples" / "android-host" / "build" / "packages"
+WINDOWS_VCPKG_STATIC_TRIPLET = "x64-windows-static-md"
+WINDOWS_VCPKG_SHARED_TRIPLET = "x64-windows"
 
 
 def run(
@@ -226,30 +226,108 @@ def cmake_tool(name: str) -> str:
     raise RuntimeError(f"{name} is required for Windows builds.")
 
 
-def cmake_toolchain_arguments() -> list[str]:
-    toolchain = os.environ.get("CMAKE_TOOLCHAIN_FILE")
-    if not toolchain:
-        return []
-    return [f"-DCMAKE_TOOLCHAIN_FILE={toolchain}"]
+def resolve_vcpkg_toolchain() -> Path | None:
+    configured = os.environ.get("CMAKE_TOOLCHAIN_FILE")
+    if configured:
+        return Path(configured)
+
+    roots = [
+        os.environ.get("VCPKG_ROOT"),
+        str(ROOT / ".tmp" / "vcpkg"),
+    ]
+    for root in roots:
+        if not root:
+            continue
+        candidate = (
+            Path(root) / "scripts" / "buildsystems" / "vcpkg.cmake"
+        )
+        if candidate.is_file():
+            return candidate
+    return None
 
 
-def build_windows_sdk() -> None:
+def cmake_toolchain_arguments(
+    bundle_webview2_loader: bool,
+    manifest_mode: bool = False,
+    build_directory: Path | None = None,
+) -> list[str]:
+    arguments: list[str] = []
+    toolchain = resolve_vcpkg_toolchain()
+    has_cache = (
+        build_directory is not None
+        and (build_directory / "CMakeCache.txt").is_file()
+    )
+    if toolchain and not has_cache:
+        arguments.append(f"-DCMAKE_TOOLCHAIN_FILE={toolchain}")
+        arguments.append(
+            f"-DVCPKG_MANIFEST_MODE={'ON' if manifest_mode else 'OFF'}"
+        )
+
+    configured_triplet = (
+        os.environ.get("KASUMI_VCPKG_TRIPLET")
+        or os.environ.get("VCPKG_TARGET_TRIPLET")
+    )
+    if toolchain or configured_triplet:
+        triplet = configured_triplet or (
+            WINDOWS_VCPKG_SHARED_TRIPLET
+            if bundle_webview2_loader
+            else WINDOWS_VCPKG_STATIC_TRIPLET
+        )
+        arguments.append(f"-DVCPKG_TARGET_TRIPLET={triplet}")
+
+    installed_dir = os.environ.get("VCPKG_INSTALLED_DIR")
+    if installed_dir:
+        arguments.append(f"-DVCPKG_INSTALLED_DIR={installed_dir}")
+    else:
+        directory_name = (
+            "vcpkg-installed-webview2-loader"
+            if bundle_webview2_loader
+            else "vcpkg-installed"
+        )
+        local_installed_dir = ROOT / ".tmp" / directory_name
+        if toolchain:
+            arguments.append(f"-DVCPKG_INSTALLED_DIR={local_installed_dir}")
+    return arguments
+
+
+def windows_sdk_build_directory(bundle_webview2_loader: bool) -> Path:
+    name = "sdk-webview2-loader" if bundle_webview2_loader else "sdk"
+    return WINDOWS_SDK_BUILD_ROOT / name
+
+
+def windows_sdk_install_directory(bundle_webview2_loader: bool) -> Path:
+    return windows_sdk_build_directory(bundle_webview2_loader) / "install"
+
+
+def windows_example_build_directory(bundle_webview2_loader: bool) -> Path:
+    name = "build-webview2-loader" if bundle_webview2_loader else "build"
+    return WINDOWS_EXAMPLE_DIR / name
+
+
+def build_windows_sdk(bundle_webview2_loader: bool = False) -> None:
+    build_directory = windows_sdk_build_directory(bundle_webview2_loader)
+    install_directory = windows_sdk_install_directory(bundle_webview2_loader)
     configure = [
         cmake_tool("cmake"),
         "-S",
         str(ROOT / "windows"),
         "-B",
-        str(WINDOWS_SDK_BUILD),
+        str(build_directory),
         "-DCMAKE_BUILD_TYPE=Release",
-        f"-DCMAKE_INSTALL_PREFIX={WINDOWS_SDK_INSTALL}",
-        *cmake_toolchain_arguments(),
+        f"-DCMAKE_INSTALL_PREFIX={install_directory}",
+        f"-DKASUMI_BUNDLE_WEBVIEW2_LOADER={'ON' if bundle_webview2_loader else 'OFF'}",
+        *cmake_toolchain_arguments(
+            bundle_webview2_loader,
+            True,
+            build_directory,
+        ),
     ]
     run(configure)
     run(
         [
             cmake_tool("cmake"),
             "--build",
-            str(WINDOWS_SDK_BUILD),
+            str(build_directory),
             "--config",
             "Release",
             "--target",
@@ -258,25 +336,35 @@ def build_windows_sdk() -> None:
     )
 
 
-def build_windows_example(external_web: bool = False) -> None:
-    build_windows_sdk()
+def build_windows_example(
+    external_web: bool = False,
+    bundle_webview2_loader: bool = False,
+) -> None:
+    build_windows_sdk(bundle_webview2_loader)
+    build_directory = windows_example_build_directory(bundle_webview2_loader)
+    install_directory = windows_sdk_install_directory(bundle_webview2_loader)
     configure = [
         cmake_tool("cmake"),
         "-S",
         str(WINDOWS_EXAMPLE_DIR),
         "-B",
-        str(WINDOWS_EXAMPLE_BUILD),
+        str(build_directory),
         "-DCMAKE_BUILD_TYPE=Release",
-        f"-DCMAKE_PREFIX_PATH={WINDOWS_SDK_INSTALL}",
+        f"-DCMAKE_PREFIX_PATH={install_directory}",
         f"-DKASUMI_EXAMPLE_EXTERNAL_WEB={'ON' if external_web else 'OFF'}",
-        *cmake_toolchain_arguments(),
+        f"-DKASUMI_BUNDLE_WEBVIEW2_LOADER={'ON' if bundle_webview2_loader else 'OFF'}",
+        *cmake_toolchain_arguments(
+            bundle_webview2_loader,
+            False,
+            build_directory,
+        ),
     ]
     run(configure)
     run(
         [
             cmake_tool("cmake"),
             "--build",
-            str(WINDOWS_EXAMPLE_BUILD),
+            str(build_directory),
             "--config",
             "Release",
         ]
@@ -314,13 +402,14 @@ def build(
     platforms: tuple[str, ...],
     targets: tuple[str, ...],
     external_web: bool = False,
+    bundle_webview2_loader: bool = False,
 ) -> None:
     frontend_checks()
     if "windows" in platforms:
         if "sdk" in targets:
-            build_windows_sdk()
+            build_windows_sdk(bundle_webview2_loader)
         if "example" in targets:
-            build_windows_example(external_web)
+            build_windows_example(external_web, bundle_webview2_loader)
     if "android" in platforms:
         if "sdk" in targets:
             build_android_sdk()
@@ -328,29 +417,33 @@ def build(
             build_android_example()
 
 
-def test_windows() -> None:
-    build_windows_sdk()
+def test_windows_example(bundle_webview2_loader: bool = False) -> None:
+    build_windows_example(False, bundle_webview2_loader)
     run(
         [
             cmake_tool("ctest"),
             "--test-dir",
-            str(WINDOWS_SDK_BUILD),
+            str(windows_example_build_directory(bundle_webview2_loader)),
             "-C",
             "Release",
             "--output-on-failure",
         ]
     )
-    build_windows_example()
+
+
+def test_windows(bundle_webview2_loader: bool = False) -> None:
+    build_windows_sdk(bundle_webview2_loader)
     run(
         [
             cmake_tool("ctest"),
             "--test-dir",
-            str(WINDOWS_EXAMPLE_BUILD),
+            str(windows_sdk_build_directory(bundle_webview2_loader)),
             "-C",
             "Release",
             "--output-on-failure",
         ]
     )
+    test_windows_example(bundle_webview2_loader)
 
 
 def test_android() -> None:
@@ -369,13 +462,17 @@ def test_android() -> None:
     build_android_example()
 
 
-def test(platforms: tuple[str, ...], targets: tuple[str, ...]) -> None:
+def test(
+    platforms: tuple[str, ...],
+    targets: tuple[str, ...],
+    bundle_webview2_loader: bool = False,
+) -> None:
     frontend_checks(include_contract=True)
     if "windows" in platforms:
         if "sdk" in targets:
-            test_windows()
+            test_windows(bundle_webview2_loader)
         elif "example" in targets:
-            build_windows_example()
+            test_windows_example(bundle_webview2_loader)
     if "android" in platforms:
         if "sdk" in targets:
             test_android()
@@ -383,30 +480,39 @@ def test(platforms: tuple[str, ...], targets: tuple[str, ...]) -> None:
             build_android_example()
 
 
-def package_windows_sdk() -> None:
-    build_windows_sdk()
+def package_windows_sdk(bundle_webview2_loader: bool = False) -> None:
+    build_windows_sdk(bundle_webview2_loader)
+    build_directory = windows_sdk_build_directory(bundle_webview2_loader)
     run(
         [
             cmake_tool("cpack"),
             "--config",
-            str(WINDOWS_SDK_BUILD / "CPackConfig.cmake"),
+            str(build_directory / "CPackConfig.cmake"),
             "-C",
             "Release",
             "-B",
-            str(WINDOWS_SDK_BUILD / "packages"),
+            str(build_directory / "packages"),
         ]
     )
 
 
-def windows_example_output_directory() -> Path:
-    release = WINDOWS_EXAMPLE_BUILD / "Release"
-    return release if release.is_dir() else WINDOWS_EXAMPLE_BUILD
+def windows_example_output_directory(
+    bundle_webview2_loader: bool = False,
+) -> Path:
+    build_directory = windows_example_build_directory(bundle_webview2_loader)
+    release = build_directory / "Release"
+    return release if release.is_dir() else build_directory
 
 
-def package_windows_example(external_web: bool = False) -> None:
-    build_windows_example(external_web)
-    output = windows_example_output_directory()
-    package_dir = WINDOWS_EXAMPLE_BUILD / "packages"
+def package_windows_example(
+    external_web: bool = False,
+    bundle_webview2_loader: bool = False,
+) -> None:
+    build_windows_example(external_web, bundle_webview2_loader)
+    output = windows_example_output_directory(bundle_webview2_loader)
+    package_dir = (
+        windows_example_build_directory(bundle_webview2_loader) / "packages"
+    )
     package_dir.mkdir(parents=True, exist_ok=True)
     staging = package_dir / "kasumi-win32-example-0.1.0"
     if staging.exists():
@@ -418,8 +524,10 @@ def package_windows_example(external_web: bool = False) -> None:
         raise FileNotFoundError(f"Windows example executable not found: {executable}")
     shutil.copy2(executable, staging / executable.name)
 
-    loader = output / "WebView2Loader.dll"
-    if loader.is_file():
+    if bundle_webview2_loader:
+        loader = output / "WebView2Loader.dll"
+        if not loader.is_file():
+            raise FileNotFoundError(f"WebView2 loader not found: {loader}")
         shutil.copy2(loader, staging / loader.name)
 
     if external_web:
@@ -480,13 +588,14 @@ def package(
     platforms: tuple[str, ...],
     targets: tuple[str, ...],
     external_web: bool = False,
+    bundle_webview2_loader: bool = False,
 ) -> None:
     frontend_checks()
     if "windows" in platforms:
         if "sdk" in targets:
-            package_windows_sdk()
+            package_windows_sdk(bundle_webview2_loader)
         if "example" in targets:
-            package_windows_example(external_web)
+            package_windows_example(external_web, bundle_webview2_loader)
     if "android" in platforms:
         if "sdk" in targets:
             package_android_sdk()
@@ -599,11 +708,14 @@ def install_android_apk(
     run([adb, "install", str(apk)], env=environment)
 
 
-def dev_windows() -> None:
-    build_windows_example()
+def dev_windows(bundle_webview2_loader: bool = False) -> None:
+    build_windows_example(False, bundle_webview2_loader)
     server = start_dev_server()
     try:
-        executable = windows_example_output_directory() / "kasumi_win32_example.exe"
+        executable = (
+            windows_example_output_directory(bundle_webview2_loader)
+            / "kasumi_win32_example.exe"
+        )
         if not executable.is_file():
             raise FileNotFoundError(f"Windows example executable not found: {executable}")
         print(f"Windows development app is running against {DEV_URL}")
@@ -676,12 +788,15 @@ def dev_android() -> None:
         )
 
 
-def dev(platforms: tuple[str, ...]) -> None:
+def dev(
+    platforms: tuple[str, ...],
+    bundle_webview2_loader: bool = False,
+) -> None:
     if len(platforms) != 1:
         raise RuntimeError("dev requires exactly one platform.")
     frontend_checks()
     if platforms[0] == "windows":
-        dev_windows()
+        dev_windows(bundle_webview2_loader)
         return
     dev_android()
 
@@ -732,6 +847,18 @@ def add_external_web_option(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_webview2_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--with-webview2-loader",
+        dest="bundle_webview2_loader",
+        action="store_true",
+        help=(
+            "Windows only: bundle WebView2Loader.dll instead of statically "
+            "linking the system WebView2 loader"
+        ),
+    )
+
+
 def start() -> None:
     parser = argparse.ArgumentParser(prog="ksm")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -745,21 +872,25 @@ def start() -> None:
     add_platform_option(build_parser, default="windows")
     add_target_option(build_parser)
     add_external_web_option(build_parser)
+    add_webview2_option(build_parser)
 
     test_parser = subparsers.add_parser("test")
     add_platform_option(test_parser)
     add_target_option(test_parser)
+    add_webview2_option(test_parser)
 
     package_parser = subparsers.add_parser("package")
     add_platform_option(package_parser)
     add_target_option(package_parser)
     add_external_web_option(package_parser)
+    add_webview2_option(package_parser)
 
     dev_parser = subparsers.add_parser(
         "dev",
         description="Run the Windows development host by default.",
     )
     add_platform_option(dev_parser, default="windows")
+    add_webview2_option(dev_parser)
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -771,20 +902,26 @@ def start() -> None:
             resolve_platform_selection(args),
             resolve_targets(args.target),
             args.external_web,
+            args.bundle_webview2_loader,
         )
     elif args.command == "test":
         test(
             resolve_platform_selection(args),
             resolve_targets(args.target),
+            args.bundle_webview2_loader,
         )
     elif args.command == "package":
         package(
             resolve_platform_selection(args),
             resolve_targets(args.target),
             args.external_web,
+            args.bundle_webview2_loader,
         )
     else:
-        dev(resolve_platform_selection(args))
+        dev(
+            resolve_platform_selection(args),
+            args.bundle_webview2_loader,
+        )
 
 
 if __name__ == "__main__":

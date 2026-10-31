@@ -29,13 +29,24 @@ cmake --build windows/examples/win32-host/build --config Release
 ```
 
 默认构建把 `examples/showcase/` 编译为 EXE 内的 Win32 `RCDATA`，输出目录不包含
-`web/`。WebView2 使用系统默认用户数据目录，宿主应用数据仍写入
-`%LOCALAPPDATA%\Kasumi\Example`，不会创建项目内的 `KasumiData/`。
+`web/`。WebView2 Loader 静态链接，用户数据写入
+`%LOCALAPPDATA%\Kasumi\Example\WebView2`，不会在 EXE 旁生成
+`kasumi_win32_example.exe.WebView2`，也不会创建项目内的 `KasumiData/`。
 
 示例要求 Evergreen WebView2 Runtime。缺失时显示安装提示并退出，不内置 Fixed Version
-Runtime。
+Runtime。默认不生成或复制 `WebView2Loader.dll`。
 
 ## 可选配置
+
+需要随应用分发动态 WebView2 Loader 时，显式启用：
+
+```powershell
+pnpm ksm build --windows --target example --with-webview2-loader
+```
+
+该模式使用 `x64-windows` triplet，并输出到独立的
+`windows/examples/win32-host/build-webview2-loader` 目录。CMake 等价参数为
+`-DKASUMI_BUNDLE_WEBVIEW2_LOADER=ON`，只有此时才会复制 `WebView2Loader.dll`。
 
 外置 Web 资源模式会在构建后复制 `web/`，适合需要直接替换页面文件的调试流程：
 
@@ -57,8 +68,9 @@ cmake --build windows/examples/win32-host/build-external --config Release
 | `--url <url>` | 覆盖启动页面，开发模式使用 `http://localhost:5173/index.html` |
 | `--dev` | 开启 WebView DevTools，仅供开发宿主使用 |
 
-不传 `--user-data-folder` 时，普通启动使用 WebView2 系统默认 profile。`--smoke-test`
-只为自动化测试使用独立临时 profile。
+不传 `--user-data-folder` 时，普通启动使用
+`%LOCALAPPDATA%\Kasumi\Example\WebView2`。`--smoke-test` 只为自动化测试使用独立临时
+profile。
 使用 `python cli/ksm.py build --platform windows --target example --external-web` 或
 `package` 的同一参数，可以直接让命令行构建选择外置模式。
 `pnpm ksm dev` 会启动 `examples/showcase` 静态服务器，并以 `--url` 和 `--dev` 启动该宿主。
