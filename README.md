@@ -1,40 +1,18 @@
+<table width="100%" align="center">
+    <tr>
+        <td>
+            <img src="images/kasumi-logo-1.png" />
+        </td>
+    </tr>
+</table>
+
 <div align="center">
     <h2>KirakiraDokidoki</h2>
     一套 Web 前端构建更原生、轻量、快速的应用程序
 </div>
 
-<p align="center">
-  <img src="images/kasumi-logo-1.png" alt="Kasumi" width="640" />
-</p>
-
 Kasumi 提供统一的 TypeScript API、命令协议、权限校验、原生宿主和项目脚手架。前端继续使用
 Vite 与标准 Web 技术，Windows 使用 Win32 + WebView2，Android 使用 WebView 与原生宿主服务。
-
-## 当前能力
-
-| 能力 | 说明 |
-| --- | --- |
-| 命令协议 | 29 个命令、2 个事件，Windows 适用 28 个，Android 适用 25 个 |
-| 前端 API | `KSM` 模块化 API、事件订阅、超时、取消和能力缓存 |
-| Windows | Win32 + WebView2、内嵌 Web 资源、原生对话框、文件、窗口和下载 |
-| Android | WebView、Activity 生命周期、文件选择、通知、设备信息和下载 |
-| 项目入口 | `pnpm create kasumi` 初始化，`pnpm ksm` 开发、构建、打包和诊断 |
-| 发布边界 | npm 包 + GitHub Release SDK，用户项目不复制框架源码 |
-
-## 模块边界
-
-| 路径 | 责任 |
-| --- | --- |
-| `frontend/` | `kasumi-bridge` 前端 API、生成契约和展示示例 |
-| `windows/` | Windows SDK、原生路由、宿主服务和 WebView2 适配 |
-| `android/` | Android AAR、原生路由、宿主服务和资源加载 |
-| `protocol/` | 命令、事件、权限、错误码和配置 schema |
-| `cli/` | 框架维护者使用的本地构建入口 |
-| `packages/` | 发布用 `kasumi-bridge`、`kasumi-cli` 和 `create-kasumi` |
-| `examples/` | Windows 与 Android 消费方示例 |
-
-用户初始化后的项目只包含 `frontend/`、`windows/`、`android/`、`vendor/`、
-`kasumi.config.json` 和一份根 `package.json`。框架源码通过 Release SDK 消费。
 
 ## 快速开始
 
@@ -70,6 +48,7 @@ pnpm ksm build --all
 pnpm install
 pnpm typecheck
 pnpm test:contract
+pnpm ksm doctor
 pnpm ksm build --all
 ```
 
@@ -107,7 +86,7 @@ pnpm ksm build --all
 ## 前端调用
 
 ```ts
-import { KSM } from 'kasumi-bridge';
+import { KSM } from "kasumi-bridge";
 
 KSM.init();
 
