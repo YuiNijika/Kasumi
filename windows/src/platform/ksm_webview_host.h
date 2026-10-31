@@ -27,7 +27,8 @@ public:
         SendMessage send_message,
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
         std::shared_ptr<KSMHostServices> host_services = nullptr,
-        Dispatch dispatch = {}
+        Dispatch dispatch = {},
+        std::vector<std::string> allowed_commands = {}
     );
     ~KSMWebViewHost();
 

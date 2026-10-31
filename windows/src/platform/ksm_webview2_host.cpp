@@ -104,14 +104,16 @@ struct KSMWebView2Host::Impl {
        std::vector<std::string> allowed_origins, std::filesystem::path web_root,
        std::filesystem::path user_data_folder, bool smoke_test,
        std::shared_ptr<KSMWebResourceProvider> web_resources,
-       std::wstring start_url, bool dev_mode)
+       std::wstring start_url, bool dev_mode, std::string app_version,
+       std::vector<std::string> allowed_commands)
       : window(window), window_id_value(++next_window_id),
         web_root(std::move(web_root)),
         user_data_folder(std::move(user_data_folder)), smoke_test(smoke_test),
         web_resources(std::move(web_resources)),
         start_url(std::move(start_url)), dev_mode(dev_mode),
         services(std::make_shared<KSMWindowsHostServices>(
-            window, std::move(allowed_origins), file_system)),
+            window, std::move(allowed_origins), file_system,
+            std::move(app_version))),
         webview_host(
             [this](const std::string &message) {
               PostToUi([this, message] {
@@ -122,7 +124,8 @@ struct KSMWebView2Host::Impl {
               });
             },
             file_system, services,
-            [this](std::function<void()> task) { PostToUi(std::move(task)); }) {
+            [this](std::function<void()> task) { PostToUi(std::move(task)); },
+            std::move(allowed_commands)) {
     SetWindowSubclass(window, &Impl::SubclassProc,
                       reinterpret_cast<UINT_PTR>(this),
                       reinterpret_cast<DWORD_PTR>(this));
@@ -535,11 +538,13 @@ KSMWebView2Host::KSMWebView2Host(
     std::vector<std::string> allowed_external_origins,
     std::filesystem::path web_root, std::filesystem::path user_data_folder,
     bool smoke_test, std::shared_ptr<KSMWebResourceProvider> web_resources,
-    std::wstring start_url, bool dev_mode)
+    std::wstring start_url, bool dev_mode, std::string app_version,
+    std::vector<std::string> allowed_commands)
     : impl_(std::make_unique<Impl>(
           window, std::move(file_system), std::move(allowed_external_origins),
           std::move(web_root), std::move(user_data_folder), smoke_test,
-          std::move(web_resources), std::move(start_url), dev_mode)) {}
+          std::move(web_resources), std::move(start_url), dev_mode,
+          std::move(app_version), std::move(allowed_commands))) {}
 
 KSMWebView2Host::~KSMWebView2Host() = default;
 

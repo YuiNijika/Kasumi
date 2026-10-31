@@ -81,12 +81,20 @@ Json DirectoryEntryJson(const KSMDirectoryEntry& entry) {
 
 KSMRouter::KSMRouter(
     std::shared_ptr<KSMFileSystem> file_system,
-    std::shared_ptr<KSMHostServices> host_services
+    std::shared_ptr<KSMHostServices> host_services,
+    std::vector<std::string> allowed_commands
 )
     : file_system_(std::move(file_system)),
-      host_services_(std::move(host_services)) {
+      host_services_(std::move(host_services)),
+      supported_commands_(
+          KSMCommandRegistry::SupportedCommands(allowed_commands)
+      ) {
     const auto& permissions = KSMGeneratedContract::Permissions();
     granted_permissions_.insert(permissions.begin(), permissions.end());
+}
+
+const std::vector<std::string>& KSMRouter::SupportedCommands() const {
+    return supported_commands_;
 }
 
 void KSMRouter::CancelRequest(const std::string& request_id) {
@@ -204,6 +212,21 @@ void KSMRouter::HandleMessage(
             );
             return;
         }
+        if (
+            std::find(
+                supported_commands_.begin(),
+                supported_commands_.end(),
+                command
+            ) == supported_commands_.end()
+        ) {
+            SendError(
+                id,
+                "NOT_SUPPORTED",
+                "The command is disabled by application configuration.",
+                send_response
+            );
+            return;
+        }
         if (!KSMGeneratedContract::ValidateArgs(command, args)) {
             SendError(
                 id,
@@ -235,7 +258,7 @@ void KSMRouter::HandleMessage(
                 id,
                 Json{
                     {"platform", "windows"},
-                    {"commands", KSMCommandRegistry::SupportedCommands()},
+                    {"commands", supported_commands_},
                     {"permissions", permissions}
                 },
                 send_response

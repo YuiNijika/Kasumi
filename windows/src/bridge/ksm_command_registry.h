@@ -5,5 +5,7 @@
 
 class KSMCommandRegistry {
 public:
-    static const std::vector<std::string>& SupportedCommands();
+    static std::vector<std::string> SupportedCommands(
+        const std::vector<std::string>& requested = {}
+    );
 };

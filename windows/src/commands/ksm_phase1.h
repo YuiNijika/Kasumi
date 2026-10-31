@@ -108,7 +108,8 @@ struct KSM final {
 
     static void Init(
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
-        std::shared_ptr<KSMHostServices> host_services = nullptr
+        std::shared_ptr<KSMHostServices> host_services = nullptr,
+        std::vector<std::string> allowed_commands = {}
     );
     static void Shutdown();
     static std::string Invoke(
@@ -126,7 +127,7 @@ struct KSM final {
         std::string_view event,
         std::string_view payload_json
     );
-    static const Capabilities& Get();
+    static Capabilities Get();
 
     struct Phase1 final {
         static PingResult Ping();

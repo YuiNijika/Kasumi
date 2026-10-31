@@ -10,6 +10,11 @@
 Windows 示例位于 `windows/examples/win32-host/`，通过 `find_package(Kasumi CONFIG REQUIRED)`
 消费已安装的静态库和公共头文件。
 
+示例的 Windows 包名、版本、启用命令，以及 Android 应用 ID、版本、启用命令统一由
+仓库根目录 `kasumi.config.json` 提供。通过
+`pnpm ksm build --all --target example` 构建时，CLI 会校验配置并分别注入 CMake 与
+Gradle。
+
 ## 构建顺序
 
 1. 先构建 SDK。

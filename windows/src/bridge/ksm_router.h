@@ -5,6 +5,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <vector>
 
 class KSMFileSystem;
 class KSMHostServices;
@@ -15,7 +16,8 @@ public:
 
     explicit KSMRouter(
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
-        std::shared_ptr<KSMHostServices> host_services = nullptr
+        std::shared_ptr<KSMHostServices> host_services = nullptr,
+        std::vector<std::string> allowed_commands = {}
     );
     void HandleMessage(const std::string& message, const ResponseSender& send_response);
     void EmitEvent(
@@ -29,12 +31,14 @@ public:
         const ResponseSender& send_response
     ) const;
     void CancelRequest(const std::string& request_id);
+    const std::vector<std::string>& SupportedCommands() const;
 
 private:
     bool HasPermission(const std::string& permission) const;
 
     std::shared_ptr<KSMFileSystem> file_system_;
     std::shared_ptr<KSMHostServices> host_services_;
+    std::vector<std::string> supported_commands_;
     mutable std::mutex state_mutex_;
     std::set<std::string> granted_permissions_;
     std::set<std::string> subscribed_events_;

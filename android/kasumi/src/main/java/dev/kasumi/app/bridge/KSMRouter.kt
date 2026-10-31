@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
 class KSMRouter(
     private val fileSystem: KSMFileSystem? = null,
     private val hostServices: KSMHostServices? = null,
+    allowedCommands: Collection<String> = emptyList(),
     private val eventSender: (String) -> Unit = {}
 ) {
     companion object {
@@ -19,6 +20,14 @@ class KSMRouter(
     private val subscribedEvents = ConcurrentHashMap.newKeySet<String>()
     private val grantedPermissions = ConcurrentHashMap.newKeySet<String>().apply {
         addAll(KSMCommandRegistry.permissions)
+    }
+    private val allowedCommandNames = allowedCommands.toSet()
+    val supportedCommands: List<String> = if (allowedCommandNames.isEmpty()) {
+        KSMCommandRegistry.supportedCommands
+    } else {
+        KSMCommandRegistry.supportedCommands.filter {
+            it in allowedCommandNames
+        }
     }
 
     fun emitEvent(event: String, payload: JSONObject) {
@@ -77,6 +86,13 @@ class KSMRouter(
                         "The command is not registered."
                     )
                 }
+                if (command !in supportedCommands) {
+                    return errorResponse(
+                        id,
+                        "NOT_SUPPORTED",
+                        "The command is disabled by application configuration."
+                    )
+                }
                 if (!KSMGeneratedContract.validateArgs(command, args)) {
                     return errorResponse(
                         id,
@@ -90,7 +106,7 @@ class KSMRouter(
                         id,
                         JSONObject()
                             .put("platform", "android")
-                            .put("commands", KSMCommandRegistry.supportedCommands)
+                            .put("commands", supportedCommands)
                             .put("permissions", JSONArray(grantedPermissions.toList()))
                     )
                     "app.getInfo" -> successResponse(

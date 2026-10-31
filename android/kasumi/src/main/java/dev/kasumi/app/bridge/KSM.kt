@@ -90,12 +90,18 @@ object KSM {
         require(event in KSMGeneratedContract.events) {
             "Unknown Kasumi event: $event"
         }
+        if (!isCommandEnabled("event.subscribe")) {
+            return {}
+        }
         synchronized(listenerLock) {
             eventListeners
                 .getOrPut(event) { mutableSetOf() }
                 .add(handler)
         }
-        return {
+        return removeListener@{
+            if (!isCommandEnabled("event.unsubscribe")) {
+                return@removeListener
+            }
             synchronized(listenerLock) {
                 val listeners = eventListeners[event] ?: return@synchronized
                 listeners.remove(handler)
@@ -103,6 +109,15 @@ object KSM {
                     eventListeners.remove(event)
                 }
             }
+        }
+    }
+
+    internal fun isCommandEnabled(command: String): Boolean {
+        return synchronized(stateLock) {
+            val activeRouter = checkNotNull(router) {
+                "KSM must be initialized before use."
+            }
+            activeRouter.supportedCommands.contains(command)
         }
     }
 
@@ -150,7 +165,8 @@ object KSM {
     private fun defaultCapabilities(): KSMCapabilities {
         return KSMCapabilities(
             platform = KSMPlatform.ANDROID,
-            commands = KSMCommandRegistry.supportedCommands,
+            commands = router?.supportedCommands
+                ?: KSMCommandRegistry.supportedCommands,
             permissions = KSMCommandRegistry.permissions
         )
     }

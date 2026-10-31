@@ -22,6 +22,7 @@
 #include "../src/platform/ksm_url_policy.h"
 #include "../src/platform/ksm_webview_security.h"
 #include "../src/platform/ksm_webview_host.h"
+#include "../src/platform/ksm_windows_host_services.h"
 
 namespace {
 
@@ -668,6 +669,72 @@ void TestNewCommands(
     );
 }
 
+void TestCommandAllowlist(
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    const std::vector<std::string> allowed{
+        "ping",
+        "capabilities.query"
+    };
+    KSMRouter router(file_system, nullptr, allowed);
+
+    const auto capabilities = Invoke(
+        router,
+        "capabilities.query",
+        Json::object()
+    );
+    ExpectOk(capabilities);
+    const auto& commands = capabilities.at("data").at("commands");
+    if (
+        commands.size() != allowed.size() ||
+        std::find(commands.begin(), commands.end(), "ping") == commands.end() ||
+        std::find(
+            commands.begin(),
+            commands.end(),
+            "capabilities.query"
+        ) == commands.end()
+    ) {
+        throw std::runtime_error(
+            "capabilities.query ignored the configured command allowlist."
+        );
+    }
+    ExpectError(
+        Invoke(
+            router,
+            "fs.writeText",
+            Json{{"path", "app://data/blocked.txt"}, {"content", "blocked"}}
+        ),
+        "NOT_SUPPORTED"
+    );
+
+    KSM::Init(file_system, nullptr, allowed);
+    if (KSM::Get().commands != allowed) {
+        throw std::runtime_error(
+            "KSM::Get ignored the configured command allowlist."
+        );
+    }
+    if (KSM::Fs::WriteText("app://data/blocked.txt", "blocked")) {
+        throw std::runtime_error(
+            "KSM::Fs bypassed the configured command allowlist."
+        );
+    }
+    KSM::Shutdown();
+}
+
+void TestWindowsHostVersion() {
+    KSMWindowsHostServices services(
+        nullptr,
+        {},
+        nullptr,
+        "2.3.4-beta.1"
+    );
+    if (services.AppVersion() != "2.3.4-beta.1") {
+        throw std::runtime_error(
+            "KSMWindowsHostServices did not retain the configured version."
+        );
+    }
+}
+
 }
 
 int main() {
@@ -967,9 +1034,11 @@ int main() {
         TestHostTimeoutAndCancel(file_system);
         TestHostShutdownDropsResponses(file_system);
         TestKsmRoot(file_system);
+        TestWindowsHostVersion();
         TestWebViewSecurity();
         TestUrlPolicy();
         TestNewCommands(file_system);
+        TestCommandAllowlist(file_system);
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         std::error_code ignored;

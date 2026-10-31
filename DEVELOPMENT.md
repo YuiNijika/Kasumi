@@ -6,6 +6,7 @@
 
 | 模块 | 入口 | 负责内容 |
 | --- | --- | --- |
+| 应用配置 | `kasumi.config.json` | Windows 与 Android 各自的包名、版本和命令 allowlist |
 | 协议 | `protocol/commands.json` | 命令、事件、参数、返回结构、权限和平台能力 |
 | 代码生成 | `tools/codegen.py` | 生成 TypeScript、C++、Kotlin 契约常量与参数校验器 |
 | 前端 | `frontend/src/index.ts` | `KSM` 根入口、事件总线和 API 封装 |
@@ -19,6 +20,7 @@
 | Android 测试宿主 | `android/app/` | 框架维护者的 JVM 与 instrumentation 测试宿主 |
 | 契约测试 | `tests/contract/run.ts` | 前端与双平台模拟宿主的共享行为测试 |
 | CLI | `cli/ksm.py` | 协议校验、代码生成、双端构建、测试和打包入口 |
+| 包管理入口 | `package.json` | 唯一前端依赖、TypeScript、契约测试和 `pnpm ksm` 命令入口 |
 
 协议字符串不加 `KSM` 前缀；宿主侧类型和入口统一使用 `KSM` 前缀。
 
@@ -53,6 +55,56 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
 - `windows/examples/win32-host/` 通过 `find_package(Kasumi CONFIG REQUIRED)` 消费 SDK。
 - `examples/android-host/` 通过 `dev.kasumi:kasumi:0.1.0` 消费本地 Maven 中的 AAR。
 - Windows SDK 包不包含 `.cpp`，Android Maven 发布不生成 sources JAR。
+
+## 应用配置
+
+根目录 `kasumi.config.json` 是 Windows 和 Android 共用的应用配置入口。当前只保留平台
+包名、版本和启用命令，不引入 Tauri 的窗口、图标、权限或打包扩展字段。
+
+```json
+{
+  "$schema": "./protocol/kasumi.config.schema.json",
+  "windows": {
+    "packageName": "kasumi-win32-example",
+    "version": "0.1.0",
+    "commands": [
+      "ping",
+      "capabilities.query",
+      "app.getInfo",
+      "fs.readText"
+    ]
+  },
+  "android": {
+    "packageName": "dev.kasumi.example",
+    "version": "0.1.0",
+    "commands": [
+      "ping",
+      "capabilities.query",
+      "app.getInfo",
+      "device.getInfo",
+      "fs.readText"
+    ]
+  }
+}
+```
+
+| 平台 | 字段 | 作用 |
+| --- | --- | --- |
+| Windows | `packageName` | EXE 版本资源中的内部名称和打包目录名 |
+| Windows | `version` | EXE 文件版本、产品版本、打包文件名和 `app.getInfo.version` |
+| Windows | `commands` | 注入 `KSM::Init` 的命令 allowlist，并过滤 `capabilities.query` |
+| Android | `packageName` | Gradle `applicationId` 与 `adb` 启动、停止、卸载目标 |
+| Android | `version` | Gradle `versionName` 与 `app.getInfo.version` |
+| Android | `commands` | 注入 `KSMRouter` 的命令 allowlist，并过滤 `capabilities.query` |
+
+CLI 默认读取仓库根目录的 `kasumi.config.json`。其他路径通过 `--config <path>` 指定。
+`build`、`test`、`package` 和 `dev` 都会先校验配置。缺失字段、未知字段、重复命令、
+空命令数组、未知命令、跨平台命令、非法 Android 包名或非 SemVer 版本会直接失败。
+`ping` 与 `capabilities.query` 是必需命令。
+
+已知但未列入 allowlist 的命令返回 `NOT_SUPPORTED`，不会继续进入参数校验或宿主服务。
+Windows 的 `KSM` 原生便捷方法、Android 的 `KSM.fs` 等原生子模块和前端桥接都遵守同一份
+allowlist。JSON Schema 位于 `protocol/kasumi.config.schema.json`。
 
 ## 协议与生成
 
@@ -157,12 +209,13 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm build` | 默认 Windows 构建通过 |
 | `pnpm ksm build --android` | Android SDK 与示例构建通过 |
 | `pnpm ksm build --all` | Windows 与 Android SDK 构建通过 |
+| `pnpm ksm build --all --target example` | 双端示例按 `kasumi.config.json` 注入包名、版本和命令 |
 | `pnpm ksm build --windows --target example` | 默认输出仅 EXE，无 `WebView2Loader.dll` 或 `.WebView2` |
 | `pnpm ksm build --windows --target example --with-webview2-loader` | 可选输出包含 `WebView2Loader.dll` |
 | `pnpm ksm package --windows --target example` | 默认 ZIP 仅包含 EXE |
 | `pnpm ksm dev` | Windows 宿主加载 `http://localhost:5173/index.html` |
 | `pnpm ksm dev --android` | 模拟器通过 `adb reverse` 加载开发页面 |
-| `pnpm ksm test --android --target sdk` | 契约测试与 Android JVM 测试通过 |
+| `pnpm ksm test --all --target sdk` | 双端契约、配置校验、allowlist、JVM 测试和示例 smoke test 通过 |
 | `kasumi_win32_example_smoke` | Windows 示例启动、ping 与退出通过 |
 | `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
 
@@ -172,7 +225,7 @@ Windows 已完成 SDK、内嵌 Web 示例构建和真实桌面 smoke test，`kas
 静态库、CMake 配置和 README；默认示例 ZIP 只包含 EXE，显式启用 Loader 打包时才额外包含
 `WebView2Loader.dll`，外置模式 ZIP 额外包含 `web/`。
 
-Android 已完成 6 个 JVM 测试、AAR 发布、维护者 APK、instrumentation 测试 APK 和独立
+Android 已完成 7 个 JVM 测试、AAR 发布、维护者 APK、instrumentation 测试 APK 和独立
 示例 APK 构建。AAR 和本地 Maven 发布物不包含 Kotlin 源码或 sources JAR，示例 APK 的
 Web 资源位于 `assets/`。本机 JDK 的 `TEMP` 包含短文件名时，Gradle 的 AF_UNIX 连接会
 报告 `Unable to establish loopback connection`，需要显式指定 socket 目录。
@@ -187,7 +240,9 @@ API 34 模拟器已完成 3 项 connected tests，并验证示例页面实际加
 
 ## pnpm 命令入口
 
-根目录通过 `package.json` 暴露统一的 `pnpm ksm` 入口，底层仍调用 `cli/ksm.py`：
+根目录 `package.json` 是唯一的 JavaScript/TypeScript 依赖和命令入口。`frontend/`
+只保留 Web 源码与 `tsconfig.json`，不再维护独立的 `package.json`、锁文件或
+`node_modules`。底层命令仍调用 `cli/ksm.py`：
 
 ```bash
 pnpm ksm build
@@ -195,14 +250,24 @@ pnpm ksm build --windows
 pnpm ksm build --android
 pnpm ksm build --all
 pnpm ksm build --windows --with-webview2-loader
+pnpm ksm build --all --target example --config kasumi.config.json
 pnpm ksm dev
 pnpm ksm dev --android
+pnpm dev
+pnpm dev:windows
+pnpm dev:android
+pnpm build
+pnpm build:windows
+pnpm build:android
+pnpm build:all
+pnpm test
+pnpm typecheck
 ```
 
 `build` 默认只构建 Windows；`--all` 同时构建 Windows 和 Android。旧的
 `--platform windows|android|all` 继续可用。`dev` 默认启动 Windows 宿主，Android
 开发模式会启动 `http://localhost:5173` 静态服务器、执行 `adb reverse`、安装示例 APK
-并从该地址加载页面。
+并从该地址加载页面。所有应用构建命令默认读取根目录 `kasumi.config.json`。
 
 Windows 默认使用 vcpkg 的 `x64-windows-static-md` triplet，静态链接 WebView2 Loader，
 因此输出目录不需要 `WebView2Loader.dll`，运行时使用系统已安装的 Evergreen Runtime。
@@ -220,12 +285,11 @@ pnpm ksm build --android --target example
 pnpm ksm build --windows --target example --with-webview2-loader
 pnpm ksm dev
 pnpm ksm dev --android
+pnpm typecheck
+pnpm test:contract
 python -m pip install -e .
 python tools/validate_protocol.py
 python tools/codegen.py
-node frontend/node_modules/typescript/bin/tsc --noEmit -p frontend/tsconfig.json
-node frontend/node_modules/typescript/bin/tsc --noEmit -p tests/tsconfig.json
-node frontend/node_modules/tsx/dist/cli.mjs tests/contract/run.ts
 python cli/ksm.py build --platform windows --target sdk
 python cli/ksm.py build --platform windows --target example
 python cli/ksm.py build --platform android --target sdk

@@ -4,6 +4,35 @@ project(kasumi_win32_host VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(
+    KASUMI_APP_PACKAGE_NAME
+    "kasumi-win32-example"
+    CACHE STRING
+    "Application package name"
+)
+set(
+    KASUMI_APP_VERSION
+    "0.1.0"
+    CACHE STRING
+    "Application semantic version"
+)
+set(
+    KASUMI_APP_COMMANDS
+    ""
+    CACHE STRING
+    "Comma-separated application command allowlist"
+)
+
+if(NOT KASUMI_APP_PACKAGE_NAME MATCHES "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    message(FATAL_ERROR "KASUMI_APP_PACKAGE_NAME has an invalid format.")
+endif()
+if(
+    NOT KASUMI_APP_VERSION MATCHES
+    "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+)
+    message(FATAL_ERROR "KASUMI_APP_VERSION must be a semantic version.")
+endif()
+
 option(
     KASUMI_EXAMPLE_EXTERNAL_WEB
     "Copy the showcase web assets beside the executable instead of embedding them"
@@ -72,6 +101,38 @@ set(
     KASUMI_EXAMPLE_GENERATED_DIR
     "${CMAKE_CURRENT_BINARY_DIR}/generated"
 )
+file(MAKE_DIRECTORY "${KASUMI_EXAMPLE_GENERATED_DIR}")
+string(
+    REGEX MATCH
+    "^([0-9]+)\\.([0-9]+)\\.([0-9]+)"
+    KASUMI_APP_VERSION_NUMERIC
+    "${KASUMI_APP_VERSION}"
+)
+set(KASUMI_APP_VERSION_MAJOR "${CMAKE_MATCH_1}")
+set(KASUMI_APP_VERSION_MINOR "${CMAKE_MATCH_2}")
+set(KASUMI_APP_VERSION_PATCH "${CMAKE_MATCH_3}")
+set(
+    KASUMI_APP_VERSION_RC
+    "${KASUMI_EXAMPLE_GENERATED_DIR}/app_version.rc"
+)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/app_version.rc.in"
+    "${KASUMI_APP_VERSION_RC}"
+    @ONLY
+)
+target_sources(
+    kasumi_win32_example
+    PRIVATE
+        "${KASUMI_APP_VERSION_RC}"
+)
+target_compile_definitions(
+    kasumi_win32_example
+    PRIVATE
+        KASUMI_APP_PACKAGE_NAME="${KASUMI_APP_PACKAGE_NAME}"
+        KASUMI_APP_VERSION="${KASUMI_APP_VERSION}"
+        KASUMI_APP_COMMANDS="${KASUMI_APP_COMMANDS}"
+)
+
 set(
     KASUMI_EXAMPLE_WEB_ROOT
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../examples/showcase"
@@ -116,8 +177,6 @@ else()
         KASUMI_EXAMPLE_RESOURCE_HEADER
         "${KASUMI_EXAMPLE_GENERATED_DIR}/web_resources.h"
     )
-    file(MAKE_DIRECTORY "${KASUMI_EXAMPLE_GENERATED_DIR}")
-
     add_custom_command(
         OUTPUT
             "${KASUMI_EXAMPLE_RESOURCE_RC}"

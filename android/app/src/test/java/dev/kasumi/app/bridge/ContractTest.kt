@@ -639,4 +639,57 @@ class ContractTest {
             root.deleteRecursively()
         }
     }
+
+    @Test
+    fun commandAllowlist() {
+        val root = Files.createTempDirectory("kasumi-allowlist").toFile()
+        val fileSystem = KSMFileSystem(
+            File(root, "data"),
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        val allowed = listOf("ping", "capabilities.query")
+        val router = KSMRouter(
+            fileSystem,
+            TestHostServices(),
+            allowedCommands = allowed
+        )
+        try {
+            assertEquals(allowed, router.supportedCommands)
+
+            val capabilities = invoke(
+                router,
+                "capabilities.query",
+                JSONObject()
+            )
+            assertTrue(capabilities.getBoolean("ok"))
+            assertEquals(
+                allowed,
+                capabilities.getJSONObject("data")
+                    .getJSONArray("commands")
+                    .let { commands ->
+                        List(commands.length()) { index ->
+                            commands.getString(index)
+                        }
+                    }
+            )
+            assertError(
+                invoke(
+                    router,
+                    "fs.writeText",
+                    JSONObject()
+                        .put("path", "app://data/blocked.txt")
+                        .put("content", "blocked")
+                ),
+                "NOT_SUPPORTED"
+            )
+
+            KSM.init(router, fileSystem, TestHostServices())
+            assertEquals(allowed, KSM.get().commands)
+            assertFalse(KSM.fs.writeText("app://data/blocked.txt", "blocked"))
+        } finally {
+            KSM.shutdown()
+            root.deleteRecursively()
+        }
+    }
 }

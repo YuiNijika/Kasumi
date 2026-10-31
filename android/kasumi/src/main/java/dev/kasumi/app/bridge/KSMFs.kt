@@ -2,6 +2,9 @@ package dev.kasumi.app.bridge
 
 object KSMFs {
     fun readText(path: String): String? {
+        if (!KSM.isCommandEnabled("fs.readText")) {
+            return null
+        }
         if (KSMVirtualPath.isReadOnly(path)) {
             return KSM.requireHostServices().readBundledText(path)
         }
@@ -12,6 +15,9 @@ object KSMFs {
     }
 
     fun writeText(path: String, content: String): Boolean {
+        if (!KSM.isCommandEnabled("fs.writeText")) {
+            return false
+        }
         if (KSMVirtualPath.isReadOnly(path)) {
             return false
         }
@@ -22,6 +28,9 @@ object KSMFs {
     }
 
     fun exists(path: String): Boolean {
+        if (!KSM.isCommandEnabled("fs.exists")) {
+            return false
+        }
         if (KSMVirtualPath.isReadOnly(path)) {
             return KSM.requireHostServices().bundledExists(path)
         }
@@ -32,6 +41,9 @@ object KSMFs {
     }
 
     fun remove(path: String): Boolean {
+        if (!KSM.isCommandEnabled("fs.remove")) {
+            return false
+        }
         if (KSMVirtualPath.isReadOnly(path)) {
             return false
         }
@@ -42,6 +54,9 @@ object KSMFs {
     }
 
     fun readDir(path: String): List<KSMDirectoryEntry>? {
+        if (!KSM.isCommandEnabled("fs.readDir")) {
+            return null
+        }
         if (KSMVirtualPath.isReadOnly(path)) {
             return KSM.requireHostServices().readBundledDirectory(path)
         }
@@ -52,6 +67,9 @@ object KSMFs {
     }
 
     fun makeDirectory(path: String, recursive: Boolean): Boolean? {
+        if (!KSM.isCommandEnabled("fs.mkdir")) {
+            return null
+        }
         if (
             KSMVirtualPath.isReadOnly(path) ||
             KSMVirtualPath.isPicked(path)
@@ -62,6 +80,9 @@ object KSMFs {
     }
 
     fun stat(path: String): KSMFileMetadata? {
+        if (!KSM.isCommandEnabled("fs.stat")) {
+            return null
+        }
         if (KSMVirtualPath.isPicked(path)) {
             return KSM.requireHostServices().pickedStat(path)
         }

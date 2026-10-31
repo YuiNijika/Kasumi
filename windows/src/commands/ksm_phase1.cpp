@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "../bridge/ksm_command_registry.h"
 #include "../bridge/ksm_router.h"
 #include "../generated/contract.h"
 #include "../platform/ksm_host_services.h"
@@ -23,6 +24,7 @@ struct RuntimeState {
     std::mutex mutex;
     std::shared_ptr<KSMFileSystem> file_system;
     std::shared_ptr<KSMHostServices> host_services;
+    std::vector<std::string> allowed_commands;
     std::unordered_map<std::string, std::shared_ptr<KSMRouter>> routers;
     std::unordered_map<
         std::uint64_t,
@@ -51,7 +53,8 @@ std::shared_ptr<KSMRouter> RequireRouter(std::string_view window_id) {
     }
     auto router = std::make_shared<KSMRouter>(
         state.file_system,
-        state.host_services
+        state.host_services,
+        state.allowed_commands
     );
     state.routers.emplace(key, router);
     return router;
@@ -83,6 +86,19 @@ std::shared_ptr<KSMHostServices> GetHostServices() {
     return state.host_services;
 }
 
+bool IsCommandEnabled(std::string_view command) {
+    auto& state = State();
+    std::lock_guard lock(state.mutex);
+    if (state.allowed_commands.empty()) {
+        return true;
+    }
+    return std::find(
+        state.allowed_commands.begin(),
+        state.allowed_commands.end(),
+        command
+    ) != state.allowed_commands.end();
+}
+
 std::string InvalidArgsResponse(const Json& id) {
     return Json{
         {"type", "response"},
@@ -101,13 +117,16 @@ KSM::PingResult KSM::Phase1::Ping() {
     return KSM::PingResult{.pong = true};
 }
 
-const KSM::Capabilities& KSM::Get() {
-    static const KSM::Capabilities capabilities{
+KSM::Capabilities KSM::Get() {
+    auto& state = State();
+    std::lock_guard lock(state.mutex);
+    return KSM::Capabilities{
         .platform = KSM::Platform::Windows,
-        .commands = KSMGeneratedContract::WindowsCommands(),
+        .commands = KSMCommandRegistry::SupportedCommands(
+            state.allowed_commands
+        ),
         .permissions = KSMGeneratedContract::Permissions()
     };
-    return capabilities;
 }
 
 KSM::Capabilities KSM::Phase1::QueryCapabilities() {
@@ -116,12 +135,14 @@ KSM::Capabilities KSM::Phase1::QueryCapabilities() {
 
 void KSM::Init(
     std::shared_ptr<KSMFileSystem> file_system,
-    std::shared_ptr<KSMHostServices> host_services
+    std::shared_ptr<KSMHostServices> host_services,
+    std::vector<std::string> allowed_commands
 ) {
     auto& state = State();
     std::lock_guard lock(state.mutex);
     state.file_system = std::move(file_system);
     state.host_services = std::move(host_services);
+    state.allowed_commands = std::move(allowed_commands);
     state.routers.clear();
     state.initialized = true;
     state.listeners.clear();
@@ -134,6 +155,7 @@ void KSM::Shutdown() {
     state.initialized = false;
     state.file_system.reset();
     state.host_services.reset();
+    state.allowed_commands.clear();
     state.listeners.clear();
 }
 
@@ -187,6 +209,9 @@ std::uint64_t KSM::On(
     std::string_view event,
     EventHandler handler
 ) {
+    if (!IsCommandEnabled("event.subscribe")) {
+        return 0;
+    }
     const std::string event_name(event);
     if (!IsKnownEvent(event_name) || !handler) {
         return 0;
@@ -202,6 +227,9 @@ std::uint64_t KSM::On(
 }
 
 bool KSM::Off(std::uint64_t subscription) {
+    if (!IsCommandEnabled("event.unsubscribe")) {
+        return false;
+    }
     auto& state = State();
     std::lock_guard lock(state.mutex);
     return state.listeners.erase(subscription) > 0;
@@ -239,6 +267,9 @@ void KSM::EmitEvent(
 }
 
 std::optional<std::string> KSM::Fs::ReadText(std::string_view path) {
+    if (!IsCommandEnabled("fs.readText")) {
+        return std::nullopt;
+    }
     if (KSMVirtualPath::IsPicked(std::string(path))) {
         const auto host_services = GetHostServices();
         return host_services
@@ -260,6 +291,9 @@ bool KSM::Fs::WriteText(
     std::string_view path,
     std::string_view content
 ) {
+    if (!IsCommandEnabled("fs.writeText")) {
+        return false;
+    }
     if (KSMVirtualPath::IsPicked(std::string(path))) {
         const auto host_services = GetHostServices();
         return host_services &&
@@ -279,6 +313,9 @@ bool KSM::Fs::WriteText(
 }
 
 bool KSM::Fs::Exists(std::string_view path) {
+    if (!IsCommandEnabled("fs.exists")) {
+        return false;
+    }
     if (KSMVirtualPath::IsPicked(std::string(path))) {
         const auto host_services = GetHostServices();
         return host_services &&
@@ -294,6 +331,9 @@ bool KSM::Fs::Exists(std::string_view path) {
 }
 
 bool KSM::Fs::Remove(std::string_view path) {
+    if (!IsCommandEnabled("fs.remove")) {
+        return false;
+    }
     if (KSMVirtualPath::IsPicked(std::string(path))) {
         const auto host_services = GetHostServices();
         return host_services &&
@@ -311,6 +351,9 @@ bool KSM::Fs::Remove(std::string_view path) {
 std::optional<std::vector<KSMDirectoryEntry>> KSM::Fs::ReadDir(
     std::string_view path
 ) {
+    if (!IsCommandEnabled("fs.readDir")) {
+        return std::nullopt;
+    }
     const std::string virtual_path(path);
     if (
         !KSMVirtualPath::IsSafeDirectory(virtual_path) ||
@@ -333,6 +376,9 @@ std::optional<bool> KSM::Fs::MakeDirectory(
     std::string_view path,
     bool recursive
 ) {
+    if (!IsCommandEnabled("fs.mkdir")) {
+        return std::nullopt;
+    }
     const std::string virtual_path(path);
     if (
         !KSMVirtualPath::IsSafeDirectory(virtual_path) ||
@@ -353,6 +399,9 @@ std::optional<bool> KSM::Fs::MakeDirectory(
 }
 
 std::optional<KSMFileMetadata> KSM::Fs::Stat(std::string_view path) {
+    if (!IsCommandEnabled("fs.stat")) {
+        return std::nullopt;
+    }
     const std::string virtual_path(path);
     if (!KSMVirtualPath::IsSafeStat(virtual_path)) {
         return std::nullopt;
@@ -378,6 +427,9 @@ bool KSM::Dialog::Message(
     std::string_view title,
     std::string_view message
 ) {
+    if (!IsCommandEnabled("dialog.message")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services &&
         host_services->ShowMessage(std::string(title), std::string(message));
@@ -387,6 +439,9 @@ bool KSM::Dialog::Confirm(
     std::string_view title,
     std::string_view message
 ) {
+    if (!IsCommandEnabled("dialog.confirm")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services &&
         host_services->Confirm(std::string(title), std::string(message));
@@ -395,6 +450,9 @@ bool KSM::Dialog::Confirm(
 std::optional<std::string> KSM::Dialog::OpenFile(
     const std::vector<std::string>& filters
 ) {
+    if (!IsCommandEnabled("dialog.openFile")) {
+        return std::nullopt;
+    }
     const auto host_services = GetHostServices();
     return host_services
         ? host_services->OpenFile(filters)
@@ -404,6 +462,9 @@ std::optional<std::string> KSM::Dialog::OpenFile(
 std::optional<std::string> KSM::Dialog::SaveFile(
     std::string_view suggested_name
 ) {
+    if (!IsCommandEnabled("dialog.saveFile")) {
+        return std::nullopt;
+    }
     const auto host_services = GetHostServices();
     return host_services
         ? host_services->SaveFile(std::string(suggested_name))
@@ -411,6 +472,9 @@ std::optional<std::string> KSM::Dialog::SaveFile(
 }
 
 std::optional<std::string> KSM::Clipboard::ReadText() {
+    if (!IsCommandEnabled("clipboard.readText")) {
+        return std::nullopt;
+    }
     const auto host_services = GetHostServices();
     return host_services
         ? host_services->ReadClipboardText()
@@ -418,6 +482,9 @@ std::optional<std::string> KSM::Clipboard::ReadText() {
 }
 
 bool KSM::Clipboard::WriteText(std::string_view text) {
+    if (!IsCommandEnabled("clipboard.writeText")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services &&
         host_services->WriteClipboardText(std::string(text));
@@ -427,6 +494,9 @@ bool KSM::Notification::Show(
     std::string_view title,
     std::string_view body
 ) {
+    if (!IsCommandEnabled("notification.show")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services &&
         host_services->ShowNotification(
@@ -436,6 +506,9 @@ bool KSM::Notification::Show(
 }
 
 std::optional<bool> KSM::Permission::Request(std::string_view permission) {
+    if (!IsCommandEnabled("permission.request")) {
+        return std::nullopt;
+    }
     if (!IsInitialized()) {
         return std::nullopt;
     }
@@ -448,27 +521,42 @@ std::optional<bool> KSM::Permission::Request(std::string_view permission) {
 }
 
 bool KSM::Window::SetTitle(std::string_view title) {
+    if (!IsCommandEnabled("window.setTitle")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services &&
         host_services->SetWindowTitle(std::string(title));
 }
 
 bool KSM::Window::Minimize() {
+    if (!IsCommandEnabled("window.minimize")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services && host_services->MinimizeWindow();
 }
 
 bool KSM::Window::Maximize() {
+    if (!IsCommandEnabled("window.maximize")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services && host_services->MaximizeWindow();
 }
 
 bool KSM::Window::SetSize(const KSMWindowSize& size) {
+    if (!IsCommandEnabled("window.setSize")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services && host_services->SetWindowSize(size);
 }
 
 bool KSM::Window::Close() {
+    if (!IsCommandEnabled("window.close")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services && host_services->CloseWindow();
 }
@@ -478,6 +566,9 @@ std::optional<KSMHttpDownloadResult> KSM::Http::Download(
     std::string_view path,
     bool overwrite
 ) {
+    if (!IsCommandEnabled("http.download")) {
+        return std::nullopt;
+    }
     const auto host_services = GetHostServices();
     return host_services
         ? host_services->Download(
@@ -490,6 +581,9 @@ std::optional<KSMHttpDownloadResult> KSM::Http::Download(
 }
 
 bool KSM::Shell::OpenExternal(std::string_view url) {
+    if (!IsCommandEnabled("shell.openExternal")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services &&
         host_services->IsExternalUrlAllowed(std::string(url)) &&
@@ -497,6 +591,9 @@ bool KSM::Shell::OpenExternal(std::string_view url) {
 }
 
 std::optional<KSMDeviceInfo> KSM::Device::GetInfo() {
+    if (!IsCommandEnabled("device.getInfo")) {
+        return std::nullopt;
+    }
     const auto host_services = GetHostServices();
     return host_services
         ? host_services->GetDeviceInfo()
@@ -504,6 +601,9 @@ std::optional<KSMDeviceInfo> KSM::Device::GetInfo() {
 }
 
 std::optional<KSM::AppInfo> KSM::App::GetInfo() {
+    if (!IsCommandEnabled("app.getInfo")) {
+        return std::nullopt;
+    }
     const auto host_services = GetHostServices();
     if (!host_services) {
         return std::nullopt;
@@ -517,6 +617,9 @@ std::optional<KSM::AppInfo> KSM::App::GetInfo() {
 }
 
 bool KSM::App::Exit() {
+    if (!IsCommandEnabled("app.exit")) {
+        return false;
+    }
     const auto host_services = GetHostServices();
     return host_services && host_services->ExitApp();
 }

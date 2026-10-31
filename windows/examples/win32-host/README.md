@@ -10,6 +10,7 @@
 | --- | --- |
 | `CMakeLists.txt` | `find_package(Kasumi CONFIG REQUIRED)`、链接静态库、默认编译内嵌 Web 资源 |
 | `main.cpp` | Win32 窗口、数据目录、内嵌资源提供器和 WebView2 生命周期 |
+| `cmake/app_version.rc.in` | 由应用包名和版本生成的 EXE 版本资源 |
 | `../../../examples/showcase/` | Windows 与 Android 共用的完整能力页面 |
 
 构建前必须先安装 SDK。消费者只使用公共头文件 `<kasumi/...>` 和导入目标
@@ -35,6 +36,12 @@ cmake --build windows/examples/win32-host/build --config Release
 
 示例要求 Evergreen WebView2 Runtime。缺失时显示安装提示并退出，不内置 Fixed Version
 Runtime。默认不生成或复制 `WebView2Loader.dll`。
+
+示例默认使用仓库根目录 `kasumi.config.json` 中的 `windows.packageName`、
+`windows.version` 和 `windows.commands`。`pnpm ksm build --windows --target example`
+会自动读取并传入 CMake；直接配置工程时可使用 `-DKASUMI_APP_PACKAGE_NAME`、
+`-DKASUMI_APP_VERSION` 和逗号分隔的 `-DKASUMI_APP_COMMANDS`。未启用的命令返回
+`NOT_SUPPORTED`。
 
 ## 可选配置
 

@@ -191,17 +191,19 @@ bool IsFullscreenWindow(HWND window) {
 KSMWindowsHostServices::KSMWindowsHostServices(
     HWND window,
     std::vector<std::string> allowed_external_origins,
-    std::shared_ptr<KSMFileSystem> file_system
+    std::shared_ptr<KSMFileSystem> file_system,
+    std::string app_version
 )
     : window_(window),
       file_system_(std::move(file_system)),
+      app_version_(std::move(app_version)),
       allowed_external_origins_(
           KSMUrlPolicy::NormalizeOrigins(allowed_external_origins)
       ) {
 }
 
 std::string KSMWindowsHostServices::AppVersion() const {
-    return "0.1.0";
+    return app_version_;
 }
 
 std::string KSMWindowsHostServices::Language() const {

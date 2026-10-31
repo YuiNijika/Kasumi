@@ -106,6 +106,25 @@ bool HasCommandLineFlag(const wchar_t *flag) {
   return found;
 }
 
+std::vector<std::string> ConfiguredCommands() {
+  const std::string configured = KASUMI_APP_COMMANDS;
+  std::vector<std::string> commands;
+  std::size_t start = 0;
+  while (start < configured.size()) {
+    const std::size_t separator = configured.find(',', start);
+    const std::size_t end =
+        separator == std::string::npos ? configured.size() : separator;
+    if (end > start) {
+      commands.push_back(configured.substr(start, end - start));
+    }
+    if (separator == std::string::npos) {
+      break;
+    }
+    start = separator + 1;
+  }
+  return commands;
+}
+
 void ShowRuntimePrompt(HWND owner) {
   MessageBoxW(owner,
               L"Kasumi Host Lab needs the Microsoft Edge WebView2 Evergreen "
@@ -260,7 +279,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
 
   auto host = std::make_unique<KSMWebView2Host>(
       window, file_system, std::vector<std::string>{"https://example.com"},
-      web_root, webview_data, smoke_test, web_resources, start_url, dev_mode);
+      web_root, webview_data, smoke_test, web_resources, start_url, dev_mode,
+      KASUMI_APP_VERSION, ConfiguredCommands());
 
   if (!host->Initialize(
           [window, smoke_test](bool success, const std::string &error) {

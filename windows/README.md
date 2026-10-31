@@ -24,6 +24,43 @@
 Windows 当前实现 **28/28 个适用命令**。`device.getInfo` 是 Android 专属命令，
 Windows 返回 `NOT_SUPPORTED`。
 
+## 应用配置
+
+Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageName`、
+`windows.version` 和 `windows.commands`：
+
+```json
+{
+  "windows": {
+    "packageName": "kasumi-win32-example",
+    "version": "0.1.0",
+    "commands": [
+      "ping",
+      "capabilities.query",
+      "app.getInfo",
+      "fs.readText"
+    ]
+  }
+}
+```
+
+`packageName` 写入 EXE 版本资源并作为示例 ZIP 的目录前缀；`version` 同时用于
+`FileVersion`、`ProductVersion`、ZIP 文件名和 `app.getInfo.version`。`commands`
+注入 `KSM::Init`，同时约束前端桥接、`KSM` 原生子模块和 `capabilities.query`。
+`ping` 与 `capabilities.query` 必须保留；未列入的命令返回 `NOT_SUPPORTED`。
+`pnpm ksm` 构建与打包默认读取该文件，也可用 `--config <path>` 指定其他配置。
+
+直接使用 CMake 时可传入对应缓存变量：
+
+```powershell
+cmake -S windows/examples/win32-host `
+  -B windows/examples/win32-host/build `
+  -DKASUMI_APP_PACKAGE_NAME=kasumi-win32-example `
+  -DKASUMI_APP_VERSION=0.1.0 `
+  -DKASUMI_APP_COMMANDS="ping,capabilities.query,app.getInfo,fs.readText" `
+  -DCMAKE_PREFIX_PATH="$PWD/windows/build/sdk/install"
+```
+
 ## 宿主入口
 
 ```cpp
@@ -134,7 +171,7 @@ cmake -S windows/examples/win32-host `
 ## WebView2 适配
 
 `KSMWebView2Host` 构造时接收窗口、文件系统、外部 origin 白名单、可选 Web 根目录、
-可选用户数据目录和可选资源提供器。初始化时：
+可选用户数据目录、可选资源提供器和应用版本。初始化时：
 
 1. 检测 Evergreen WebView2 Runtime。
 2. 创建 WebView2 环境、Controller 和 CoreWebView2。
@@ -194,7 +231,7 @@ pnpm ksm package --windows --target example --with-webview2-loader
 ```
 
 - SDK 产物：`windows/build/sdk/packages/kasumi-windows-sdk-0.1.0.zip`。
-- 示例产物：`windows/examples/win32-host/build/packages/kasumi-win32-example-0.1.0.zip`。
+- 示例产物：`windows/examples/win32-host/build/packages/<packageName>-<version>.zip`。
 - SDK ZIP 只包含静态库、公共头文件、CMake 包配置和 README。
 - 默认示例 ZIP 只包含 EXE 和内嵌 Web 资源，不包含 `WebView2Loader.dll`、`.WebView2`、`web/` 或框架源码。
 - `--with-webview2-loader` 模式额外包含 `WebView2Loader.dll`；外置模式额外包含 `web/`。

@@ -12,6 +12,7 @@
 | `commands.schema.json`    | 命令、事件和参数结构的 JSON Schema 校验规则 |
 | `errors.json`             | 双端共用的错误码全集                        |
 | `permissions.schema.json` | 权限声明                                    |
+| `kasumi.config.schema.json` | 应用配置、包名、版本和命令 allowlist       |
 
 Windows、Android 和前端实现都必须以这些文件为准。协议字符串不加 `KSM` 前缀。
 
@@ -50,6 +51,11 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 
 `capabilities.query` 返回宿主实际实现的命令列表和当前可用权限。Android 对不支持的窗口命令
 返回 `NOT_SUPPORTED`；Windows 对 `device.getInfo` 返回 `NOT_SUPPORTED`。
+
+应用可在根目录 `kasumi.config.json` 中按平台选择启用命令。配置校验以本目录的
+`commands.json` 平台矩阵为准：`ping` 与 `capabilities.query` 必填，未知命令、重复命令
+和跨平台命令直接拒绝。运行时的 `capabilities.query` 只返回配置后的命令，已知但未启用的
+命令返回 `NOT_SUPPORTED`。
 
 ## 参数与生成
 

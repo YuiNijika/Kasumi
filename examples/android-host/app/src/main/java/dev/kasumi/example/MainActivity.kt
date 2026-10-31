@@ -56,11 +56,13 @@ class MainActivity : Activity() {
         hostServices = KSMAndroidHostServices(
             activity = this,
             allowedExternalOrigins = setOf("https://example.com"),
-            fileSystem = fileSystem
+            fileSystem = fileSystem,
+            appVersion = BuildConfig.VERSION_NAME
         )
         router = KSMRouter(
             fileSystem,
-            hostServices
+            hostServices,
+            allowedCommands = BuildConfig.KSM_COMMANDS.toList()
         ) { event ->
             dispatchNativeEvent(event)
             runOnUiThread {

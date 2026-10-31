@@ -39,11 +39,16 @@ KSMWebViewHost::KSMWebViewHost(
     SendMessage send_message,
     std::shared_ptr<KSMFileSystem> file_system,
     std::shared_ptr<KSMHostServices> host_services,
-    Dispatch dispatch
+    Dispatch dispatch,
+    std::vector<std::string> allowed_commands
 )
     : send_message_(std::move(send_message)),
       dispatch_(std::move(dispatch)),
-      router_(std::move(file_system), std::move(host_services)) {
+      router_(
+          std::move(file_system),
+          std::move(host_services),
+          std::move(allowed_commands)
+      ) {
     for (std::size_t index = 0; index < kMaxConcurrentCommands; ++index) {
         workers_.emplace_back([this] { WorkerLoop(); });
     }

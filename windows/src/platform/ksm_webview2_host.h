@@ -23,7 +23,9 @@ public:
                   bool smoke_test = false,
                   std::shared_ptr<KSMWebResourceProvider> web_resources = {},
                   std::wstring start_url = L"https://app.local/index.html",
-                  bool dev_mode = false);
+                  bool dev_mode = false,
+                  std::string app_version = "0.1.0",
+                  std::vector<std::string> allowed_commands = {});
   ~KSMWebView2Host();
 
   KSMWebView2Host(const KSMWebView2Host &) = delete;

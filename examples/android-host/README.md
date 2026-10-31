@@ -35,6 +35,11 @@ cd examples/android-host
 `http://localhost:5173` 静态服务器，通过 `adb reverse` 把端口转发到设备，并安装、启动
 示例应用。
 
+应用 ID、版本和启用命令来自仓库根目录 `kasumi.config.json` 的 `android` 配置。
+CLI 会通过 `-PksmPackageName`、`-PksmVersion` 和 `-PksmCommands` 注入 Gradle；
+直接运行 Wrapper 时使用 Gradle 中的默认值。`commands` 生成
+`BuildConfig.KSM_COMMANDS` 并交给 `KSMRouter`，未启用的命令返回 `NOT_SUPPORTED`。
+
 ## 运行边界
 
 - WebView 只加载 `https://app.local/index.html`，资源由

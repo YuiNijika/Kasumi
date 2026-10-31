@@ -22,6 +22,39 @@
 Android 当前实现 **25/25 个适用命令**。Windows 专属的窗口标题、最小化、最大化、
 尺寸调整不提供；`device.getInfo` 仅 Android 提供。
 
+## 应用配置
+
+Android 示例从仓库根目录 `kasumi.config.json` 读取 `android.packageName`、
+`android.version` 和 `android.commands`：
+
+```json
+{
+  "android": {
+    "packageName": "dev.kasumi.example",
+    "version": "0.1.0",
+    "commands": [
+      "ping",
+      "capabilities.query",
+      "app.getInfo",
+      "device.getInfo",
+      "fs.readText"
+    ]
+  }
+}
+```
+
+`packageName` 注入 Gradle `applicationId`，同时用于 `pnpm ksm dev --android` 的
+启动、停止和卸载目标；`version` 注入 `versionName`，示例再把
+`BuildConfig.VERSION_NAME` 传给 `KSMAndroidHostServices`，因此 `app.getInfo.version`
+与配置一致。`commands` 生成 `BuildConfig.KSM_COMMANDS` 并传入 `KSMRouter`，
+`ping` 与 `capabilities.query` 必须保留；未列入的命令返回 `NOT_SUPPORTED`，Android
+原生 `KSM` 子模块同样不能绕过配置。Gradle `namespace` 仍固定为源码包
+`dev.kasumi.example`，避免仅修改应用 ID 时破坏 Kotlin 源码目录。
+
+CLI 默认读取 `kasumi.config.json`，也可用 `--config <path>` 指定其他文件。直接运行
+Gradle 时可用 `-PksmPackageName`、`-PksmVersion` 和逗号分隔的 `-PksmCommands`
+覆盖默认值。
+
 ## SDK 构建
 
 ```bash
@@ -229,7 +262,7 @@ python cli/ksm.py package --platform android --target example
 ```
 
 - SDK 产物：`android/build/packages/kasumi-android-sdk-0.1.0.aar`。
-- 示例产物：`examples/android-host/build/packages/kasumi-android-example-0.1.0.apk`。
+- 示例产物：`examples/android-host/build/packages/kasumi-android-example-<version>.apk`。
 
 框架维护者测试宿主的 release 构建从以下环境变量读取签名材料：
 

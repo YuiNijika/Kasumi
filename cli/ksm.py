@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -11,10 +12,17 @@ import urllib.request
 from functools import lru_cache
 from pathlib import Path
 
+try:
+    from cli.kasumi_config import ConfigError, KasumiConfig, load_config
+except ModuleNotFoundError:
+    from kasumi_config import ConfigError, KasumiConfig, load_config
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PLATFORMS = ("windows", "android")
 TARGETS = ("sdk", "example", "all")
+CONFIG_FILE = ROOT / "kasumi.config.json"
+PROTOCOL_COMMANDS_FILE = ROOT / "protocol" / "commands.json"
 DEV_HOST = "127.0.0.1"
 DEV_PORT = 5173
 DEV_URL = f"http://localhost:{DEV_PORT}/index.html"
@@ -50,12 +58,65 @@ def validate_protocol() -> None:
     run([sys.executable, str(ROOT / "tools" / "validate_protocol.py")])
 
 
+def resolve_config_path(value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else ROOT / path
+
+
+@lru_cache(maxsize=1)
+def protocol_command_platforms() -> dict[str, frozenset[str]]:
+    payload = json.loads(PROTOCOL_COMMANDS_FILE.read_text(encoding="utf-8"))
+    commands = payload.get("commands")
+    if not isinstance(commands, dict):
+        raise RuntimeError("protocol/commands.json has no commands object.")
+    result: dict[str, frozenset[str]] = {}
+    for name, command in commands.items():
+        platforms = command.get("platforms") if isinstance(command, dict) else None
+        if not isinstance(name, str) or not isinstance(platforms, list):
+            raise RuntimeError("protocol/commands.json contains an invalid command.")
+        result[name] = frozenset(
+            platform for platform in platforms if isinstance(platform, str)
+        )
+    return result
+
+
+def validate_app_config(config: KasumiConfig) -> None:
+    command_platforms = protocol_command_platforms()
+    required = {"ping", "capabilities.query"}
+    for platform in PLATFORMS:
+        platform_config = getattr(config, platform)
+        commands = set(platform_config.commands)
+        missing_core = sorted(required - commands)
+        if missing_core:
+            names = ", ".join(missing_core)
+            raise ConfigError(
+                f"{platform}.commands must include core commands: {names}."
+            )
+        for command in platform_config.commands:
+            platforms = command_platforms.get(command)
+            if platforms is None:
+                raise ConfigError(
+                    f"{platform}.commands contains an unknown command: {command}."
+                )
+            if platform not in platforms:
+                raise ConfigError(
+                    f"{platform}.commands contains a command that is not "
+                    f"available on {platform}: {command}."
+                )
+
+
+def read_app_config(path: Path) -> KasumiConfig:
+    config = load_config(path)
+    validate_app_config(config)
+    return config
+
+
 def frontend_checks(include_contract: bool = False) -> None:
     validate_protocol()
     codegen()
-    run(["pnpm", "--dir", "frontend", "run", "typecheck"])
+    run(["pnpm", "run", "typecheck"])
     if include_contract:
-        run(["pnpm", "--dir", "frontend", "run", "test:contract"])
+        run(["pnpm", "run", "test:contract"])
 
 
 def resolve_platforms(platform: str) -> tuple[str, ...]:
@@ -337,6 +398,7 @@ def build_windows_sdk(bundle_webview2_loader: bool = False) -> None:
 
 
 def build_windows_example(
+    config: KasumiConfig,
     external_web: bool = False,
     bundle_webview2_loader: bool = False,
 ) -> None:
@@ -353,6 +415,9 @@ def build_windows_example(
         f"-DCMAKE_PREFIX_PATH={install_directory}",
         f"-DKASUMI_EXAMPLE_EXTERNAL_WEB={'ON' if external_web else 'OFF'}",
         f"-DKASUMI_BUNDLE_WEBVIEW2_LOADER={'ON' if bundle_webview2_loader else 'OFF'}",
+        f"-DKASUMI_APP_PACKAGE_NAME={config.windows.package_name}",
+        f"-DKASUMI_APP_VERSION={config.windows.version}",
+        f"-DKASUMI_APP_COMMANDS={','.join(config.windows.commands)}",
         *cmake_toolchain_arguments(
             bundle_webview2_loader,
             False,
@@ -384,13 +449,22 @@ def build_android_sdk() -> None:
     )
 
 
-def build_android_example() -> None:
+def android_app_gradle_arguments(config: KasumiConfig) -> list[str]:
+    return [
+        f"-PksmPackageName={config.android.package_name}",
+        f"-PksmVersion={config.android.version}",
+        f"-PksmCommands={','.join(config.android.commands)}",
+    ]
+
+
+def build_android_example(config: KasumiConfig) -> None:
     build_android_sdk()
     project = ROOT / "examples" / "android-host"
     executable, cwd = android_gradle(project)
     run(
         [
             executable,
+            *android_app_gradle_arguments(config),
             "assembleDebug",
         ],
         cwd=cwd,
@@ -401,6 +475,7 @@ def build_android_example() -> None:
 def build(
     platforms: tuple[str, ...],
     targets: tuple[str, ...],
+    config: KasumiConfig,
     external_web: bool = False,
     bundle_webview2_loader: bool = False,
 ) -> None:
@@ -409,16 +484,23 @@ def build(
         if "sdk" in targets:
             build_windows_sdk(bundle_webview2_loader)
         if "example" in targets:
-            build_windows_example(external_web, bundle_webview2_loader)
+            build_windows_example(
+                config,
+                external_web,
+                bundle_webview2_loader,
+            )
     if "android" in platforms:
         if "sdk" in targets:
             build_android_sdk()
         if "example" in targets:
-            build_android_example()
+            build_android_example(config)
 
 
-def test_windows_example(bundle_webview2_loader: bool = False) -> None:
-    build_windows_example(False, bundle_webview2_loader)
+def test_windows_example(
+    config: KasumiConfig,
+    bundle_webview2_loader: bool = False,
+) -> None:
+    build_windows_example(config, False, bundle_webview2_loader)
     run(
         [
             cmake_tool("ctest"),
@@ -431,7 +513,10 @@ def test_windows_example(bundle_webview2_loader: bool = False) -> None:
     )
 
 
-def test_windows(bundle_webview2_loader: bool = False) -> None:
+def test_windows(
+    config: KasumiConfig,
+    bundle_webview2_loader: bool = False,
+) -> None:
     build_windows_sdk(bundle_webview2_loader)
     run(
         [
@@ -443,10 +528,10 @@ def test_windows(bundle_webview2_loader: bool = False) -> None:
             "--output-on-failure",
         ]
     )
-    test_windows_example(bundle_webview2_loader)
+    test_windows_example(config, bundle_webview2_loader)
 
 
-def test_android() -> None:
+def test_android(config: KasumiConfig) -> None:
     build_android_sdk()
     executable, cwd = android_gradle(ROOT / "android")
     run(
@@ -459,25 +544,34 @@ def test_android() -> None:
         cwd=cwd,
         env=android_gradle_environment(),
     )
-    build_android_example()
+    build_android_example(config)
 
 
 def test(
     platforms: tuple[str, ...],
     targets: tuple[str, ...],
+    config: KasumiConfig,
     bundle_webview2_loader: bool = False,
 ) -> None:
     frontend_checks(include_contract=True)
+    run(
+        [
+            sys.executable,
+            "-m",
+            "unittest",
+            "tests.test_kasumi_config",
+        ]
+    )
     if "windows" in platforms:
         if "sdk" in targets:
-            test_windows(bundle_webview2_loader)
+            test_windows(config, bundle_webview2_loader)
         elif "example" in targets:
-            test_windows_example(bundle_webview2_loader)
+            test_windows_example(config, bundle_webview2_loader)
     if "android" in platforms:
         if "sdk" in targets:
-            test_android()
+            test_android(config)
         elif "example" in targets:
-            build_android_example()
+            build_android_example(config)
 
 
 def package_windows_sdk(bundle_webview2_loader: bool = False) -> None:
@@ -505,16 +599,20 @@ def windows_example_output_directory(
 
 
 def package_windows_example(
+    config: KasumiConfig,
     external_web: bool = False,
     bundle_webview2_loader: bool = False,
 ) -> None:
-    build_windows_example(external_web, bundle_webview2_loader)
+    build_windows_example(config, external_web, bundle_webview2_loader)
     output = windows_example_output_directory(bundle_webview2_loader)
     package_dir = (
         windows_example_build_directory(bundle_webview2_loader) / "packages"
     )
     package_dir.mkdir(parents=True, exist_ok=True)
-    staging = package_dir / "kasumi-win32-example-0.1.0"
+    package_name = (
+        f"{config.windows.package_name}-{config.windows.version}"
+    )
+    staging = package_dir / package_name
     if staging.exists():
         shutil.rmtree(staging)
     staging.mkdir()
@@ -536,11 +634,11 @@ def package_windows_example(
             raise FileNotFoundError(f"External web assets not found: {web}")
         shutil.copytree(web, staging / "web")
 
-    archive = package_dir / "kasumi-win32-example-0.1.0.zip"
+    archive = package_dir / f"{package_name}.zip"
     if archive.exists():
         archive.unlink()
     shutil.make_archive(
-        str(package_dir / "kasumi-win32-example-0.1.0"),
+        str(package_dir / package_name),
         "zip",
         root_dir=staging,
     )
@@ -564,8 +662,8 @@ def package_android_sdk() -> None:
     )
 
 
-def package_android_example() -> None:
-    build_android_example()
+def package_android_example(config: KasumiConfig) -> None:
+    build_android_example(config)
     ANDROID_EXAMPLE_PACKAGE_DIR.mkdir(parents=True, exist_ok=True)
     source = (
         ROOT
@@ -580,13 +678,15 @@ def package_android_example() -> None:
     )
     shutil.copy2(
         source,
-        ANDROID_EXAMPLE_PACKAGE_DIR / "kasumi-android-example-0.1.0.apk",
+        ANDROID_EXAMPLE_PACKAGE_DIR
+        / f"kasumi-android-example-{config.android.version}.apk",
     )
 
 
 def package(
     platforms: tuple[str, ...],
     targets: tuple[str, ...],
+    config: KasumiConfig,
     external_web: bool = False,
     bundle_webview2_loader: bool = False,
 ) -> None:
@@ -595,12 +695,16 @@ def package(
         if "sdk" in targets:
             package_windows_sdk(bundle_webview2_loader)
         if "example" in targets:
-            package_windows_example(external_web, bundle_webview2_loader)
+            package_windows_example(
+                config,
+                external_web,
+                bundle_webview2_loader,
+            )
     if "android" in platforms:
         if "sdk" in targets:
             package_android_sdk()
         if "example" in targets:
-            package_android_example()
+            package_android_example(config)
 
 
 def android_adb() -> str:
@@ -681,6 +785,7 @@ def stop_dev_server(server: subprocess.Popen[bytes]) -> None:
 def install_android_apk(
     adb: str,
     apk: Path,
+    package_name: str,
     environment: dict[str, str],
 ) -> None:
     result = subprocess.run(
@@ -701,15 +806,18 @@ def install_android_apk(
             output=output,
         )
     subprocess.run(
-        [adb, "uninstall", "dev.kasumi.example"],
+        [adb, "uninstall", package_name],
         check=False,
         env=environment,
     )
     run([adb, "install", str(apk)], env=environment)
 
 
-def dev_windows(bundle_webview2_loader: bool = False) -> None:
-    build_windows_example(False, bundle_webview2_loader)
+def dev_windows(
+    config: KasumiConfig,
+    bundle_webview2_loader: bool = False,
+) -> None:
+    build_windows_example(config, False, bundle_webview2_loader)
     server = start_dev_server()
     try:
         executable = (
@@ -724,8 +832,8 @@ def dev_windows(bundle_webview2_loader: bool = False) -> None:
         stop_dev_server(server)
 
 
-def dev_android() -> None:
-    build_android_example()
+def dev_android(config: KasumiConfig) -> None:
+    build_android_example(config)
     adb = android_adb()
     environment = android_adb_environment()
     apk = (
@@ -748,9 +856,20 @@ def dev_android() -> None:
     server: subprocess.Popen[bytes] | None = None
     try:
         server = start_dev_server()
-        install_android_apk(adb, apk, environment)
+        install_android_apk(
+            adb,
+            apk,
+            config.android.package_name,
+            environment,
+        )
         run(
-            [adb, "shell", "am", "force-stop", "dev.kasumi.example"],
+            [
+                adb,
+                "shell",
+                "am",
+                "force-stop",
+                config.android.package_name,
+            ],
             env=environment,
         )
         run(
@@ -760,7 +879,7 @@ def dev_android() -> None:
                 "am",
                 "start",
                 "-n",
-                "dev.kasumi.example/.MainActivity",
+                f"{config.android.package_name}/.MainActivity",
                 "--es",
                 "ksmDevUrl",
                 DEV_URL,
@@ -777,7 +896,13 @@ def dev_android() -> None:
         if server:
             stop_dev_server(server)
         subprocess.run(
-            [adb, "shell", "am", "force-stop", "dev.kasumi.example"],
+            [
+                adb,
+                "shell",
+                "am",
+                "force-stop",
+                config.android.package_name,
+            ],
             check=False,
             env=environment,
         )
@@ -790,15 +915,16 @@ def dev_android() -> None:
 
 def dev(
     platforms: tuple[str, ...],
+    config: KasumiConfig,
     bundle_webview2_loader: bool = False,
 ) -> None:
     if len(platforms) != 1:
         raise RuntimeError("dev requires exactly one platform.")
     frontend_checks()
     if platforms[0] == "windows":
-        dev_windows(bundle_webview2_loader)
+        dev_windows(config, bundle_webview2_loader)
         return
-    dev_android()
+    dev_android(config)
 
 
 def add_platform_option(
@@ -859,6 +985,14 @@ def add_webview2_option(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_config_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--config",
+        default=str(CONFIG_FILE),
+        help="application configuration file",
+    )
+
+
 def start() -> None:
     parser = argparse.ArgumentParser(prog="ksm")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -873,17 +1007,20 @@ def start() -> None:
     add_target_option(build_parser)
     add_external_web_option(build_parser)
     add_webview2_option(build_parser)
+    add_config_option(build_parser)
 
     test_parser = subparsers.add_parser("test")
     add_platform_option(test_parser)
     add_target_option(test_parser)
     add_webview2_option(test_parser)
+    add_config_option(test_parser)
 
     package_parser = subparsers.add_parser("package")
     add_platform_option(package_parser)
     add_target_option(package_parser)
     add_external_web_option(package_parser)
     add_webview2_option(package_parser)
+    add_config_option(package_parser)
 
     dev_parser = subparsers.add_parser(
         "dev",
@@ -891,6 +1028,7 @@ def start() -> None:
     )
     add_platform_option(dev_parser, default="windows")
     add_webview2_option(dev_parser)
+    add_config_option(dev_parser)
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -898,28 +1036,36 @@ def start() -> None:
     elif args.command == "codegen":
         codegen()
     elif args.command == "build":
+        config = read_app_config(resolve_config_path(args.config))
         build(
             resolve_platform_selection(args),
             resolve_targets(args.target),
+            config,
             args.external_web,
             args.bundle_webview2_loader,
         )
     elif args.command == "test":
+        config = read_app_config(resolve_config_path(args.config))
         test(
             resolve_platform_selection(args),
             resolve_targets(args.target),
+            config,
             args.bundle_webview2_loader,
         )
     elif args.command == "package":
+        config = read_app_config(resolve_config_path(args.config))
         package(
             resolve_platform_selection(args),
             resolve_targets(args.target),
+            config,
             args.external_web,
             args.bundle_webview2_loader,
         )
     else:
+        config = read_app_config(resolve_config_path(args.config))
         dev(
             resolve_platform_selection(args),
+            config,
             args.bundle_webview2_loader,
         )
 

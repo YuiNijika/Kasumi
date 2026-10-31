@@ -22,7 +22,8 @@ public:
     explicit KSMWindowsHostServices(
         HWND window,
         std::vector<std::string> allowed_external_origins = {},
-        std::shared_ptr<KSMFileSystem> file_system = nullptr
+        std::shared_ptr<KSMFileSystem> file_system = nullptr,
+        std::string app_version = "0.1.0"
     );
 
     std::string AppVersion() const override;
@@ -98,6 +99,7 @@ private:
 
     HWND window_;
     std::shared_ptr<KSMFileSystem> file_system_;
+    std::string app_version_;
     std::set<KSMUrlPolicy::Origin> allowed_external_origins_;
     mutable std::mutex picked_mutex_;
     std::unordered_map<std::string, std::filesystem::path> picked_files_;
