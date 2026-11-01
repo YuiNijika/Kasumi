@@ -16,6 +16,7 @@ import { renderTemplate } from './template.mjs';
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(sourceDirectory, '..', 'package.json');
+export const DEFAULT_RELEASE_VERSION = '26.11.2-alpha';
 
 export async function run(argv) {
   const options = parseArgs(argv);
@@ -42,7 +43,7 @@ export async function run(argv) {
   const windowsPackageName = projectName;
   const androidPackage = androidPackageName(projectName);
   const platforms = options.platforms;
-  const kasumiVersion = options.kasumiVersion ?? packageJson.version;
+  const kasumiVersion = options.kasumiVersion ?? DEFAULT_RELEASE_VERSION;
   const replacements = {
     __PROJECT_NAME__: projectName,
     __APP_TITLE__: projectTitle(projectName),
@@ -171,7 +172,7 @@ Options:
   --no-install               Skip dependency installation
   --no-sdk                   Skip Windows SDK and Android Maven download
   --force                    Allow writing into a non-empty directory
-  --kasumi-version <ver>     Kasumi release version, default package version
+  --kasumi-version <ver>     Kasumi release version, default ${DEFAULT_RELEASE_VERSION}
   --release-base-url <url>   Override the release download base URL
   -h, --help                 Show this help
   -v, --version              Show the create-kasumi version`);

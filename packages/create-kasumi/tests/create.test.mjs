@@ -13,7 +13,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { parseArgs } from '../src/args.mjs';
-import { run } from '../src/cli.mjs';
+import { DEFAULT_RELEASE_VERSION, run } from '../src/cli.mjs';
 import { platformCommands } from '../src/commands.mjs';
 import { commandInvocation } from '../src/install.mjs';
 import {
@@ -24,12 +24,7 @@ import { resolveTemplate } from '../src/template.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
-const kasumiVersion = JSON.parse(
-  await readFile(
-    path.join(testDirectory, '..', 'package.json'),
-    'utf8'
-  )
-).version;
+const kasumiVersion = DEFAULT_RELEASE_VERSION;
 
 test('parseArgs selects both platforms by default', () => {
   const options = parseArgs(['my-app']);
@@ -267,6 +262,7 @@ test('initializes a source-only project without framework source', async () => {
       )
     );
     assert.equal(vcpkg['version-string'], kasumiVersion);
+    assert.match(vcpkg['builtin-baseline'], /^[a-f0-9]{40}$/);
     assert.deepEqual(vcpkg.dependencies, ['nlohmann-json', 'webview2']);
     const files = await collectFiles(destination);
     for (const file of files) {
