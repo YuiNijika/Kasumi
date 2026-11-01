@@ -297,8 +297,9 @@ python cli/ksm.py package --platform android --target sdk
 python cli/ksm.py package --platform android --target example
 ```
 
-- SDK 产物：`android/build/packages/kasumi-android-sdk-26.11.2-alpha.aar`。
-- 示例产物：`examples/android-host/build/packages/kasumi-android-example-<version>.apk`。
+- Release SDK 产物：`release/26.11.2-alpha/kasumi-android-sdk-26.11.2-alpha.aar` 与
+  `release/26.11.2-alpha/kasumi-android-maven-26.11.2-alpha.zip`。
+- Release 示例产物：`release/26.11.2-alpha/kasumi-android-example-26.11.2-alpha.apk`。
 
 框架维护者测试宿主的 release 构建从以下环境变量读取签名材料：
 

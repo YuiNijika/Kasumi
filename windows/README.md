@@ -356,8 +356,8 @@ python cli/ksm.py package --platform windows --target example
 pnpm ksm package --windows --target example --with-webview2-loader
 ```
 
-- SDK 产物：`windows/build/sdk/packages/kasumi-windows-sdk-26.11.2-alpha.zip`。
-- 示例产物：`windows/examples/win32-host/build/packages/<packageName>-<version>.zip`。
+- Release SDK 产物：`release/26.11.2-alpha/kasumi-windows-sdk-26.11.2-alpha.zip`。
+- Release 示例产物：`release/26.11.2-alpha/kasumi-win32-example-26.11.2-alpha.zip`。
 - SDK ZIP 只包含静态库、公共头文件、CMake 包配置和 README。
 - 默认示例 ZIP 只包含 EXE 和内嵌 Web 资源，不包含 `WebView2Loader.dll`、`.WebView2`、`web/` 或框架源码。
 - `--with-webview2-loader` 模式额外包含 `WebView2Loader.dll`；外置模式额外包含 `web/`。

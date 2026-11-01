@@ -33,6 +33,7 @@ WINDOWS_EXAMPLE_DIR = ROOT / "windows" / "examples" / "win32-host"
 ANDROID_LOCAL_REPO = ROOT / "android" / "kasumi" / "build" / "repo"
 ANDROID_SDK_PACKAGE_DIR = ROOT / "android" / "build" / "packages"
 ANDROID_EXAMPLE_PACKAGE_DIR = ROOT / "examples" / "android-host" / "build" / "packages"
+RELEASE_ROOT = ROOT / "release"
 WINDOWS_VCPKG_STATIC_TRIPLET = "x64-windows-static-md"
 WINDOWS_VCPKG_SHARED_TRIPLET = "x64-windows"
 
@@ -595,7 +596,53 @@ def test(
             build_android_example(config)
 
 
-def package_windows_sdk(bundle_webview2_loader: bool = False) -> None:
+def release_version(config: KasumiConfig) -> str:
+    if config.windows.version != config.android.version:
+        raise ValueError("Windows and Android versions must match.")
+    return config.windows.version
+
+
+def release_directory(version: str) -> Path:
+    if not version or Path(version).name != version:
+        raise ValueError(f"Invalid release version: {version}")
+    return RELEASE_ROOT / version
+
+
+def stage_release_asset(source: Path, version: str) -> Path:
+    destination = release_directory(version) / source.name
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        destination.unlink()
+    shutil.copy2(source, destination)
+    return destination
+
+
+def write_release_manifest(version: str) -> None:
+    directory = release_directory(version)
+    windows_sdk = directory / f"kasumi-windows-sdk-{version}.zip"
+    android_maven = directory / f"kasumi-android-maven-{version}.zip"
+    if not windows_sdk.is_file() or not android_maven.is_file():
+        return
+    run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "release_manifest.py"),
+            "--version",
+            version,
+            "--windows-sdk",
+            str(windows_sdk),
+            "--android-maven",
+            str(android_maven),
+            "--output",
+            str(directory / "kasumi-release.json"),
+        ]
+    )
+
+
+def package_windows_sdk(
+    version: str,
+    bundle_webview2_loader: bool = False,
+) -> None:
     build_windows_sdk(bundle_webview2_loader)
     build_directory = windows_sdk_build_directory(bundle_webview2_loader)
     run(
@@ -609,6 +656,14 @@ def package_windows_sdk(bundle_webview2_loader: bool = False) -> None:
             str(build_directory / "packages"),
         ]
     )
+    archive = (
+        build_directory
+        / "packages"
+        / f"kasumi-windows-sdk-{version}.zip"
+    )
+    if not archive.is_file():
+        raise FileNotFoundError(f"Windows SDK archive not found: {archive}")
+    stage_release_asset(archive, version)
 
 
 def windows_example_output_directory(
@@ -621,6 +676,7 @@ def windows_example_output_directory(
 
 def package_windows_example(
     config: KasumiConfig,
+    version: str,
     external_web: bool = False,
     bundle_webview2_loader: bool = False,
     multi_view: bool = False,
@@ -669,11 +725,16 @@ def package_windows_example(
         "zip",
         root_dir=staging,
     )
+    stage_release_asset(archive, version)
 
 
-def package_android_sdk() -> None:
+def package_android_sdk(version: str) -> None:
     build_android_sdk()
-    version = android_sdk_version()
+    build_version = android_sdk_version()
+    if build_version != version:
+        raise ValueError(
+            f"Android SDK version {build_version} does not match {version}."
+        )
     ANDROID_SDK_PACKAGE_DIR.mkdir(parents=True, exist_ok=True)
     source = (
         ROOT
@@ -697,9 +758,14 @@ def package_android_sdk() -> None:
         "zip",
         root_dir=maven_repository,
     )
+    stage_release_asset(
+        ANDROID_SDK_PACKAGE_DIR / f"kasumi-android-sdk-{version}.aar",
+        version,
+    )
+    stage_release_asset(archive.with_suffix(".zip"), version)
 
 
-def package_android_example(config: KasumiConfig) -> None:
+def package_android_example(config: KasumiConfig, version: str) -> None:
     build_android_example(config)
     ANDROID_EXAMPLE_PACKAGE_DIR.mkdir(parents=True, exist_ok=True)
     source = (
@@ -713,11 +779,15 @@ def package_android_example(config: KasumiConfig) -> None:
         / "debug"
         / "app-debug.apk"
     )
+    archive = (
+        ANDROID_EXAMPLE_PACKAGE_DIR
+        / f"kasumi-android-example-{version}.apk"
+    )
     shutil.copy2(
         source,
-        ANDROID_EXAMPLE_PACKAGE_DIR
-        / f"kasumi-android-example-{config.android.version}.apk",
+        archive,
     )
+    stage_release_asset(archive, version)
 
 
 def package(
@@ -729,21 +799,24 @@ def package(
     multi_view: bool = False,
 ) -> None:
     frontend_checks()
+    version = release_version(config)
     if "windows" in platforms:
         if "sdk" in targets:
-            package_windows_sdk(bundle_webview2_loader)
+            package_windows_sdk(version, bundle_webview2_loader)
         if "example" in targets:
             package_windows_example(
                 config,
+                version,
                 external_web,
                 bundle_webview2_loader,
                 multi_view,
             )
     if "android" in platforms:
         if "sdk" in targets:
-            package_android_sdk()
+            package_android_sdk(version)
         if "example" in targets:
-            package_android_example(config)
+            package_android_example(config, version)
+    write_release_manifest(version)
 
 
 def android_adb() -> str:

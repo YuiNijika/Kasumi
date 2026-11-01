@@ -11,6 +11,7 @@ $null
 .workbuddy/
 /.ksm/
 /dist/
+/release/
 KasumiData/
 __pycache__/
 *.egg-info/

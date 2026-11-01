@@ -143,6 +143,7 @@ console.log(pong.pong, capabilities.commands, appInfo.version);
 | `pnpm ksm package --windows` | 生成 Windows 发布 ZIP |
 | `pnpm ksm package --android` | 生成签名 Android release APK |
 | `pnpm ksm package --all` | 同时生成两端发布包 |
+| `pnpm release:prepare` | 构建并汇总当前版本的全部 Release 附件 |
 | `pnpm ksm test` | 运行契约、配置和平台测试 |
 | `pnpm ksm doctor` | 检查 SDK、工具链、设备与配置 |
 | `pnpm validate:protocol` | 校验协议事实源 |
@@ -172,10 +173,20 @@ dist/windows/<windows.packageName>.exe
 dist/android/<android.packageName>-<android.version>.apk
 dist/packages/<windows.packageName>-<version>-windows.zip
 dist/packages/<android.packageName>-<version>-android.apk
+release/<version>/kasumi-release.json
+release/<version>/kasumi-windows-sdk-<version>.zip
+release/<version>/kasumi-win32-example-<version>.zip
+release/<version>/kasumi-android-sdk-<version>.aar
+release/<version>/kasumi-android-maven-<version>.zip
+release/<version>/kasumi-android-example-<version>.apk
 ```
 
 Windows 默认将 `frontend/dist/` 嵌入 EXE。Android 将同一份前端产物打包进 APK 的
 `assets/`。两种模式都不依赖运行时外部 Web 目录。
+
+`dist/` 用于用户项目自身的应用产物，`release/<version>/` 用于框架维护者上传 GitHub
+Release 的 SDK、示例和 manifest。执行 `pnpm release:prepare` 会在一次构建结束后统一生成
+上述目录，避免手动从多个构建目录收集文件。
 
 ## 发布包
 
@@ -201,7 +212,8 @@ KASUMI_ANDROID_KEY_PASSWORD
 缺少任一项时 `ksm package --android` 会在构建前失败。APK 生成后会执行
 `apksigner verify`，未通过校验的产物不会复制到 `dist/packages/`。
 
-GitHub Release 需要上传 Windows SDK ZIP、Android Maven ZIP 和 `kasumi-release.json`。
+GitHub Release 直接从 `release/<version>/` 上传全部附件，其中 Windows SDK ZIP、Android
+Maven ZIP 和 `kasumi-release.json` 是初始化器的必需资产。
 初始化器会校验 manifest 中的版本、文件大小和 SHA-256。
 标签发布流程先完成 GitHub Release 资产和签名，再按 `kasumi-bridge`、`kasumi-cli`、
 `create-kasumi` 的顺序发布 npm 包。普通 CI 不要求签名证书。

@@ -56,7 +56,7 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) {
             throw "WINDOWS_CERTIFICATE_PASSWORD is required for tagged Windows releases."
           }
-          $zip = Get-ChildItem "windows/examples/win32-host/build/packages/*.zip" |
+          $zip = Get-ChildItem "release/*/kasumi-win32-example-*.zip" |
             Select-Object -First 1
           if ($null -eq $zip) {
             throw "The Windows example ZIP was not produced."
@@ -94,13 +94,8 @@ jobs:
           Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip.FullName
       - uses: actions/upload-artifact@v4
         with:
-          name: kasumi-windows-sdk
-          path: windows/build/sdk/packages/*.zip
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        with:
-          name: kasumi-windows-example
-          path: windows/examples/win32-host/build/packages/*.zip
+          name: kasumi-windows
+          path: release
           if-no-files-found: error
 
   android-package:
@@ -158,23 +153,15 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          mkdir -p dist/packages
+          mkdir -p "release/$VERSION"
           cp examples/android-host/app/build/outputs/apk/release/app-release.apk \
-            "dist/packages/kasumi-android-example-$VERSION.apk"
+            "release/$VERSION/kasumi-android-example-$VERSION.apk"
           APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner | sort -V | tail -n 1)
-          "$APKSIGNER" verify --print-certs "dist/packages/kasumi-android-example-$VERSION.apk"
+          "$APKSIGNER" verify --print-certs "release/$VERSION/kasumi-android-example-$VERSION.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: kasumi-android-sdk
-          path: |
-            android/build/packages/*.aar
-            android/build/packages/*.zip
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          name: kasumi-android-example
-          path: dist/packages/*.apk
+          name: kasumi-android
+          path: release
           if-no-files-found: error
 
   release-assets:
@@ -189,43 +176,27 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: kasumi-windows-sdk
-          path: release/windows-sdk
-      - uses: actions/download-artifact@v4
-        with:
-          name: kasumi-windows-example
-          path: release/windows-example
-      - uses: actions/download-artifact@v4
-        with:
-          name: kasumi-android-sdk
-          path: release/android-sdk
-      - uses: actions/download-artifact@v4
-        with:
-          name: kasumi-android-example
-          path: release/android-example
+          pattern: kasumi-*
+          path: release
+          merge-multiple: true
       - name: Build release manifest
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           python tools/check_release_version.py "$VERSION"
-          WINDOWS_SDK=$(find release/windows-sdk -name "kasumi-windows-sdk-*.zip" -print -quit)
-          ANDROID_MAVEN=$(find release/android-sdk -name "kasumi-android-maven-*.zip" -print -quit)
+          WINDOWS_SDK=$(find "release/$VERSION" -name "kasumi-windows-sdk-*.zip" -print -quit)
+          ANDROID_MAVEN=$(find "release/$VERSION" -name "kasumi-android-maven-*.zip" -print -quit)
           python tools/release_manifest.py \
             --version "$VERSION" \
             --windows-sdk "$WINDOWS_SDK" \
             --android-maven "$ANDROID_MAVEN" \
-            --output release/kasumi-release.json
+            --output "release/$VERSION/kasumi-release.json"
       - uses: softprops/action-gh-release@v2
         with:
           body_path: .github/release-notes/${{ github.ref_name }}.md
           prerelease: ${{ contains(github.ref_name, '-') }}
           make_latest: ${{ !contains(github.ref_name, '-') }}
           files: |
-            release/kasumi-release.json
-            release/windows-sdk/*.zip
-            release/windows-example/*.zip
-            release/android-sdk/*.aar
-            release/android-sdk/*.zip
-            release/android-example/*.apk
+            release/*/*
           fail_on_unmatched_files: true
 
   npm-publish:

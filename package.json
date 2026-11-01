@@ -14,6 +14,7 @@
     "build:windows": "pnpm ksm build --windows",
     "build:android": "pnpm ksm build --android",
     "build:all": "pnpm ksm build --all",
+    "release:prepare": "pnpm ksm package --all --target all",
     "test": "pnpm ksm test --all --target sdk",
     "typecheck": "tsc --noEmit -p frontend/tsconfig.json && tsc --noEmit -p tests/tsconfig.json",
     "test:contract": "tsx tests/contract/run.ts",
