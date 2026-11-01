@@ -183,6 +183,7 @@ C++ 实现文件。依赖通过 `vcpkg.json` 固定为 `nlohmann-json` 与 `webv
 ```powershell
 pnpm ksm dev
 pnpm ksm build --windows --target example
+pnpm ksm build --windows --target example --multi-view
 pnpm ksm build --windows --target example --with-webview2-loader
 python cli/ksm.py build --platform windows --target sdk
 cmake -S windows/examples/win32-host `
@@ -244,6 +245,16 @@ WebView2 Environment，但各自拥有子 `HWND`、路由器、宿主服务、�
 默认的 `Initialize()` 保留单视图入口：创建 Environment 后自动创建一个填满客户区的
 默认 View。需要标签页、分屏或浏览器式布局时，使用 `InitializeSession()` 只初始化
 窗口会话，再调用 `CreateView()` 创建多个实例：
+
+```powershell
+pnpm ksm build --windows --target example --multi-view
+pnpm ksm dev --windows --multi-view
+```
+
+`--multi-view` 设置示例工程的 `KASUMI_EXAMPLE_MULTI_VIEW=ON`，普通启动直接进入
+`multi-view.html` 双实例演示。左侧写入共享沙箱便签，右侧通过自己的 View 路由轮询读取；
+窗口缩放时宿主重新分发左右边界，双实例窗口最小为 `640 × 360`，保证每个 View 至少有
+`320 × 360` 的可操作区域。`--multi-view-smoke` 加载同一套页面做 CTest。
 
 ```cpp
 auto host = std::make_shared<KSMWebView2Host>(

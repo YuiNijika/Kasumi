@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN" data-pane="left">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#e7ede7">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+    <title>Kasumi Multi-WebView Lab</title>
+    <link rel="stylesheet" href="multi-view.css">
+</head>
+
+<body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+    <div class="view-shell">
+        <header class="view-bar">
+            <div class="view-identity">
+                <span class="view-mark" aria-hidden="true">K</span>
+                <span class="view-name">
+                    <strong id="view-code">VIEW A</strong>
+                    <small>MULTI-WEBVIEW LAB</small>
+                </span>
+            </div>
+            <div id="connection" class="connection" role="status" aria-live="polite">
+                <span class="connection-dot" aria-hidden="true"></span>
+                <span id="connection-label">正在连接当前 View…</span>
+            </div>
+        </header>
+
+        <main id="main">
+            <section class="hero" aria-labelledby="view-title">
+                <p id="pane-kicker" class="eyebrow">LEFT SURFACE / WRITER</p>
+                <h1 id="view-title">同一扇窗，<br><em>两个独立页面。</em></h1>
+                <p id="pane-summary" class="lede">
+                    这个 View 拥有自己的页面状态和消息路由。把便签写进共享沙箱，
+                    另一侧会通过自己的命令通道读取它。
+                </p>
+                <dl class="view-facts" aria-label="当前 View 信息">
+                    <div>
+                        <dt>消息路由</dt>
+                        <dd id="route-value">等待分配</dd>
+                    </div>
+                    <div>
+                        <dt>应用版本</dt>
+                        <dd id="version-value">读取中</dd>
+                    </div>
+                    <div>
+                        <dt>焦点</dt>
+                        <dd id="focus-value">点击页面以聚焦</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <div class="board">
+                <section class="card card-route" aria-labelledby="route-title">
+                    <div class="card-heading">
+                        <span class="card-index" aria-hidden="true">01</span>
+                        <div>
+                            <p class="eyebrow">独立通道</p>
+                            <h2 id="route-title">先确认这一侧在线</h2>
+                        </div>
+                    </div>
+                    <p class="card-copy">
+                        连接检查只经过当前 View 的请求队列。另一个页面是否忙碌，
+                        都不会改变这里的返回顺序。
+                    </p>
+                    <div class="action-row">
+                        <button id="ping-button" class="button button-primary" type="button">
+                            检查当前 View
+                        </button>
+                        <span id="ping-result" class="inline-result" aria-live="polite">尚未检查</span>
+                    </div>
+                </section>
+
+                <section class="card card-note" aria-labelledby="note-title">
+                    <div class="card-heading">
+                        <span class="card-index" aria-hidden="true">02</span>
+                        <div>
+                            <p class="eyebrow">共享沙箱</p>
+                            <h2 id="note-title">写一张两边都能读的便签</h2>
+                        </div>
+                    </div>
+                    <p class="card-copy">
+                        两侧使用不同的 View 和路由器，却共享同一个应用数据目录。
+                        左页写入后，右页会自动读取到新内容。
+                    </p>
+                    <label class="field-label" for="note-input">便签内容</label>
+                    <textarea id="note-input" rows="3" maxlength="1200" spellcheck="false">来自 VIEW A 的第一张便签。</textarea>
+                    <div class="action-row">
+                        <button id="note-write-button" class="button button-secondary" type="button">
+                            写入共享便签
+                        </button>
+                        <button id="note-read-button" class="button button-quiet" type="button">
+                            立即读取
+                        </button>
+                    </div>
+                    <p id="note-status" class="inline-result" aria-live="polite">等待第一次同步。</p>
+                    <pre id="note-preview" class="note-preview">还没有读取到共享便签。</pre>
+                </section>
+
+                <section class="card card-local" aria-labelledby="local-title">
+                    <div class="card-heading">
+                        <span class="card-index" aria-hidden="true">03</span>
+                        <div>
+                            <p class="eyebrow">页面私有状态</p>
+                            <h2 id="local-title">这个计数不会跑到另一边</h2>
+                        </div>
+                    </div>
+                    <div class="local-control">
+                        <div>
+                            <span>当前页计数</span>
+                            <strong id="local-count">0</strong>
+                        </div>
+                        <button id="local-button" class="button button-primary" type="button">
+                            本页 +1
+                        </button>
+                    </div>
+                    <p class="card-copy">
+                        两侧各自维护 DOM、滚动位置、输入内容和按钮状态。
+                        窗口缩放时，宿主动态重新分配两个 View 的边界。
+                    </p>
+                </section>
+            </div>
+
+            <footer class="view-footer">
+                <span id="footer-label">VIEW A / LEFT</span>
+                <span>拖动窗口边缘可同时验证两个实例的布局更新。</span>
+            </footer>
+        </main>
+    </div>
+    <script src="multi-view.js"></script>
+</body>
+
+</html>

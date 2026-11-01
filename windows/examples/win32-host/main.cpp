@@ -31,6 +31,11 @@ constexpr int kWindowHeight = 720;
 constexpr UINT_PTR kMultiViewSmokeTimer = 0x4B4D;
 constexpr UINT kMultiViewSmokeDelayMs = 250;
 constexpr int kMultiViewSmokeMaxAttempts = 40;
+#if defined(KASUMI_EXAMPLE_MULTI_VIEW)
+constexpr bool kDefaultMultiView = KASUMI_EXAMPLE_MULTI_VIEW != 0;
+#else
+constexpr bool kDefaultMultiView = false;
+#endif
 #if defined(KASUMI_WINDOW_DECORATIONS)
 constexpr bool kWindowDecorations = KASUMI_WINDOW_DECORATIONS != 0;
 #else
@@ -46,7 +51,50 @@ struct MultiViewSmokeContext {
   int ready_views = 0;
   int timer_attempts = 0;
   bool first_closed = false;
+  bool split_layout = false;
 };
+
+std::wstring MultiViewPageUrl(const std::wstring &url, const wchar_t *pane) {
+  const std::size_t query = url.find_first_of(L"?#");
+  const std::size_t path_end = query == std::wstring::npos ? url.size() : query;
+  const std::size_t slash = url.rfind(L'/', path_end);
+  std::wstring result =
+      slash == std::wstring::npos ? std::wstring() : url.substr(0, slash + 1);
+  result += L"multi-view.html?pane=";
+  result += pane;
+  return result;
+}
+
+void LayoutMultiViews(MultiViewSmokeContext &context, HWND window) {
+  if (!context.split_layout) {
+    return;
+  }
+
+  RECT client{};
+  if (!GetClientRect(window, &client)) {
+    return;
+  }
+  const LONG width = client.right - client.left;
+  const LONG height = client.bottom - client.top;
+  if (width < 2 || height < 1) {
+    return;
+  }
+
+  if (context.first && context.second) {
+    const LONG split = client.left + width / 2;
+    (void)context.first->SetBounds(
+        RECT{client.left, client.top, split, client.bottom});
+    (void)context.second->SetBounds(
+        RECT{split, client.top, client.right, client.bottom});
+    return;
+  }
+  if (context.first) {
+    (void)context.first->FillParent();
+  }
+  if (context.second) {
+    (void)context.second->FillParent();
+  }
+}
 
 std::wstring ToWide(const std::string &value) {
   if (value.empty()) {
@@ -227,10 +275,19 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam,
       return 0;
     }
     break;
+  case WM_SIZE: {
+    auto *context = reinterpret_cast<MultiViewSmokeContext *>(
+        GetPropW(window, kMultiViewSmokeProperty));
+    if (context) {
+      LayoutMultiViews(*context, window);
+    }
+    break;
+  }
   case WM_GETMINMAXINFO: {
     auto *info = reinterpret_cast<MINMAXINFO *>(lparam);
-    info->ptMinTrackSize.x = 320;
-    info->ptMinTrackSize.y = 240;
+    const bool split = GetPropW(window, kMultiViewSmokeProperty) != nullptr;
+    info->ptMinTrackSize.x = split ? 640 : 320;
+    info->ptMinTrackSize.y = split ? 360 : 240;
     return 0;
   }
   case WM_CLOSE:
@@ -255,7 +312,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   const bool multi_view = HasCommandLineFlag(L"--multi-view");
   const bool multi_view_smoke = HasCommandLineFlag(L"--multi-view-smoke");
   const bool smoke_test = single_view_smoke || multi_view_smoke;
-  const bool use_multi_view = multi_view || multi_view_smoke;
+  const bool use_multi_view =
+      multi_view_smoke ||
+      ((multi_view || kDefaultMultiView) && !single_view_smoke);
   const bool dev_mode = HasCommandLineFlag(L"--dev");
   const auto requested_url = CommandLineValue(L"--url");
   const std::wstring start_url =
@@ -388,10 +447,11 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   MultiViewSmokeContext multi_view_context;
   multi_view_context.host = host.get();
   multi_view_context.file_system = file_system;
+  multi_view_context.split_layout = use_multi_view;
   if (multi_view_smoke) {
     multi_view_context.marker = std::to_string(GetCurrentProcessId());
   }
-  if (multi_view_smoke) {
+  if (use_multi_view) {
     SetPropW(window, kMultiViewSmokeProperty, &multi_view_context);
   }
 
@@ -510,6 +570,38 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
               multi_view_context.first->Focus();
               return;
             }
+
+            RECT window_bounds{};
+            if (!GetWindowRect(window, &window_bounds)) {
+              show_error("The multi-view smoke window bounds are unavailable.");
+              return;
+            }
+            SetWindowPos(
+                window, nullptr, window_bounds.left, window_bounds.top,
+                window_bounds.right - window_bounds.left + 80,
+                window_bounds.bottom - window_bounds.top + 40,
+                SWP_NOZORDER | SWP_NOACTIVATE);
+            RECT resized_client{};
+            const RECT resized_first =
+                multi_view_context.first->bounds();
+            const RECT resized_second =
+                multi_view_context.second->bounds();
+            if (!GetClientRect(window, &resized_client)) {
+              show_error("The resized multi-view client area is unavailable.");
+              return;
+            }
+            const LONG expected_split =
+                resized_client.left +
+                (resized_client.right - resized_client.left) / 2;
+            if (resized_first.left != resized_client.left ||
+                resized_first.right != expected_split ||
+                resized_second.left != expected_split ||
+                resized_second.right != resized_client.right) {
+              show_error(
+                  "The multi-view host did not relayout after a window resize.");
+              return;
+            }
+
             if (SetTimer(window, kMultiViewSmokeTimer,
                          kMultiViewSmokeDelayMs, nullptr) == 0) {
               show_error("The multi-view smoke timer could not be created.");
@@ -517,7 +609,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
           };
 
           KSMWebView2ViewOptions first_options;
-          first_options.start_url = start_url;
+          first_options.start_url = MultiViewPageUrl(start_url, L"left");
           if (multi_view_smoke) {
             const std::wstring marker(
                 multi_view_context.marker.begin(),
@@ -542,10 +634,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
                 multi_view_context.marker.begin(),
                 multi_view_context.marker.end());
             second_options.start_url =
-                (start_url.find(L'?') == std::wstring::npos
-                     ? start_url + L"?multi-view-smoke="
-                     : start_url + L"&multi-view-smoke=") +
-                marker + L"&view=2";
+                MultiViewPageUrl(start_url, L"right");
+            second_options.start_url += L"&multi-view-smoke=";
+            second_options.start_url += marker + L"&view=2";
+          } else {
+            second_options.start_url =
+                MultiViewPageUrl(start_url, L"right");
           }
           second_options.bounds =
               RECT{split, client.top, client.right, client.bottom};

@@ -401,6 +401,7 @@ def build_windows_example(
     config: KasumiConfig,
     external_web: bool = False,
     bundle_webview2_loader: bool = False,
+    multi_view: bool = False,
 ) -> None:
     build_windows_sdk(bundle_webview2_loader)
     build_directory = windows_example_build_directory(bundle_webview2_loader)
@@ -414,6 +415,7 @@ def build_windows_example(
         "-DCMAKE_BUILD_TYPE=Release",
         f"-DCMAKE_PREFIX_PATH={install_directory}",
         f"-DKASUMI_EXAMPLE_EXTERNAL_WEB={'ON' if external_web else 'OFF'}",
+        f"-DKASUMI_EXAMPLE_MULTI_VIEW={'ON' if multi_view else 'OFF'}",
         f"-DKASUMI_BUNDLE_WEBVIEW2_LOADER={'ON' if bundle_webview2_loader else 'OFF'}",
         f"-DKASUMI_APP_PACKAGE_NAME={config.windows.package_name}",
         f"-DKASUMI_APP_VERSION={config.windows.version}",
@@ -479,6 +481,7 @@ def build(
     config: KasumiConfig,
     external_web: bool = False,
     bundle_webview2_loader: bool = False,
+    multi_view: bool = False,
 ) -> None:
     frontend_checks()
     if "windows" in platforms:
@@ -489,6 +492,7 @@ def build(
                 config,
                 external_web,
                 bundle_webview2_loader,
+                multi_view,
             )
     if "android" in platforms:
         if "sdk" in targets:
@@ -603,8 +607,14 @@ def package_windows_example(
     config: KasumiConfig,
     external_web: bool = False,
     bundle_webview2_loader: bool = False,
+    multi_view: bool = False,
 ) -> None:
-    build_windows_example(config, external_web, bundle_webview2_loader)
+    build_windows_example(
+        config,
+        external_web,
+        bundle_webview2_loader,
+        multi_view,
+    )
     output = windows_example_output_directory(bundle_webview2_loader)
     package_dir = (
         windows_example_build_directory(bundle_webview2_loader) / "packages"
@@ -699,6 +709,7 @@ def package(
     config: KasumiConfig,
     external_web: bool = False,
     bundle_webview2_loader: bool = False,
+    multi_view: bool = False,
 ) -> None:
     frontend_checks()
     if "windows" in platforms:
@@ -709,6 +720,7 @@ def package(
                 config,
                 external_web,
                 bundle_webview2_loader,
+                multi_view,
             )
     if "android" in platforms:
         if "sdk" in targets:
@@ -826,8 +838,9 @@ def install_android_apk(
 def dev_windows(
     config: KasumiConfig,
     bundle_webview2_loader: bool = False,
+    multi_view: bool = False,
 ) -> None:
-    build_windows_example(config, False, bundle_webview2_loader)
+    build_windows_example(config, False, bundle_webview2_loader, multi_view)
     server = start_dev_server()
     try:
         executable = (
@@ -837,7 +850,10 @@ def dev_windows(
         if not executable.is_file():
             raise FileNotFoundError(f"Windows example executable not found: {executable}")
         print(f"Windows development app is running against {DEV_URL}")
-        run([str(executable), "--url", DEV_URL, "--dev"], cwd=executable.parent)
+        arguments = [str(executable), "--url", DEV_URL, "--dev"]
+        if multi_view:
+            arguments.append("--multi-view")
+        run(arguments, cwd=executable.parent)
     finally:
         stop_dev_server(server)
 
@@ -927,12 +943,13 @@ def dev(
     platforms: tuple[str, ...],
     config: KasumiConfig,
     bundle_webview2_loader: bool = False,
+    multi_view: bool = False,
 ) -> None:
     if len(platforms) != 1:
         raise RuntimeError("dev requires exactly one platform.")
     frontend_checks()
     if platforms[0] == "windows":
-        dev_windows(config, bundle_webview2_loader)
+        dev_windows(config, bundle_webview2_loader, multi_view)
         return
     dev_android(config)
 
@@ -995,6 +1012,14 @@ def add_webview2_option(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_multi_view_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--multi-view",
+        action="store_true",
+        help="Windows example only: start two WebViews in one window",
+    )
+
+
 def add_config_option(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--config",
@@ -1017,6 +1042,7 @@ def start() -> None:
     add_target_option(build_parser)
     add_external_web_option(build_parser)
     add_webview2_option(build_parser)
+    add_multi_view_option(build_parser)
     add_config_option(build_parser)
 
     test_parser = subparsers.add_parser("test")
@@ -1030,6 +1056,7 @@ def start() -> None:
     add_target_option(package_parser)
     add_external_web_option(package_parser)
     add_webview2_option(package_parser)
+    add_multi_view_option(package_parser)
     add_config_option(package_parser)
 
     dev_parser = subparsers.add_parser(
@@ -1038,6 +1065,7 @@ def start() -> None:
     )
     add_platform_option(dev_parser, default="windows")
     add_webview2_option(dev_parser)
+    add_multi_view_option(dev_parser)
     add_config_option(dev_parser)
     args = parser.parse_args()
 
@@ -1053,6 +1081,7 @@ def start() -> None:
             config,
             args.external_web,
             args.bundle_webview2_loader,
+            args.multi_view,
         )
     elif args.command == "test":
         config = read_app_config(resolve_config_path(args.config))
@@ -1070,6 +1099,7 @@ def start() -> None:
             config,
             args.external_web,
             args.bundle_webview2_loader,
+            args.multi_view,
         )
     else:
         config = read_app_config(resolve_config_path(args.config))
@@ -1077,6 +1107,7 @@ def start() -> None:
             resolve_platform_selection(args),
             config,
             args.bundle_webview2_loader,
+            args.multi_view,
         )
 
 

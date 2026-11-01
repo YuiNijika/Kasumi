@@ -184,6 +184,10 @@ await KSM.window.setSize({ width: 960, height: 720 });
 - 每个 View 分配单调递增且不复用的 `windowId`；关闭一个 View 不影响同一顶层窗口的其他 View。
 - `Initialize()` 保留单视图兼容入口；`InitializeSession()` 加 `CreateView()` 支持标签页、分屏和浏览器式多实例布局。
 - `CreateView()` 和 `SetBounds()` 在夹取前拒绝无面积边界，避免零尺寸输入被转换成 `1×1`。
+- `--multi-view` 将 `KASUMI_EXAMPLE_MULTI_VIEW` 设为 `ON`，普通启动直接加载
+  `multi-view.html` 左右双实例演示；窗口 `WM_SIZE` 会重新分配两个 View 的边界。
+- 双实例演示各自维护 DOM、滚动位置、请求队列和消息路由，只通过
+  `app://data/multi-view-demo/shared-note.txt` 共享便签；`--multi-view-smoke` 使用同一套页面验证真实路由。
 - `windows/` 只构建 SDK；`windows/examples/win32-host/` 是独立消费者，加载 `https://app.local/index.html`。
 - 默认构建把 `examples/showcase/` 编译进 EXE，输出目录不包含 `web/`；WebView2 Loader 静态链接，用户数据写入 `%LOCALAPPDATA%\Kasumi\Example\WebView2`。
 - `KASUMI_EXAMPLE_EXTERNAL_WEB=ON` 切换为外置 `web/`，命令行等价参数为 `--external-web`；运行时可用 `--web-root` 和 `--user-data-folder` 覆盖路径。
@@ -216,6 +220,7 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm build --all` | Windows 与 Android SDK 构建通过 |
 | `pnpm ksm build --all --target example` | 双端示例按 `kasumi.config.json` 注入包名、版本和命令 |
 | `pnpm ksm build --windows --target example` | 默认输出仅 EXE，无 `WebView2Loader.dll` 或 `.WebView2` |
+| `pnpm ksm build --windows --target example --multi-view` | 双 View 演示编译通过，普通启动加载 `multi-view.html` |
 | `pnpm ksm build --windows --target example --with-webview2-loader` | 可选输出包含 `WebView2Loader.dll` |
 | `pnpm ksm package --windows --target example` | 默认 ZIP 仅包含 EXE |
 | `pnpm ksm dev` | Windows 宿主加载 `http://localhost:5173/index.html` |
@@ -235,7 +240,7 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | Windows 批处理入口 | `pnpm.cmd` 与 `gradlew.bat` 均通过 `cmd.exe` 启动，不再触发 `spawn EINVAL` |
 | `pnpm ksm package --android --target sdk` | AAR 与 `kasumi-android-maven-0.1.0.zip` 生成通过 |
 | `kasumi_win32_example_smoke` | Windows 示例启动、ping 与退出通过 |
-| `kasumi_win32_example_multi_view_smoke` | 同窗口双 View 创建、独立 windowId/子窗口/边界和命令路由、单 View 关闭后剩余实例继续运行 |
+| `kasumi_win32_example_multi_view_smoke` | 实际加载 `multi-view.html` 两侧页面，验证同窗口双 View、独立 windowId/子窗口/边界和命令路由、顶层窗口缩放重排、单 View 关闭后剩余实例继续运行 |
 | 多 View 边界回归 | 创建零面积 View 被拒绝；对已存在 View 调用无面积 `SetBounds()` 失败且布局不变 |
 | Windows 标题栏构建 | `ON` 与 `OFF` 均编译并通过 smoke test；`OFF` 移除 `WS_CAPTION`，客户区覆盖完整窗口，四边与四角返回对应缩放命中值 |
 | Windows SDK CTest | 标题栏 `ON` 与 `OFF` 构建目录均 2/2 通过，含单 View 和多 View smoke |
@@ -380,6 +385,7 @@ Windows SDK、Android Maven 仓库、AAR、示例 ZIP、APK 和 `kasumi-release.
 pnpm ksm build --windows --target sdk
 pnpm ksm build --android --target example
 pnpm ksm build --windows --target example --with-webview2-loader
+pnpm ksm build --windows --target example --multi-view
 pnpm ksm dev
 pnpm ksm dev --android
 pnpm typecheck
@@ -455,6 +461,10 @@ gradle -p android :kasumi:assembleRelease :kasumi:publishReleasePublicationToLoc
 本轮单窗口多 View 文档修订为 `kasumi/development`
 `1fc2b123-b274-4a60-bb87-b6774a158b56`，已补充共享 Environment、子 `HWND`、
 独立路由与生命周期、无面积边界拒绝规则，当前状态为 `pending`。
+多 WebView 示例应用修订为 `kasumi/development`
+`afb06dad-c981-462d-b10f-1df2bfc59d0f`，补充 `--multi-view`
+构建入口、`multi-view.html` 双实例页面、共享便签和 CTest 覆盖，当前状态同样为
+`pending`。
 发布状态以站点实际页面为准，未发布前不得描述为已上线。
 
 同步流程固定为：先用 `docs-rev.py pull` 拉取原文，再用本地编辑器修改，执行

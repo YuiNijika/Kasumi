@@ -1,6 +1,6 @@
 # Kasumi Win32 + WebView2 示例
 
-> 运行一个真实 Win32 窗口，通过已安装的 Kasumi SDK 加载 `https://app.local/index.html` 并调用宿主服务。
+> 运行一个真实 Win32 窗口，通过已安装的 Kasumi SDK 加载能力页或多 WebView 演示页。
 
 ## 模块边界
 
@@ -11,7 +11,7 @@
 | `CMakeLists.txt` | `find_package(Kasumi CONFIG REQUIRED)`、链接静态库、默认编译内嵌 Web 资源 |
 | `main.cpp` | Win32 窗口、数据目录、内嵌资源提供器和 WebView2 生命周期 |
 | `cmake/app_version.rc.in` | 由应用包名和版本生成的 EXE 版本资源 |
-| `../../../examples/showcase/` | Windows 与 Android 共用的完整能力页面 |
+| `../../../examples/showcase/` | 完整能力页面，以及 `multi-view.*` 双实例演示 |
 
 构建前必须先安装 SDK。消费者只使用公共头文件 `<kasumi/...>` 和导入目标
 `Kasumi::kasumi_windows_bridge`。
@@ -42,6 +42,18 @@ Runtime。默认不生成或复制 `WebView2Loader.dll`。
 会自动读取并传入 CMake；直接配置工程时可使用 `-DKASUMI_APP_PACKAGE_NAME`、
 `-DKASUMI_APP_VERSION`、逗号分隔的 `-DKASUMI_APP_COMMANDS` 和
 `-DKASUMI_WINDOW_DECORATIONS=OFF`。未启用的命令返回 `NOT_SUPPORTED`。
+
+需要直接构建并启动左右双 View 演示时：
+
+```powershell
+pnpm ksm build --windows --target example --multi-view
+.\windows\examples\win32-host\build\Release\kasumi_win32_example.exe
+```
+
+该参数等价于 CMake 的 `-DKASUMI_EXAMPLE_MULTI_VIEW=ON`。左右两侧分别加载
+`multi-view.html?pane=left` 与 `?pane=right`，拥有独立的路由、DOM、滚动位置和本地
+状态，并通过虚拟数据目录共享一张便签。窗口尺寸变化时，示例宿主重新计算两个 View 的
+左右边界。
 
 ## 可选配置
 
@@ -74,7 +86,7 @@ cmake --build windows/examples/win32-host/build-external --config Release
 | `--user-data-folder <dir>` | 使用指定 WebView2 用户数据目录 |
 | `--url <url>` | 覆盖启动页面，开发模式使用 `http://localhost:5173/index.html` |
 | `--dev` | 开启 WebView DevTools，仅供开发宿主使用 |
-| `--multi-view` | 使用共享 Environment 创建左右分屏的两个 WebView |
+| `--multi-view` | 使用共享 Environment 创建左右分屏的两个 WebView 演示 |
 | `--multi-view-smoke` | 隐藏启动双 WebView 自动化检查，仅供 CTest 使用 |
 
 不传 `--user-data-folder` 时，普通启动使用
@@ -83,6 +95,8 @@ profile。
 使用 `python cli/ksm.py build --platform windows --target example --external-web` 或
 `package` 的同一参数，可以直接让命令行构建选择外置模式。
 `pnpm ksm dev` 会启动 `examples/showcase` 静态服务器，并以 `--url` 和 `--dev` 启动该宿主。
+开发模式下增加 `--multi-view`，两侧会分别加载 `multi-view.html?pane=left` 和
+`multi-view.html?pane=right`。
 
 ## 验证点
 
@@ -91,10 +105,11 @@ python cli/ksm.py test --platform windows --target example
 ```
 
 CTest 使用 `--smoke-test` 隐藏启动窗口，加载页面后执行 `ping`，再通过 `app.exit` 退出。
-`--multi-view-smoke` 在同一个 `HWND` 中创建两个 View，检查 `windowId`、子窗口和
-布局边界互不相同，并等待两个页面分别通过各自路由完成 `fs.writeText`；随后关闭第一个
-View，确认已关闭 View 的 `Reload()` 失败、第二个 View 仍可调整边界，并验证注册表中的
-View 数量降为 1。创建零面积 View 和对已有 View 设置零面积边界也必须失败。
+`--multi-view-smoke` 在同一个 `HWND` 中创建两个 View，实际加载 `multi-view.html`
+两侧页面，检查 `windowId`、子窗口和布局边界互不相同，并等待两个页面分别通过各自路由
+完成 `fs.writeText`；随后关闭第一个 View，确认已关闭 View 的 `Reload()` 失败、第二个
+View 仍可调整边界，并验证注册表中的 View 数量降为 1。创建零面积 View 和对已有 View
+设置零面积边界也必须失败。
 两个测试都要求机器已安装 Evergreen WebView2 Runtime。
 
 手工验证：
@@ -107,8 +122,9 @@ View 数量降为 1。创建零面积 View 和对已有 View 设置零面积边�
 5. 下载失败、超时或取消后，目标目录不应留下 `.part` 文件。
 6. 设置 `windows.decorations: false` 后，系统标题栏应消失，页面拖拽区域应能移动窗口，
    边缘和窗口控件仍可正常使用。
-7. 运行 `--multi-view` 后左右两个页面应独立滚动和响应命令；关闭其中一个 View 不应
-   结束顶层窗口或使另一个页面失去响应。
+7. 运行 `--multi-view` 后左右两个页面应显示不同编号和主题；任一侧写入共享便签后，
+   另一侧应在 2.5 秒内自动更新。两侧应独立滚动和响应命令，调整顶层窗口尺寸时都应
+   跟随重新布局；关闭其中一个 View 不应结束顶层窗口或使另一个页面失去响应。
 
 ## 排查
 

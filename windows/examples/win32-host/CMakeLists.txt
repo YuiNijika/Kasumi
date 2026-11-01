@@ -40,6 +40,12 @@ option(
 )
 
 option(
+    KASUMI_EXAMPLE_MULTI_VIEW
+    "Start the showcase with two WebViews in one window"
+    OFF
+)
+
+option(
     KASUMI_BUNDLE_WEBVIEW2_LOADER
     "Bundle WebView2Loader.dll instead of statically linking the loader"
     OFF
@@ -138,6 +144,7 @@ target_compile_definitions(
         KASUMI_APP_VERSION="${KASUMI_APP_VERSION}"
         KASUMI_APP_COMMANDS="${KASUMI_APP_COMMANDS}"
         KASUMI_WINDOW_DECORATIONS=$<BOOL:${KASUMI_WINDOW_DECORATIONS}>
+        KASUMI_EXAMPLE_MULTI_VIEW=$<BOOL:${KASUMI_EXAMPLE_MULTI_VIEW}>
 )
 
 set(
