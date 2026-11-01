@@ -11,12 +11,15 @@ import {
   normalizeProjectName,
   projectTitle
 } from './naming.mjs';
+import { useSystemCertificates } from './network.mjs';
 import { installSdk } from './sdk.mjs';
 import { renderTemplate } from './template.mjs';
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(sourceDirectory, '..', 'package.json');
 export const DEFAULT_RELEASE_VERSION = '26.11.2-alpha';
+
+useSystemCertificates();
 
 export async function run(argv) {
   const options = parseArgs(argv);
