@@ -1,5 +1,5 @@
-import { KSM } from '../bridge/ksm';
-import { assertString } from './guards';
+import { KSM } from '../bridge/ksm.js';
+import { assertString } from './guards.js';
 
 export function readText(): Promise<{ text: string }> {
   return KSM.invoke('clipboard.readText', {});

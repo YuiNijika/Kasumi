@@ -113,7 +113,7 @@ private:
 class BlockingHostServices final : public KSMHostServices {
 public:
     std::string AppVersion() const override {
-        return "0.1.0";
+        return "26.11.2-alpha";
     }
 
     std::string Language() const override {
@@ -440,7 +440,7 @@ void TestKsmRoot(
     if (
         !app_info ||
         app_info->name != "Kasumi" ||
-        app_info->version != "0.1.0" ||
+        app_info->version != "26.11.2-alpha" ||
         app_info->platform != KSM::Platform::Windows ||
         app_info->language != "en-US"
     ) {
@@ -493,15 +493,39 @@ void TestKsmRoot(
 void TestWebViewSecurity() {
     for (const auto& origin : {
         "https://app.local",
-        "https://app.local/index.html",
-        "http://localhost:5173",
-        "http://localhost:5173/index.html"
+        "https://app.local/index.html"
     }) {
         if (!KSMWebViewSecurity::IsAllowedOrigin(origin)) {
             throw std::runtime_error(
                 std::string("A trusted origin was rejected: ") + origin
             );
         }
+    }
+    for (const auto& origin : {
+        "http://localhost:5173",
+        "http://localhost:5173/index.html"
+    }) {
+        if (KSMWebViewSecurity::IsAllowedOrigin(origin)) {
+            throw std::runtime_error(
+                std::string("The development origin was accepted in production: ") +
+                origin
+            );
+        }
+        if (!KSMWebViewSecurity::IsAllowedOrigin(origin, true)) {
+            throw std::runtime_error(
+                std::string("The development origin was rejected in dev mode: ") +
+                origin
+            );
+        }
+    }
+    if (
+        KSMWebViewSecurity::IsAllowedNavigation("https://example.com", false) ||
+        !KSMWebViewSecurity::IsAllowedNavigation(
+            "http://localhost:5173/index.html",
+            true
+        )
+    ) {
+        throw std::runtime_error("WebView navigation origin policy is incorrect.");
     }
     for (const auto& origin : {
         "https://app.local.evil.example",

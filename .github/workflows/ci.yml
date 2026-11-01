@@ -15,8 +15,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm install --frozen-lockfile
       - run: pnpm codegen
+      - name: Verify generated contracts
+        run: git diff --exit-code -- frontend/src/generated windows/src/generated android/kasumi/src/main/java/dev/kasumi/app/generated
       - run: pnpm validate:protocol
       - run: pnpm typecheck
       - run: pnpm test:contract
@@ -39,8 +41,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm install --frozen-lockfile
       - run: pnpm codegen
+      - name: Verify generated contracts
+        run: git diff --exit-code -- frontend/src/generated windows/src/generated android/kasumi/src/main/java/dev/kasumi/app/generated
       - run: pnpm validate:protocol
       - run: pnpm typecheck
       - run: pnpm test:contract
@@ -58,3 +62,17 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: gradle -p android connectedDebugAndroidTest
+
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:packages
+      - run: pnpm test:tarballs

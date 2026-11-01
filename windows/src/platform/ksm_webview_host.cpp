@@ -40,7 +40,8 @@ KSMWebViewHost::KSMWebViewHost(
     std::shared_ptr<KSMFileSystem> file_system,
     std::shared_ptr<KSMHostServices> host_services,
     Dispatch dispatch,
-    std::vector<std::string> allowed_commands
+    std::vector<std::string> allowed_commands,
+    bool allow_development_origin
 )
     : send_message_(std::move(send_message)),
       dispatch_(std::move(dispatch)),
@@ -48,7 +49,8 @@ KSMWebViewHost::KSMWebViewHost(
           std::move(file_system),
           std::move(host_services),
           std::move(allowed_commands)
-      ) {
+      ),
+      allow_development_origin_(allow_development_origin) {
     for (std::size_t index = 0; index < kMaxConcurrentCommands; ++index) {
         workers_.emplace_back([this] { WorkerLoop(); });
     }
@@ -333,9 +335,15 @@ void KSMWebViewHost::NotifyWindowResized(int width, int height) {
 }
 
 bool KSMWebViewHost::IsAllowedOrigin(const std::string& origin) const {
-    return KSMWebViewSecurity::IsAllowedOrigin(origin);
+    return KSMWebViewSecurity::IsAllowedOrigin(
+        origin,
+        allow_development_origin_
+    );
 }
 
 bool KSMWebViewHost::IsAllowedNavigation(const std::string& url) const {
-    return KSMWebViewSecurity::IsAllowedNavigation(url);
+    return KSMWebViewSecurity::IsAllowedNavigation(
+        url,
+        allow_development_origin_
+    );
 }

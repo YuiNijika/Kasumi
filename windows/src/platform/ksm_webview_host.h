@@ -28,7 +28,8 @@ public:
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
         std::shared_ptr<KSMHostServices> host_services = nullptr,
         Dispatch dispatch = {},
-        std::vector<std::string> allowed_commands = {}
+        std::vector<std::string> allowed_commands = {},
+        bool allow_development_origin = false
     );
     ~KSMWebViewHost();
 
@@ -73,6 +74,7 @@ private:
     SendMessage send_message_;
     Dispatch dispatch_;
     KSMRouter router_;
+    bool allow_development_origin_ = false;
     std::mutex queue_mutex_;
     std::condition_variable queue_ready_;
     std::deque<std::function<void()>> tasks_;

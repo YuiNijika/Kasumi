@@ -2,7 +2,7 @@ import type {
   KSMEvent,
   KSMResponse,
   KSMTransport
-} from './types';
+} from './types.js';
 
 const MAX_MESSAGE_BYTES = 64 * 1024;
 

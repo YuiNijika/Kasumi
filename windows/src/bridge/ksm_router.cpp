@@ -269,7 +269,7 @@ void KSMRouter::HandleMessage(
         if (command == "app.getInfo") {
             const std::string version = host_services_
                 ? host_services_->AppVersion()
-                : "0.1.0";
+                : "26.11.2-alpha";
             const std::string language = host_services_
                 ? host_services_->Language()
                 : "en-US";

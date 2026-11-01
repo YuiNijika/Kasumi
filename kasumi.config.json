@@ -2,13 +2,13 @@
   "$schema": "./protocol/kasumi.config.schema.json",
   "windows": {
     "packageName": "kasumi-win32-example",
-    "version": "0.1.0",
+    "version": "26.11.2-alpha",
     "commands": "all",
     "decorations": true
   },
   "android": {
     "packageName": "dev.kasumi.example",
-    "version": "0.1.0",
+    "version": "26.11.2-alpha",
     "commands": "all"
   }
 }

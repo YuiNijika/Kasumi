@@ -14,11 +14,19 @@ class NavigationPolicyTest {
                 -1
             )
         )
-        assertTrue(
+        assertFalse(
             KSMNavigationPolicy.isAllowedOrigin(
                 "http",
                 "localhost",
                 5173
+            )
+        )
+        assertTrue(
+            KSMNavigationPolicy.isAllowedOrigin(
+                "http",
+                "localhost",
+                5173,
+                allowDevelopmentOrigin = true
             )
         )
         assertFalse(
@@ -42,14 +50,5 @@ class NavigationPolicyTest {
                 444
             )
         )
-    }
-
-    @Test
-    fun allowsOnlyHttpAndHttpsExternalNavigation() {
-        assertTrue(KSMNavigationPolicy.isAllowedExternalScheme("http"))
-        assertTrue(KSMNavigationPolicy.isAllowedExternalScheme("HTTPS"))
-        assertFalse(KSMNavigationPolicy.isAllowedExternalScheme("intent"))
-        assertFalse(KSMNavigationPolicy.isAllowedExternalScheme("file"))
-        assertFalse(KSMNavigationPolicy.isAllowedExternalScheme(null))
     }
 }

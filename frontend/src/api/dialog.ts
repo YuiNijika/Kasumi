@@ -1,5 +1,5 @@
-import { KSM } from '../bridge/ksm';
-import { assertString } from './guards';
+import { KSM } from '../bridge/ksm.js';
+import { assertString } from './guards.js';
 
 export function message(args: { title: string; message: string }): Promise<{ confirmed: boolean }> {
   assertString(args.title, 'title');

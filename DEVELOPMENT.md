@@ -35,7 +35,7 @@ SDK 与示例必须分开构建。消费者只接收静态库、公共头文件�
 
 ## 当前进度
 
-当前协议基线为 **29 个命令、2 个事件**，产品版本保持 `0.1.0`。新增命令从
+当前协议基线为 **29 个命令、2 个事件**，产品版本为 `26.11.2-alpha`。新增命令从
 `since: "1.1.0"` 开始记录，命令名和参数以 `protocol/commands.json` 为准。
 
 | 平台 | 适用命令 | 已实现 | 说明 |
@@ -56,11 +56,27 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
 
 发布边界已完成：
 
-- Windows SDK 产出 `kasumi-windows-sdk-0.1.0.zip`，示例单独产出可执行程序 ZIP。
-- Android SDK 产出 `kasumi-android-sdk-0.1.0.aar`，示例单独产出 APK。
+- Windows SDK 产出 `kasumi-windows-sdk-26.11.2-alpha.zip`，示例单独产出可执行程序 ZIP。
+- Android SDK 产出 `kasumi-android-sdk-26.11.2-alpha.aar`，示例单独产出 APK。
 - `windows/examples/win32-host/` 通过 `find_package(Kasumi CONFIG REQUIRED)` 消费 SDK。
-- `examples/android-host/` 通过 `dev.kasumi:kasumi:0.1.0` 消费本地 Maven 中的 AAR。
+- `examples/android-host/` 通过 `dev.kasumi:kasumi:26.11.2-alpha` 消费本地 Maven 中的 AAR。
 - Windows SDK 包不包含 `.cpp`，Android Maven 发布不生成 sources JAR。
+
+`26.11.2-alpha` 发布加固边界：
+
+- 用户项目 `ksm package` 输出到 `dist/packages/`；Windows 生成 ZIP，Android 生成签名 release APK。
+- Android release 缺少四个签名变量时在构建前失败，APK 通过 `apksigner verify` 后才复制到发布目录。
+- `ksm doctor` 使用框架识别逻辑检查 Next.js 与 Nuxt，不再硬编码根级 `frontend/index.html`。
+- SDK 下载只允许 HTTPS，测试额外允许回环 HTTP；manifest、资产大小、超时、重定向和 ZIP 路径均有上限。
+- SDK 先下载并解压到项目内 `.tmp/`，与目标目录保持同卷；双平台全部校验后再统一提交，任一提交失败会回滚已安装的 SDK 并保留旧版本。
+- 初始化失败会删除本次新建的项目目录，不会留下半安装 SDK。
+- POSIX 开发服务器按进程组终止，Windows 使用 `taskkill /T /F` 终止子进程树。
+- 旧维护者 CLI 尊重 `GRADLE`，并在 Android 工程目录执行系统 Gradle。
+- 生产 WebView 只接受 `https://app.local`；开发 origin 只在 Windows dev 或 Android debug 中开放。
+- Android WebView 外部导航直接拦截，统一要求使用 `shell.openExternal` 的精确 origin 白名单。
+- `basic` Android 模板复用 `KSMWebViewHost`，不再手写外部导航或调用 `ACTION_VIEW`。
+- `kasumi-bridge` 输出使用显式 `.js` 相对导入，安装后的 ESM 包可由 Node 直接加载。
+- 根锁文件只包含根工程和 `packages/*`，CI 使用 `--frozen-lockfile` 并检查生成契约漂移。
 
 ## 应用配置
 
@@ -72,13 +88,13 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
   "$schema": "./protocol/kasumi.config.schema.json",
   "windows": {
     "packageName": "kasumi-win32-example",
-    "version": "0.1.0",
+    "version": "26.11.2-alpha",
     "commands": "all",
     "decorations": true
   },
   "android": {
     "packageName": "dev.kasumi.example",
-    "version": "0.1.0",
+    "version": "26.11.2-alpha",
     "commands": "all"
   }
 }
@@ -201,7 +217,7 @@ await KSM.window.setSize({ width: 960, height: 720 });
 ### Android
 
 - `android/kasumi/` 是发布 AAR 的 Android Library 模块；`android/app/` 只保留维护者测试宿主。
-- 本地 Maven 仓库位于 `android/kasumi/build/repo`，示例通过 `dev.kasumi:kasumi:0.1.0` 解析。
+- 本地 Maven 仓库位于 `android/kasumi/build/repo`，示例通过 `dev.kasumi:kasumi:26.11.2-alpha` 解析。
 - `examples/android-host/` 是独立消费者工程，不通过 Gradle 源码替换依赖框架模块。
 - `KSMAndroidHostServices` 使用 `HttpsURLConnection` 下载、`ACTION_VIEW` 打开外部链接，并从 `Build`、窗口度量、资源和时区读取设备信息。
 - `KSMWebViewHost` 统一配置 WebView、消息监听、导航、IO 命令协程和 Activity 生命周期，示例不再复制桥接代码。
@@ -233,13 +249,16 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm dev --android` | 模拟器通过 `adb reverse` 加载开发页面 |
 | `pnpm ksm test --all --target sdk` | 双端契约、配置校验、allowlist、JVM 测试和示例 smoke test 通过 |
 | Android WebView 全屏与内存优化 | SDK、维护者宿主、instrumentation 测试源码和独立示例 Kotlin 编译通过，JVM 测试通过 |
-| `pnpm test:packages` | 23 个包测试通过，覆盖初始化、框架模板、CSP 注入、命名、批处理入口、Gradle Wrapper、协议命令矩阵和 `decorations` 配置 |
+| `pnpm test` | 协议、TypeScript、契约、Python、Windows CTest 与 smoke test、Android release/JVM/instrumentation 编译全部通过 |
+| `pnpm test:packages` | 34 个包测试通过，覆盖初始化、框架模板、SDK 双平台事务安装与回滚、ZIP 打包、Doctor、Gradle Wrapper、协议命令矩阵和 `decorations` 配置 |
 | `pnpm build:bridge` | `kasumi-bridge` 生成 ESM 与 TypeScript 声明 |
 | React / Vue 模板构建 | TypeScript 检查与 Vite 生产构建通过，输出到 `frontend/dist/` |
 | Next.js 模板构建 | App Router 静态导出通过，CLI 将 `frontend/out/` 同步到 `frontend/dist/` |
 | Nuxt 模板构建 | 静态生成通过，CLI 将 `frontend/.output/public/` 同步到 `frontend/dist/` |
 | `pnpm --filter create-kasumi pack` | npm tarball 包含模板、Gradle Wrapper、vcpkg manifest、命令数据和 bin 入口 |
-| `npm exec --package create-kasumi-0.1.0.tgz` | 从实际 npm tarball 初始化项目通过 |
+| `npm exec --package create-kasumi-26.11.2-alpha.tgz` | 从实际 npm tarball 初始化项目通过 |
+| `pnpm test:tarballs` | 三个实际 tarball 安装、三个 bin 入口和 basic、React、Vue、Next.js、Nuxt 前端构建全部通过 |
+| 生成的 basic Android 模板 | 挂载本地 Maven AAR 后 `:app:compileDebugKotlin` 通过，确认共享宿主与 debug origin 门禁可编译 |
 | 生成项目 `pnpm typecheck` | 模板 TypeScript 配置通过 |
 | 生成项目 `vite build` | 前端构建输出到 `frontend/dist/` 通过 |
 | 本地 Release HTTP 端到端 | 下载 manifest、校验 SHA-256、解压 Windows SDK 与 Android Maven 仓库通过 |
@@ -248,14 +267,16 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | 生成项目 Windows smoke test | WebView2 加载、前端 `ping`、`app.exit` 后 2.3 秒内退出 |
 | 生成项目 Android 构建 | JDK 21 + 自带 Gradle Wrapper 产出 debug APK |
 | Windows 批处理入口 | `pnpm.cmd` 与 `gradlew.bat` 均通过 `cmd.exe` 启动，不再触发 `spawn EINVAL` |
-| `pnpm ksm package --android --target sdk` | AAR 与 `kasumi-android-maven-0.1.0.zip` 生成通过 |
+| `pnpm ksm package --android --target sdk` | AAR 与 `kasumi-android-maven-26.11.2-alpha.zip` 生成通过 |
 | `kasumi_win32_example_smoke` | Windows 示例启动、ping 与退出通过 |
 | `kasumi_win32_example_multi_view_smoke` | 实际加载 `multi-view.html` 两侧页面，验证同窗口双 View、独立 windowId/子窗口/边界和命令路由、顶层窗口缩放重排、单 View 关闭后剩余实例继续运行 |
 | 多 View 边界回归 | 创建零面积 View 被拒绝；对已存在 View 调用无面积 `SetBounds()` 失败且布局不变 |
 | Windows 标题栏构建 | `ON` 与 `OFF` 均编译并通过 smoke test；`OFF` 移除 `WS_CAPTION`，客户区覆盖完整窗口，四边与四角返回对应缩放命中值 |
 | Windows SDK CTest | 标题栏 `ON` 与 `OFF` 构建目录均 2/2 通过，含单 View 和多 View smoke |
+| Windows 多 View 稳定性 | 多 View smoke 连续 20 次通过，并为失败状态补充具体条件诊断 |
+| 维护者 Windows 发布打包 | `pnpm ksm package --windows` 生成 `windows/build/sdk/packages/kasumi-windows-sdk-26.11.2-alpha.zip` 与 `windows/examples/win32-host/build/packages/kasumi-win32-example-26.11.2-alpha.zip` |
 | Windows 原生契约 | `kasumi_contract_runner.exe` 输出 `windows contract passed` |
-| `node --test packages/*/tests/*.test.mjs` | 19/19 通过 |
+| `node --test packages/*/tests/*.test.mjs` | 34/34 通过 |
 | `python -m unittest tests.test_kasumi_config` | 14/14 通过 |
 | TypeScript 双工程检查 | `frontend/tsconfig.json` 与 `tests/tsconfig.json` 均通过 |
 | `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
@@ -394,15 +415,32 @@ Nuxt 后将各自输出目录同步为统一的 `frontend/dist/`。
 
 ```bash
 pnpm test:packages
+pnpm test:tarballs
 pnpm build:bridge
 pnpm --filter kasumi-cli pack
 pnpm --filter kasumi-bridge pack
 pnpm --filter create-kasumi pack
 ```
 
-标签发布工作流使用 `NPM_TOKEN` 发布三个 npm 包，并在 GitHub Release 中上传
+用户项目执行 `pnpm ksm package --windows` 或 `pnpm ksm package --android` 时，产物写入
+`dist/packages/`。Android release 需要：
+
+```text
+KASUMI_ANDROID_KEYSTORE
+KASUMI_ANDROID_KEYSTORE_PASSWORD
+KASUMI_ANDROID_KEY_ALIAS
+KASUMI_ANDROID_KEY_PASSWORD
+```
+
+标签发布工作流先生成并上传 GitHub Release 资产，再按 `kasumi-bridge`、`kasumi-cli`、
+`create-kasumi` 的顺序使用 `NPM_TOKEN` 和 npm provenance 发布。Release 资产包含
 Windows SDK、Android Maven 仓库、AAR、示例 ZIP、APK 和 `kasumi-release.json`。
-正式标签发布仍要求 Windows Authenticode 与 Android APK 签名。
+正式标签发布要求 Windows Authenticode 与 Android APK 签名；普通 CI 不要求证书。
+当前目标版本为 `26.11.2-alpha`，发布标签为 `v26.11.2-alpha`。带预发布后缀的标签
+会创建 GitHub prerelease，并将三个 npm 包发布到 `alpha` dist-tag，不覆盖 `latest`。
+
+CI 使用 `pnpm install --frozen-lockfile`。根锁文件必须只包含根工程和 `packages/*`，
+生成契约后执行 `git diff --exit-code`，避免临时项目依赖或未同步契约进入发布。
 
 当前 npm registry 上 `create-kasumi`、`kasumi-cli` 和 `kasumi-bridge` 均未占用；
 本机 npm 尚未登录，因此本轮只完成 tarball 与模拟 Release 的端到端验证，没有执行

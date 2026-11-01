@@ -129,7 +129,8 @@ async function startFrontendProcess(projectRoot, settings) {
         cwd: projectRoot,
         env: process.env,
         stdio: 'inherit',
-        shell: false
+        shell: false,
+        detached: process.platform !== 'win32'
       }
     );
   }
@@ -139,7 +140,8 @@ async function startFrontendProcess(projectRoot, settings) {
     scriptArguments(packageManager, settings.devScript),
     {
       cwd: projectRoot,
-      env: process.env
+      env: process.env,
+      detached: process.platform !== 'win32'
     }
   );
 }
@@ -270,7 +272,7 @@ async function waitForServer(child, url) {
   throw new Error(`Frontend did not become ready at ${url}.`);
 }
 
-function stopChild(child) {
+export function stopChild(child) {
   if (process.platform === 'win32' && child.pid) {
     spawnSync(
       'taskkill',
@@ -278,6 +280,14 @@ function stopChild(child) {
       { stdio: 'ignore' }
     );
     return;
+  }
+  if (child.pid) {
+    try {
+      process.kill(-child.pid, 'SIGTERM');
+      return;
+    } catch {
+      // The child may not have started a process group.
+    }
   }
   if (!child.killed) {
     child.kill();

@@ -23,7 +23,7 @@ public:
         HWND window,
         std::vector<std::string> allowed_external_origins = {},
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
-        std::string app_version = "0.1.0"
+        std::string app_version = "26.11.2-alpha"
     );
 
     std::string AppVersion() const override;

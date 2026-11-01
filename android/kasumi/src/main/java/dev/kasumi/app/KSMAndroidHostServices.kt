@@ -53,7 +53,7 @@ class KSMAndroidHostServices(
     private val activity: Activity,
     allowedExternalOrigins: Set<String> = emptySet(),
     private val fileSystem: KSMFileSystem? = null,
-    private val appVersion: String = "0.1.0"
+    private val appVersion: String = "26.11.2-alpha"
 ) : KSMHostServices {
     companion object {
         const val REQUEST_OPEN_FILE = 1001
@@ -120,9 +120,9 @@ class KSMAndroidHostServices(
                     0
                 ).versionName
             }
-            versionName?.takeIf { it.isNotBlank() } ?: "0.1.0"
+            versionName?.takeIf { it.isNotBlank() } ?: "26.11.2-alpha"
         } catch (_: Exception) {
-            "0.1.0"
+            "26.11.2-alpha"
         }
     }
 

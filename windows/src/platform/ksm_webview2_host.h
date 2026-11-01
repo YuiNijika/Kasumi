@@ -38,7 +38,7 @@ public:
                   std::shared_ptr<KSMWebResourceProvider> web_resources = {},
                   std::wstring start_url = L"https://app.local/index.html",
                   bool dev_mode = false,
-                  std::string app_version = "0.1.0",
+                  std::string app_version = "26.11.2-alpha",
                   std::vector<std::string> allowed_commands = {},
                   bool decorations = true);
   ~KSMWebView2Host();

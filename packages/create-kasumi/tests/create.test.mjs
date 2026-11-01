@@ -24,6 +24,12 @@ import { resolveTemplate } from '../src/template.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
+const kasumiVersion = JSON.parse(
+  await readFile(
+    path.join(testDirectory, '..', 'package.json'),
+    'utf8'
+  )
+).version;
 
 test('parseArgs selects both platforms by default', () => {
   const options = parseArgs(['my-app']);
@@ -121,11 +127,11 @@ test('initializes framework templates through the shared base layout', async () 
       assert.equal(packageJson.private, true);
       assert.equal(
         packageJson.dependencies['kasumi-bridge'],
-        '^0.1.0'
+        `^${kasumiVersion}`
       );
       assert.equal(
         packageJson.devDependencies['kasumi-cli'],
-        '^0.1.0'
+        `^${kasumiVersion}`
       );
       assert.equal(
         typeof packageJson.scripts['frontend:dev'],
@@ -135,6 +141,14 @@ test('initializes framework templates through the shared base layout', async () 
         typeof packageJson.scripts['frontend:build'],
         'string'
       );
+      if (template === 'nuxtjs') {
+        const workspace = await readFile(
+          path.join(destination, 'pnpm-workspace.yaml'),
+          'utf8'
+        );
+        assert.match(workspace, /glob: 14\.0\.3/);
+        assert.match(workspace, /minimatch: 11\.0\.3/);
+      }
       assert.equal(
         await exists(path.join(destination, frontendEntry)),
         true
@@ -171,29 +185,32 @@ test('initializes a source-only project without framework source', async () => {
       await readFile(path.join(destination, 'kasumi.config.json'), 'utf8')
     );
     assert.equal(config.windows.packageName, 'my-app');
-    assert.equal(config.windows.version, '0.1.0');
+    assert.equal(config.windows.version, kasumiVersion);
     assert.equal(config.android.packageName, 'dev.kasumi.my_app');
-    assert.equal(config.android.version, '0.1.0');
+    assert.equal(config.android.version, kasumiVersion);
     assert.equal(config.windows.commands, 'all');
     assert.equal(config.windows.decorations, true);
     assert.equal(config.android.commands, 'all');
-    assert.equal(
-      await exists(
-        path.join(
-          destination,
-          'android',
-          'app',
-          'src',
-          'main',
-          'java',
-          'dev',
-          'kasumi',
-          'my_app',
-          'MainActivity.kt'
-        )
-      ),
-      true
+    const mainActivity = path.join(
+      destination,
+      'android',
+      'app',
+      'src',
+      'main',
+      'java',
+      'dev',
+      'kasumi',
+      'my_app',
+      'MainActivity.kt'
     );
+    assert.equal(await exists(mainActivity), true);
+    const mainActivitySource = await readFile(mainActivity, 'utf8');
+    assert.match(
+      mainActivitySource,
+      /import dev\.kasumi\.app\.bridge\.KSMWebViewHost/
+    );
+    assert.equal(mainActivitySource.includes('ACTION_VIEW'), false);
+    assert.match(mainActivitySource, /if \(!BuildConfig\.DEBUG\)/);
     assert.equal(
       await exists(path.join(destination, 'windows', 'src')),
       false
@@ -249,7 +266,7 @@ test('initializes a source-only project without framework source', async () => {
         'utf8'
       )
     );
-    assert.equal(vcpkg['version-string'], '0.1.0');
+    assert.equal(vcpkg['version-string'], kasumiVersion);
     assert.deepEqual(vcpkg.dependencies, ['nlohmann-json', 'webview2']);
     const files = await collectFiles(destination);
     for (const file of files) {

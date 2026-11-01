@@ -1,6 +1,13 @@
-import { copyFile, cp, mkdir, rm } from 'node:fs/promises';
+import {
+  copyFile,
+  cp,
+  mkdir,
+  rm,
+  writeFile
+} from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { createZipArchive } from './archive.mjs';
 import { exists, findCommand, run } from './process.mjs';
 
 export async function buildWindows(projectRoot, config, options = {}) {
@@ -90,6 +97,70 @@ export async function buildWindows(projectRoot, config, options = {}) {
       recursive: true,
       force: true
     });
+  }
+  return output;
+}
+
+export async function packageWindows(projectRoot, config, options = {}) {
+  const executable = await buildWindows(projectRoot, config, options);
+  return createWindowsPackage(projectRoot, config, executable, options);
+}
+
+export async function createWindowsPackage(
+  projectRoot,
+  config,
+  executable,
+  options = {}
+) {
+  const staging = path.join(projectRoot, '.ksm', 'package', 'windows');
+  const outputDirectory = path.join(projectRoot, 'dist', 'packages');
+  const output = path.join(
+    outputDirectory,
+    `${config.packageName}-${config.version}-windows.zip`
+  );
+  const sourceDirectory = path.dirname(executable);
+
+  await rm(staging, { recursive: true, force: true });
+  await mkdir(staging, { recursive: true });
+  await mkdir(outputDirectory, { recursive: true });
+  try {
+    await copyFile(executable, path.join(staging, path.basename(executable)));
+    await writeFile(
+      path.join(staging, 'README.txt'),
+      [
+        `${config.packageName} ${config.version}`,
+        '',
+        'Run the executable on Windows with the Evergreen WebView2 Runtime installed.',
+        options.bundleWebview2Loader
+          ? 'WebView2Loader.dll is included because the package was built with the loader option.'
+          : 'WebView2Loader.dll is not bundled by default.',
+        options.externalWeb
+          ? 'The web directory must remain beside the executable.'
+          : 'Web assets are embedded in the executable.',
+        ''
+      ].join('\r\n'),
+      'utf8'
+    );
+
+    if (options.externalWeb) {
+      const web = path.join(sourceDirectory, 'web');
+      if (!(await exists(web))) {
+        throw new Error(
+          'External web assets were not produced beside the executable.'
+        );
+      }
+      await cp(web, path.join(staging, 'web'), { recursive: true });
+    }
+    if (options.bundleWebview2Loader) {
+      const loader = path.join(sourceDirectory, 'WebView2Loader.dll');
+      if (await exists(loader)) {
+        await copyFile(loader, path.join(staging, 'WebView2Loader.dll'));
+      }
+    }
+
+    await createZipArchive(staging, output);
+  } finally {
+    await rm(staging, { recursive: true, force: true });
   }
   return output;
 }

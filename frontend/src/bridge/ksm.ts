@@ -1,11 +1,11 @@
-import { KSMBus } from './bus';
-import { KSMWebMessageTransport } from './transport';
+import { KSMBus } from './bus.js';
+import { KSMWebMessageTransport } from './transport.js';
 import {
   KSM_COMMANDS,
   KSM_EVENTS,
   validateKSMArgs,
   type KSMCommandName
-} from '../generated/contract';
+} from '../generated/contract.js';
 import {
   assertBoolean,
   assertHttpUrl,
@@ -14,7 +14,7 @@ import {
   assertVirtualDirectoryPath,
   assertVirtualPath,
   assertVirtualStatPath
-} from '../api/guards';
+} from '../api/guards.js';
 import type {
   KSMAppInfo,
   KSMAppApi,
@@ -34,7 +34,7 @@ import type {
   KSMTransport,
   KSMWindowApi,
   KSMWindowSize
-} from './types';
+} from './types.js';
 
 export type KSMTextResult = string | { file: string };
 

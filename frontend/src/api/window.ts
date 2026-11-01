@@ -1,6 +1,6 @@
-import { KSM } from '../bridge/ksm';
-import { assertPositiveInteger, assertString } from './guards';
-import type { KSMWindowSize } from '../bridge/types';
+import { KSM } from '../bridge/ksm.js';
+import { assertPositiveInteger, assertString } from './guards.js';
+import type { KSMWindowSize } from '../bridge/types.js';
 
 export function setTitle(title: string): Promise<{ updated: boolean }> {
   assertString(title, 'title');

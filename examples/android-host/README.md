@@ -1,6 +1,6 @@
 # Kasumi Android 示例宿主
 
-> 一个独立 Android 应用工程，通过本地 Maven 中的 `dev.kasumi:kasumi:0.1.0` 使用 Kasumi SDK。
+> 一个独立 Android 应用工程，通过本地 Maven 中的 `dev.kasumi:kasumi:26.11.2-alpha` 使用 Kasumi SDK。
 
 ## 模块边界
 
@@ -9,7 +9,7 @@
 | 文件 | 责任 |
 | --- | --- |
 | `settings.gradle.kts` | 配置 Google、Maven Central 和本地 Kasumi Maven 仓库 |
-| `app/build.gradle.kts` | 声明 `dev.kasumi:kasumi:0.1.0` 与共享 Web 资源 |
+| `app/build.gradle.kts` | 声明 `dev.kasumi:kasumi:26.11.2-alpha` 与共享 Web 资源 |
 | `MainActivity.kt` | Activity 生命周期转发、宿主服务配置和 `KSMWebViewHost` 启动 |
 | `../showcase/` | Windows 与 Android 共用的完整能力页面 |
 
@@ -56,7 +56,7 @@ CLI 会通过 `-PksmPackageName`、`-PksmVersion` 和 `-PksmCommands` 注入 Gra
 
 ## 排查
 
-1. 依赖解析失败：先确认本地 Maven 仓库存在 `dev/kasumi/kasumi/0.1.0/`。
+1. 依赖解析失败：先确认本地 Maven 仓库存在 `dev/kasumi/kasumi/26.11.2-alpha/`。
 2. 页面报 `ERR_NAME_NOT_RESOLVED`：确认宿主使用 `KSMWebAssetLoader.create(context)`，
    且 `assets.srcDir` 指向 `examples/showcase`。
 3. 请求超时：确认 `WebViewCompat.addWebMessageListener` 的来源和 `ksm` 通道名称。

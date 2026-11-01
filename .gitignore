@@ -1,6 +1,5 @@
 .env
 $null
-pnpm-lock.yaml
 .codex-diff.txt
 .pnpm-store/
 .androidx-check/
@@ -10,6 +9,8 @@ pnpm-lock.yaml
 .temp/
 .tmp/
 .workbuddy/
+/.ksm/
+/dist/
 KasumiData/
 __pycache__/
 *.egg-info/

@@ -4,7 +4,7 @@ import type {
   KSMRequest,
   KSMResponse,
   KSMTransport
-} from './types';
+} from './types.js';
 
 const DEFAULT_TIMEOUT_MS = 10000;
 

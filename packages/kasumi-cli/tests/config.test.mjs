@@ -4,6 +4,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  stat,
   writeFile
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -12,13 +13,20 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { parseArgs } from '../src/args.mjs';
-import { findGradle } from '../src/android.mjs';
+import {
+  findApkSigner,
+  findGradle,
+  packageAndroid
+} from '../src/android.mjs';
 import { ConfigError, readConfig } from '../src/config.mjs';
 import {
   injectContentSecurityPolicy,
   readFrontendSettings
 } from '../src/frontend.mjs';
+import { createZipArchive } from '../src/archive.mjs';
+import { collectDoctorChecks } from '../src/main.mjs';
 import { commandInvocation } from '../src/process.mjs';
+import { createWindowsPackage } from '../src/windows.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
@@ -146,6 +154,164 @@ test('injects a single CSP meta tag into frontend output', async () => {
     );
     assert.match(html, /script-src 'self' 'unsafe-inline'/);
   } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('doctor accepts Next.js and Nuxt projects without index.html', async () => {
+  for (const dependency of ['next', 'nuxt']) {
+    const temporaryRoot = await mkdtemp(
+      path.join(tmpdir(), 'kasumi-doctor-test-')
+    );
+    try {
+      await mkdir(path.join(temporaryRoot, 'frontend'), { recursive: true });
+      await writeFile(
+        path.join(temporaryRoot, 'package.json'),
+        JSON.stringify({
+          dependencies: { [dependency]: '^16.0.0' },
+          scripts: {
+            'frontend:dev': `${dependency} dev frontend`,
+            'frontend:build': `${dependency} build frontend`
+          }
+        }),
+        'utf8'
+      );
+      const checks = await collectDoctorChecks(temporaryRoot, {
+        windows: { packageName: 'sample-app' },
+        android: { packageName: 'dev.kasumi.sample' }
+      });
+      const entry = checks.find((item) => item.label === 'frontend entry');
+      assert.equal(entry.ok, true);
+      assert.match(entry.value, /frontend$/);
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test('creates zip archives with normalized relative paths', async () => {
+  const temporaryRoot = await mkdtemp(
+    path.join(tmpdir(), 'kasumi-archive-test-')
+  );
+  try {
+    const source = path.join(temporaryRoot, 'source');
+    const archive = path.join(temporaryRoot, 'package.zip');
+    await mkdir(source, { recursive: true });
+    await mkdir(path.join(source, 'web'), { recursive: true });
+    await writeFile(path.join(source, 'README.txt'), 'Kasumi', 'utf8');
+    await writeFile(path.join(source, 'web', 'index.html'), '<html></html>', 'utf8');
+    await createZipArchive(source, archive);
+    const info = await stat(archive);
+    assert.equal(info.isFile(), true);
+    assert.ok(info.size > 0);
+    assert.deepEqual(
+      zipEntryNames(await readFile(archive)),
+      ['README.txt', 'web/index.html']
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('Windows packages contain the executable and optional runtime assets', async () => {
+  const temporaryRoot = await mkdtemp(
+    path.join(tmpdir(), 'kasumi-windows-package-test-')
+  );
+  try {
+    const executable = path.join(
+      temporaryRoot,
+      'dist',
+      'windows',
+      'sample-app.exe'
+    );
+    await mkdir(path.dirname(executable), { recursive: true });
+    await mkdir(path.join(path.dirname(executable), 'web'), { recursive: true });
+    await writeFile(executable, 'executable', 'utf8');
+    await writeFile(
+      path.join(path.dirname(executable), 'web', 'index.html'),
+      '<html></html>',
+      'utf8'
+    );
+    await writeFile(
+      path.join(path.dirname(executable), 'WebView2Loader.dll'),
+      'loader',
+      'utf8'
+    );
+    const output = await createWindowsPackage(
+      temporaryRoot,
+      {
+        packageName: 'sample-app',
+        version: '0.1.0'
+      },
+      executable,
+      {
+        bundleWebview2Loader: true,
+        externalWeb: true
+      }
+    );
+    assert.deepEqual(
+      zipEntryNames(await readFile(output)),
+      [
+        'README.txt',
+        'WebView2Loader.dll',
+        'sample-app.exe',
+        'web/index.html'
+      ]
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('Android packaging rejects missing release signing configuration', async () => {
+  const environment = saveEnvironment([
+    'KASUMI_ANDROID_KEYSTORE',
+    'KASUMI_ANDROID_KEYSTORE_PASSWORD',
+    'KASUMI_ANDROID_KEY_ALIAS',
+    'KASUMI_ANDROID_KEY_PASSWORD'
+  ]);
+  try {
+    for (const name of environment.keys()) {
+      delete process.env[name];
+    }
+    await assert.rejects(
+      packageAndroid('unused', {
+        packageName: 'dev.kasumi.sample',
+        version: '0.1.0',
+        commands: ['ping', 'capabilities.query']
+      }),
+      /Android release signing requires/
+    );
+  } finally {
+    restoreEnvironment(environment);
+  }
+});
+
+test('selects the newest Android build-tools by numeric version', async () => {
+  const temporaryRoot = await mkdtemp(
+    path.join(tmpdir(), 'kasumi-apksigner-test-')
+  );
+  const environment = saveEnvironment([
+    'APKSIGNER',
+    'ANDROID_HOME',
+    'ANDROID_SDK_ROOT'
+  ]);
+  const executable = process.platform === 'win32'
+    ? 'apksigner.bat'
+    : 'apksigner';
+  try {
+    for (const version of ['9.0.0', '34.0.0']) {
+      const directory = path.join(temporaryRoot, 'build-tools', version);
+      await mkdir(directory, { recursive: true });
+      await writeFile(path.join(directory, executable), '', 'utf8');
+    }
+    delete process.env.APKSIGNER;
+    delete process.env.ANDROID_SDK_ROOT;
+    process.env.ANDROID_HOME = temporaryRoot;
+    const signer = await findApkSigner();
+    assert.match(signer, /34\.0\.0/);
+  } finally {
+    restoreEnvironment(environment);
     await rm(temporaryRoot, { recursive: true, force: true });
   }
 });
@@ -347,3 +513,36 @@ test('CLI command data matches the protocol platform matrix', async () => {
     assert.deepEqual([...data[platform]].sort(), expected);
   }
 });
+
+function zipEntryNames(buffer) {
+  const endOffset = buffer.lastIndexOf(
+    Buffer.from([0x50, 0x4b, 0x05, 0x06])
+  );
+  assert.notEqual(endOffset, -1);
+  const entryCount = buffer.readUInt16LE(endOffset + 10);
+  let offset = buffer.readUInt32LE(endOffset + 16);
+  const names = [];
+  for (let index = 0; index < entryCount; index += 1) {
+    assert.equal(buffer.readUInt32LE(offset), 0x02014b50);
+    const nameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    names.push(buffer.subarray(offset + 46, offset + 46 + nameLength).toString('utf8'));
+    offset += 46 + nameLength + extraLength + commentLength;
+  }
+  return names;
+}
+
+function saveEnvironment(names) {
+  return new Map(names.map((name) => [name, process.env[name]]));
+}
+
+function restoreEnvironment(environment) {
+  for (const [name, value] of environment) {
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  }
+}

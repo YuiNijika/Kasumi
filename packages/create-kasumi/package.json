@@ -1,6 +1,6 @@
 {
   "name": "create-kasumi",
-  "version": "0.1.0",
+  "version": "26.11.2-alpha",
   "description": "Create a Kasumi application",
   "type": "module",
   "bin": {
@@ -11,6 +11,7 @@
     "src",
     "data",
     "templates",
+    "LICENSE",
     "README.md"
   ],
   "engines": {
@@ -19,7 +20,10 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/YuiNijika/Kasumi.git"

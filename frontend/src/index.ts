@@ -1,5 +1,5 @@
-export { KSM } from './bridge/ksm';
-export { KSMWebMessageTransport } from './bridge/transport';
+export { KSM } from './bridge/ksm.js';
+export { KSMWebMessageTransport } from './bridge/transport.js';
 export {
   KSM_COMMANDS,
   KSM_ERROR_CODES,
@@ -11,17 +11,17 @@ export {
   type KSMCommandName,
   type KSMEventName,
   type KSMPermission
-} from './generated/contract';
-export * as app from './api/app';
-export * as clipboard from './api/clipboard';
-export * as device from './api/device';
-export * as dialog from './api/dialog';
-export * as fs from './api/fs';
-export * as http from './api/http';
-export * as notification from './api/notification';
-export * as permission from './api/permission';
-export * as shell from './api/shell';
-export * as window from './api/window';
+} from './generated/contract.js';
+export * as app from './api/app.js';
+export * as clipboard from './api/clipboard.js';
+export * as device from './api/device.js';
+export * as dialog from './api/dialog.js';
+export * as fs from './api/fs.js';
+export * as http from './api/http.js';
+export * as notification from './api/notification.js';
+export * as permission from './api/permission.js';
+export * as shell from './api/shell.js';
+export * as window from './api/window.js';
 export type {
   KSMAppInfo,
   KSMAppApi,
@@ -52,4 +52,4 @@ export type {
   KSMTransport,
   KSMWindowApi,
   KSMWindowSize
-} from './bridge/types';
+} from './bridge/types.js';

@@ -1,6 +1,6 @@
-import { KSM } from '../bridge/ksm';
-import { assertBoolean, assertHttpUrl, assertVirtualPath } from './guards';
-import type { KSMHttpDownloadResult } from '../bridge/types';
+import { KSM } from '../bridge/ksm.js';
+import { assertBoolean, assertHttpUrl, assertVirtualPath } from './guards.js';
+import type { KSMHttpDownloadResult } from '../bridge/types.js';
 
 const DOWNLOAD_TIMEOUT_MS = 120000;
 

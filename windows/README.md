@@ -34,7 +34,7 @@ Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageNam
 {
   "windows": {
     "packageName": "kasumi-win32-example",
-    "version": "0.1.0",
+    "version": "26.11.2-alpha",
     "commands": [
       "ping",
       "capabilities.query",
@@ -103,7 +103,7 @@ cmake -S windows/examples/win32-host `
   -B windows/examples/win32-host/build `
   -DKASUMI_APP_PACKAGE_NAME=kasumi-win32-example `
   -DKASUMI_WINDOW_DECORATIONS=OFF `
-  -DKASUMI_APP_VERSION=0.1.0 `
+  -DKASUMI_APP_VERSION=26.11.2-alpha `
   -DKASUMI_APP_COMMANDS="ping,capabilities.query,app.getInfo,fs.readText" `
   -DCMAKE_PREFIX_PATH="$PWD/windows/build/sdk/install"
 ```
@@ -356,7 +356,7 @@ python cli/ksm.py package --platform windows --target example
 pnpm ksm package --windows --target example --with-webview2-loader
 ```
 
-- SDK 产物：`windows/build/sdk/packages/kasumi-windows-sdk-0.1.0.zip`。
+- SDK 产物：`windows/build/sdk/packages/kasumi-windows-sdk-26.11.2-alpha.zip`。
 - 示例产物：`windows/examples/win32-host/build/packages/<packageName>-<version>.zip`。
 - SDK ZIP 只包含静态库、公共头文件、CMake 包配置和 README。
 - 默认示例 ZIP 只包含 EXE 和内嵌 Web 资源，不包含 `WebView2Loader.dll`、`.WebView2`、`web/` 或框架源码。

@@ -81,7 +81,8 @@ export function spawnLongRunning(command, args, options = {}) {
     cwd: options.cwd,
     env: options.env ?? process.env,
     stdio: 'inherit',
-    shell: false
+    shell: false,
+    detached: options.detached === true
   });
 }
 

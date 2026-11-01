@@ -1,7 +1,6 @@
 package dev.kasumi.app.bridge
 
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.ComponentCallbacks2
 import android.net.Uri
 import android.view.View
@@ -36,7 +35,7 @@ class KSMWebViewHost(
     private val entryUrl: String,
     assetRoot: String = "",
     allowedCommands: Collection<String> = emptyList(),
-    debug: Boolean = false,
+    private val debug: Boolean = false,
     private val onNativeEvent: ((String) -> Unit)? = null,
     private val fullscreen: Boolean = true
 ) : Closeable {
@@ -128,7 +127,8 @@ class KSMWebViewHost(
             KSMNavigationPolicy.isAllowedOrigin(
                 entryUri.scheme,
                 entryUri.host,
-                entryUri.port
+                entryUri.port,
+                allowDevelopmentOrigin = debug
             )
         ) {
             "entryUrl must use the Kasumi application or development origin"
@@ -232,26 +232,7 @@ class KSMWebViewHost(
                 if (isAllowedUrl(request.url.toString())) {
                     return false
                 }
-                if (
-                    !KSMNavigationPolicy.isAllowedExternalScheme(
-                        request.url.scheme
-                    )
-                ) {
-                    return true
-                }
-                return try {
-                    activity.startActivity(
-                        android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            request.url
-                        )
-                    )
-                    true
-                } catch (_: ActivityNotFoundException) {
-                    true
-                } catch (_: SecurityException) {
-                    true
-                }
+                return true
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
@@ -268,7 +249,11 @@ class KSMWebViewHost(
         WebViewCompat.addWebMessageListener(
             webView,
             MESSAGE_CHANNEL,
-            MESSAGE_ORIGINS
+            if (debug) {
+                setOf("https://app.local", "http://localhost:5173")
+            } else {
+                setOf("https://app.local")
+            }
         ) { _, message, _, _, replyProxy ->
             handleWebMessage(message.data ?: "", replyProxy)
         }
@@ -434,7 +419,8 @@ class KSMWebViewHost(
         return KSMNavigationPolicy.isAllowedOrigin(
             parsed.scheme,
             parsed.host,
-            parsed.port
+            parsed.port,
+            allowDevelopmentOrigin = debug
         )
     }
 
@@ -504,7 +490,5 @@ class KSMWebViewHost(
         private const val MAX_CONCURRENT_COMMANDS = 8
         private const val DEFAULT_TIMEOUT_MS = 10000L
         private const val MESSAGE_CHANNEL = "ksm"
-        private val MESSAGE_ORIGINS =
-            setOf("https://app.local", "http://localhost:5173")
     }
 }

@@ -12,6 +12,12 @@ public:
                "base-uri 'none'; frame-ancestors 'none'";
     }
 
-    static bool IsAllowedOrigin(const std::string& origin);
-    static bool IsAllowedNavigation(const std::string& url);
+    static bool IsAllowedOrigin(
+        const std::string& origin,
+        bool allow_development_origin = false
+    );
+    static bool IsAllowedNavigation(
+        const std::string& url,
+        bool allow_development_origin = false
+    );
 };

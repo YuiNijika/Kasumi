@@ -81,7 +81,7 @@ export class MockHost {
     if (request.cmd === 'app.getInfo') {
       send(this.ok(id, {
         name: 'Kasumi',
-        version: '0.1.0',
+        version: '26.11.2-alpha',
         platform: this.platform,
         language: 'en-US'
       }));
@@ -310,7 +310,7 @@ export class MockHost {
         osVersion: '14',
         model: 'Pixel',
         manufacturer: 'Google',
-        appVersion: '0.1.0',
+        appVersion: '26.11.2-alpha',
         language: 'en-US',
         screenWidth: 1080,
         screenHeight: 2400,

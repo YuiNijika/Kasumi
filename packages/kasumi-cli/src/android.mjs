@@ -1,4 +1,4 @@
-import { copyFile, mkdir } from 'node:fs/promises';
+import { copyFile, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { exists, findCommand, run } from './process.mjs';
@@ -44,6 +44,61 @@ export async function buildAndroid(projectRoot, config) {
     outputDirectory,
     `${config.packageName}-${config.version}.apk`
   );
+  await copyFile(source, output);
+  return output;
+}
+
+export async function packageAndroid(projectRoot, config) {
+  requireReleaseSigning();
+  const gradle = await findGradle(projectRoot);
+  const unixDomainDirectory = path.join(projectRoot, '.ksm', 'afunix');
+  await mkdir(unixDomainDirectory, { recursive: true });
+  await run(
+    gradle.command,
+    [
+      ...gradle.prefix,
+      '-p',
+      path.join(projectRoot, 'android'),
+      `-PksmPackageName=${config.packageName}`,
+      `-PksmVersion=${config.version}`,
+      `-PksmCommands=${config.commands.join(',')}`,
+      'assembleRelease'
+    ],
+    {
+      cwd: projectRoot,
+      env: gradleEnvironment(unixDomainDirectory)
+    }
+  );
+
+  const source = path.join(
+    projectRoot,
+    'android',
+    'app',
+    'build',
+    'outputs',
+    'apk',
+    'release',
+    'app-release.apk'
+  );
+  if (!(await exists(source))) {
+    throw new Error('Android release APK was not produced. Check the release signing configuration.');
+  }
+  const outputDirectory = path.join(projectRoot, 'dist', 'packages');
+  await mkdir(outputDirectory, { recursive: true });
+  const output = path.join(
+    outputDirectory,
+    `${config.packageName}-${config.version}-android.apk`
+  );
+
+  const apksigner = await findApkSigner();
+  if (!apksigner) {
+    throw new Error(
+      'apksigner was not found. Set APKSIGNER or install the Android SDK build-tools.'
+    );
+  }
+  await run(apksigner, ['verify', '--print-certs', source], {
+    cwd: projectRoot
+  });
   await copyFile(source, output);
   return output;
 }
@@ -129,6 +184,80 @@ export async function findGradle(projectRoot) {
     );
   }
   return { command: gradle, prefix: [] };
+}
+
+export async function findApkSigner() {
+  const configured = process.env.APKSIGNER;
+  if (configured && await exists(configured)) {
+    return configured;
+  }
+  const roots = [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT]
+    .filter(Boolean);
+  const executable = process.platform === 'win32'
+    ? 'apksigner.bat'
+    : 'apksigner';
+  for (const root of roots) {
+    const buildTools = path.join(root, 'build-tools');
+    if (!(await exists(buildTools))) {
+      continue;
+    }
+    const entries = await readdir(buildTools, { withFileTypes: true });
+    const versions = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort(compareVersions)
+      .reverse();
+    for (const version of versions) {
+      const candidate = path.join(buildTools, version, executable);
+      if (await exists(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return findCommand(executable);
+}
+
+function compareVersions(left, right) {
+  const leftParts = left.split(/[.-]/).map(parseVersionPart);
+  const rightParts = right.split(/[.-]/).map(parseVersionPart);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const leftPart = leftParts[index];
+    const rightPart = rightParts[index];
+    if (leftPart === rightPart) {
+      continue;
+    }
+    if (leftPart === undefined) {
+      return -1;
+    }
+    if (rightPart === undefined) {
+      return 1;
+    }
+    if (typeof leftPart === 'number' && typeof rightPart === 'number') {
+      return leftPart - rightPart;
+    }
+    return String(leftPart).localeCompare(String(rightPart));
+  }
+  return 0;
+}
+
+function parseVersionPart(value) {
+  return /^\d+$/.test(value) ? Number(value) : value;
+}
+
+function requireReleaseSigning() {
+  const required = [
+    'KASUMI_ANDROID_KEYSTORE',
+    'KASUMI_ANDROID_KEYSTORE_PASSWORD',
+    'KASUMI_ANDROID_KEY_ALIAS',
+    'KASUMI_ANDROID_KEY_PASSWORD'
+  ];
+  const missing = required.filter((name) => !process.env[name]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Android release signing requires: ${missing.join(', ')}.`
+    );
+  }
 }
 
 function gradleEnvironment(unixDomainDirectory) {

@@ -5,6 +5,7 @@
 #include <shellapi.h>
 #include <shlobj.h>
 
+#include <cstdio>
 #include <filesystem>
 #include <iterator>
 #include <memory>
@@ -204,6 +205,11 @@ void ShowRuntimePrompt(HWND owner) {
               L"WebView2 Runtime Required", MB_OK | MB_ICONWARNING);
 }
 
+void ReportSmokeFailure(const char *message) {
+  std::fprintf(stderr, "Kasumi smoke test failed: %s\n", message);
+  std::fflush(stderr);
+}
+
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam,
                             LPARAM lparam) {
   switch (message) {
@@ -259,13 +265,27 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam,
             resized_remaining_view = context->second->SetBounds(second_bounds);
           }
         }
-        passed = context->first && context->second &&
-                 context->ready_views == 2 &&
-                 !context->first->is_initialized() &&
-                 !context->first->Reload() &&
-                 context->second->is_initialized() &&
-                 resized_remaining_view &&
-                 context->host && context->host->view_count() == 1;
+        const bool has_views = context->first && context->second;
+        const bool first_stopped =
+            context->first && !context->first->is_initialized() &&
+            !context->first->Reload();
+        const bool second_running =
+            context->second && context->second->is_initialized();
+        const std::size_t view_count =
+            context->host ? context->host->view_count() : 0;
+        passed = has_views && context->ready_views == 2 && first_stopped &&
+                 second_running && resized_remaining_view && view_count == 1;
+        if (!passed) {
+          std::fprintf(
+              stderr,
+              "multi-view smoke state: ready_views=%d has_views=%d "
+              "first_stopped=%d second_running=%d resized_remaining=%d "
+              "view_count=%zu\n",
+              context->ready_views, has_views ? 1 : 0, first_stopped ? 1 : 0,
+              second_running ? 1 : 0, resized_remaining_view ? 1 : 0,
+              view_count);
+          std::fflush(stderr);
+        }
       }
       KillTimer(window, kMultiViewSmokeTimer);
       if (context->host) {
@@ -457,6 +477,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
 
   const auto show_error = [window, smoke_test](const std::string &error) {
     if (smoke_test) {
+      ReportSmokeFailure(error.c_str());
       PostQuitMessage(1);
       return;
     }

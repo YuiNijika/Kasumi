@@ -64,13 +64,13 @@ pnpm ksm build --all
   "$schema": "./protocol/kasumi.config.schema.json",
   "windows": {
     "packageName": "my-app",
-    "version": "0.1.0",
+    "version": "26.11.2-alpha",
     "commands": "all",
     "decorations": true
   },
   "android": {
     "packageName": "dev.kasumi.my_app",
-    "version": "0.1.0",
+    "version": "26.11.2-alpha",
     "commands": "all"
   }
 }
@@ -126,7 +126,9 @@ console.log(pong.pong, capabilities.commands, appInfo.version);
 ```
 
 页面只通过宿主提供的消息通道通信。来源校验、命令 allowlist、权限、虚拟文件路径和平台限制
-仍由 Windows 或 Android 宿主执行。
+仍由 Windows 或 Android 宿主执行。生产模式只接受 `https://app.local`；开发 origin
+仅在 Windows `dev` 或 Android debug APK 中启用。Android WebView 的非应用导航会被直接
+拦截，外部链接必须通过 `KSM.shell.openExternal()` 打开，并由宿主配置精确 origin 白名单。
 
 ## 常用命令
 
@@ -138,12 +140,15 @@ console.log(pong.pong, capabilities.commands, appInfo.version);
 | `pnpm ksm build --windows` | 构建 Windows EXE |
 | `pnpm ksm build --android` | 构建 Android APK |
 | `pnpm ksm build --all` | 构建 Windows 与 Android |
-| `pnpm ksm package` | 生成平台发布包 |
+| `pnpm ksm package --windows` | 生成 Windows 发布 ZIP |
+| `pnpm ksm package --android` | 生成签名 Android release APK |
+| `pnpm ksm package --all` | 同时生成两端发布包 |
 | `pnpm ksm test` | 运行契约、配置和平台测试 |
 | `pnpm ksm doctor` | 检查 SDK、工具链、设备与配置 |
 | `pnpm validate:protocol` | 校验协议事实源 |
 | `pnpm codegen` | 生成三端契约 |
 | `pnpm test:packages` | 测试三个发布包 |
+| `pnpm test:tarballs` | 安装真实 npm tarball 并构建五套模板 |
 | `pnpm pack:packages` | 生成三个 npm tarball |
 
 ## 平台要求
@@ -165,6 +170,8 @@ pnpm ksm build --windows --with-webview2-loader
 ```text
 dist/windows/<windows.packageName>.exe
 dist/android/<android.packageName>-<android.version>.apk
+dist/packages/<windows.packageName>-<version>-windows.zip
+dist/packages/<android.packageName>-<version>-android.apk
 ```
 
 Windows 默认将 `frontend/dist/` 嵌入 EXE。Android 将同一份前端产物打包进 APK 的
@@ -178,8 +185,26 @@ Windows 默认将 `frontend/dist/` 嵌入 EXE。Android 将同一份前端产物
 | `kasumi-cli` | 用户项目的 `ksm dev/build/package/test/doctor` |
 | `kasumi-bridge` | 前端 `KSM` API、事件总线与生成契约 |
 
+Windows 发布 ZIP 默认包含 EXE、内嵌 Web 资源和运行说明；显式传入
+`--external-web` 时附带 `web/`，传入 `--with-webview2-loader` 时附带
+`WebView2Loader.dll`。
+
+Android release 打包前必须提供以下环境变量：
+
+```text
+KASUMI_ANDROID_KEYSTORE
+KASUMI_ANDROID_KEYSTORE_PASSWORD
+KASUMI_ANDROID_KEY_ALIAS
+KASUMI_ANDROID_KEY_PASSWORD
+```
+
+缺少任一项时 `ksm package --android` 会在构建前失败。APK 生成后会执行
+`apksigner verify`，未通过校验的产物不会复制到 `dist/packages/`。
+
 GitHub Release 需要上传 Windows SDK ZIP、Android Maven ZIP 和 `kasumi-release.json`。
 初始化器会校验 manifest 中的版本、文件大小和 SHA-256。
+标签发布流程先完成 GitHub Release 资产和签名，再按 `kasumi-bridge`、`kasumi-cli`、
+`create-kasumi` 的顺序发布 npm 包。普通 CI 不要求签名证书。
 
 ## 排查
 
@@ -189,6 +214,10 @@ GitHub Release 需要上传 Windows SDK ZIP、Android Maven ZIP 和 `kasumi-rele
 4. 页面空白时先确认 `frontend/dist/` 已生成，再检查宿主资源加载日志。
 5. 命令返回 `NOT_SUPPORTED` 时，检查 `kasumi.config.json` 的 allowlist 和平台矩阵。
 6. 初始化器无法下载 SDK 时，检查 GitHub Release 标签、资产文件名和 manifest。
+
+## 许可证
+
+Kasumi 使用 MIT License，版权署名为 `YuiNijika`。
 
 ## 文档与协议
 

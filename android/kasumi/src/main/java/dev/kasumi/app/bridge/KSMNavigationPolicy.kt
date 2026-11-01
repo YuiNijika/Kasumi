@@ -4,7 +4,8 @@ object KSMNavigationPolicy {
     fun isAllowedOrigin(
         scheme: String?,
         host: String?,
-        port: Int
+        port: Int,
+        allowDevelopmentOrigin: Boolean = false
     ): Boolean {
         val isAppOrigin = scheme.equals("https", ignoreCase = true) &&
             host.equals("app.local", ignoreCase = true) &&
@@ -12,11 +13,6 @@ object KSMNavigationPolicy {
         val isDevelopmentOrigin = scheme.equals("http", ignoreCase = true) &&
             host.equals("localhost", ignoreCase = true) &&
             port == 5173
-        return isAppOrigin || isDevelopmentOrigin
-    }
-
-    fun isAllowedExternalScheme(scheme: String?): Boolean {
-        return scheme.equals("http", ignoreCase = true) ||
-            scheme.equals("https", ignoreCase = true)
+        return isAppOrigin || (allowDevelopmentOrigin && isDevelopmentOrigin)
     }
 }

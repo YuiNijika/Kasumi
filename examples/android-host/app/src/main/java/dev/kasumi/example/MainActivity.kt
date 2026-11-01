@@ -103,6 +103,9 @@ class MainActivity : Activity() {
     private fun entryUrl(): String {
         val requested = intent?.getStringExtra(EXTRA_DEV_URL)
             ?: return PRODUCTION_ENTRY_URL
+        if (!BuildConfig.DEBUG) {
+            return PRODUCTION_ENTRY_URL
+        }
         val parsed = Uri.parse(requested)
         val isDevelopmentEntry =
             parsed.scheme == "http" &&

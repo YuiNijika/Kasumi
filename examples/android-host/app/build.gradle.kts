@@ -7,7 +7,7 @@ val ksmPackageName = providers.gradleProperty("ksmPackageName")
     .orElse("dev.kasumi.example")
     .get()
 val ksmVersion = providers.gradleProperty("ksmVersion")
-    .orElse("0.1.0")
+    .orElse("26.11.2-alpha")
     .get()
 val ksmCommands = providers.gradleProperty("ksmCommands")
     .orElse("")
@@ -19,6 +19,18 @@ val ksmCommandsLiteral = ksmCommands.joinToString(
     postfix = "}",
     separator = ", "
 ) { command -> "\"$command\"" }
+val releaseKeystore = System.getenv("KASUMI_ANDROID_KEYSTORE")
+    ?.takeIf { it.isNotBlank() }
+    ?.let { file(it) }
+    ?.takeIf { it.isFile }
+val releaseStorePassword = System.getenv("KASUMI_ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = System.getenv("KASUMI_ANDROID_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("KASUMI_ANDROID_KEY_PASSWORD")
+val hasReleaseSigning =
+    releaseKeystore != null &&
+        !releaseStorePassword.isNullOrBlank() &&
+        !releaseKeyAlias.isNullOrBlank() &&
+        !releaseKeyPassword.isNullOrBlank()
 
 android {
     namespace = "dev.kasumi.example"
@@ -33,9 +45,25 @@ android {
         buildConfigField("String[]", "KSM_COMMANDS", ksmCommandsLiteral)
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -60,5 +88,5 @@ android {
 }
 
 dependencies {
-    implementation("dev.kasumi:kasumi:0.1.0")
+    implementation("dev.kasumi:kasumi:26.11.2-alpha")
 }

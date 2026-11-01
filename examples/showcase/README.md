@@ -73,7 +73,7 @@ gradle -p examples/android-host assembleDebug
 ```
 
 SDK 会先发布到 `android/kasumi/build/repo`，独立示例再从该 Maven 仓库解析
-`dev.kasumi:kasumi:0.1.0`。示例的 `assets.srcDir` 直接指向本目录。
+`dev.kasumi:kasumi:26.11.2-alpha`。示例的 `assets.srcDir` 直接指向本目录。
 
 ## 能力覆盖
 

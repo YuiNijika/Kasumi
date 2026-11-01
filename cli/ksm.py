@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -111,6 +112,18 @@ def read_app_config(path: Path) -> KasumiConfig:
     return config
 
 
+def android_sdk_version() -> str:
+    build_file = ROOT / "android" / "kasumi" / "build.gradle.kts"
+    match = re.search(
+        r'^version\s*=\s*"([^"]+)"',
+        build_file.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    if match is None:
+        raise RuntimeError(f"Android SDK version not found in {build_file}")
+    return match.group(1)
+
+
 def frontend_checks(include_contract: bool = False) -> None:
     validate_protocol()
     codegen()
@@ -143,9 +156,12 @@ def resolve_targets(target: str) -> tuple[str, ...]:
 
 
 def android_gradle(project: Path) -> tuple[str, Path]:
+    configured = os.environ.get("GRADLE")
+    if configured:
+        return configured, project
     executable = shutil.which("gradle")
     if executable is not None:
-        return executable, ROOT
+        return executable, project
     wrapper = project / ("gradlew.bat" if os.name == "nt" else "gradlew")
     if wrapper.is_file():
         return str(wrapper), project
@@ -657,6 +673,7 @@ def package_windows_example(
 
 def package_android_sdk() -> None:
     build_android_sdk()
+    version = android_sdk_version()
     ANDROID_SDK_PACKAGE_DIR.mkdir(parents=True, exist_ok=True)
     source = (
         ROOT
@@ -669,10 +686,10 @@ def package_android_sdk() -> None:
     )
     shutil.copy2(
         source,
-        ANDROID_SDK_PACKAGE_DIR / "kasumi-android-sdk-0.1.0.aar",
+        ANDROID_SDK_PACKAGE_DIR / f"kasumi-android-sdk-{version}.aar",
     )
     maven_repository = ROOT / "android" / "kasumi" / "build" / "repo"
-    archive = ANDROID_SDK_PACKAGE_DIR / "kasumi-android-maven-0.1.0"
+    archive = ANDROID_SDK_PACKAGE_DIR / f"kasumi-android-maven-{version}"
     if archive.with_suffix(".zip").exists():
         archive.with_suffix(".zip").unlink()
     shutil.make_archive(

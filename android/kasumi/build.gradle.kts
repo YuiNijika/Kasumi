@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.kasumi"
-version = "0.1.0"
+version = "26.11.2-alpha"
 
 android {
     namespace = "dev.kasumi.app"

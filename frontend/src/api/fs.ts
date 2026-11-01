@@ -1,15 +1,15 @@
-import { KSM } from '../bridge/ksm';
+import { KSM } from '../bridge/ksm.js';
 import {
   assertBoolean,
   assertString,
   assertVirtualDirectoryPath,
   assertVirtualPath,
   assertVirtualStatPath
-} from './guards';
+} from './guards.js';
 import type {
   KSMDirectoryEntry,
   KSMFileMetadata
-} from '../bridge/types';
+} from '../bridge/types.js';
 
 export function readText(args: { path: string }): Promise<string | { file: string }> {
   assertVirtualPath(args.path);

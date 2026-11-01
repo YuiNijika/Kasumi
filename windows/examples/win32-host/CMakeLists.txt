@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(kasumi_win32_host VERSION 0.1.0 LANGUAGES CXX)
+project(kasumi_win32_host VERSION 26.11.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -12,7 +12,7 @@ set(
 )
 set(
     KASUMI_APP_VERSION
-    "0.1.0"
+    "26.11.2-alpha"
     CACHE STRING
     "Application semantic version"
 )

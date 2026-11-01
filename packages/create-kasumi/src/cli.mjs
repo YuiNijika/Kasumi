@@ -1,4 +1,4 @@
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +35,7 @@ export async function run(argv) {
     path.basename(path.resolve(requestedDirectory))
   );
   const destination = path.resolve(process.cwd(), requestedDirectory);
+  const destinationExisted = await pathExists(destination);
   await assertWritableDirectory(destination, options.force);
 
   const packageManager = validatePackageManager(options.packageManager);
@@ -53,23 +54,29 @@ export async function run(argv) {
   };
 
   console.log(`Creating ${projectName} in ${destination}`);
-  await renderTemplate({
-    template: options.template,
-    destination,
-    replacements,
-    force: options.force
-  });
-
-  if (options.sdk) {
-    await installSdk({
-      projectDirectory: destination,
-      platforms,
-      version: kasumiVersion,
-      releaseBaseUrl: options.releaseBaseUrl
+  try {
+    await renderTemplate({
+      template: options.template,
+      destination,
+      replacements,
+      force: options.force
     });
-  }
-  if (options.install) {
-    await installDependencies(destination, packageManager);
+    if (options.sdk) {
+      await installSdk({
+        projectDirectory: destination,
+        platforms,
+        version: kasumiVersion,
+        releaseBaseUrl: options.releaseBaseUrl
+      });
+    }
+    if (options.install) {
+      await installDependencies(destination, packageManager);
+    }
+  } catch (error) {
+    if (!destinationExisted) {
+      await rm(destination, { recursive: true, force: true });
+    }
+    throw error;
   }
 
   printNextSteps(projectName, destination, packageManager, platforms, options);
@@ -108,6 +115,15 @@ async function assertWritableDirectory(directory, force) {
       return;
     }
     throw error;
+  }
+}
+
+async function pathExists(value) {
+  try {
+    await stat(value);
+    return true;
+  } catch {
+    return false;
   }
 }
 

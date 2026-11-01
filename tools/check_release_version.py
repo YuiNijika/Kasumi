@@ -7,8 +7,24 @@ import sys
 from pathlib import Path
 
 
+SEMVER_PATTERN = re.compile(
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
+
+
 def json_version(path: Path) -> str:
     return str(json.loads(path.read_text(encoding="utf-8"))["version"])
+
+
+def nested_json_version(path: Path, *keys: str) -> str:
+    value: object = json.loads(path.read_text(encoding="utf-8"))
+    for key in keys:
+        if not isinstance(value, dict) or key not in value:
+            raise ValueError(f"Unable to read version from {path}")
+        value = value[key]
+    return str(value)
 
 
 def first_match(path: Path, pattern: str) -> str:
@@ -20,6 +36,7 @@ def first_match(path: Path, pattern: str) -> str:
 
 def versions(root: Path) -> dict[str, str]:
     return {
+        "root": json_version(root / "package.json"),
         "create-kasumi": json_version(
             root / "packages" / "create-kasumi" / "package.json"
         ),
@@ -31,7 +48,7 @@ def versions(root: Path) -> dict[str, str]:
         ),
         "windows-sdk": first_match(
             root / "windows" / "CMakeLists.txt",
-            r"project\(kasumi_windows VERSION ([^\s\)]+)",
+            r'set\(KASUMI_WINDOWS_SDK_VERSION\s+"([^"]+)"\s*\)',
         ),
         "windows-vcpkg": first_match(
             root / "windows" / "vcpkg.json",
@@ -45,6 +62,12 @@ def versions(root: Path) -> dict[str, str]:
             root / "android" / "app" / "build.gradle.kts",
             r'versionName\s*=\s*"([^"]+)"',
         ),
+        "config-windows": nested_json_version(
+            root / "kasumi.config.json", "windows", "version"
+        ),
+        "config-android": nested_json_version(
+            root / "kasumi.config.json", "android", "version"
+        ),
     }
 
 
@@ -57,6 +80,10 @@ def main() -> None:
         default=Path(__file__).resolve().parent.parent,
     )
     args = parser.parse_args()
+
+    if SEMVER_PATTERN.fullmatch(args.version) is None:
+        print(f"invalid release version: {args.version}", file=sys.stderr)
+        raise SystemExit(1)
 
     mismatches = {
         name: value

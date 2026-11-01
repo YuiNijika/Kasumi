@@ -113,7 +113,10 @@ class KSMRouter(
                         id,
                         JSONObject()
                             .put("name", "Kasumi")
-                            .put("version", hostServices?.appVersion() ?: "0.1.0")
+                            .put(
+                                "version",
+                                hostServices?.appVersion() ?: "26.11.2-alpha"
+                            )
                             .put("platform", "android")
                             .put(
                                 "language",

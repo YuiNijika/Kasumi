@@ -46,7 +46,7 @@ class BridgeInstrumentedTest {
         var pickedText = "picked"
         var downloadedPath = ""
 
-        override fun appVersion(): String = "0.1.0"
+        override fun appVersion(): String = "26.11.2-alpha"
 
         override fun language(): String = "zh-CN"
 
@@ -170,7 +170,7 @@ class BridgeInstrumentedTest {
                 osVersion = "14",
                 model = "Instrumented",
                 manufacturer = "Kasumi",
-                appVersion = "0.1.0",
+                appVersion = "26.11.2-alpha",
                 language = "zh-CN",
                 screenWidth = 1080,
                 screenHeight = 2400,

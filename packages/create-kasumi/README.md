@@ -4,6 +4,7 @@
 
 ```bash
 pnpm create kasumi
+pnpm create kasumi@26.11.2-alpha
 pnpm create kasumi my-app
 pnpm create kasumi my-app --all
 pnpm create kasumi my-app --template react
@@ -41,6 +42,9 @@ frontend:build  构建静态前端资源
 - `pnpm-workspace.yaml` 允许 pnpm 执行 `esbuild` 安装脚本。
 - `windows/vcpkg.json` 声明 `webview2` 与 `nlohmann-json`。
 - `android/gradle/wrapper/` 与 `gradlew*` 固定 Gradle 8.14.3。
+
+Nuxt 模板把 `glob` 与 `minimatch` override 写入 `pnpm-workspace.yaml`，兼容 pnpm 11
+与后续版本把项目设置迁出 `package.json` 的配置变化。
 
 ## 命令选项
 
@@ -105,6 +109,22 @@ Windows 还可以设置 `"decorations": false` 隐藏系统标题栏。此时应
 
 Android 没有该字段，配置中写入 `decorations` 会被拒绝。
 
+## SDK 下载
+
+默认 Release 地址为：
+
+```text
+https://github.com/YuiNijika/Kasumi/releases/download/v<version>
+```
+
+初始化器只允许 HTTPS，测试模式额外允许回环地址 HTTP。manifest 最大 1 MiB，单个资产
+最大 512 MiB，总超时 10 分钟，最多跟随 5 次重定向。下载会同步计算 SHA-256，并在
+项目内 `.tmp/` 暂存目录中校验 ZIP 布局、绝对路径、父目录穿越和符号链接。Windows 与
+Android SDK 全部校验通过后才统一提交；任一目标提交失败会回滚本次安装并保留旧 SDK。
+
+初始化中途失败时，本次新建的项目目录会被删除。使用 `--no-sdk` 可跳过平台 SDK 下载，
+但后续原生构建需要手动补齐 `vendor/windows/kasumi/` 与 `vendor/android/repo/`。
+
 ## 发布
 
 标签 `v<version>` 会触发 npm 包发布和 GitHub Release 资产生成。发布前先在本地
@@ -112,10 +132,12 @@ Android 没有该字段，配置中写入 `decorations` 会被拒绝。
 
 ```bash
 pnpm test:packages
+pnpm test:tarballs
 pnpm build:bridge
 pnpm pack:packages
 ```
 
 npm 发布需要仓库配置 `NPM_TOKEN`。GitHub Release 需要包含
 `kasumi-release.json`、Windows SDK ZIP 和 Android Maven ZIP，初始化器会校验
-manifest 中的 SHA-256。
+manifest 中的 SHA-256。正式标签还要求 Windows Authenticode 证书和 Android keystore；
+发布工作流只有在 GitHub Release 资产上传成功后才发布 npm 包。

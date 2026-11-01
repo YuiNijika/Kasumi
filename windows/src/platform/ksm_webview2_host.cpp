@@ -168,7 +168,7 @@ struct KSMWebView2View::Impl
             },
             this->file_system, services,
             [this](std::function<void()> task) { PostToUi(std::move(task)); },
-            std::move(allowed_commands)) {
+            std::move(allowed_commands), dev_mode) {
     desired_bounds = options.bounds;
     if (!options.start_url.empty()) {
       this->start_url = std::move(options.start_url);
@@ -296,7 +296,7 @@ struct KSMWebView2View::Impl
               }
               const std::string url = ToUtf8(uri);
               CoTaskMemFree(uri);
-              if (!KSMWebViewSecurity::IsAllowedNavigation(url)) {
+              if (!KSMWebViewSecurity::IsAllowedNavigation(url, self->dev_mode)) {
                 args->put_Cancel(TRUE);
               }
               return S_OK;

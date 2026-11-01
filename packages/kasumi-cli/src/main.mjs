@@ -7,15 +7,18 @@ import { readConfig } from './config.mjs';
 import {
   buildAndroid,
   findGradle,
+  packageAndroid,
   runAndroidDevelopment
 } from './android.mjs';
 import {
   buildFrontend,
+  readFrontendSettings,
   startFrontendServer
 } from './frontend.mjs';
 import {
   buildWindows,
   findCMake,
+  packageWindows,
   runWindowsDevelopment
 } from './windows.mjs';
 import {
@@ -65,6 +68,17 @@ export async function run(argv) {
   }
 
   await buildFrontend(projectRoot);
+  if (options.command === 'package') {
+    if (options.platforms.has('windows')) {
+      const output = await packageWindows(projectRoot, config.windows, options);
+      console.log(`Windows package: ${output}`);
+    }
+    if (options.platforms.has('android')) {
+      const output = await packageAndroid(projectRoot, config.android);
+      console.log(`Android package: ${output}`);
+    }
+    return;
+  }
   if (options.platforms.has('windows')) {
     const output = await buildWindows(projectRoot, config.windows, options);
     console.log(`Windows application: ${output}`);
@@ -92,14 +106,20 @@ export async function run(argv) {
   }
 }
 
-async function doctor(projectRoot, config) {
+export async function collectDoctorChecks(projectRoot, config) {
   const checks = [];
   checks.push(check('Node.js', process.versions.node, true));
+  const frontendSettings = await readFrontendSettings(projectRoot).catch(
+    () => undefined
+  );
+  const frontendEntry = frontendSettings?.kind === 'legacy-vite'
+    ? path.join(projectRoot, 'frontend', 'index.html')
+    : path.join(projectRoot, 'frontend');
   checks.push(
     check(
       'frontend entry',
-      path.join(projectRoot, 'frontend', 'index.html'),
-      await exists(path.join(projectRoot, 'frontend', 'index.html'))
+      frontendEntry,
+      await exists(frontendEntry)
     )
   );
   checks.push(
@@ -147,7 +167,26 @@ async function doctor(projectRoot, config) {
   checks.push(check('vcpkg toolchain', toolchain ?? 'not configured', Boolean(toolchain)));
   checks.push(check('Windows package', config.windows.packageName, true));
   checks.push(check('Android package', config.android.packageName, true));
+  const signingConfigured = [
+    'KASUMI_ANDROID_KEYSTORE',
+    'KASUMI_ANDROID_KEYSTORE_PASSWORD',
+    'KASUMI_ANDROID_KEY_ALIAS',
+    'KASUMI_ANDROID_KEY_PASSWORD'
+  ].every((name) => Boolean(process.env[name]));
+  checks.push(
+    check(
+      'Android release signing',
+      signingConfigured
+        ? 'configured'
+        : 'not configured (optional for build; required for package --android)',
+      true
+    )
+  );
+  return checks;
+}
 
+async function doctor(projectRoot, config) {
+  const checks = await collectDoctorChecks(projectRoot, config);
   for (const item of checks) {
     console.log(`${item.ok ? 'ok' : 'missing'}  ${item.label}: ${item.value}`);
   }

@@ -1,6 +1,6 @@
 {
   "name": "kasumi-bridge",
-  "version": "0.1.0",
+  "version": "26.11.2-alpha",
   "description": "TypeScript frontend bridge for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -13,6 +13,7 @@
   },
   "files": [
     "dist",
+    "LICENSE",
     "README.md"
   ],
   "sideEffects": false,
@@ -23,7 +24,10 @@
     "build": "tsc -p tsconfig.json",
     "prepack": "pnpm run build"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/YuiNijika/Kasumi.git"
