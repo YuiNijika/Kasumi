@@ -64,7 +64,7 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
 
 `26.11.2-alpha` 发布加固边界：
 
-- 用户项目 `ksm package` 输出到 `dist/packages/`；框架 Release 附件统一输出到 `release/<version>/`。
+- 用户项目 `ksm package` 输出到 `dist/packages/`；框架附件输出到 `release/kasumi/<version>/`，示例应用输出到 `release/app/<version>/`。
 - Android release 缺少四个签名变量时在构建前失败，APK 通过 `apksigner verify` 后才复制到发布目录。
 - `ksm doctor` 使用框架识别逻辑检查 Next.js 与 Nuxt，不再硬编码根级 `frontend/index.html`。
 - SDK 下载只允许 HTTPS，测试额外允许回环 HTTP；manifest、资产大小、超时、重定向和 ZIP 路径均有上限。
@@ -267,14 +267,17 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | 生成项目 Windows smoke test | WebView2 加载、前端 `ping`、`app.exit` 后 2.3 秒内退出 |
 | 生成项目 Android 构建 | JDK 21 + 自带 Gradle Wrapper 产出 debug APK |
 | Windows 批处理入口 | `pnpm.cmd` 与 `gradlew.bat` 均通过 `cmd.exe` 启动，不再触发 `spawn EINVAL` |
-| `pnpm ksm package --android --target sdk` | AAR 与 Maven ZIP 汇总到 `release/26.11.2-alpha/` |
+| `pnpm ksm package --android --target sdk` | AAR 与 Maven ZIP 汇总到 `release/kasumi/26.11.2-alpha/` |
+| Android Maven 归档 | 发布前清空本地 Maven 仓库，ZIP 只包含当前版本目录与元数据 |
+| `pnpm ksm build --all --target example` | Windows EXE 与 Android APK 直接输出到 `release/app/26.11.2-alpha/` |
+| `pnpm release:prepare` | 框架与示例附件分别生成到 `release/kasumi/`、`release/app/`，manifest 文件大小和 SHA-256 校验通过 |
 | `kasumi_win32_example_smoke` | Windows 示例启动、ping 与退出通过 |
 | `kasumi_win32_example_multi_view_smoke` | 实际加载 `multi-view.html` 两侧页面，验证同窗口双 View、独立 windowId/子窗口/边界和命令路由、顶层窗口缩放重排、单 View 关闭后剩余实例继续运行 |
 | 多 View 边界回归 | 创建零面积 View 被拒绝；对已存在 View 调用无面积 `SetBounds()` 失败且布局不变 |
 | Windows 标题栏构建 | `ON` 与 `OFF` 均编译并通过 smoke test；`OFF` 移除 `WS_CAPTION`，客户区覆盖完整窗口，四边与四角返回对应缩放命中值 |
 | Windows SDK CTest | 标题栏 `ON` 与 `OFF` 构建目录均 2/2 通过，含单 View 和多 View smoke |
 | Windows 多 View 稳定性 | 多 View smoke 连续 20 次通过，并为失败状态补充具体条件诊断 |
-| 维护者 Windows 发布打包 | `pnpm ksm package --windows` 将 SDK 与示例 ZIP 汇总到 `release/26.11.2-alpha/` |
+| 维护者 Windows 发布打包 | `pnpm ksm package --windows` 将 SDK ZIP 写入 `release/kasumi/26.11.2-alpha/`，示例 ZIP 写入 `release/app/26.11.2-alpha/` |
 | Windows 原生契约 | `kasumi_contract_runner.exe` 输出 `windows contract passed` |
 | `node --test packages/*/tests/*.test.mjs` | 34/34 通过 |
 | `python -m unittest tests.test_kasumi_config` | 14/14 通过 |
@@ -424,7 +427,7 @@ pnpm --filter create-kasumi pack
 
 用户项目执行 `pnpm ksm package --windows` 或 `pnpm ksm package --android` 时，产物写入
 `dist/packages/`。框架维护者执行 `pnpm release:prepare` 时，全部上传附件写入
-`release/<version>/`。Android release 需要：
+`release/kasumi/<version>/` 与 `release/app/<version>/`。Android release 需要：
 
 ```text
 KASUMI_ANDROID_KEYSTORE
