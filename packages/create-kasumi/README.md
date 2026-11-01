@@ -6,11 +6,35 @@
 pnpm create kasumi
 pnpm create kasumi my-app
 pnpm create kasumi my-app --all
+pnpm create kasumi my-app --template react
+pnpm create kasumi my-app --template nextjs
 ```
 
-初始化器会生成前后端分离的项目结构，安装 `kasumi-cli`、`kasumi-bridge` 和 Vite，
-并从对应 GitHub Release 拉取 Windows SDK 与 Android Maven 仓库。框架的 C++ 和
-Kotlin 源码不会进入用户项目。
+初始化器会生成前后端分离的项目结构，安装 `kasumi-cli`、`kasumi-bridge` 和所选前端
+框架依赖，并从对应 GitHub Release 拉取 Windows SDK 与 Android Maven 仓库。框架的
+C++ 和 Kotlin 源码不会进入用户项目。
+
+## 模板
+
+| 模板 | 前端栈 | 构建输出 |
+| --- | --- | --- |
+| `basic` | TypeScript + Vite | `frontend/dist/` |
+| `react` | React + TypeScript + Vite | `frontend/dist/` |
+| `vue` | Vue + TypeScript + Vite | `frontend/dist/` |
+| `nextjs` | Next.js App Router 静态导出 | `frontend/dist/` |
+| `nuxtjs` | Nuxt 静态生成 | `frontend/dist/` |
+
+`next` 与 `nuxt` 分别作为 `nextjs`、`nuxtjs` 的别名。React、Vue、Next.js 和 Nuxt
+项目的根 `package.json` 由对应官方脚手架生成，再用包管理器补充 Kasumi 依赖和命令；
+不会在初始化器里维护一份手写的框架依赖清单。
+
+所有模板都提供两个内部脚本。`ksm` 通过它们启动开发服务器和构建前端，并在 Next.js、
+Nuxt 输出目录不同的情况下统一生成 `frontend/dist/`：
+
+```text
+frontend:dev    启动固定 5173 端口的开发服务器
+frontend:build  构建静态前端资源
+```
 
 模板内置三类构建所需的元数据：
 
@@ -24,7 +48,7 @@ Kotlin 源码不会进入用户项目。
 --windows                 只启用 Windows
 --android                 只启用 Android
 --all                     同时启用 Windows 与 Android（默认）
---template basic          使用基础模板
+--template <name>         basic、react、vue、nextjs、nuxtjs，默认 basic
 --package-manager <name>  pnpm、npm 或 yarn
 --no-install              不执行依赖安装
 --no-sdk                  不下载平台 SDK

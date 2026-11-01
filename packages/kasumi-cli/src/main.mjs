@@ -198,7 +198,7 @@ function printHelp() {
   console.log(`Usage: pnpm ksm <command> [options]
 
 Commands:
-  dev       Build and run one platform with the Vite development server
+  dev       Build and run one platform with the frontend development server
   build     Build one or both platforms
   package   Build distributable application files
   test      Build and run the Windows smoke test

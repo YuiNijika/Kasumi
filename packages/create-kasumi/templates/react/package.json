@@ -1,0 +1,34 @@
+{
+  "name": "__PROJECT_NAME__",
+  "private": true,
+  "version": "__KASUMI_VERSION__",
+  "type": "module",
+  "dependencies": {
+    "kasumi-bridge": "^__KASUMI_VERSION__",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "kasumi-cli": "^__KASUMI_VERSION__",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.5"
+  },
+  "scripts": {
+    "frontend:dev": "vite --config frontend/vite.config.ts",
+    "ksm": "ksm",
+    "dev": "ksm dev",
+    "dev:windows": "ksm dev --windows",
+    "dev:android": "ksm dev --android",
+    "build": "ksm build",
+    "build:windows": "ksm build --windows",
+    "build:android": "ksm build --android",
+    "build:all": "ksm build --all",
+    "package": "ksm package",
+    "typecheck": "tsc -b frontend/tsconfig.json",
+    "frontend:build": "tsc -b frontend/tsconfig.json && vite build --config frontend/vite.config.ts"
+  }
+}

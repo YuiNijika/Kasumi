@@ -1,5 +1,9 @@
 node_modules/
 frontend/dist/
+frontend/.next/
+frontend/out/
+frontend/.nuxt/
+frontend/.output/
 .ksm/
 dist/
 vendor/windows/kasumi/

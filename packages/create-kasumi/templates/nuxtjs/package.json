@@ -1,0 +1,31 @@
+{
+  "name": "__PROJECT_NAME__",
+  "version": "__KASUMI_VERSION__",
+  "scripts": {
+    "ksm": "ksm",
+    "dev": "ksm dev",
+    "dev:windows": "ksm dev --windows",
+    "dev:android": "ksm dev --android",
+    "build": "ksm build",
+    "build:windows": "ksm build --windows",
+    "build:android": "ksm build --android",
+    "build:all": "ksm build --all",
+    "package": "ksm package",
+    "typecheck": "nuxt typecheck frontend",
+    "frontend:dev": "nuxt dev frontend --host 127.0.0.1 --port 5173",
+    "frontend:build": "nuxt generate frontend"
+  },
+  "type": "module",
+  "dependencies": {
+    "kasumi-bridge": "^__KASUMI_VERSION__",
+    "nuxt": "^4.6.3",
+    "vue": "^3.5.44",
+    "vue-router": "^5.4.0"
+  },
+  "private": true,
+  "devDependencies": {
+    "kasumi-cli": "^__KASUMI_VERSION__",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.3.14"
+  }
+}

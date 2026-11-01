@@ -1,0 +1,33 @@
+{
+  "name": "__PROJECT_NAME__",
+  "private": true,
+  "version": "__KASUMI_VERSION__",
+  "type": "module",
+  "scripts": {
+    "dev": "ksm dev",
+    "build": "ksm build",
+    "ksm": "ksm",
+    "dev:windows": "ksm dev --windows",
+    "dev:android": "ksm dev --android",
+    "build:windows": "ksm build --windows",
+    "build:android": "ksm build --android",
+    "build:all": "ksm build --all",
+    "package": "ksm package",
+    "typecheck": "vue-tsc -b frontend/tsconfig.json",
+    "frontend:dev": "vite --config frontend/vite.config.ts",
+    "frontend:build": "vue-tsc -b frontend/tsconfig.json && vite build --config frontend/vite.config.ts"
+  },
+  "dependencies": {
+    "kasumi-bridge": "^__KASUMI_VERSION__",
+    "vue": "^3.5.44"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vue/tsconfig": "^0.9.1",
+    "kasumi-cli": "^__KASUMI_VERSION__",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.5",
+    "vue-tsc": "^3.3.13"
+  }
+}

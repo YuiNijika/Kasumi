@@ -14,6 +14,10 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from '../src/args.mjs';
 import { findGradle } from '../src/android.mjs';
 import { ConfigError, readConfig } from '../src/config.mjs';
+import {
+  injectContentSecurityPolicy,
+  readFrontendSettings
+} from '../src/frontend.mjs';
 import { commandInvocation } from '../src/process.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -66,6 +70,81 @@ test('prefers the project Gradle wrapper', async () => {
     }
     assert.equal(result.command, 'sh');
     assert.match(result.prefix[0], /gradlew$/);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('detects frontend framework scripts and build outputs', async () => {
+  const frameworks = [
+    {
+      dependency: 'vite',
+      output: path.join('frontend', 'dist'),
+      url: 'http://localhost:5173/index.html'
+    },
+    {
+      dependency: 'next',
+      output: path.join('frontend', 'out'),
+      url: 'http://localhost:5173/'
+    },
+    {
+      dependency: 'nuxt',
+      output: path.join('frontend', '.output', 'public'),
+      url: 'http://localhost:5173/'
+    }
+  ];
+  for (const framework of frameworks) {
+    const temporaryRoot = await mkdtemp(
+      path.join(tmpdir(), 'kasumi-frontend-test-')
+    );
+    try {
+      await writeFile(
+        path.join(temporaryRoot, 'package.json'),
+        JSON.stringify({
+          dependencies: {
+            [framework.dependency]: '^1.0.0'
+          },
+          scripts: {
+            'frontend:dev': 'framework dev',
+            'frontend:build': 'framework build'
+          }
+        }),
+        'utf8'
+      );
+      const settings = await readFrontendSettings(temporaryRoot);
+      assert.equal(settings.outputDirectory, framework.output);
+      assert.equal(settings.devUrl, framework.url);
+      assert.equal(settings.devScript, 'frontend:dev');
+      assert.equal(settings.buildScript, 'frontend:build');
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test('injects a single CSP meta tag into frontend output', async () => {
+  const temporaryRoot = await mkdtemp(
+    path.join(tmpdir(), 'kasumi-csp-test-')
+  );
+  const outputDirectory = path.join(temporaryRoot, 'frontend', 'dist');
+  try {
+    await mkdir(outputDirectory, { recursive: true });
+    await writeFile(
+      path.join(outputDirectory, 'index.html'),
+      '<!doctype html><html><head><title>App</title></head><body></body></html>',
+      'utf8'
+    );
+    await injectContentSecurityPolicy(temporaryRoot);
+    await injectContentSecurityPolicy(temporaryRoot);
+    const html = await readFile(
+      path.join(outputDirectory, 'index.html'),
+      'utf8'
+    );
+    assert.equal(
+      html.match(/http-equiv="Content-Security-Policy"/g)?.length,
+      1
+    );
+    assert.match(html, /script-src 'self' 'unsafe-inline'/);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }

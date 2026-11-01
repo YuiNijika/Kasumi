@@ -20,6 +20,7 @@ import {
   androidPackageName,
   normalizeProjectName
 } from '../src/naming.mjs';
+import { resolveTemplate } from '../src/template.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
@@ -51,6 +52,11 @@ test('parseArgs supports source-only and single-platform initialization', () => 
   assert.equal(options.install, false);
   assert.equal(options.sdk, false);
   assert.equal(options.packageManager, 'npm');
+});
+
+test('resolves framework template aliases', () => {
+  assert.equal(resolveTemplate('next'), resolveTemplate('nextjs'));
+  assert.equal(resolveTemplate('nuxt'), resolveTemplate('nuxtjs'));
 });
 
 test('naming derives valid npm and Android names', () => {
@@ -85,6 +91,69 @@ test('template command allowlists match the protocol', async () => {
       .map(([name]) => name)
       .sort();
     assert.deepEqual([...platformCommands[platform]].sort(), expected);
+  }
+});
+
+test('initializes framework templates through the shared base layout', async () => {
+  const templates = [
+    ['react', 'frontend/src/App.tsx'],
+    ['vue', 'frontend/src/App.vue'],
+    ['nextjs', 'frontend/src/app/page.tsx'],
+    ['nuxtjs', 'frontend/app/app.vue']
+  ];
+  for (const [template, frontendEntry] of templates) {
+    const temporaryRoot = await mkdtemp(
+      path.join(tmpdir(), 'create-kasumi-template-')
+    );
+    const destination = path.join(temporaryRoot, template);
+    try {
+      await run([
+        destination,
+        '--template',
+        template,
+        '--no-sdk',
+        '--no-install',
+        '--yes'
+      ]);
+      const packageJson = JSON.parse(
+        await readFile(path.join(destination, 'package.json'), 'utf8')
+      );
+      assert.equal(packageJson.private, true);
+      assert.equal(
+        packageJson.dependencies['kasumi-bridge'],
+        '^0.1.0'
+      );
+      assert.equal(
+        packageJson.devDependencies['kasumi-cli'],
+        '^0.1.0'
+      );
+      assert.equal(
+        typeof packageJson.scripts['frontend:dev'],
+        'string'
+      );
+      assert.equal(
+        typeof packageJson.scripts['frontend:build'],
+        'string'
+      );
+      assert.equal(
+        await exists(path.join(destination, frontendEntry)),
+        true
+      );
+      assert.equal(
+        await exists(path.join(destination, 'frontend', 'vite.config.ts')),
+        template === 'react' || template === 'vue'
+      );
+      assert.equal(
+        await exists(path.join(destination, 'android', 'gradlew.bat')),
+        true
+      );
+      assert.equal(
+        await exists(path.join(destination, 'windows', 'vcpkg.json')),
+        true
+      );
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
   }
 });
 
@@ -172,7 +241,7 @@ test('initializes a source-only project without framework source', async () => {
         path.join(destination, 'pnpm-workspace.yaml'),
         'utf8'
       ),
-      'allowBuilds:\n  esbuild: true\n'
+      'allowBuilds:\n  esbuild: true\n  sharp: false\n  unrs-resolver: false\n'
     );
     const vcpkg = JSON.parse(
       await readFile(

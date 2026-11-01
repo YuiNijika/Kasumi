@@ -9,7 +9,7 @@
 
 | 路径 | 责任 |
 | --- | --- |
-| `frontend/` | Vite 前端入口，使用 `kasumi-bridge` |
+| `frontend/` | 前端入口，由所选框架构建并接入 `kasumi-bridge` |
 | `windows/` | Win32 + WebView2 应用宿主 |
 | `android/` | Android WebView 应用宿主 |
 | `vendor/windows/kasumi/` | 从 Release 下载的 Windows SDK |

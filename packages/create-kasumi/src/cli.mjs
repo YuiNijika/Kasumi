@@ -147,7 +147,7 @@ function printHelp() {
   console.log(`Usage: pnpm create kasumi [directory] [options]
 
 Options:
-  --template <name>          Template name, default basic
+  --template <name>          basic, react, vue, nextjs, nuxtjs; default basic
   --windows                  Enable Windows
   --android                  Enable Android
   --all                      Enable both platforms, default

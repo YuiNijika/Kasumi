@@ -1,0 +1,6 @@
+{
+  "extends": "basic",
+  "remove": [
+    "frontend"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "__PROJECT_NAME__",
+  "version": "__KASUMI_VERSION__",
+  "private": true,
+  "scripts": {
+    "dev": "ksm dev",
+    "build": "ksm build",
+    "ksm": "ksm",
+    "dev:windows": "ksm dev --windows",
+    "dev:android": "ksm dev --android",
+    "build:windows": "ksm build --windows",
+    "build:android": "ksm build --android",
+    "build:all": "ksm build --all",
+    "package": "ksm package",
+    "typecheck": "tsc --noEmit -p frontend/tsconfig.json",
+    "frontend:dev": "next dev frontend --hostname 127.0.0.1 --port 5173",
+    "frontend:build": "next build frontend"
+  },
+  "dependencies": {
+    "kasumi-bridge": "^__KASUMI_VERSION__",
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "kasumi-cli": "^__KASUMI_VERSION__",
+    "typescript": "^5"
+  }
+}

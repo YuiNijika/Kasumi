@@ -1,76 +1,287 @@
 import http from 'node:http';
+import {
+  cp,
+  mkdir,
+  readFile,
+  rm,
+  writeFile
+} from 'node:fs/promises';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { commandName, exists, run } from './process.mjs';
+import { spawn, spawnSync } from 'node:child_process';
+
+import {
+  commandName,
+  exists,
+  run,
+  spawnLongRunning
+} from './process.mjs';
 
 const DEV_PORT = 5173;
-const DEV_URL = `http://localhost:${DEV_PORT}/index.html`;
+const DEV_TIMEOUT_MS = 120_000;
+const FRONTEND_OUTPUT = path.join('frontend', 'dist');
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'"
+].join('; ');
+const CSP_META_PATTERN =
+  /<meta\s+http-equiv=["']Content-Security-Policy["'][^>]*>/i;
+
+export async function readFrontendSettings(projectRoot) {
+  const packageJson = await readPackageJson(projectRoot);
+  const scripts = packageJson.scripts ?? {};
+  const dependencies = {
+    ...packageJson.dependencies,
+    ...packageJson.devDependencies
+  };
+  if (
+    typeof scripts['frontend:dev'] !== 'string' ||
+    typeof scripts['frontend:build'] !== 'string'
+  ) {
+    return {
+      kind: 'legacy-vite',
+      devUrl: `http://localhost:${DEV_PORT}/index.html`,
+      outputDirectory: FRONTEND_OUTPUT
+    };
+  }
+  if ('next' in dependencies) {
+    return {
+      kind: 'next',
+      devScript: 'frontend:dev',
+      buildScript: 'frontend:build',
+      devUrl: `http://localhost:${DEV_PORT}/`,
+      outputDirectory: path.join('frontend', 'out')
+    };
+  }
+  if ('nuxt' in dependencies) {
+    return {
+      kind: 'nuxt',
+      devScript: 'frontend:dev',
+      buildScript: 'frontend:build',
+      devUrl: `http://localhost:${DEV_PORT}/`,
+      outputDirectory: path.join('frontend', '.output', 'public')
+    };
+  }
+  return {
+    kind: 'vite',
+    devScript: 'frontend:dev',
+    buildScript: 'frontend:build',
+    devUrl: `http://localhost:${DEV_PORT}/index.html`,
+    outputDirectory: FRONTEND_OUTPUT
+  };
+}
 
 export async function buildFrontend(projectRoot) {
-  const viteBin = path.join(projectRoot, 'node_modules', 'vite', 'bin', 'vite.js');
-  if (!(await exists(viteBin))) {
-    throw new Error(
-      'Vite is not installed. Run the package manager install command first.'
+  const settings = await readFrontendSettings(projectRoot);
+  if (settings.kind === 'legacy-vite') {
+    const viteBin = await requireVite(projectRoot);
+    await run(
+      process.execPath,
+      [viteBin, 'build', '--config', 'frontend/vite.config.ts'],
+      { cwd: projectRoot }
     );
+    await injectContentSecurityPolicy(projectRoot);
+    return;
   }
+  const packageManager = await detectPackageManager(projectRoot);
   await run(
-    process.execPath,
-    [viteBin, 'build', '--config', 'frontend/vite.config.ts'],
+    packageManagerExecutable(packageManager),
+    scriptArguments(packageManager, settings.buildScript),
     { cwd: projectRoot }
   );
+  await copyFrontendOutput(projectRoot, settings.outputDirectory);
+  await injectContentSecurityPolicy(projectRoot);
 }
 
 export async function startFrontendServer(projectRoot) {
-  const viteBin = path.join(projectRoot, 'node_modules', 'vite', 'bin', 'vite.js');
-  if (!(await exists(viteBin))) {
-    throw new Error(
-      'Vite is not installed. Run the package manager install command first.'
-    );
-  }
-  const child = spawn(
-    commandName(process.execPath),
-    [
-      viteBin,
-      '--config',
-      'frontend/vite.config.ts',
-      '--host',
-      '127.0.0.1',
-      '--port',
-      String(DEV_PORT),
-      '--strictPort'
-    ],
-    {
-      cwd: projectRoot,
-      env: process.env,
-      stdio: 'inherit',
-      shell: false
-    }
-  );
-  await waitForServer(child, DEV_URL);
+  const settings = await readFrontendSettings(projectRoot);
+  const child = await startFrontendProcess(projectRoot, settings);
+  await waitForServer(child, settings.devUrl);
   return {
     child,
-    url: DEV_URL,
+    url: settings.devUrl,
     stop() {
-      if (!child.killed) {
-        child.kill();
-      }
+      stopChild(child);
     }
   };
 }
 
+async function startFrontendProcess(projectRoot, settings) {
+  if (settings.kind === 'legacy-vite') {
+    const viteBin = await requireVite(projectRoot);
+    return spawn(
+      commandName(process.execPath),
+      [
+        viteBin,
+        '--config',
+        'frontend/vite.config.ts',
+        '--host',
+        '127.0.0.1',
+        '--port',
+        String(DEV_PORT),
+        '--strictPort'
+      ],
+      {
+        cwd: projectRoot,
+        env: process.env,
+        stdio: 'inherit',
+        shell: false
+      }
+    );
+  }
+  const packageManager = await detectPackageManager(projectRoot);
+  return spawnLongRunning(
+    packageManagerExecutable(packageManager),
+    scriptArguments(packageManager, settings.devScript),
+    {
+      cwd: projectRoot,
+      env: process.env
+    }
+  );
+}
+
+async function requireVite(projectRoot) {
+  const viteBin = path.join(
+    projectRoot,
+    'node_modules',
+    'vite',
+    'bin',
+    'vite.js'
+  );
+  if (!(await exists(viteBin))) {
+    throw new Error(
+      'Vite is not installed. Run the package manager install command first.'
+    );
+  }
+  return viteBin;
+}
+
+async function copyFrontendOutput(projectRoot, outputDirectory) {
+  const source = path.resolve(projectRoot, outputDirectory);
+  const destination = path.resolve(projectRoot, FRONTEND_OUTPUT);
+  if (source === destination) {
+    return;
+  }
+  if (!(await exists(source))) {
+    throw new Error(
+      `Frontend build output not found: ${path.relative(projectRoot, source)}`
+    );
+  }
+  await rm(destination, { recursive: true, force: true });
+  await mkdir(path.dirname(destination), { recursive: true });
+  await cp(source, destination, { recursive: true });
+}
+
+export async function injectContentSecurityPolicy(projectRoot) {
+  const indexPath = path.resolve(projectRoot, FRONTEND_OUTPUT, 'index.html');
+  let html;
+  try {
+    html = await readFile(indexPath, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      throw new Error('Frontend build did not produce index.html.');
+    }
+    throw error;
+  }
+  if (CSP_META_PATTERN.test(html)) {
+    return;
+  }
+  const meta = [
+    '<meta',
+    'http-equiv="Content-Security-Policy"',
+    `content="${CONTENT_SECURITY_POLICY}"`,
+    '>'
+  ].join(' ');
+  const updated = html.replace(
+    /<head(?:\s[^>]*)?>/i,
+    (head) => `${head}\n    ${meta}`
+  );
+  if (updated === html) {
+    throw new Error('Frontend index.html does not contain a head element.');
+  }
+  await writeFile(indexPath, updated, 'utf8');
+}
+
+async function detectPackageManager(projectRoot) {
+  const packageJson = await readPackageJson(projectRoot);
+  if (typeof packageJson.packageManager === 'string') {
+    const name = packageJson.packageManager.split('@')[0];
+    if (isSupportedPackageManager(name)) {
+      return name;
+    }
+  }
+  for (const [lockfile, packageManager] of [
+    ['pnpm-lock.yaml', 'pnpm'],
+    ['package-lock.json', 'npm'],
+    ['yarn.lock', 'yarn']
+  ]) {
+    if (await exists(path.join(projectRoot, lockfile))) {
+      return packageManager;
+    }
+  }
+  return 'pnpm';
+}
+
+function scriptArguments(packageManager, script) {
+  return packageManager === 'yarn'
+    ? [script]
+    : ['run', script];
+}
+
+function packageManagerExecutable(packageManager) {
+  return process.platform === 'win32'
+    ? `${packageManager}.cmd`
+    : packageManager;
+}
+
+function isSupportedPackageManager(value) {
+  return value === 'pnpm' || value === 'npm' || value === 'yarn';
+}
+
+async function readPackageJson(projectRoot) {
+  try {
+    return JSON.parse(
+      await readFile(path.join(projectRoot, 'package.json'), 'utf8')
+    );
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return {};
+    }
+    throw error;
+  }
+}
+
 async function waitForServer(child, url) {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + DEV_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
-      throw new Error('Vite exited before the development server became ready.');
+      throw new Error(`Frontend exited before the development server became ready: ${url}`);
     }
     if (await canConnect(url)) {
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  child.kill();
-  throw new Error(`Vite did not become ready at ${url}.`);
+  stopChild(child);
+  throw new Error(`Frontend did not become ready at ${url}.`);
+}
+
+function stopChild(child) {
+  if (process.platform === 'win32' && child.pid) {
+    spawnSync(
+      'taskkill',
+      ['/pid', String(child.pid), '/T', '/F'],
+      { stdio: 'ignore' }
+    );
+    return;
+  }
+  if (!child.killed) {
+    child.kill();
+  }
 }
 
 function canConnect(url) {

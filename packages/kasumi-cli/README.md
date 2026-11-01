@@ -14,6 +14,25 @@ pnpm ksm doctor
 CLI 只读取项目内的 `kasumi.config.json`、`frontend/`、`windows/`、`android/` 和
 `vendor/`，不会修改或复制 Kasumi 框架源码。
 
+## 前端框架
+
+CLI 读取根 `package.json` 中的 `frontend:dev` 和 `frontend:build` 脚本启动或构建前端。
+内置识别以下框架，并把静态产物统一到 `frontend/dist/`：
+
+| 依赖 | 开发地址 | 原始输出 |
+| --- | --- | --- |
+| Vite | `http://localhost:5173/index.html` | `frontend/dist/` |
+| Next.js | `http://localhost:5173/` | `frontend/out/` |
+| Nuxt | `http://localhost:5173/` | `frontend/.output/public/` |
+
+旧版只包含 `frontend/vite.config.ts`、没有上述脚本的 Vite 项目继续使用兼容路径。
+包管理器按 `packageManager` 字段或项目锁文件选择 `pnpm`、`npm` 或 `yarn`。
+
+Next.js 与 Nuxt 的静态 HTML 包含框架生成的启动脚本。CLI 在缺失 CSP 时向
+`frontend/dist/index.html` 注入 `script-src 'self' 'unsafe-inline'` 和
+`style-src 'self' 'unsafe-inline'`，避免 Android WebView 出现空白页；现有 CSP 不会被
+重复覆盖。导航、命令 allowlist、来源校验和虚拟路径限制仍由宿主执行。
+
 ## 前置条件
 
 - Node.js 20 或更高版本

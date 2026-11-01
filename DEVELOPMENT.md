@@ -233,8 +233,11 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm dev --android` | 模拟器通过 `adb reverse` 加载开发页面 |
 | `pnpm ksm test --all --target sdk` | 双端契约、配置校验、allowlist、JVM 测试和示例 smoke test 通过 |
 | Android WebView 全屏与内存优化 | SDK、维护者宿主、instrumentation 测试源码和独立示例 Kotlin 编译通过，JVM 测试通过 |
-| `pnpm test:packages` | 19 个包测试通过，覆盖初始化、命名、批处理入口、Gradle Wrapper、协议命令矩阵和 `decorations` 配置 |
+| `pnpm test:packages` | 23 个包测试通过，覆盖初始化、框架模板、CSP 注入、命名、批处理入口、Gradle Wrapper、协议命令矩阵和 `decorations` 配置 |
 | `pnpm build:bridge` | `kasumi-bridge` 生成 ESM 与 TypeScript 声明 |
+| React / Vue 模板构建 | TypeScript 检查与 Vite 生产构建通过，输出到 `frontend/dist/` |
+| Next.js 模板构建 | App Router 静态导出通过，CLI 将 `frontend/out/` 同步到 `frontend/dist/` |
+| Nuxt 模板构建 | 静态生成通过，CLI 将 `frontend/.output/public/` 同步到 `frontend/dist/` |
 | `pnpm --filter create-kasumi pack` | npm tarball 包含模板、Gradle Wrapper、vcpkg manifest、命令数据和 bin 入口 |
 | `npm exec --package create-kasumi-0.1.0.tgz` | 从实际 npm tarball 初始化项目通过 |
 | 生成项目 `pnpm typecheck` | 模板 TypeScript 配置通过 |
@@ -329,6 +332,10 @@ triplet，并写入独立的 `windows/build/sdk-webview2-loader` 与
 pnpm create kasumi
 pnpm create kasumi my-app
 pnpm create kasumi my-app --all
+pnpm create kasumi my-app --template react
+pnpm create kasumi my-app --template vue
+pnpm create kasumi my-app --template nextjs
+pnpm create kasumi my-app --template nuxtjs
 ```
 
 `create-kasumi` 只生成应用代码和平台宿主，不会把 `windows/src/*.cpp` 或
@@ -345,6 +352,18 @@ my-app/
    ├─ windows/kasumi/
    └─ android/repo/
 ```
+
+| 模板 | 前端栈 | 构建方式 |
+| --- | --- | --- |
+| `basic` | TypeScript + Vite | Vite |
+| `react` | React + TypeScript | Vite |
+| `vue` | Vue + TypeScript | Vite |
+| `nextjs` | Next.js App Router | 静态导出 |
+| `nuxtjs` | Nuxt | 静态生成 |
+
+`next` 与 `nuxt` 分别是 `nextjs`、`nuxtjs` 的别名。四个框架模板以基础模板为共享层，
+只覆盖 `frontend/` 和根 `package.json`。框架项目及 `package.json` 由官方脚手架初始化，
+Kasumi 依赖和命令通过包管理器写入，不在初始化器源码中维护手写框架依赖清单。
 
 初始化器从 GitHub Release 下载两个 SDK 资产，并校验 Release manifest 中的 SHA-256：
 
@@ -367,7 +386,9 @@ Windows SDK ZIP 使用扁平布局，解压后直接得到 `include/`、`lib/` �
 
 生成项目通过 `pnpm ksm build --windows`、`pnpm ksm build --android` 或
 `pnpm ksm build --all` 构建。Windows 默认将 `frontend/dist/` 嵌入 EXE；Android
-将 `frontend/dist/` 作为 `assets/` 打包。两者都不复制框架源码。
+将 `frontend/dist/` 作为 `assets/` 打包。两者都不复制框架源码。CLI 通过根
+`package.json` 的 `frontend:dev`、`frontend:build` 脚本调用框架；识别 Next.js 与
+Nuxt 后将各自输出目录同步为统一的 `frontend/dist/`。
 
 发布前先验证包内容：
 

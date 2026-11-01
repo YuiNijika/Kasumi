@@ -11,8 +11,9 @@
     一套 Web 前端构建更原生、轻量、快速的应用程序
 </div>
 
-Kasumi 提供统一的 TypeScript API、命令协议、权限校验、原生宿主和项目脚手架。前端继续使用
-Vite 与标准 Web 技术，Windows 使用 Win32 + WebView2，Android 使用 WebView 与原生宿主服务。
+Kasumi 提供统一的 TypeScript API、命令协议、权限校验、原生宿主和项目脚手架。前端可使用
+Vite、React、Vue、Next.js 或 Nuxt，Windows 使用 Win32 + WebView2，Android 使用
+WebView 与原生宿主服务。
 
 ## 快速开始
 
@@ -23,6 +24,8 @@ Vite 与标准 Web 技术，Windows 使用 Win32 + WebView2，Android 使用 Web
 ```bash
 pnpm create kasumi
 pnpm create kasumi my-app --all
+pnpm create kasumi my-app --template vue
+pnpm create kasumi my-app --template nextjs
 ```
 
 初始化器会生成前后端分离的项目、下载对应的 Windows SDK 与 Android Maven 仓库，并安装
@@ -129,7 +132,7 @@ console.log(pong.pong, capabilities.commands, appInfo.version);
 
 | 命令 | 作用 |
 | --- | --- |
-| `pnpm ksm dev` | 启动 Windows 开发宿主与 Vite |
+| `pnpm ksm dev` | 启动 Windows 开发宿主与前端开发服务器 |
 | `pnpm ksm dev --android` | 通过 `adb reverse` 在 Android 上开发 |
 | `pnpm ksm build` | 默认构建 Windows |
 | `pnpm ksm build --windows` | 构建 Windows EXE |
