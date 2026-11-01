@@ -12,7 +12,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - run: pnpm install --frozen-lockfile
       - run: pnpm codegen
       - name: Verify generated contracts
@@ -36,7 +36,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - run: pnpm install --frozen-lockfile
       - run: pnpm codegen
       - name: Verify generated contracts
@@ -47,6 +47,8 @@ jobs:
       - run: pnpm test:packages
       - run: pnpm build:bridge
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.14.3
@@ -66,7 +68,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:packages
       - run: pnpm test:tarballs
