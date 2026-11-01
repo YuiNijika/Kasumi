@@ -28,6 +28,7 @@ jobs:
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: ${{ github.workspace }}/vcpkg
+          vcpkgJsonGlob: windows/vcpkg.json
       - name: Build Windows SDK and example
         run: pnpm ksm package --windows
         env:
