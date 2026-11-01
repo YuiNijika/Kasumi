@@ -218,7 +218,7 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm dev` | Windows 宿主加载 `http://localhost:5173/index.html` |
 | `pnpm ksm dev --android` | 模拟器通过 `adb reverse` 加载开发页面 |
 | `pnpm ksm test --all --target sdk` | 双端契约、配置校验、allowlist、JVM 测试和示例 smoke test 通过 |
-| `pnpm test:packages` | 15 个包测试通过，覆盖初始化、命名、批处理入口、Gradle Wrapper 和协议命令矩阵 |
+| `pnpm test:packages` | 19 个包测试通过，覆盖初始化、命名、批处理入口、Gradle Wrapper、协议命令矩阵和 `decorations` 配置 |
 | `pnpm build:bridge` | `kasumi-bridge` 生成 ESM 与 TypeScript 声明 |
 | `pnpm --filter create-kasumi pack` | npm tarball 包含模板、Gradle Wrapper、vcpkg manifest、命令数据和 bin 入口 |
 | `npm exec --package create-kasumi-0.1.0.tgz` | 从实际 npm tarball 初始化项目通过 |
@@ -232,6 +232,7 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | Windows 批处理入口 | `pnpm.cmd` 与 `gradlew.bat` 均通过 `cmd.exe` 启动，不再触发 `spawn EINVAL` |
 | `pnpm ksm package --android --target sdk` | AAR 与 `kasumi-android-maven-0.1.0.zip` 生成通过 |
 | `kasumi_win32_example_smoke` | Windows 示例启动、ping 与退出通过 |
+| Windows 标题栏构建 | `ON` 与 `OFF` 均编译并通过 smoke test；`OFF` 移除 `WS_CAPTION`，客户区覆盖完整窗口，四边与四角返回对应缩放命中值 |
 | `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
 
 Windows 已完成 SDK、内嵌 Web 示例构建和真实桌面 smoke test，`kasumi_contract` 与

@@ -16,7 +16,7 @@ constexpr int kResizeBorderDip = 8;
 
 int ResizeBorder(HWND window) {
   const UINT dpi = GetDpiForWindow(window);
-  return std::max(4, MulDiv(kResizeBorderDip, static_cast<int>(dpi), 96));
+  return (std::max)(4, MulDiv(kResizeBorderDip, static_cast<int>(dpi), 96));
 }
 
 LRESULT HitTestFramelessWindow(HWND window, LPARAM lparam) {
@@ -125,24 +125,29 @@ void KSMWindowFrame::RefreshResizeHitTesting(HWND window) {
     return;
   }
 
-  for (HWND child = GetWindow(window, GW_CHILD); child != nullptr;
+  SubclassDescendants(window, window);
+}
+
+void KSMWindowFrame::SubclassDescendants(HWND frame, HWND parent) {
+  for (HWND child = GetWindow(parent, GW_CHILD); child != nullptr;
        child = GetWindow(child, GW_HWNDNEXT)) {
+    DWORD_PTR existing_reference = 0;
     if (
-        GetWindowSubclass(
+        !GetWindowSubclass(
             child,
             &KSMWindowFrame::ChildSubclassProc,
             kChildSubclassId,
-            nullptr
+            &existing_reference
         )
     ) {
-      continue;
+      SetWindowSubclass(
+          child,
+          &KSMWindowFrame::ChildSubclassProc,
+          kChildSubclassId,
+          reinterpret_cast<DWORD_PTR>(frame)
+      );
     }
-    SetWindowSubclass(
-        child,
-        &KSMWindowFrame::ChildSubclassProc,
-        kChildSubclassId,
-        reinterpret_cast<DWORD_PTR>(window)
-    );
+    SubclassDescendants(frame, child);
   }
 }
 
@@ -160,6 +165,9 @@ LRESULT CALLBACK KSMWindowFrame::ChildSubclassProc(
     if (hit_test != HTCLIENT) {
       return hit_test;
     }
+  }
+  if (message == WM_PARENTNOTIFY && LOWORD(wparam) == WM_CREATE) {
+    RefreshResizeHitTesting(parent);
   }
   if (message == WM_NCDESTROY) {
     RemoveWindowSubclass(
@@ -207,8 +215,17 @@ LRESULT CALLBACK KSMWindowFrame::SubclassProc(
   }
   case WM_NCHITTEST:
     return HitTestFramelessWindow(window, lparam);
+  case WM_PARENTNOTIFY:
+    if (LOWORD(wparam) == WM_CREATE) {
+      RefreshResizeHitTesting(window);
+    }
+    break;
   case WM_NCDESTROY:
-    RemoveWindowSubclass(window, &KSMWindowFrame::SubclassProc, kFrameSubclassId);
+    RemoveWindowSubclass(
+        window,
+        &KSMWindowFrame::SubclassProc,
+        kFrameSubclassId
+    );
     RemovePropW(window, kFramelessProperty);
     break;
   default:

@@ -11,6 +11,8 @@ public:
   static void RefreshResizeHitTesting(HWND window);
 
 private:
+  static void SubclassDescendants(HWND frame, HWND parent);
+
   static LRESULT CALLBACK ChildSubclassProc(
       HWND window,
       UINT message,
