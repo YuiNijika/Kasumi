@@ -712,7 +712,26 @@
         }
     }
 
-    if (new URLSearchParams(window.location.search).has('smoke')) {
+    async function runMultiViewSmoke(marker, view) {
+        try {
+            await requireBridge().invoke('fs.writeText', {
+                path: `app://data/multi-view-smoke/${marker}-${view}.txt`,
+                content: 'ready'
+            });
+        } catch (error) {
+            document.title = 'KSM_MULTI_VIEW_SMOKE_FAIL';
+            console.error(errorText(error));
+        }
+    }
+
+    const search = new URLSearchParams(window.location.search);
+    const multiViewMarker = search.get('multi-view-smoke');
+    if (multiViewMarker) {
+        void runMultiViewSmoke(multiViewMarker, search.get('view') ?? '0');
+        return;
+    }
+
+    if (search.has('smoke')) {
         void runSmokeTest();
         return;
     }

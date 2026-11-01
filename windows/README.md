@@ -18,7 +18,7 @@
 | `src/platform/ksm_win32_resource_provider.h` | 从 Win32 `RCDATA` 读取页面、样式和脚本 |
 | `src/platform/ksm_webview_host.h` | 工作线程、超时、取消、单响应和事件投递 |
 | `src/platform/ksm_window_frame.h` | 无标题栏窗口样式、缩放边框、最小尺寸和工作区处理 |
-| `src/platform/ksm_webview2_host.h` | WebView2 创建、内嵌资源响应、来源校验、导航拦截、非客户区拖拽和 UI 线程回投 |
+| `src/platform/ksm_webview2_host.h` | 共享 WebView2 Environment、窗口级会话、多个独立 WebView 视图和 UI 线程回投 |
 | `tests/contract_runner.cpp` | Windows 契约、安全策略和生命周期测试 |
 | `examples/win32-host/` | 独立 Win32 + WebView2 示例工程 |
 
@@ -122,7 +122,7 @@ const std::string response = KSM::Invoke(
 );
 ```
 
-`KSM::Invoke(windowId, ...)` 按窗口维护独立路由器和事件订阅。空 `windowId` 使用默认
+`KSM::Invoke(windowId, ...)` 按 WebView View 维护独立路由器和事件订阅。空 `windowId` 使用默认
 路由上下文。宿主根入口直接调用 `KSMHostServices`，不得通过 `KSM::Invoke` 递归回路由。
 
 | 子模块 | 入口 | 宿主服务 |
@@ -221,21 +221,88 @@ cmake -S windows/examples/win32-host `
 可选用户数据目录、可选资源提供器和应用版本。初始化时：
 
 1. 检测 Evergreen WebView2 Runtime。
-2. 创建 WebView2 环境、Controller 和 CoreWebView2。
-3. `web_root` 为空时通过 `WebResourceRequested` 返回 EXE 内嵌资源；非空时把
+2. 创建一个窗口级 WebView2 Environment。
+3. 创建默认 WebView 子窗口、Controller 和 CoreWebView2。
+4. `web_root` 为空时通过 `WebResourceRequested` 返回 EXE 内嵌资源；非空时把
    `https://app.local` 映射到该目录。
-4. 关闭 DevTools、默认上下文菜单和状态栏。
-5. 校验消息来源，拦截非 `app.local` 或开发 origin 的导航和 `window.open`。
-6. 通过 `PostMessageAsJson` 回到 UI 线程发送响应。
-7. 在 `WM_SIZE` 时发送物理内容区尺寸的 `window.resized` 事件。
+5. 关闭 DevTools、默认上下文菜单和状态栏。
+6. 校验消息来源，拦截非 `app.local` 或开发 origin 的导航和 `window.open`。
+7. 通过 `PostMessageAsJson` 回到 UI 线程发送响应。
+8. 每个 View 在自身子窗口 `WM_SIZE` 时发送物理内容区尺寸的 `window.resized` 事件。
 
 `user_data_folder` 为空时使用
 `%LOCALAPPDATA%\Kasumi\WebView2\<executable-name>`，不会让 WebView2 在 EXE 旁创建
 默认 profile。内嵌模式为 `app://res` 和 `app://assets` 提供只读目录枚举与文件读取，
 CSP 由 `index.html` 响应头注入。
 
-每个窗口分配单调递增且不复用的 `windowId`。同一窗口复用同一个路由器和宿主服务实例，
-关闭后从注册表移除并抑制迟到响应。
+每个 WebView View 分配单调递增且不复用的 `windowId`。同一窗口的 View 共享
+WebView2 Environment，但各自拥有子 `HWND`、路由器、宿主服务、请求队列、超时计时器
+和事件订阅。关闭一个 View 不影响同一窗口中的其他 View，关闭顶层窗口会关闭全部 View。
+
+### 多 WebView 实例
+
+默认的 `Initialize()` 保留单视图入口：创建 Environment 后自动创建一个填满客户区的
+默认 View。需要标签页、分屏或浏览器式布局时，使用 `InitializeSession()` 只初始化
+窗口会话，再调用 `CreateView()` 创建多个实例：
+
+```cpp
+auto host = std::make_shared<KSMWebView2Host>(
+    window,
+    file_system,
+    std::vector<std::string>{"https://example.com"},
+    {},
+    user_data_folder,
+    false,
+    web_resources,
+    L"https://app.local/index.html",
+    false,
+    KASUMI_APP_VERSION,
+    ConfiguredCommands(),
+    kWindowDecorations
+);
+
+host->InitializeSession([host, window](bool success, const std::string &error) {
+  if (!success) {
+    return;
+  }
+
+  RECT client{};
+  GetClientRect(window, &client);
+  const LONG split = (client.right - client.left) / 2;
+
+  KSMWebView2ViewOptions left;
+  left.bounds = RECT{client.left, client.top, split, client.bottom};
+  left.fill_parent = false;
+
+  KSMWebView2ViewOptions right;
+  right.bounds = RECT{split, client.top, client.right, client.bottom};
+  right.fill_parent = false;
+
+  auto first = host->CreateView(left);
+  auto second = host->CreateView(right);
+});
+```
+
+| 方法 | 作用 |
+| --- | --- |
+| `InitializeSession(callback)` | 只创建共享 Environment，不自动创建 View |
+| `Initialize(callback)` | 兼容入口，创建 Environment 和一个默认 View |
+| `CreateView(options, callback)` | 创建独立 View；未指定 `start_url` 时继承宿主默认地址 |
+| `DestroyView(windowId)` | 关闭并移除指定 View |
+| `view_count()` | 返回当前注册表中的 View 数量 |
+| `SetBounds(bounds)` | 设置父窗口客户区坐标中的像素边界，并取消自动填满 |
+| `FillParent()` | 恢复为填满父窗口客户区 |
+| `SetVisible(visible)` | 独立显示或隐藏 View |
+| `Focus()` | 切换可见性并把键盘焦点交给该 View |
+
+`CreateView()` 的 `fill_parent` 默认为 `true`。显式调用 `SetBounds()` 会把该 View
+切换为固定布局；之后顶层窗口收到 `WM_SIZE` 时只重新布局仍处于 `fill_parent` 模式的
+View。尺寸边界会夹取到父窗口客户区；创建参数和 `SetBounds()` 的无面积输入会直接失败，
+不会在夹取后变成一个 `1×1` 的实例。
+
+多 View 不会放宽导航安全策略。每个 View 仍只允许 `https://app.local` 和开发模式
+`http://localhost:5173`，`window.open` 继续被拦截。后续浏览器式产品需要单独设计
+受控导航策略，不能通过增加 View 数量绕过现有边界。
 
 ## 下载、链接与窗口
 
@@ -266,6 +333,7 @@ python cli/ksm.py test --platform windows --target example
 | --- | --- | --- |
 | `kasumi_contract` | SDK 构建目录 | 路由、策略、文件、权限、超时、取消和根入口 |
 | `kasumi_win32_example_smoke` | 示例构建目录 | 隐藏启动示例、加载页面、执行 `ping` 并退出 |
+| `kasumi_win32_example_multi_view_smoke` | 示例构建目录 | 同一窗口创建两个 View、独立身份与边界、两个页面分别完成命令写入、关闭单个 View 后其余实例继续运行 |
 
 示例 smoke test 要求机器已安装 Evergreen WebView2 Runtime。
 
@@ -303,3 +371,7 @@ EXE/DLL 执行 `signtool verify /pa /all`。普通 CI 可以构建未签名产�
 6. 外部链接被拒绝：检查 origin 是否包含正确 scheme、host 和端口。
 7. 下载失败：检查 HTTPS、重定向、目标路径、覆盖策略和 `.part` 清理。
 8. 窗口尺寸不变：检查窗口是否最大化、最小化或全屏，以及目标显示器工作区。
+9. 多 View 重叠或尺寸不动：确认显式布局的 View 已调用 `SetBounds`，需要跟随父窗口
+   的 View 保持 `fill_parent=true`。
+10. 关闭一个标签后顶层窗口退出：确认调用的是 `DestroyView(windowId)`，而不是
+    `KSM.window.close()` 或 `KSMWebView2Host::Close()`。

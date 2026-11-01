@@ -74,6 +74,8 @@ cmake --build windows/examples/win32-host/build-external --config Release
 | `--user-data-folder <dir>` | 使用指定 WebView2 用户数据目录 |
 | `--url <url>` | 覆盖启动页面，开发模式使用 `http://localhost:5173/index.html` |
 | `--dev` | 开启 WebView DevTools，仅供开发宿主使用 |
+| `--multi-view` | 使用共享 Environment 创建左右分屏的两个 WebView |
+| `--multi-view-smoke` | 隐藏启动双 WebView 自动化检查，仅供 CTest 使用 |
 
 不传 `--user-data-folder` 时，普通启动使用
 `%LOCALAPPDATA%\Kasumi\Example\WebView2`。`--smoke-test` 只为自动化测试使用独立临时
@@ -89,7 +91,11 @@ python cli/ksm.py test --platform windows --target example
 ```
 
 CTest 使用 `--smoke-test` 隐藏启动窗口，加载页面后执行 `ping`，再通过 `app.exit` 退出。
-该测试要求机器已安装 Evergreen WebView2 Runtime。
+`--multi-view-smoke` 在同一个 `HWND` 中创建两个 View，检查 `windowId`、子窗口和
+布局边界互不相同，并等待两个页面分别通过各自路由完成 `fs.writeText`；随后关闭第一个
+View，确认已关闭 View 的 `Reload()` 失败、第二个 View 仍可调整边界，并验证注册表中的
+View 数量降为 1。创建零面积 View 和对已有 View 设置零面积边界也必须失败。
+两个测试都要求机器已安装 Evergreen WebView2 Runtime。
 
 手工验证：
 
@@ -101,6 +107,8 @@ CTest 使用 `--smoke-test` 隐藏启动窗口，加载页面后执行 `ping`，
 5. 下载失败、超时或取消后，目标目录不应留下 `.part` 文件。
 6. 设置 `windows.decorations: false` 后，系统标题栏应消失，页面拖拽区域应能移动窗口，
    边缘和窗口控件仍可正常使用。
+7. 运行 `--multi-view` 后左右两个页面应独立滚动和响应命令；关闭其中一个 View 不应
+   结束顶层窗口或使另一个页面失去响应。
 
 ## 排查
 

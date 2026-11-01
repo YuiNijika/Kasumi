@@ -15,9 +15,12 @@
 #include <deque>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "../bridge/ksm_router.h"
 #include "ksm_host_services.h"
@@ -34,6 +37,7 @@ using Microsoft::WRL::ComPtr;
 using Microsoft::WRL::Make;
 
 constexpr UINT kRunUiTaskMessage = WM_APP + 0x4B;
+constexpr wchar_t kViewWindowClass[] = L"KasumiWebView2View";
 
 std::wstring ToWide(const std::string &value) {
   if (value.empty()) {
@@ -98,23 +102,60 @@ std::filesystem::path DefaultUserDataFolder() {
   return result / L"Kasumi" / L"WebView2" / executable_name;
 }
 
+RECT ParentClientBounds(HWND parent) {
+  RECT bounds{};
+  if (!parent || !GetClientRect(parent, &bounds)) {
+    return {};
+  }
+  return bounds;
+}
+
+RECT ClampToParent(HWND parent, RECT bounds) {
+  const RECT client = ParentClientBounds(parent);
+  const LONG client_width = client.right - client.left;
+  const LONG client_height = client.bottom - client.top;
+  if (client_width <= 0 || client_height <= 0) {
+    return {};
+  }
+
+  bounds.left = std::clamp<LONG>(bounds.left, client.left, client.right - 1);
+  bounds.top = std::clamp<LONG>(bounds.top, client.top, client.bottom - 1);
+  const LONG maximum_width = client.right - bounds.left;
+  const LONG maximum_height = client.bottom - bounds.top;
+  bounds.right = bounds.left + std::clamp<LONG>(
+                                  bounds.right - bounds.left, 1, maximum_width);
+  bounds.bottom = bounds.top + std::clamp<LONG>(
+                                    bounds.bottom - bounds.top, 1,
+                                    maximum_height);
+  return bounds;
+}
+
+bool HasArea(const RECT &bounds) {
+  return bounds.right > bounds.left && bounds.bottom > bounds.top;
+}
+
 } // namespace
 
-struct KSMWebView2Host::Impl {
-  Impl(HWND window, std::shared_ptr<KSMFileSystem> file_system,
-       std::vector<std::string> allowed_origins, std::filesystem::path web_root,
-       std::filesystem::path user_data_folder, bool smoke_test,
+struct KSMWebView2View::Impl
+    : public std::enable_shared_from_this<KSMWebView2View::Impl> {
+  Impl(HWND parent, std::shared_ptr<KSMFileSystem> file_system,
+       std::vector<std::string> allowed_origins,
+       ComPtr<ICoreWebView2Environment> environment,
+       std::filesystem::path web_root, bool smoke_test,
        std::shared_ptr<KSMWebResourceProvider> web_resources,
        std::wstring start_url, bool dev_mode, std::string app_version,
-       std::vector<std::string> allowed_commands, bool decorations)
-      : window(window), window_id_value(++next_window_id),
-        web_root(std::move(web_root)),
-        user_data_folder(std::move(user_data_folder)), smoke_test(smoke_test),
-        web_resources(std::move(web_resources)),
+       std::vector<std::string> allowed_commands, bool decorations,
+       KSMWebView2ViewOptions options)
+      : parent(parent), window_id_value(++next_window_id),
+        file_system(std::move(file_system)),
+        allowed_origins(std::move(allowed_origins)),
+        environment(std::move(environment)), web_root(std::move(web_root)),
+        smoke_test(smoke_test), web_resources(std::move(web_resources)),
         start_url(std::move(start_url)), dev_mode(dev_mode),
-        decorations(decorations),
+        decorations(decorations), fill_parent(options.fill_parent),
+        visible(true),
         services(std::make_shared<KSMWindowsHostServices>(
-            window, std::move(allowed_origins), file_system,
+            parent, this->allowed_origins, this->file_system,
             std::move(app_version))),
         webview_host(
             [this](const std::string &message) {
@@ -125,103 +166,87 @@ struct KSMWebView2Host::Impl {
                 }
               });
             },
-            file_system, services,
+            this->file_system, services,
             [this](std::function<void()> task) { PostToUi(std::move(task)); },
             std::move(allowed_commands)) {
-    SetWindowSubclass(window, &Impl::SubclassProc,
-                      reinterpret_cast<UINT_PTR>(this),
-                      reinterpret_cast<DWORD_PTR>(this));
+    desired_bounds = options.bounds;
+    if (!options.start_url.empty()) {
+      this->start_url = std::move(options.start_url);
+    }
+    append_smoke_query = options.append_smoke_query;
+    const RECT requested_bounds =
+        fill_parent ? ParentClientBounds(parent) : desired_bounds;
+    desired_bounds = HasArea(requested_bounds)
+                         ? ClampToParent(parent, requested_bounds)
+                         : requested_bounds;
   }
 
-  ~Impl() {
-    Close();
-    RemoveWindowSubclass(window, &Impl::SubclassProc,
-                         reinterpret_cast<UINT_PTR>(this));
-  }
+  ~Impl() { Close(); }
 
-  bool Initialize(InitializationCallback callback) {
-    if (closed || initializing) {
+  bool Initialize(InitializationCallback completion_callback) {
+    if (closed || initializing || !environment) {
       return false;
     }
     initializing = true;
-    completion = std::move(callback);
-    if (!IsRuntimeAvailable()) {
-      Fail("The Evergreen WebView2 Runtime is not installed.");
+    completion = std::move(completion_callback);
+    if (!EnsureWindowClass()) {
+      Fail("The WebView2 child window class could not be registered.");
       return false;
     }
-    if (!user_data_folder.empty()) {
-      std::error_code error;
-      std::filesystem::create_directories(user_data_folder, error);
-      if (error) {
-        Fail("The WebView2 data directory could not be created.");
-        return false;
-      }
+
+    if (fill_parent) {
+      desired_bounds = ParentClientBounds(parent);
+    }
+    if (!HasArea(desired_bounds)) {
+      Fail("The WebView2 view must have non-zero bounds.");
+      return false;
     }
 
-    controller_handler_ =
+    const DWORD style =
+        WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS |
+        (visible ? WS_VISIBLE : 0);
+    window = CreateWindowExW(
+        0, kViewWindowClass, L"", style, desired_bounds.left,
+        desired_bounds.top, desired_bounds.right - desired_bounds.left,
+        desired_bounds.bottom - desired_bounds.top, parent, nullptr,
+        GetModuleHandleW(nullptr), nullptr);
+    if (!window) {
+      Fail("The WebView2 child window could not be created.");
+      return false;
+    }
+    SetWindowLongPtrW(window, GWLP_USERDATA,
+                      reinterpret_cast<LONG_PTR>(this));
+
+    const std::weak_ptr<Impl> weak = weak_from_this();
+    controller_handler =
         Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-            [this](HRESULT result,
+            [weak](HRESULT result,
                    ICoreWebView2Controller *controller) -> HRESULT {
-              if (closed) {
+              const auto self = weak.lock();
+              if (!self || self->closed) {
                 return S_OK;
               }
               if (FAILED(result) || controller == nullptr) {
-                Fail("The WebView2 controller could not be created.");
+                self->Fail("The WebView2 controller could not be created.");
                 return S_OK;
               }
-              controller_ = controller;
-              controller_->get_CoreWebView2(&webview);
-              if (!webview) {
-                Fail("The WebView2 instance could not be created.");
+              self->controller = controller;
+              self->controller->put_IsVisible(self->visible ? TRUE : FALSE);
+              self->controller->get_CoreWebView2(&self->webview);
+              if (!self->webview) {
+                self->Fail("The WebView2 instance could not be created.");
                 return S_OK;
               }
-              ConfigureWebView();
-              NavigateToStartPage();
-              Complete(true, {});
+              self->ConfigureWebView();
+              self->NavigateToStartPage();
+              self->Complete(true, {});
               return S_OK;
             });
 
-    environment_handler_ =
-        Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-            [this](HRESULT result,
-                   ICoreWebView2Environment *environment) -> HRESULT {
-              if (closed) {
-                return S_OK;
-              }
-              if (FAILED(result) || environment == nullptr) {
-                Fail("The WebView2 environment could not be created.");
-                return S_OK;
-              }
-              environment_ = environment;
-              PostToUi([this] {
-                if (closed) {
-                  return;
-                }
-                const HRESULT controller_result =
-                    environment_->CreateCoreWebView2Controller(
-                        window, controller_handler_.Get());
-                if (FAILED(controller_result)) {
-                  Fail("The WebView2 controller could not be created.");
-                }
-              });
-              return S_OK;
-            });
-
-    ComPtr<CoreWebView2EnvironmentOptions> options;
-    if (smoke_test) {
-      options = Make<CoreWebView2EnvironmentOptions>();
-      // CI desktop sessions can block Chromium's sandbox before the
-      // controller callback runs.
-      options->put_AdditionalBrowserArguments(L"--no-sandbox");
-    }
-    const std::filesystem::path resolved_user_data_folder =
-        user_data_folder.empty() ? DefaultUserDataFolder() : user_data_folder;
-    const std::wstring data_folder = resolved_user_data_folder.wstring();
-    const HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
-        nullptr, data_folder.empty() ? nullptr : data_folder.c_str(),
-        options.Get(), environment_handler_.Get());
+    const HRESULT result = environment->CreateCoreWebView2Controller(
+        window, controller_handler.Get());
     if (FAILED(result)) {
-      Fail("WebView2 initialization failed.");
+      Fail("The WebView2 controller could not be created.");
       return false;
     }
     return true;
@@ -256,10 +281,15 @@ struct KSMWebView2Host::Impl {
       ConfigureEmbeddedResources();
     }
 
+    const std::weak_ptr<Impl> weak = weak_from_this();
     webview->add_NavigationStarting(
         Callback<ICoreWebView2NavigationStartingEventHandler>(
-            [this](ICoreWebView2 *,
+            [weak](ICoreWebView2 *,
                    ICoreWebView2NavigationStartingEventArgs *args) -> HRESULT {
+              const auto self = weak.lock();
+              if (!self || self->closed) {
+                return S_OK;
+              }
               LPWSTR uri = nullptr;
               if (FAILED(args->get_Uri(&uri)) || uri == nullptr) {
                 return S_OK;
@@ -275,8 +305,12 @@ struct KSMWebView2Host::Impl {
         &navigation_starting_token);
     webview->add_NewWindowRequested(
         Callback<ICoreWebView2NewWindowRequestedEventHandler>(
-            [this](ICoreWebView2 *,
+            [weak](ICoreWebView2 *,
                    ICoreWebView2NewWindowRequestedEventArgs *args) -> HRESULT {
+              const auto self = weak.lock();
+              if (!self || self->closed) {
+                return S_OK;
+              }
               args->put_Handled(TRUE);
               return S_OK;
             })
@@ -284,8 +318,12 @@ struct KSMWebView2Host::Impl {
         &new_window_token);
     webview->add_WebMessageReceived(
         Callback<ICoreWebView2WebMessageReceivedEventHandler>(
-            [this](ICoreWebView2 *,
+            [weak](ICoreWebView2 *,
                    ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
+              const auto self = weak.lock();
+              if (!self || self->closed) {
+                return S_OK;
+              }
               LPWSTR source = nullptr;
               LPWSTR message = nullptr;
               if (FAILED(args->get_Source(&source)) ||
@@ -297,8 +335,8 @@ struct KSMWebView2Host::Impl {
                   CoTaskMemFree(message);
                 return S_OK;
               }
-              webview_host.OnMessageReceivedFromOrigin(ToUtf8(message),
-                                                       ToUtf8(source));
+              self->webview_host.OnMessageReceivedFromOrigin(
+                  ToUtf8(message), ToUtf8(source));
               CoTaskMemFree(source);
               CoTaskMemFree(message);
               return S_OK;
@@ -307,28 +345,34 @@ struct KSMWebView2Host::Impl {
         &message_token);
     webview->add_NavigationCompleted(
         Callback<ICoreWebView2NavigationCompletedEventHandler>(
-            [this](ICoreWebView2 *,
+            [weak](ICoreWebView2 *,
                    ICoreWebView2NavigationCompletedEventArgs *args) -> HRESULT {
+              const auto self = weak.lock();
+              if (!self || self->closed) {
+                return S_OK;
+              }
               BOOL success = FALSE;
               if (SUCCEEDED(args->get_IsSuccess(&success)) && success) {
-                webview_host.NotifyWebViewReloaded();
+                self->webview_host.NotifyWebViewReloaded();
               }
               return S_OK;
             })
             .Get(),
         &navigation_completed_token);
-    Resize();
+    ResizeToClient();
   }
 
   void ConfigureEmbeddedResources() {
+    const std::weak_ptr<Impl> weak = weak_from_this();
     webview->AddWebResourceRequestedFilter(
         L"https://app.local/*", COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
     webview->add_WebResourceRequested(
         Callback<ICoreWebView2WebResourceRequestedEventHandler>(
-            [this](
-                ICoreWebView2 *,
-                ICoreWebView2WebResourceRequestedEventArgs *args) -> HRESULT {
-              if (!args || !environment_ || !web_resources) {
+            [weak](ICoreWebView2 *,
+                   ICoreWebView2WebResourceRequestedEventArgs *args) -> HRESULT {
+              const auto self = weak.lock();
+              if (!self || self->closed || !args || !self->environment ||
+                  !self->web_resources) {
                 return S_OK;
               }
               ComPtr<ICoreWebView2WebResourceRequest> request;
@@ -344,10 +388,10 @@ struct KSMWebView2Host::Impl {
 
               const auto path = KSMWebResourcePath::FromAppLocalUrl(url);
               const auto resource =
-                  path ? web_resources->Read(*path) : std::nullopt;
+                  path ? self->web_resources->Read(*path) : std::nullopt;
               if (!resource) {
                 ComPtr<ICoreWebView2WebResourceResponse> response;
-                if (SUCCEEDED(environment_->CreateWebResourceResponse(
+                if (SUCCEEDED(self->environment->CreateWebResourceResponse(
                         nullptr, 404, L"Not Found",
                         L"Content-Type: text/plain\r\n"
                         L"Cache-Control: no-store\r\n",
@@ -373,7 +417,7 @@ struct KSMWebView2Host::Impl {
               }
               headers += L"Cache-Control: no-cache\r\n";
               ComPtr<ICoreWebView2WebResourceResponse> response;
-              if (SUCCEEDED(environment_->CreateWebResourceResponse(
+              if (SUCCEEDED(self->environment->CreateWebResourceResponse(
                       content.Get(), 200, L"OK", headers.c_str(), &response))) {
                 args->put_Response(response.Get());
               }
@@ -384,30 +428,114 @@ struct KSMWebView2Host::Impl {
   }
 
   void NavigateToStartPage() {
-    if (webview) {
-      std::wstring url = start_url;
-      if (smoke_test) {
-        url += url.find(L'?') == std::wstring::npos ? L"?smoke=1" : L"&smoke=1";
-      }
-      webview->Navigate(url.c_str());
+    if (!webview || start_url.empty()) {
+      return;
     }
+    std::wstring url = start_url;
+    if (smoke_test && append_smoke_query) {
+      url += url.find(L'?') == std::wstring::npos ? L"?smoke=1" : L"&smoke=1";
+    }
+    webview->Navigate(url.c_str());
   }
 
-  void Resize() {
-    if (!controller_) {
+  void ResizeToClient() {
+    if (!window || !controller) {
       return;
     }
-    RECT bounds{};
-    if (!GetClientRect(window, &bounds)) {
+    RECT client{};
+    if (!GetClientRect(window, &client)) {
       return;
     }
-    controller_->put_Bounds(bounds);
-    KSMWindowFrame::RefreshResizeHitTesting(window);
-    const int width = bounds.right - bounds.left;
-    const int height = bounds.bottom - bounds.top;
+    controller->put_Bounds(client);
+    KSMWindowFrame::RefreshResizeHitTesting(parent);
+    const int width = client.right - client.left;
+    const int height = client.bottom - client.top;
     if (width > 0 && height > 0) {
       webview_host.NotifyWindowResized(width, height);
     }
+  }
+
+  bool ApplyBounds(RECT bounds, bool update_fill_parent) {
+    if (!parent || closed) {
+      return false;
+    }
+    if (!HasArea(bounds)) {
+      return false;
+    }
+    bounds = ClampToParent(parent, bounds);
+    if (!HasArea(bounds)) {
+      return false;
+    }
+    desired_bounds = bounds;
+    if (update_fill_parent) {
+      fill_parent = false;
+    }
+    if (!window) {
+      return true;
+    }
+    const int width = bounds.right - bounds.left;
+    const int height = bounds.bottom - bounds.top;
+    if (!SetWindowPos(window, nullptr, bounds.left, bounds.top, width, height,
+                      SWP_NOZORDER | SWP_NOACTIVATE |
+                          (visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW))) {
+      return false;
+    }
+    KSMWindowFrame::RefreshResizeHitTesting(parent);
+    return true;
+  }
+
+  bool FillParentBounds() {
+    if (closed || !parent) {
+      return false;
+    }
+    RECT client = ParentClientBounds(parent);
+    if (!HasArea(client) || !ApplyBounds(client, false)) {
+      return false;
+    }
+    fill_parent = true;
+    return true;
+  }
+
+  bool SetVisible(bool next_visible) {
+    if (closed) {
+      return false;
+    }
+    visible = next_visible;
+    if (window) {
+      ShowWindow(window, visible ? SW_SHOWNA : SW_HIDE);
+    }
+    if (controller) {
+      controller->put_IsVisible(visible ? TRUE : FALSE);
+    }
+    return true;
+  }
+
+  void FocusView() {
+    if (closed || !window) {
+      return;
+    }
+    if (!visible) {
+      SetVisible(true);
+    }
+    SetFocus(window);
+    MoveWebViewFocus();
+  }
+
+  void MoveWebViewFocus() {
+    if (controller) {
+      controller->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+    }
+  }
+
+  bool NavigateTo(const std::wstring &url) {
+    if (closed || !webview || url.empty()) {
+      return false;
+    }
+    return SUCCEEDED(webview->Navigate(url.c_str()));
+  }
+
+  bool ReloadPage() {
+    return !closed && webview && SUCCEEDED(webview->Reload());
   }
 
   void RunUiTasks() {
@@ -426,14 +554,16 @@ struct KSMWebView2Host::Impl {
   }
 
   void PostToUi(std::function<void()> task) {
+    HWND target = nullptr;
     {
       std::lock_guard lock(ui_mutex);
-      if (closed) {
+      if (closed || !window) {
         return;
       }
       ui_tasks.push_back(std::move(task));
+      target = window;
     }
-    PostMessageW(window, kRunUiTaskMessage, 0, 0);
+    PostMessageW(target, kRunUiTaskMessage, 0, 0);
   }
 
   void Complete(bool success, const std::string &message) {
@@ -448,86 +578,150 @@ struct KSMWebView2Host::Impl {
     }
   }
 
-  void Fail(const std::string &message) { Complete(false, message); }
+  void Fail(const std::string &message) {
+    Complete(false, message);
+    Close();
+  }
 
-  void Close() {
-    if (closed) {
+  void DetachEvents() {
+    if (!webview) {
       return;
     }
-    {
-      std::lock_guard lock(ui_mutex);
-      closed = true;
-      ui_tasks.clear();
-    }
-    if (webview && message_token.value != 0) {
+    if (message_token.value != 0) {
       webview->remove_WebMessageReceived(message_token);
     }
-    if (webview && navigation_starting_token.value != 0) {
+    if (navigation_starting_token.value != 0) {
       webview->remove_NavigationStarting(navigation_starting_token);
     }
-    if (webview && new_window_token.value != 0) {
+    if (new_window_token.value != 0) {
       webview->remove_NewWindowRequested(new_window_token);
     }
-    if (webview && navigation_completed_token.value != 0) {
+    if (navigation_completed_token.value != 0) {
       webview->remove_NavigationCompleted(navigation_completed_token);
     }
-    if (webview && web_resource_token.value != 0) {
+    if (web_resource_token.value != 0) {
       webview->remove_WebResourceRequested(web_resource_token);
     }
-    if (webview && !web_root.empty()) {
+    if (!web_root.empty()) {
       ComPtr<ICoreWebView2_3> webview3;
       if (SUCCEEDED(webview.As(&webview3)) && webview3) {
         webview3->ClearVirtualHostNameToFolderMapping(L"app.local");
       }
     }
-    webview.Reset();
-    if (controller_) {
-      controller_->Close();
-      controller_.Reset();
-    }
-    environment_.Reset();
-    controller_handler_.Reset();
-    environment_handler_.Reset();
   }
 
-  static LRESULT CALLBACK SubclassProc(HWND window, UINT message, WPARAM wparam,
-                                       LPARAM lparam, UINT_PTR,
-                                       DWORD_PTR reference) {
-    auto *self = reinterpret_cast<Impl *>(reference);
-    if (message == kRunUiTaskMessage) {
-      self->RunUiTasks();
-      return 0;
+  void ReleaseWebView() {
+    DetachEvents();
+    webview.Reset();
+    if (controller) {
+      controller->Close();
+      controller.Reset();
     }
-    if (message == WM_SIZE) {
-      self->Resize();
+    environment.Reset();
+    controller_handler.Reset();
+  }
+
+  void OnChildWindowDestroyed(HWND destroyed_window) {
+    if (destroyed_window != window) {
+      return;
     }
+    window = nullptr;
+    closed = true;
+    {
+      std::lock_guard lock(ui_mutex);
+      ui_tasks.clear();
+    }
+    ReleaseWebView();
+    if (!completed) {
+      Complete(false, "The WebView2 view was destroyed.");
+    }
+  }
+
+  void Close() {
+    if (closed && !window) {
+      return;
+    }
+    closed = true;
+    {
+      std::lock_guard lock(ui_mutex);
+      ui_tasks.clear();
+    }
+    ReleaseWebView();
+    HWND child = window;
+    window = nullptr;
+    if (child && IsWindow(child)) {
+      SetWindowLongPtrW(child, GWLP_USERDATA, 0);
+      DestroyWindow(child);
+    }
+    if (!completed) {
+      Complete(false, "The WebView2 view was closed.");
+    }
+  }
+
+  static bool EnsureWindowClass() {
+    static std::once_flag once;
+    static bool registered = false;
+    std::call_once(once, [] {
+      WNDCLASSEXW window_class{};
+      window_class.cbSize = sizeof(window_class);
+      window_class.style = CS_HREDRAW | CS_VREDRAW;
+      window_class.lpfnWndProc = &Impl::WindowProc;
+      window_class.hInstance = GetModuleHandleW(nullptr);
+      window_class.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+      window_class.lpszClassName = kViewWindowClass;
+      registered = RegisterClassExW(&window_class) != 0 ||
+                   GetLastError() == ERROR_CLASS_ALREADY_EXISTS;
+    });
+    return registered;
+  }
+
+  static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam,
+                                     LPARAM lparam) {
+    auto *self = reinterpret_cast<Impl *>(
+        GetWindowLongPtrW(window, GWLP_USERDATA));
     if (message == WM_NCDESTROY) {
-      RemoveWindowSubclass(window, &Impl::SubclassProc,
-                           reinterpret_cast<UINT_PTR>(self));
+      SetWindowLongPtrW(window, GWLP_USERDATA, 0);
+      if (self) {
+        self->OnChildWindowDestroyed(window);
+      }
+    } else if (self) {
+      if (message == kRunUiTaskMessage) {
+        self->RunUiTasks();
+        return 0;
+      }
+      if (message == WM_SIZE) {
+        self->ResizeToClient();
+      } else if (message == WM_SETFOCUS) {
+        self->MoveWebViewFocus();
+      }
     }
-    return DefSubclassProc(window, message, wparam, lparam);
+    return DefWindowProcW(window, message, wparam, lparam);
   }
 
   static std::atomic<std::uint64_t> next_window_id;
 
-  HWND window;
-  std::uint64_t window_id_value;
+  HWND parent = nullptr;
+  HWND window = nullptr;
+  std::uint64_t window_id_value = 0;
+  std::shared_ptr<KSMFileSystem> file_system;
+  std::vector<std::string> allowed_origins;
+  ComPtr<ICoreWebView2Environment> environment;
   std::filesystem::path web_root;
-  std::filesystem::path user_data_folder;
-  bool smoke_test;
+  bool smoke_test = false;
   std::shared_ptr<KSMWebResourceProvider> web_resources;
   std::wstring start_url;
-  bool dev_mode;
-  bool decorations;
+  bool dev_mode = false;
+  bool decorations = true;
+  bool append_smoke_query = true;
+  bool fill_parent = true;
+  bool visible = true;
+  RECT desired_bounds{};
   std::shared_ptr<KSMWindowsHostServices> services;
   KSMWebViewHost webview_host;
-  ComPtr<ICoreWebView2Environment> environment_;
-  ComPtr<ICoreWebView2Controller> controller_;
+  ComPtr<ICoreWebView2Controller> controller;
   ComPtr<ICoreWebView2> webview;
-  ComPtr<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>
-      environment_handler_;
   ComPtr<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>
-      controller_handler_;
+      controller_handler;
   EventRegistrationToken navigation_starting_token{};
   EventRegistrationToken new_window_token{};
   EventRegistrationToken message_token{};
@@ -541,7 +735,307 @@ struct KSMWebView2Host::Impl {
   bool closed = false;
 };
 
-std::atomic<std::uint64_t> KSMWebView2Host::Impl::next_window_id{1};
+std::atomic<std::uint64_t> KSMWebView2View::Impl::next_window_id{1};
+
+struct KSMWebView2Host::Impl
+    : public std::enable_shared_from_this<KSMWebView2Host::Impl> {
+  Impl(HWND window, std::shared_ptr<KSMFileSystem> file_system,
+       std::vector<std::string> allowed_origins,
+       std::filesystem::path web_root, std::filesystem::path user_data_folder,
+       bool smoke_test, std::shared_ptr<KSMWebResourceProvider> web_resources,
+       std::wstring start_url, bool dev_mode, std::string app_version,
+       std::vector<std::string> allowed_commands, bool decorations)
+      : window(window), file_system(std::move(file_system)),
+        allowed_origins(std::move(allowed_origins)),
+        web_root(std::move(web_root)),
+        user_data_folder(std::move(user_data_folder)), smoke_test(smoke_test),
+        web_resources(std::move(web_resources)),
+        start_url(std::move(start_url)), dev_mode(dev_mode),
+        app_version(std::move(app_version)),
+        allowed_commands(std::move(allowed_commands)),
+        decorations(decorations) {
+    SetWindowSubclass(window, &Impl::SubclassProc,
+                      reinterpret_cast<UINT_PTR>(this),
+                      reinterpret_cast<DWORD_PTR>(this));
+  }
+
+  ~Impl() { Close(); }
+
+  bool Start(bool create_default_view,
+             InitializationCallback completion_callback) {
+    if (closed || started || initializing) {
+      return false;
+    }
+    initializing = true;
+    started = true;
+    should_create_default_view = create_default_view;
+    completion = std::move(completion_callback);
+    if (!KSMWebView2Host::IsRuntimeAvailable()) {
+      Fail("The Evergreen WebView2 Runtime is not installed.");
+      return false;
+    }
+    if (!user_data_folder.empty()) {
+      std::error_code error;
+      std::filesystem::create_directories(user_data_folder, error);
+      if (error) {
+        Fail("The WebView2 data directory could not be created.");
+        return false;
+      }
+    }
+
+    const std::weak_ptr<Impl> weak = weak_from_this();
+    environment_handler =
+        Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
+            [weak](HRESULT result,
+                   ICoreWebView2Environment *environment) -> HRESULT {
+              const auto self = weak.lock();
+              if (!self || self->closed) {
+                return S_OK;
+              }
+              if (FAILED(result) || environment == nullptr) {
+                self->Fail("The WebView2 environment could not be created.");
+                return S_OK;
+              }
+              self->environment = environment;
+              if (self->should_create_default_view) {
+                self->CreateDefaultView();
+              } else {
+                self->Complete(true, {});
+              }
+              return S_OK;
+            });
+
+    ComPtr<CoreWebView2EnvironmentOptions> options;
+    if (smoke_test) {
+      options = Make<CoreWebView2EnvironmentOptions>();
+      // CI desktop sessions can block Chromium's sandbox before the
+      // controller callback runs.
+      options->put_AdditionalBrowserArguments(L"--no-sandbox");
+    }
+    const std::filesystem::path resolved_user_data_folder =
+        user_data_folder.empty() ? DefaultUserDataFolder() : user_data_folder;
+    const std::wstring data_folder = resolved_user_data_folder.wstring();
+    const HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
+        nullptr, data_folder.empty() ? nullptr : data_folder.c_str(),
+        options.Get(), environment_handler.Get());
+    if (FAILED(result)) {
+      Fail("WebView2 initialization failed.");
+      return false;
+    }
+    return true;
+  }
+
+  std::shared_ptr<KSMWebView2View::Impl> CreateViewState(
+      const KSMWebView2ViewOptions &options) {
+    if (closed || !environment) {
+      return nullptr;
+    }
+    return std::make_shared<KSMWebView2View::Impl>(
+        window, file_system, allowed_origins, environment, web_root, smoke_test,
+        web_resources, start_url, dev_mode, app_version,
+        options.allowed_commands.empty() ? allowed_commands
+                                         : options.allowed_commands,
+        decorations, options);
+  }
+
+  std::shared_ptr<KSMWebView2View> CreateView(
+      const KSMWebView2ViewOptions &options,
+      KSMWebView2View::InitializationCallback callback) {
+    if (closed || !environment) {
+      if (callback) {
+        callback(false, "The WebView2 session is not initialized.");
+      }
+      return nullptr;
+    }
+    auto state = CreateViewState(options);
+    if (!state) {
+      if (callback) {
+        callback(false, "The WebView2 view could not be created.");
+      }
+      return nullptr;
+    }
+    auto view = std::shared_ptr<KSMWebView2View>(
+        new KSMWebView2View(std::move(state)));
+    views[view->window_id()] = view;
+    if (!view->Initialize(std::move(callback))) {
+      views.erase(view->window_id());
+      return nullptr;
+    }
+    return view;
+  }
+
+  void CreateDefaultView() {
+    KSMWebView2ViewOptions options;
+    options.start_url = start_url;
+    options.fill_parent = true;
+    options.append_smoke_query = smoke_test;
+    options.allowed_commands = allowed_commands;
+    const std::weak_ptr<Impl> weak = weak_from_this();
+    auto view = CreateView(options, [weak](bool success,
+                                           const std::string &message) {
+      const auto self = weak.lock();
+      if (!self || self->closed) {
+        return;
+      }
+      self->Complete(success, message);
+    });
+    if (!view) {
+      return;
+    }
+    default_view = std::move(view);
+  }
+
+  bool DestroyView(std::uint64_t window_id) {
+    const auto iterator = views.find(window_id);
+    if (iterator == views.end()) {
+      return false;
+    }
+    auto view = std::move(iterator->second);
+    views.erase(iterator);
+    if (default_view && default_view->window_id() == window_id) {
+      default_view.reset();
+    }
+    view->Close();
+    return true;
+  }
+
+  void LayoutFillViews() {
+    for (const auto &[window_id, view] : views) {
+      (void)window_id;
+      if (view->fills_parent()) {
+        view->FillParent();
+      }
+    }
+  }
+
+  std::size_t ViewCount() const noexcept { return views.size(); }
+
+  void Complete(bool success, const std::string &message) {
+    if (completed) {
+      return;
+    }
+    completed = true;
+    if (completion) {
+      auto callback = std::move(completion);
+      completion = {};
+      callback(success, message);
+    }
+  }
+
+  void Fail(const std::string &message) {
+    Complete(false, message);
+    Close();
+  }
+
+  void Close() {
+    if (closed) {
+      return;
+    }
+    closed = true;
+    for (const auto &[window_id, view] : views) {
+      (void)window_id;
+      view->Close();
+    }
+    views.clear();
+    default_view.reset();
+    environment.Reset();
+    environment_handler.Reset();
+    if (window && IsWindow(window)) {
+      RemoveWindowSubclass(window, &Impl::SubclassProc,
+                           reinterpret_cast<UINT_PTR>(this));
+    }
+    window = nullptr;
+    if (!completed) {
+      Complete(false, "The WebView2 session was closed.");
+    }
+  }
+
+  static LRESULT CALLBACK SubclassProc(HWND window, UINT message, WPARAM wparam,
+                                       LPARAM lparam, UINT_PTR,
+                                       DWORD_PTR reference) {
+    auto *self = reinterpret_cast<Impl *>(reference);
+    if (message == WM_NCDESTROY) {
+      RemoveWindowSubclass(window, &Impl::SubclassProc,
+                           reinterpret_cast<UINT_PTR>(self));
+      self->window = nullptr;
+      self->Close();
+    } else if (message == WM_SIZE) {
+      self->LayoutFillViews();
+    }
+    return DefSubclassProc(window, message, wparam, lparam);
+  }
+
+  HWND window = nullptr;
+  std::shared_ptr<KSMFileSystem> file_system;
+  std::vector<std::string> allowed_origins;
+  std::filesystem::path web_root;
+  std::filesystem::path user_data_folder;
+  bool smoke_test = false;
+  std::shared_ptr<KSMWebResourceProvider> web_resources;
+  std::wstring start_url;
+  bool dev_mode = false;
+  std::string app_version;
+  std::vector<std::string> allowed_commands;
+  bool decorations = true;
+  bool should_create_default_view = false;
+  ComPtr<ICoreWebView2Environment> environment;
+  ComPtr<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>
+      environment_handler;
+  std::unordered_map<std::uint64_t, std::shared_ptr<KSMWebView2View>> views;
+  std::shared_ptr<KSMWebView2View> default_view;
+  InitializationCallback completion;
+  bool initializing = false;
+  bool started = false;
+  bool completed = false;
+  bool closed = false;
+};
+
+KSMWebView2View::KSMWebView2View(std::shared_ptr<Impl> impl)
+    : impl_(std::move(impl)) {}
+
+KSMWebView2View::~KSMWebView2View() = default;
+
+bool KSMWebView2View::Initialize(InitializationCallback callback) {
+  return impl_->Initialize(std::move(callback));
+}
+
+void KSMWebView2View::Close() { impl_->Close(); }
+
+bool KSMWebView2View::SetBounds(const RECT &bounds) {
+  return impl_->ApplyBounds(bounds, true);
+}
+
+bool KSMWebView2View::FillParent() { return impl_->FillParentBounds(); }
+
+bool KSMWebView2View::SetVisible(bool visible) {
+  return impl_->SetVisible(visible);
+}
+
+void KSMWebView2View::Focus() { impl_->FocusView(); }
+
+bool KSMWebView2View::Navigate(const std::wstring &url) {
+  return impl_->NavigateTo(url);
+}
+
+bool KSMWebView2View::Reload() { return impl_->ReloadPage(); }
+
+HWND KSMWebView2View::window() const noexcept { return impl_->window; }
+
+RECT KSMWebView2View::bounds() const noexcept { return impl_->desired_bounds; }
+
+bool KSMWebView2View::is_initialized() const noexcept {
+  return impl_->webview && !impl_->closed;
+}
+
+bool KSMWebView2View::is_visible() const noexcept { return impl_->visible; }
+
+bool KSMWebView2View::fills_parent() const noexcept {
+  return impl_->fill_parent;
+}
+
+std::uint64_t KSMWebView2View::window_id() const noexcept {
+  return impl_->window_id_value;
+}
 
 KSMWebView2Host::KSMWebView2Host(
     HWND window, std::shared_ptr<KSMFileSystem> file_system,
@@ -550,7 +1044,7 @@ KSMWebView2Host::KSMWebView2Host(
     bool smoke_test, std::shared_ptr<KSMWebResourceProvider> web_resources,
     std::wstring start_url, bool dev_mode, std::string app_version,
     std::vector<std::string> allowed_commands, bool decorations)
-    : impl_(std::make_unique<Impl>(
+    : impl_(std::make_shared<Impl>(
           window, std::move(file_system), std::move(allowed_external_origins),
           std::move(web_root), std::move(user_data_folder), smoke_test,
           std::move(web_resources), std::move(start_url), dev_mode,
@@ -558,14 +1052,32 @@ KSMWebView2Host::KSMWebView2Host(
 
 KSMWebView2Host::~KSMWebView2Host() = default;
 
+bool KSMWebView2Host::InitializeSession(InitializationCallback callback) {
+  return impl_->Start(false, std::move(callback));
+}
+
 bool KSMWebView2Host::Initialize(InitializationCallback callback) {
-  return impl_->Initialize(std::move(callback));
+  return impl_->Start(true, std::move(callback));
+}
+
+std::shared_ptr<KSMWebView2View> KSMWebView2Host::CreateView(
+    const KSMWebView2ViewOptions &options,
+    KSMWebView2View::InitializationCallback callback) {
+  return impl_->CreateView(options, std::move(callback));
+}
+
+bool KSMWebView2Host::DestroyView(std::uint64_t window_id) {
+  return impl_->DestroyView(window_id);
 }
 
 void KSMWebView2Host::Close() { impl_->Close(); }
 
 std::uint64_t KSMWebView2Host::window_id() const noexcept {
-  return impl_->window_id_value;
+  return impl_->default_view ? impl_->default_view->window_id() : 0;
+}
+
+std::size_t KSMWebView2Host::view_count() const noexcept {
+  return impl_->ViewCount();
 }
 
 bool KSMWebView2Host::IsRuntimeAvailable() {

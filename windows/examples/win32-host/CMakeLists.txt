@@ -235,4 +235,12 @@ if(BUILD_TESTING)
         kasumi_win32_example_smoke
         PROPERTIES TIMEOUT 30
     )
+    add_test(
+        NAME kasumi_win32_example_multi_view_smoke
+        COMMAND kasumi_win32_example --multi-view-smoke
+    )
+    set_tests_properties(
+        kasumi_win32_example_multi_view_smoke
+        PROPERTIES TIMEOUT 30
+    )
 endif()

@@ -25,13 +25,28 @@ namespace {
 
 constexpr wchar_t kWindowClass[] = L"KasumiExampleHostWindow";
 constexpr wchar_t kWindowTitle[] = L"Kasumi Host Lab";
+constexpr wchar_t kMultiViewSmokeProperty[] = L"KasumiMultiViewSmoke";
 constexpr int kWindowWidth = 1080;
 constexpr int kWindowHeight = 720;
+constexpr UINT_PTR kMultiViewSmokeTimer = 0x4B4D;
+constexpr UINT kMultiViewSmokeDelayMs = 250;
+constexpr int kMultiViewSmokeMaxAttempts = 40;
 #if defined(KASUMI_WINDOW_DECORATIONS)
 constexpr bool kWindowDecorations = KASUMI_WINDOW_DECORATIONS != 0;
 #else
 constexpr bool kWindowDecorations = true;
 #endif
+
+struct MultiViewSmokeContext {
+  KSMWebView2Host *host = nullptr;
+  std::shared_ptr<KSMWebView2View> first;
+  std::shared_ptr<KSMWebView2View> second;
+  std::shared_ptr<KSMFileSystem> file_system;
+  std::string marker;
+  int ready_views = 0;
+  int timer_attempts = 0;
+  bool first_closed = false;
+};
 
 std::wstring ToWide(const std::string &value) {
   if (value.empty()) {
@@ -144,6 +159,74 @@ void ShowRuntimePrompt(HWND owner) {
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam,
                             LPARAM lparam) {
   switch (message) {
+  case WM_TIMER:
+    if (wparam == kMultiViewSmokeTimer) {
+      auto *context = reinterpret_cast<MultiViewSmokeContext *>(
+          GetPropW(window, kMultiViewSmokeProperty));
+      if (!context) {
+        KillTimer(window, kMultiViewSmokeTimer);
+        PostQuitMessage(1);
+        return 0;
+      }
+
+      if (!context->first_closed) {
+        bool pages_reported = false;
+        if (context->file_system && !context->marker.empty()) {
+          const std::string directory = "app://data/multi-view-smoke";
+          const std::string first_path =
+              directory + "/" + context->marker + "-1.txt";
+          const std::string second_path =
+              directory + "/" + context->marker + "-2.txt";
+          const auto first_content = context->file_system->ReadText(first_path);
+          const auto second_content =
+              context->file_system->ReadText(second_path);
+          pages_reported = first_content == std::optional<std::string>("ready") &&
+                           second_content == std::optional<std::string>("ready");
+          if (pages_reported) {
+            context->file_system->Remove(first_path);
+            context->file_system->Remove(second_path);
+            context->file_system->Remove(directory);
+          }
+        }
+        if (!pages_reported &&
+            ++context->timer_attempts < kMultiViewSmokeMaxAttempts) {
+          return 0;
+        }
+        if (pages_reported && context->first && context->host &&
+            context->host->DestroyView(context->first->window_id())) {
+          context->first_closed = true;
+          context->timer_attempts = 0;
+          return 0;
+        }
+      }
+
+      bool passed = false;
+      if (context->first_closed) {
+        RECT second_bounds{};
+        bool resized_remaining_view = false;
+        if (context->second && context->second->is_initialized()) {
+          second_bounds = context->second->bounds();
+          if (second_bounds.right - second_bounds.left > 1) {
+            --second_bounds.right;
+            resized_remaining_view = context->second->SetBounds(second_bounds);
+          }
+        }
+        passed = context->first && context->second &&
+                 context->ready_views == 2 &&
+                 !context->first->is_initialized() &&
+                 !context->first->Reload() &&
+                 context->second->is_initialized() &&
+                 resized_remaining_view &&
+                 context->host && context->host->view_count() == 1;
+      }
+      KillTimer(window, kMultiViewSmokeTimer);
+      if (context->host) {
+        context->host->Close();
+      }
+      PostQuitMessage(passed ? 0 : 1);
+      return 0;
+    }
+    break;
   case WM_GETMINMAXINFO: {
     auto *info = reinterpret_cast<MINMAXINFO *>(lparam);
     info->ptMinTrackSize.x = 320;
@@ -156,15 +239,23 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam,
   case WM_DESTROY:
     PostQuitMessage(0);
     return 0;
+  case WM_NCDESTROY:
+    RemovePropW(window, kMultiViewSmokeProperty);
+    break;
   default:
-    return DefWindowProcW(window, message, wparam, lparam);
+    break;
   }
+  return DefWindowProcW(window, message, wparam, lparam);
 }
 
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
-  const bool smoke_test = HasCommandLineFlag(L"--smoke-test");
+  const bool single_view_smoke = HasCommandLineFlag(L"--smoke-test");
+  const bool multi_view = HasCommandLineFlag(L"--multi-view");
+  const bool multi_view_smoke = HasCommandLineFlag(L"--multi-view-smoke");
+  const bool smoke_test = single_view_smoke || multi_view_smoke;
+  const bool use_multi_view = multi_view || multi_view_smoke;
   const bool dev_mode = HasCommandLineFlag(L"--dev");
   const auto requested_url = CommandLineValue(L"--url");
   const std::wstring start_url =
@@ -294,26 +385,181 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
       web_root, webview_data, smoke_test, web_resources, start_url, dev_mode,
       KASUMI_APP_VERSION, ConfiguredCommands(), kWindowDecorations);
 
-  if (!host->Initialize(
-          [window, smoke_test](bool success, const std::string &error) {
-            if (success) {
-              if (smoke_test) {
-                ShowWindow(window, SW_HIDE);
+  MultiViewSmokeContext multi_view_context;
+  multi_view_context.host = host.get();
+  multi_view_context.file_system = file_system;
+  if (multi_view_smoke) {
+    multi_view_context.marker = std::to_string(GetCurrentProcessId());
+  }
+  if (multi_view_smoke) {
+    SetPropW(window, kMultiViewSmokeProperty, &multi_view_context);
+  }
+
+  const auto show_error = [window, smoke_test](const std::string &error) {
+    if (smoke_test) {
+      PostQuitMessage(1);
+      return;
+    }
+    const std::wstring message = ToWide(error);
+    MessageBoxW(window, message.c_str(), L"Kasumi Host Lab",
+                MB_OK | MB_ICONERROR);
+    PostMessageW(window, WM_CLOSE, 0, 0);
+  };
+
+  if (!use_multi_view) {
+    if (!host->Initialize(
+            [window, smoke_test](bool success, const std::string &error) {
+              if (success) {
+                if (smoke_test) {
+                  ShowWindow(window, SW_HIDE);
+                }
+                return;
               }
+              if (smoke_test) {
+                PostQuitMessage(1);
+                return;
+              }
+              const std::wstring message = ToWide(error);
+              MessageBoxW(window, message.c_str(), L"Kasumi Host Lab",
+                          MB_OK | MB_ICONERROR);
+              PostMessageW(window, WM_CLOSE, 0, 0);
+            })) {
+      host.reset();
+      DestroyWindow(window);
+      return 1;
+    }
+  } else {
+    const bool initialized = host->InitializeSession(
+        [&, window, multi_view_smoke, show_error](
+            bool success, const std::string &error) {
+          if (!success) {
+            show_error(error);
+            return;
+          }
+
+          RECT client{};
+          GetClientRect(window, &client);
+          const LONG width = client.right - client.left;
+          const LONG height = client.bottom - client.top;
+          const LONG split = width / 2;
+          if (width < 2 || height < 1) {
+            show_error("The multi-view host window is too small.");
+            return;
+          }
+
+          KSMWebView2ViewOptions empty_options;
+          empty_options.bounds =
+              RECT{client.left, client.top, client.left, client.top};
+          empty_options.fill_parent = false;
+          if (host->CreateView(empty_options)) {
+            show_error("The multi-view host created a view with empty bounds.");
+            return;
+          }
+
+          auto view_ready = [&, window, multi_view_smoke, show_error](
+                                bool view_success,
+                                const std::string &view_error) {
+            if (!view_success) {
+              show_error(view_error);
               return;
             }
-            if (smoke_test) {
-              PostQuitMessage(1);
+            ++multi_view_context.ready_views;
+            if (multi_view_context.ready_views != 2) {
               return;
             }
-            const std::wstring message = ToWide(error);
-            MessageBoxW(window, message.c_str(), L"Kasumi Host Lab",
-                        MB_OK | MB_ICONERROR);
-            PostMessageW(window, WM_CLOSE, 0, 0);
-          })) {
-    host.reset();
-    DestroyWindow(window);
-    return 1;
+            if (!multi_view_context.first || !multi_view_context.second) {
+              show_error("The multi-view host did not retain both views.");
+              return;
+            }
+
+            const RECT first_bounds = multi_view_context.first->bounds();
+            const RECT empty_bounds{
+                first_bounds.left, first_bounds.top, first_bounds.left,
+                first_bounds.top};
+            if (multi_view_context.first->SetBounds(empty_bounds)) {
+              show_error("The multi-view host accepted an empty view bounds.");
+              return;
+            }
+            const RECT preserved_bounds = multi_view_context.first->bounds();
+            if (preserved_bounds.left != first_bounds.left ||
+                preserved_bounds.top != first_bounds.top ||
+                preserved_bounds.right != first_bounds.right ||
+                preserved_bounds.bottom != first_bounds.bottom) {
+              show_error("Rejected view bounds changed the existing layout.");
+              return;
+            }
+
+            const bool ids_differ =
+                multi_view_context.first->window_id() !=
+                multi_view_context.second->window_id();
+            const bool windows_differ =
+                multi_view_context.first->window() !=
+                multi_view_context.second->window();
+            const RECT second_bounds = multi_view_context.second->bounds();
+            const bool bounds_differ =
+                first_bounds.left != second_bounds.left ||
+                first_bounds.right != second_bounds.right;
+            if (!ids_differ || !windows_differ || !bounds_differ ||
+                host->view_count() != 2) {
+              show_error(
+                  "The multi-view host did not isolate view identity or bounds.");
+              return;
+            }
+
+            if (!multi_view_smoke) {
+              multi_view_context.first->Focus();
+              return;
+            }
+            if (SetTimer(window, kMultiViewSmokeTimer,
+                         kMultiViewSmokeDelayMs, nullptr) == 0) {
+              show_error("The multi-view smoke timer could not be created.");
+            }
+          };
+
+          KSMWebView2ViewOptions first_options;
+          first_options.start_url = start_url;
+          if (multi_view_smoke) {
+            const std::wstring marker(
+                multi_view_context.marker.begin(),
+                multi_view_context.marker.end());
+            first_options.start_url +=
+                first_options.start_url.find(L'?') == std::wstring::npos
+                    ? L"?multi-view-smoke="
+                    : L"&multi-view-smoke=";
+            first_options.start_url += marker + L"&view=1";
+          }
+          first_options.bounds = RECT{client.left, client.top, split,
+                                      client.bottom};
+          first_options.fill_parent = false;
+          first_options.append_smoke_query = false;
+          first_options.allowed_commands = ConfiguredCommands();
+          multi_view_context.first =
+              host->CreateView(first_options, view_ready);
+
+          KSMWebView2ViewOptions second_options = first_options;
+          if (multi_view_smoke) {
+            const std::wstring marker(
+                multi_view_context.marker.begin(),
+                multi_view_context.marker.end());
+            second_options.start_url =
+                (start_url.find(L'?') == std::wstring::npos
+                     ? start_url + L"?multi-view-smoke="
+                     : start_url + L"&multi-view-smoke=") +
+                marker + L"&view=2";
+          }
+          second_options.bounds =
+              RECT{split, client.top, client.right, client.bottom};
+          multi_view_context.second =
+              host->CreateView(second_options, view_ready);
+          if (!multi_view_context.first || !multi_view_context.second) {
+            show_error("The multi-view host could not create both WebViews.");
+          }
+        });
+    if (!initialized) {
+      host.reset();
+      DestroyWindow(window);
+      return 1;
+    }
   }
 
   MSG message{};
@@ -323,6 +569,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   }
   host->Close();
   host.reset();
+  multi_view_context.first.reset();
+  multi_view_context.second.reset();
   const int result = static_cast<int>(message.wParam);
   if (SUCCEEDED(com_result)) {
     CoUninitialize();

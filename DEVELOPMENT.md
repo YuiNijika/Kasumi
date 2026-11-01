@@ -13,7 +13,7 @@
 | Windows 根入口 | `windows/src/commands/ksm_phase1.h` | 宿主侧 `KSM` 生命周期、统一调用和原生事件 |
 | Windows 路由 | `windows/src/bridge/ksm_router.h` | 请求校验、权限检查和命令分发 |
 | Windows 窗口框架 | `windows/src/platform/ksm_window_frame.h` | 原生标题栏隐藏、缩放边框和工作区处理 |
-| Windows WebView2 适配 | `windows/src/platform/ksm_webview2_host.h` | WebView2、内嵌资源、消息来源、导航拦截、窗口事件和 UI 线程回投 |
+| Windows WebView2 适配 | `windows/src/platform/ksm_webview2_host.h` | 共享 Environment、单窗口多 View、内嵌资源、消息隔离和 UI 线程回投 |
 | Windows SDK 包 | `windows/CMakeLists.txt` | 静态库、公共头文件、CMake package config 和 CPack |
 | Windows 示例 | `windows/examples/win32-host/` | 独立消费者工程，使用已安装 SDK |
 | Android SDK | `android/kasumi/` | AAR、宿主服务、路由、生成契约和公开 API |
@@ -179,8 +179,11 @@ await KSM.window.setSize({ width: 960, height: 720 });
 ### Windows
 
 - `KSMWindowsHostServices` 提供 WinHTTP 下载、`ShellExecuteW` 外部链接和 Win32 窗口尺寸服务。
-- `KSMWebView2Host` 负责 WebView2 创建、内嵌或外置资源响应、消息来源校验、导航与新窗口拦截、重载和尺寸事件。
-- 每个窗口分配单调递增且不复用的 `windowId`；同一窗口复用同一个路由器和宿主服务实例。
+- `KSMWebView2Host` 负责窗口级 WebView2 Environment、共享内嵌或外置资源响应、消息来源校验、导航与新窗口拦截。
+- `KSMWebView2View` 持有独立子 `HWND`、路由器、宿主服务、请求队列、超时计时器、尺寸、可见性和焦点。
+- 每个 View 分配单调递增且不复用的 `windowId`；关闭一个 View 不影响同一顶层窗口的其他 View。
+- `Initialize()` 保留单视图兼容入口；`InitializeSession()` 加 `CreateView()` 支持标签页、分屏和浏览器式多实例布局。
+- `CreateView()` 和 `SetBounds()` 在夹取前拒绝无面积边界，避免零尺寸输入被转换成 `1×1`。
 - `windows/` 只构建 SDK；`windows/examples/win32-host/` 是独立消费者，加载 `https://app.local/index.html`。
 - 默认构建把 `examples/showcase/` 编译进 EXE，输出目录不包含 `web/`；WebView2 Loader 静态链接，用户数据写入 `%LOCALAPPDATA%\Kasumi\Example\WebView2`。
 - `KASUMI_EXAMPLE_EXTERNAL_WEB=ON` 切换为外置 `web/`，命令行等价参数为 `--external-web`；运行时可用 `--web-root` 和 `--user-data-folder` 覆盖路径。
@@ -232,11 +235,20 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | Windows 批处理入口 | `pnpm.cmd` 与 `gradlew.bat` 均通过 `cmd.exe` 启动，不再触发 `spawn EINVAL` |
 | `pnpm ksm package --android --target sdk` | AAR 与 `kasumi-android-maven-0.1.0.zip` 生成通过 |
 | `kasumi_win32_example_smoke` | Windows 示例启动、ping 与退出通过 |
+| `kasumi_win32_example_multi_view_smoke` | 同窗口双 View 创建、独立 windowId/子窗口/边界和命令路由、单 View 关闭后剩余实例继续运行 |
+| 多 View 边界回归 | 创建零面积 View 被拒绝；对已存在 View 调用无面积 `SetBounds()` 失败且布局不变 |
 | Windows 标题栏构建 | `ON` 与 `OFF` 均编译并通过 smoke test；`OFF` 移除 `WS_CAPTION`，客户区覆盖完整窗口，四边与四角返回对应缩放命中值 |
+| Windows SDK CTest | 标题栏 `ON` 与 `OFF` 构建目录均 2/2 通过，含单 View 和多 View smoke |
+| Windows 原生契约 | `kasumi_contract_runner.exe` 输出 `windows contract passed` |
+| `node --test packages/*/tests/*.test.mjs` | 19/19 通过 |
+| `python -m unittest tests.test_kasumi_config` | 14/14 通过 |
+| TypeScript 双工程检查 | `frontend/tsconfig.json` 与 `tests/tsconfig.json` 均通过 |
 | `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
 
-Windows 已完成 SDK、内嵌 Web 示例构建和真实桌面 smoke test，`kasumi_contract` 与
-`kasumi_win32_example_smoke` 均通过。默认示例输出只有 EXE，没有 `WebView2Loader.dll`、
+Windows 已完成 SDK、内嵌 Web 示例构建和真实桌面 smoke test，`kasumi_contract`、
+`kasumi_win32_example_smoke` 与 `kasumi_win32_example_multi_view_smoke` 均通过。
+同一顶层窗口可创建多个共享 Environment、但路由和生命周期互相独立的 WebView View。
+默认示例输出只有 EXE，没有 `WebView2Loader.dll`、
 `kasumi_win32_example.exe.WebView2`、`web/` 或 `KasumiData/`。SDK ZIP 只包含公共头文件、
 静态库、CMake 配置和 README；默认示例 ZIP 只包含 EXE，显式启用 Loader 打包时才额外包含
 `WebView2Loader.dll`，外置模式 ZIP 额外包含 `web/`。
@@ -440,6 +452,9 @@ gradle -p android :kasumi:assembleRelease :kasumi:publishReleasePublicationToLoc
 `kasumi/configuration` `2c97f846-97ab-4969-b143-195d640e63e3` 和
 `kasumi/development` `0f3cc5d1-9b98-48cb-bb2c-08d4534290a6`，当前状态为
 `pending`，尚未确认线上生效。
+本轮单窗口多 View 文档修订为 `kasumi/development`
+`1fc2b123-b274-4a60-bb87-b6774a158b56`，已补充共享 Environment、子 `HWND`、
+独立路由与生命周期、无面积边界拒绝规则，当前状态为 `pending`。
 发布状态以站点实际页面为准，未发布前不得描述为已上线。
 
 同步流程固定为：先用 `docs-rev.py pull` 拉取原文，再用本地编辑器修改，执行

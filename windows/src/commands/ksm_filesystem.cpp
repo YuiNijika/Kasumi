@@ -181,7 +181,11 @@ bool KSMFileSystem::Exists(const std::string &path) const {
 
 bool KSMFileSystem::Remove(const std::string &path) const {
   const auto resolved = ResolveWritable(path);
-  return resolved.has_value() && std::filesystem::remove(*resolved);
+  if (!resolved) {
+    return false;
+  }
+  std::error_code error;
+  return std::filesystem::remove(*resolved, error) && !error;
 }
 
 std::optional<std::vector<KSMDirectoryEntry>>

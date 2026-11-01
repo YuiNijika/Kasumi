@@ -946,6 +946,11 @@ int main() {
         if (resource_listing.at("data").at("entries").empty()) {
             throw std::runtime_error("fs.readDir did not list resources.");
         }
+        if (file_system->Remove("app://data/contract-dir")) {
+            throw std::runtime_error(
+                "fs.remove removed a non-empty directory."
+            );
+        }
         ExpectOk(Invoke(
             router,
             "fs.remove",
