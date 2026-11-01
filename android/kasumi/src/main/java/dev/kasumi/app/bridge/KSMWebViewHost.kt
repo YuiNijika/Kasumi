@@ -1,0 +1,496 @@
+package dev.kasumi.app.bridge
+
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.ComponentCallbacks2
+import android.net.Uri
+import android.view.View
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.webkit.JavaScriptReplyProxy
+import androidx.webkit.WebViewCompat
+import dev.kasumi.app.KSMAndroidHostServices
+import java.io.Closeable
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withTimeout
+import org.json.JSONObject
+
+class KSMWebViewHost(
+    private val activity: Activity,
+    private val fileSystem: KSMFileSystem,
+    private val hostServices: KSMAndroidHostServices,
+    private val entryUrl: String,
+    assetRoot: String = "",
+    allowedCommands: Collection<String> = emptyList(),
+    debug: Boolean = false,
+    private val onNativeEvent: ((String) -> Unit)? = null
+) : Closeable {
+    private class ActiveCommand {
+        private val cancelled = AtomicBoolean(false)
+
+        @Volatile
+        private var job: Job? = null
+
+        @Volatile
+        private var thread: Thread? = null
+
+        fun bind(job: Job, thread: Thread) {
+            this.job = job
+            this.thread = thread
+            if (cancelled.get()) {
+                job.cancel()
+                thread.interrupt()
+            }
+        }
+
+        fun cancel() {
+            cancelled.set(true)
+            job?.cancel()
+            thread?.interrupt()
+        }
+
+        fun isCancelled(): Boolean {
+            return cancelled.get()
+        }
+    }
+
+    val webView = WebView(activity)
+
+    private val router = KSMRouter(
+        fileSystem,
+        hostServices,
+        allowedCommands = allowedCommands
+    ) { event ->
+        dispatchNativeEvent(event)
+        dispatchWebEvent(event)
+    }
+    private val commandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val activeRequests = ConcurrentHashMap<String, ActiveCommand>()
+    private val commandSlots = Semaphore(MAX_CONCURRENT_COMMANDS)
+    private val layoutListener = object : View.OnLayoutChangeListener {
+        override fun onLayoutChange(
+            view: View,
+            left: Int,
+            top: Int,
+            right: Int,
+            bottom: Int,
+            oldLeft: Int,
+            oldTop: Int,
+            oldRight: Int,
+            oldBottom: Int
+        ) {
+            if (closed) {
+                return
+            }
+            val width = right - left
+            val height = bottom - top
+            val oldWidth = oldRight - oldLeft
+            val oldHeight = oldBottom - oldTop
+            if (
+                width > 0 &&
+                height > 0 &&
+                (width != oldWidth || height != oldHeight)
+            ) {
+                router.emitEvent(
+                    "window.resized",
+                    JSONObject()
+                        .put("width", width)
+                        .put("height", height)
+                )
+            }
+        }
+    }
+
+    @Volatile
+    private var closed = false
+
+    @Volatile
+    private var started = false
+
+    init {
+        val entryUri = Uri.parse(entryUrl)
+        require(
+            KSMNavigationPolicy.isAllowedOrigin(
+                entryUri.scheme,
+                entryUri.host,
+                entryUri.port
+            )
+        ) {
+            "entryUrl must use the Kasumi application or development origin"
+        }
+
+        KSMWebViewRuntime.configure(webView, debug)
+        configureWebView(assetRoot)
+        KSM.init(router, fileSystem, hostServices)
+    }
+
+    fun start() {
+        if (closed || started) {
+            return
+        }
+        started = true
+        webView.loadUrl(entryUrl)
+    }
+
+    fun onResume() {
+        if (!closed) {
+            KSMWebViewRuntime.resume(webView)
+        }
+    }
+
+    fun onPause() {
+        if (!closed) {
+            KSMWebViewRuntime.pause(webView)
+        }
+    }
+
+    fun onTrimMemory(level: Int) {
+        if (closed) {
+            return
+        }
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            hostServices.cancelAllDownloads()
+        }
+        KSMWebViewRuntime.trimMemory(webView, level)
+    }
+
+    fun onLowMemory() {
+        if (closed) {
+            return
+        }
+        hostServices.cancelAllDownloads()
+        KSMWebViewRuntime.trimMemory(
+            webView,
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL
+        )
+    }
+
+    override fun close() {
+        if (closed) {
+            return
+        }
+        closed = true
+        commandScope.cancel()
+        activeRequests.values.forEach(ActiveCommand::cancel)
+        activeRequests.clear()
+        hostServices.shutdown()
+        KSM.shutdown()
+        WebViewCompat.removeWebMessageListener(webView, MESSAGE_CHANNEL)
+        webView.removeOnLayoutChangeListener(layoutListener)
+        KSMWebViewRuntime.destroy(webView)
+    }
+
+    private fun configureWebView(assetRoot: String) {
+        val assetLoader = KSMWebAssetLoader.create(activity, assetRoot)
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(
+                view: WebView,
+                request: WebResourceRequest
+            ): WebResourceResponse? {
+                return assetLoader.shouldInterceptRequest(request.url)
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                super.onPageFinished(view, url)
+                if (!closed && isAllowedUrl(url)) {
+                    router.emitSystemEvent("webview.reloaded", JSONObject())
+                }
+            }
+
+            override fun shouldOverrideUrlLoading(
+                view: WebView,
+                request: WebResourceRequest
+            ): Boolean {
+                if (isAllowedUrl(request.url.toString())) {
+                    return false
+                }
+                if (
+                    !KSMNavigationPolicy.isAllowedExternalScheme(
+                        request.url.scheme
+                    )
+                ) {
+                    return true
+                }
+                return try {
+                    activity.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            request.url
+                        )
+                    )
+                    true
+                } catch (_: ActivityNotFoundException) {
+                    true
+                } catch (_: SecurityException) {
+                    true
+                }
+            }
+        }
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(
+                view: WebView,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: android.os.Message
+            ): Boolean {
+                return false
+            }
+        }
+        webView.addOnLayoutChangeListener(layoutListener)
+        WebViewCompat.addWebMessageListener(
+            webView,
+            MESSAGE_CHANNEL,
+            MESSAGE_ORIGINS
+        ) { _, message, _, _, replyProxy ->
+            handleWebMessage(message.data ?: "", replyProxy)
+        }
+    }
+
+    private fun handleWebMessage(
+        payload: String,
+        replyProxy: JavaScriptReplyProxy
+    ) {
+        if (closed) {
+            return
+        }
+        val request = parseRequest(payload)
+        if (request?.optString("type") == "cancel") {
+            cancelRequest(request.optString("id"))
+            return
+        }
+
+        val id = request
+            ?.optString("id")
+            ?.takeIf { it.isNotEmpty() }
+        val timeoutMs = requestTimeoutMs(request)
+        if (timeoutMs == null) {
+            postResponse(replyProxy, invalidArgsResponse(id))
+            return
+        }
+
+        val active = if (id == null) {
+            null
+        } else {
+            val command = ActiveCommand()
+            if (activeRequests.putIfAbsent(id, command) != null) {
+                postResponse(replyProxy, busyResponse(id))
+                return
+            }
+            command
+        }
+        if (!commandSlots.tryAcquire()) {
+            if (id != null && active != null) {
+                activeRequests.remove(id, active)
+            }
+            postResponse(replyProxy, busyResponse(id))
+            return
+        }
+
+        commandScope.launch {
+            val job = coroutineContext[Job]
+            if (job != null && active != null) {
+                active.bind(job, Thread.currentThread())
+            }
+            try {
+                val response = executeRequest(payload, id, timeoutMs, active)
+                if (response.isNotEmpty()) {
+                    postResponse(replyProxy, response)
+                }
+            } finally {
+                if (id != null && active != null) {
+                    activeRequests.remove(id, active)
+                }
+                commandSlots.release()
+            }
+        }
+    }
+
+    private suspend fun executeRequest(
+        payload: String,
+        id: String?,
+        timeoutMs: Long,
+        active: ActiveCommand?
+    ): String {
+        if (active?.isCancelled() == true) {
+            return cancelledResponse(id)
+        }
+        return try {
+            withTimeout(timeoutMs) {
+                runInterruptible {
+                    router.handleMessage(payload)
+                }
+            }
+        } catch (_: TimeoutCancellationException) {
+            if (id != null) {
+                hostServices.cancelRequest(id)
+            }
+            timeoutResponse(id)
+        } catch (_: CancellationException) {
+            if (id == null) {
+                throw CancellationException("Command was cancelled.")
+            }
+            hostServices.cancelRequest(id)
+            cancelledResponse(id)
+        }
+    }
+
+    private fun cancelRequest(id: String) {
+        if (id.isEmpty()) {
+            return
+        }
+        activeRequests[id]?.cancel()
+        hostServices.cancelRequest(id)
+    }
+
+    private fun dispatchNativeEvent(event: String) {
+        if (closed) {
+            return
+        }
+        try {
+            val parsed = JSONObject(event)
+            if (parsed.optString("type") == "event") {
+                onNativeEvent?.invoke(event)
+                KSM.emitEvent(
+                    parsed.getString("event"),
+                    parsed.optJSONObject("payload") ?: JSONObject()
+                )
+            }
+        } catch (_: Exception) {
+            // Native event listeners are best effort.
+        }
+    }
+
+    private fun dispatchWebEvent(event: String) {
+        if (!isActive()) {
+            return
+        }
+        activity.runOnUiThread {
+            if (isActive()) {
+                webView.evaluateJavascript(
+                    "window.postMessage(${JSONObject.quote(event)}, " +
+                        "window.location.origin)",
+                    null
+                )
+            }
+        }
+    }
+
+    private fun parseRequest(payload: String): JSONObject? {
+        return try {
+            JSONObject(payload)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun postResponse(
+        replyProxy: JavaScriptReplyProxy,
+        response: String
+    ) {
+        if (!isActive()) {
+            return
+        }
+        activity.runOnUiThread {
+            if (isActive()) {
+                replyProxy.postMessage(response)
+            }
+        }
+    }
+
+    private fun isActive(): Boolean {
+        return !closed && !activity.isFinishing && !activity.isDestroyed
+    }
+
+    private fun isAllowedUrl(url: String): Boolean {
+        val parsed = Uri.parse(url)
+        return KSMNavigationPolicy.isAllowedOrigin(
+            parsed.scheme,
+            parsed.host,
+            parsed.port
+        )
+    }
+
+    private fun busyResponse(id: String?): String {
+        return errorResponse(
+            id,
+            "BUSY",
+            "Too many concurrent commands."
+        )
+    }
+
+    private fun cancelledResponse(id: String?): String {
+        return errorResponse(
+            id,
+            "CANCELLED",
+            "The request was cancelled."
+        )
+    }
+
+    private fun timeoutResponse(id: String?): String {
+        return errorResponse(
+            id,
+            "TIMEOUT",
+            "The request timed out."
+        )
+    }
+
+    private fun invalidArgsResponse(id: String?): String {
+        return errorResponse(
+            id,
+            "INVALID_ARGS",
+            "Request fields are invalid."
+        )
+    }
+
+    private fun errorResponse(
+        id: String?,
+        code: String,
+        message: String
+    ): String {
+        return JSONObject()
+            .put("type", "response")
+            .put("id", id ?: JSONObject.NULL)
+            .put("ok", false)
+            .put(
+                "error",
+                JSONObject()
+                    .put("code", code)
+                    .put("message", message)
+            )
+            .toString()
+    }
+
+    private fun requestTimeoutMs(request: JSONObject?): Long? {
+        if (request == null || !request.has("timeoutMs")) {
+            return DEFAULT_TIMEOUT_MS
+        }
+        val raw = request.opt("timeoutMs") as? Number ?: return null
+        val value = raw.toLong()
+        if (value <= 0 || raw.toDouble() != value.toDouble()) {
+            return null
+        }
+        return value
+    }
+
+    companion object {
+        private const val MAX_CONCURRENT_COMMANDS = 8
+        private const val DEFAULT_TIMEOUT_MS = 10000L
+        private const val MESSAGE_CHANNEL = "ksm"
+        private val MESSAGE_ORIGINS =
+            setOf("https://app.local", "http://localhost:5173")
+    }
+}

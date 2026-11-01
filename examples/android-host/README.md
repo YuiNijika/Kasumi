@@ -10,7 +10,7 @@
 | --- | --- |
 | `settings.gradle.kts` | 配置 Google、Maven Central 和本地 Kasumi Maven 仓库 |
 | `app/build.gradle.kts` | 声明 `dev.kasumi:kasumi:0.1.0` 与共享 Web 资源 |
-| `MainActivity.kt` | WebView、消息桥、协程、生命周期和导航策略 |
+| `MainActivity.kt` | Activity 生命周期转发、宿主服务配置和 `KSMWebViewHost` 启动 |
 | `../showcase/` | Windows 与 Android 共用的完整能力页面 |
 
 仓库内的 `android/app/` 是框架维护者的测试宿主，不是面向 SDK 消费者的模板。
@@ -49,6 +49,9 @@ CLI 会通过 `-PksmPackageName`、`-PksmVersion` 和 `-PksmCommands` 注入 Gra
 - 下载目标限制在 `app://data`、`app://cache` 和 `app://tmp`。
 - 文件选择器只向前端返回 `app://picked/<id>`。
 - 设备信息不包含任何持久设备标识。
+- `KSMWebViewHost` 负责 WebView 设置、消息桥、导航拦截、命令取消和资源释放。
+- 应用进入后台时暂停 WebView 定时器；低内存时清理内存缓存并释放可回收内存，保留磁盘缓存。
+- Android O 及以上允许系统在 WebView 不可见时 waive 渲染进程优先级。
 
 ## 排查
 
@@ -58,3 +61,5 @@ CLI 会通过 `-PksmPackageName`、`-PksmVersion` 和 `-PksmCommands` 注入 Gra
 3. 请求超时：确认 `WebViewCompat.addWebMessageListener` 的来源和 `ksm` 通道名称。
 4. 外部链接被拒绝：检查 `allowedExternalOrigins` 的 scheme、host 和端口。
 5. 生命周期异常：确认旧 Activity 销毁后不再投递迟到响应。
+6. 返回应用后页面定时器不恢复：确认 `onResume` 调用了 `KSMWebViewHost.onResume`。
+7. 返回应用后内存仍偏高：检查是否存在额外 WebView，当前 Android 宿主只管理一个实例。

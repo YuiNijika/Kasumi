@@ -17,6 +17,8 @@
 | Windows SDK 包 | `windows/CMakeLists.txt` | 静态库、公共头文件、CMake package config 和 CPack |
 | Windows 示例 | `windows/examples/win32-host/` | 独立消费者工程，使用已安装 SDK |
 | Android SDK | `android/kasumi/` | AAR、宿主服务、路由、生成契约和公开 API |
+| Android WebView 适配 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewHost.kt` | 消息桥、命令并发、导航、生命周期和资源释放 |
+| Android WebView 运行时 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewRuntime.kt` | 安全默认设置、前后台暂停和低内存回收 |
 | Android 示例 | `examples/android-host/` | 独立消费者工程，使用本地 Maven 中的 AAR |
 | Android 测试宿主 | `android/app/` | 框架维护者的 JVM 与 instrumentation 测试宿主 |
 | 契约测试 | `tests/contract/run.ts` | 前端与双平台模拟宿主的共享行为测试 |
@@ -202,8 +204,11 @@ await KSM.window.setSize({ width: 960, height: 720 });
 - 本地 Maven 仓库位于 `android/kasumi/build/repo`，示例通过 `dev.kasumi:kasumi:0.1.0` 解析。
 - `examples/android-host/` 是独立消费者工程，不通过 Gradle 源码替换依赖框架模块。
 - `KSMAndroidHostServices` 使用 `HttpsURLConnection` 下载、`ACTION_VIEW` 打开外部链接，并从 `Build`、窗口度量、资源和时区读取设备信息。
-- WebView 使用 `WebViewCompat.addWebMessageListener`，命令在 IO 协程中执行，最多 8 条并发。
-- `onTrimMemory` 会取消活动下载；Activity 销毁、旋转和窗口关闭会停止协程、关闭下载并抑制迟到响应。
+- `KSMWebViewHost` 统一配置 WebView、消息监听、导航、IO 命令协程和 Activity 生命周期，示例不再复制桥接代码。
+- 命令最多 8 条并发；每个活动请求只保留一个取消句柄，超时和取消会中断任务，结束后立即移除请求状态。
+- `KSMWebViewRuntime` 在后台暂停 WebView 定时器，低内存时清理内存缓存并调用 `freeMemory`，不删除磁盘缓存。
+- Android O 及以上允许系统在 WebView 不可见时 waive 渲染进程优先级，降低后台内存驻留。
+- `onTrimMemory` 会取消活动下载；`onDestroy` 会移除消息监听和布局监听、释放 picked URI 映射、关闭下载并抑制迟到响应。
 - 通知权限通过 `permission.request` 和 `POST_NOTIFICATIONS` 处理。
 
 ## 验证状态
@@ -226,6 +231,7 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm dev` | Windows 宿主加载 `http://localhost:5173/index.html` |
 | `pnpm ksm dev --android` | 模拟器通过 `adb reverse` 加载开发页面 |
 | `pnpm ksm test --all --target sdk` | 双端契约、配置校验、allowlist、JVM 测试和示例 smoke test 通过 |
+| Android WebView 内存优化编译与 JVM 测试 | SDK、维护者宿主、instrumentation 测试源码和独立示例 Kotlin 编译通过，JVM 测试通过 |
 | `pnpm test:packages` | 19 个包测试通过，覆盖初始化、命名、批处理入口、Gradle Wrapper、协议命令矩阵和 `decorations` 配置 |
 | `pnpm build:bridge` | `kasumi-bridge` 生成 ESM 与 TypeScript 声明 |
 | `pnpm --filter create-kasumi pack` | npm tarball 包含模板、Gradle Wrapper、vcpkg manifest、命令数据和 bin 入口 |
@@ -258,7 +264,8 @@ Windows 已完成 SDK、内嵌 Web 示例构建和真实桌面 smoke test，`kas
 静态库、CMake 配置和 README；默认示例 ZIP 只包含 EXE，显式启用 Loader 打包时才额外包含
 `WebView2Loader.dll`，外置模式 ZIP 额外包含 `web/`。
 
-Android 已完成 7 个 JVM 测试、AAR 发布、维护者 APK、instrumentation 测试 APK 和独立
+Android 已完成 7 个 JVM 测试、WebView 运行时 instrumentation 测试源码、AAR 发布、
+维护者 APK、instrumentation 测试 APK 和独立
 示例 APK 构建。AAR 和本地 Maven 发布物不包含 Kotlin 源码或 sources JAR，示例 APK 的
 Web 资源位于 `assets/`。本机 JDK 的 `TEMP` 包含短文件名时，Gradle 的 AF_UNIX 连接会
 报告 `Unable to establish loopback connection`，需要显式指定 socket 目录。发布版
@@ -270,7 +277,7 @@ API 34 模拟器已完成 3 项 connected tests，并验证示例页面实际加
 
 仍需在真机完成以下检查：
 
-1. Android 下载取消、通知权限、文件选择器、旋转和 `onTrimMemory` 的真实设备验证。
+1. Android 下载取消、通知权限、文件选择器、旋转、前后台定时器和 `onTrimMemory` 的真实设备验证。
 2. Windows Evergreen Runtime 缺失提示和标签签名流程。
 
 ## pnpm 命令入口

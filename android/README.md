@@ -13,6 +13,8 @@
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMRouter.kt` | JSON 校验、权限检查和命令分发 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMHostServices.kt` | Android 平台服务接口 |
 | `kasumi/src/main/java/dev/kasumi/app/KSMAndroidHostServices.kt` | 对话框、文件、剪贴板、通知、下载、链接和设备信息 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewHost.kt` | WebView 消息桥、命令并发、导航策略、生命周期和资源释放 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewRuntime.kt` | WebView 默认设置、前后台暂停和低内存回收 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMHttpPolicy.kt` | URL、origin 和重定向策略 |
 | `kasumi/src/main/AndroidManifest.xml` | 网络与通知权限声明 |
 | `app/src/main/java/dev/kasumi/app/MainActivity.kt` | 内部测试宿主的 WebView 与生命周期装配 |
@@ -102,7 +104,7 @@ cd examples/android-host
 import dev.kasumi.app.KSMAndroidHostServices
 import dev.kasumi.app.bridge.KSM
 import dev.kasumi.app.bridge.KSMFileSystem
-import dev.kasumi.app.bridge.KSMRouter
+import dev.kasumi.app.bridge.KSMWebViewHost
 
 val fileSystem = KSMFileSystem(dataDir, cacheDir, tmpDir)
 val hostServices = KSMAndroidHostServices(
@@ -110,11 +112,15 @@ val hostServices = KSMAndroidHostServices(
     allowedExternalOrigins = setOf("https://example.com"),
     fileSystem = fileSystem
 )
-val router = KSMRouter(fileSystem, hostServices) { event ->
-    // Forward native events to the WebView
-}
+val webViewHost = KSMWebViewHost(
+    activity = this,
+    fileSystem = fileSystem,
+    hostServices = hostServices,
+    entryUrl = "https://app.local/index.html"
+)
+setContentView(webViewHost.webView)
+webViewHost.start()
 
-KSM.init(router, fileSystem, hostServices)
 val response = KSM.invoke(
     "window-1",
     "http.download",
@@ -128,8 +134,15 @@ val response = KSM.invoke(
 `shell`、`device`、`window` 和 `app`。直接子模块用于可信原生代码；前端命令仍必须经过
 `KSMRouter` 的参数、权限和路径校验。
 
-`WebViewCompat.addWebMessageListener` 接收消息后放入 IO 协程，最多同时执行 8 条命令。
-超过上限返回 `BUSY`，超时返回 `TIMEOUT`，取消消息会中断任务并返回 `CANCELLED`。
+`KSMWebViewHost` 封装 `WebViewCompat.addWebMessageListener`，接收消息后放入 IO 协程，
+最多同时执行 8 条命令。超过上限返回 `BUSY`，超时返回 `TIMEOUT`，取消消息会中断任务并
+返回 `CANCELLED`。每个活动请求只保留一个可取消句柄，请求结束后立即移除，不维护无界
+取消 ID 集合。
+
+Activity 必须把 `onResume`、`onPause`、`onTrimMemory`、`onLowMemory` 和 `onDestroy`
+转发给 `KSMWebViewHost`。宿主在前后台切换时暂停或恢复 WebView 定时器，在低内存时只清理
+WebView 内存缓存并调用 `freeMemory`，不会删除磁盘缓存；销毁时移除消息监听、布局监听、
+协程和宿主服务引用。
 
 ## 文件与事件
 
@@ -190,12 +203,18 @@ val info = KSM.device.getInfo()
 
 ## 生命周期
 
-示例 Activity 在 `onCreate` 创建文件系统、宿主服务和路由器，在 `onDestroy` 取消命令
-协程、取消下载、关闭 `KSM` 并销毁 WebView。旋转会重建 Activity，旧请求的响应由
-Activity 销毁检查抑制。`onTrimMemory` 在低内存级别取消活动下载并清理 WebView 缓存。
+示例 Activity 在 `onCreate` 创建文件系统、宿主服务和 `KSMWebViewHost`，在 `onDestroy`
+统一取消命令协程、下载和消息监听，关闭 `KSM` 并销毁 WebView。旋转会重建 Activity，
+旧请求的响应由 Activity 销毁检查抑制。`onTrimMemory` 在低内存级别取消活动下载，清理
+WebView 内存缓存并释放可回收页面内存，保留磁盘缓存以避免反复重新下载资源。
 
 文件选择器、通知权限和 Activity Result 都通过宿主服务等待结果；超时后清理 pending
-状态。取消和超时竞态由协程、`activeRequests`、`cancelledRequests` 和下载会话共同处理。
+状态。取消和超时竞态由协程、活动请求句柄和下载会话共同处理。访问文件选择器后产生的
+`app://picked/<id>` 映射在宿主关闭时释放，不会跨 Activity 生命周期继续持有 URI。
+
+Android O 及以上把 WebView 渲染进程设置为绑定当前应用，并允许系统在 WebView 不可见时
+waive 渲染进程优先级，降低应用进入后台后继续占用 WebView 内存的概率。Android 当前只
+维护一个 Kasumi WebView 实例，因此暂停和恢复定时器按进程级行为处理。
 
 ## WebView 安全
 
@@ -250,6 +269,7 @@ gradle -p android :kasumi:testDebugUnitTest :app:testDebugUnitTest :app:assemble
 | `NavigationPolicyTest` | WebView 来源和外部导航白名单 |
 | `BridgeInstrumentedTest` | 路径守卫、大文本、事件、picked/bundled 资源、通知权限 |
 | `KSMAndroidHostServicesTest` | 精确 origin 与设备字段 |
+| `KSMWebViewRuntimeTest` | 安全开关、DOM storage、缓存模式、后台优先级和低内存回收入口 |
 
 仍需在 API 34 模拟器和真机补测文件选择器、通知权限、旋转、`onTrimMemory`、下载取消
 以及超时/取消竞态。

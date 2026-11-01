@@ -609,7 +609,17 @@ class KSMAndroidHostServices(
 
     fun shutdown() {
         cancelAllDownloads()
+        activeDownloads.clear()
         downloadWatchdog.shutdownNow()
+        synchronized(this) {
+            pendingOpenFile?.latch?.countDown()
+            pendingSaveFile?.latch?.countDown()
+            pendingPermission?.latch?.countDown()
+            pendingOpenFile = null
+            pendingSaveFile = null
+            pendingPermission = null
+            pickedFiles.clear()
+        }
     }
 
     override fun isExternalUrlAllowed(url: String): Boolean {
