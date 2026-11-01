@@ -14,7 +14,8 @@
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMHostServices.kt` | Android 平台服务接口 |
 | `kasumi/src/main/java/dev/kasumi/app/KSMAndroidHostServices.kt` | 对话框、文件、剪贴板、通知、下载、链接和设备信息 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewHost.kt` | WebView 消息桥、命令并发、导航策略、生命周期和资源释放 |
-| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewRuntime.kt` | WebView 默认设置、前后台暂停和低内存回收 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewRuntime.kt` | WebView 默认设置、全屏窗口、前后台暂停和低内存回收 |
+| `kasumi/src/main/res/values/styles.xml` | 无 ActionBar 的 `Theme.Kasumi.Fullscreen` Activity 主题 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMHttpPolicy.kt` | URL、origin 和重定向策略 |
 | `kasumi/src/main/AndroidManifest.xml` | 网络与通知权限声明 |
 | `app/src/main/java/dev/kasumi/app/MainActivity.kt` | 内部测试宿主的 WebView 与生命周期装配 |
@@ -116,7 +117,8 @@ val webViewHost = KSMWebViewHost(
     activity = this,
     fileSystem = fileSystem,
     hostServices = hostServices,
-    entryUrl = "https://app.local/index.html"
+    entryUrl = "https://app.local/index.html",
+    fullscreen = true
 )
 setContentView(webViewHost.webView)
 webViewHost.start()
@@ -140,9 +142,9 @@ val response = KSM.invoke(
 取消 ID 集合。
 
 Activity 必须把 `onResume`、`onPause`、`onTrimMemory`、`onLowMemory` 和 `onDestroy`
-转发给 `KSMWebViewHost`。宿主在前后台切换时暂停或恢复 WebView 定时器，在低内存时只清理
-WebView 内存缓存并调用 `freeMemory`，不会删除磁盘缓存；销毁时移除消息监听、布局监听、
-协程和宿主服务引用。
+转发给 `KSMWebViewHost`，并在窗口焦点恢复时转发 `onWindowFocusChanged`。宿主在前后台
+切换时暂停或恢复 WebView 定时器，在低内存时只清理 WebView 内存缓存并调用 `freeMemory`，
+不会删除磁盘缓存；销毁时移除消息监听、布局监听、协程和宿主服务引用。
 
 ## 文件与事件
 
@@ -216,6 +218,20 @@ Android O 及以上把 WebView 渲染进程设置为绑定当前应用，并允�
 waive 渲染进程优先级，降低应用进入后台后继续占用 WebView 内存的概率。Android 当前只
 维护一个 Kasumi WebView 实例，因此暂停和恢复定时器按进程级行为处理。
 
+`KSMWebViewHost` 默认 `fullscreen = true`，隐藏 ActionBar、状态栏和导航栏，并把 WebView
+扩展到系统栏与刘海区域。系统栏可通过边缘滑动临时显示，窗口重新获得焦点后会再次隐藏。
+Activity 需要声明：
+
+```xml
+<activity
+    android:name=".MainActivity"
+    android:theme="@style/Theme.Kasumi.Fullscreen"
+    android:windowSoftInputMode="adjustResize" />
+```
+
+如果应用需要保留系统栏，在创建宿主时传入 `fullscreen = false`。标题栏仍由
+`Theme.Kasumi.Fullscreen` 移除。
+
 ## WebView 安全
 
 WebView 只允许 `https://app.local` 和开发用 `http://localhost:5173`。其他 `http` /
@@ -269,7 +285,7 @@ gradle -p android :kasumi:testDebugUnitTest :app:testDebugUnitTest :app:assemble
 | `NavigationPolicyTest` | WebView 来源和外部导航白名单 |
 | `BridgeInstrumentedTest` | 路径守卫、大文本、事件、picked/bundled 资源、通知权限 |
 | `KSMAndroidHostServicesTest` | 精确 origin 与设备字段 |
-| `KSMWebViewRuntimeTest` | 安全开关、DOM storage、缓存模式、后台优先级和低内存回收入口 |
+| `KSMWebViewRuntimeTest` | 全屏系统栏、安全开关、DOM storage、缓存模式、后台优先级和低内存回收入口 |
 
 仍需在 API 34 模拟器和真机补测文件选择器、通知权限、旋转、`onTrimMemory`、下载取消
 以及超时/取消竞态。

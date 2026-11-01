@@ -75,6 +75,13 @@ class MainActivity : Activity() {
         super.onLowMemory()
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (::webViewHost.isInitialized) {
+            webViewHost.onWindowFocusChanged(hasFocus)
+        }
+    }
+
     override fun onActivityResult(
         requestCode: Int,
         resultCode: Int,

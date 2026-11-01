@@ -1,13 +1,55 @@
 package dev.kasumi.app.bridge
 
+import android.app.Activity
 import android.content.ComponentCallbacks2
+import android.graphics.Color
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
+import android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebSettings.LOAD_DEFAULT
+import android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
 object KSMWebViewRuntime {
+    fun prepareWindow(activity: Activity, fullscreen: Boolean = true) {
+        activity.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        if (!fullscreen) {
+            return
+        }
+        @Suppress("DEPRECATION")
+        activity.window.apply {
+            statusBarColor = Color.TRANSPARENT
+            navigationBarColor = Color.TRANSPARENT
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val attributes = activity.window.attributes
+            attributes.layoutInDisplayCutoutMode =
+                LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            activity.window.attributes = attributes
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            activity.window.isStatusBarContrastEnforced = false
+            activity.window.isNavigationBarContrastEnforced = false
+        }
+        applyFullscreen(activity)
+    }
+
+    fun applyFullscreen(activity: Activity) {
+        val window = activity.window
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior =
+            BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+
     fun configure(webView: WebView, debug: Boolean = false) {
         webView.settings.apply {
             javaScriptEnabled = true
@@ -19,9 +61,9 @@ object KSMWebViewRuntime {
             mediaPlaybackRequiresUserGesture = true
             builtInZoomControls = false
             displayZoomControls = false
-            cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+            cacheMode = LOAD_DEFAULT
             offscreenPreRaster = false
-            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            mixedContentMode = MIXED_CONTENT_NEVER_ALLOW
             setGeolocationEnabled(false)
         }
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER)

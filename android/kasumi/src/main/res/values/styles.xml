@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Kasumi.Fullscreen" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>

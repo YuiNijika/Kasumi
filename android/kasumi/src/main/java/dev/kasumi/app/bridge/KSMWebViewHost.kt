@@ -37,7 +37,8 @@ class KSMWebViewHost(
     assetRoot: String = "",
     allowedCommands: Collection<String> = emptyList(),
     debug: Boolean = false,
-    private val onNativeEvent: ((String) -> Unit)? = null
+    private val onNativeEvent: ((String) -> Unit)? = null,
+    private val fullscreen: Boolean = true
 ) : Closeable {
     private class ActiveCommand {
         private val cancelled = AtomicBoolean(false)
@@ -133,6 +134,7 @@ class KSMWebViewHost(
             "entryUrl must use the Kasumi application or development origin"
         }
 
+        KSMWebViewRuntime.prepareWindow(activity, fullscreen)
         KSMWebViewRuntime.configure(webView, debug)
         configureWebView(assetRoot)
         KSM.init(router, fileSystem, hostServices)
@@ -143,11 +145,17 @@ class KSMWebViewHost(
             return
         }
         started = true
+        if (fullscreen) {
+            KSMWebViewRuntime.applyFullscreen(activity)
+        }
         webView.loadUrl(entryUrl)
     }
 
     fun onResume() {
         if (!closed) {
+            if (fullscreen) {
+                KSMWebViewRuntime.applyFullscreen(activity)
+            }
             KSMWebViewRuntime.resume(webView)
         }
     }
@@ -177,6 +185,12 @@ class KSMWebViewHost(
             webView,
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL
         )
+    }
+
+    fun onWindowFocusChanged(hasFocus: Boolean) {
+        if (hasFocus && !closed && fullscreen) {
+            KSMWebViewRuntime.applyFullscreen(activity)
+        }
     }
 
     override fun close() {

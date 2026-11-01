@@ -18,7 +18,7 @@
 | Windows 示例 | `windows/examples/win32-host/` | 独立消费者工程，使用已安装 SDK |
 | Android SDK | `android/kasumi/` | AAR、宿主服务、路由、生成契约和公开 API |
 | Android WebView 适配 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewHost.kt` | 消息桥、命令并发、导航、生命周期和资源释放 |
-| Android WebView 运行时 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewRuntime.kt` | 安全默认设置、前后台暂停和低内存回收 |
+| Android WebView 运行时 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewRuntime.kt` | 安全默认设置、沉浸式全屏、前后台暂停和低内存回收 |
 | Android 示例 | `examples/android-host/` | 独立消费者工程，使用本地 Maven 中的 AAR |
 | Android 测试宿主 | `android/app/` | 框架维护者的 JVM 与 instrumentation 测试宿主 |
 | 契约测试 | `tests/contract/run.ts` | 前端与双平台模拟宿主的共享行为测试 |
@@ -208,6 +208,7 @@ await KSM.window.setSize({ width: 960, height: 720 });
 - 命令最多 8 条并发；每个活动请求只保留一个取消句柄，超时和取消会中断任务，结束后立即移除请求状态。
 - `KSMWebViewRuntime` 在后台暂停 WebView 定时器，低内存时清理内存缓存并调用 `freeMemory`，不删除磁盘缓存。
 - Android O 及以上允许系统在 WebView 不可见时 waive 渲染进程优先级，降低后台内存驻留。
+- `KSMWebViewHost` 默认全屏，移除 ActionBar 并隐藏状态栏、导航栏；Activity 使用 `Theme.Kasumi.Fullscreen`，焦点恢复后重新进入沉浸模式。
 - `onTrimMemory` 会取消活动下载；`onDestroy` 会移除消息监听和布局监听、释放 picked URI 映射、关闭下载并抑制迟到响应。
 - 通知权限通过 `permission.request` 和 `POST_NOTIFICATIONS` 处理。
 
@@ -231,7 +232,7 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm dev` | Windows 宿主加载 `http://localhost:5173/index.html` |
 | `pnpm ksm dev --android` | 模拟器通过 `adb reverse` 加载开发页面 |
 | `pnpm ksm test --all --target sdk` | 双端契约、配置校验、allowlist、JVM 测试和示例 smoke test 通过 |
-| Android WebView 内存优化编译与 JVM 测试 | SDK、维护者宿主、instrumentation 测试源码和独立示例 Kotlin 编译通过，JVM 测试通过 |
+| Android WebView 全屏与内存优化 | SDK、维护者宿主、instrumentation 测试源码和独立示例 Kotlin 编译通过，JVM 测试通过 |
 | `pnpm test:packages` | 19 个包测试通过，覆盖初始化、命名、批处理入口、Gradle Wrapper、协议命令矩阵和 `decorations` 配置 |
 | `pnpm build:bridge` | `kasumi-bridge` 生成 ESM 与 TypeScript 声明 |
 | `pnpm --filter create-kasumi pack` | npm tarball 包含模板、Gradle Wrapper、vcpkg manifest、命令数据和 bin 入口 |
@@ -472,6 +473,9 @@ gradle -p android :kasumi:assembleRelease :kasumi:publishReleasePublicationToLoc
 `afb06dad-c981-462d-b10f-1df2bfc59d0f`，补充 `--multi-view`
 构建入口、`multi-view.html` 双实例页面、共享便签和 CTest 覆盖，当前状态同样为
 `pending`。
+Android 沉浸式全屏修订为 `kasumi/development`
+`d4b18355-1855-4635-8acd-7479d4942b08`，补充默认隐藏状态栏和导航栏、
+`fullscreen = false` 退出方式与焦点恢复行为，当前状态为 `pending`。
 发布状态以站点实际页面为准，未发布前不得描述为已上线。
 
 同步流程固定为：先用 `docs-rev.py pull` 拉取原文，再用本地编辑器修改，执行

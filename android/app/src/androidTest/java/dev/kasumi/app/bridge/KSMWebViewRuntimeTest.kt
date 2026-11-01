@@ -4,6 +4,8 @@ import android.content.ComponentCallbacks2
 import android.os.Build
 import android.webkit.WebSettings
 import android.webkit.WebView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.kasumi.app.MainActivity
@@ -17,6 +19,19 @@ import org.junit.runner.RunWith
 class KSMWebViewRuntimeTest {
     @get:Rule
     val activityRule = ActivityScenarioRule(MainActivity::class.java)
+
+    @Test
+    fun activityWindowHidesSystemBarsForTheWebView() {
+        activityRule.scenario.onActivity { activity ->
+            KSMWebViewRuntime.applyFullscreen(activity)
+            val insets = requireNotNull(
+                ViewCompat.getRootWindowInsets(activity.window.decorView)
+            )
+            assertFalse(
+                insets.isVisible(WindowInsetsCompat.Type.systemBars())
+            )
+        }
+    }
 
     @Test
     fun runtimeConfiguresMemorySensitiveDefaults() {
