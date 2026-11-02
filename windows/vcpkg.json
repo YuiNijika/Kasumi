@@ -1,6 +1,6 @@
 {
   "name": "kasumi-windows",
-  "version-string": "26.11.2-alpha.1",
+  "version-string": "26.11.2-alpha.4",
   "builtin-baseline": "d186940b2f0c4e8e5b4ff804af57d2a26fbfa091",
   "dependencies": [
     "nlohmann-json",
