@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val kasumiVersion = rootProject.extra["kasumiVersion"] as String
 val releaseKeystore = System.getenv("KASUMI_ANDROID_KEYSTORE")
     ?.takeIf { it.isNotBlank() }
     ?.let { file(it) }
@@ -25,7 +26,7 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "26.11.2-alpha"
+        versionName = kasumiVersion
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

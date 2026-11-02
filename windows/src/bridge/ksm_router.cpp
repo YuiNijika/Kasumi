@@ -15,6 +15,7 @@
 #include "../platform/ksm_host_services.h"
 #include "../platform/ksm_url_policy.h"
 #include "../platform/ksm_virtual_path.h"
+#include "ksm_version.h"
 #include "ksm_command_registry.h"
 
 namespace {
@@ -269,7 +270,7 @@ void KSMRouter::HandleMessage(
         if (command == "app.getInfo") {
             const std::string version = host_services_
                 ? host_services_->AppVersion()
-                : "26.11.2-alpha";
+                : KASUMI_VERSION_STRING;
             const std::string language = host_services_
                 ? host_services_->Language()
                 : "en-US";

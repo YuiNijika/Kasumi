@@ -1,9 +1,10 @@
 package dev.kasumi.app.bridge
 
+import dev.kasumi.app.internal.KSMVersionMetadata
 import java.util.Locale
 
 interface KSMHostServices {
-    fun appVersion(): String = "26.11.2-alpha"
+    fun appVersion(): String = KSMVersionMetadata.VERSION
     fun language(): String = Locale.getDefault().toLanguageTag()
     fun showMessage(title: String, message: String): Boolean
     fun confirm(title: String, message: String): Boolean

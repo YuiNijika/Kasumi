@@ -34,7 +34,7 @@ Android 示例从仓库根目录 `kasumi.config.json` 读取 `android.packageNam
 {
   "android": {
     "packageName": "dev.kasumi.example",
-    "version": "26.11.2-alpha",
+    "version": "0.1.0",
     "commands": [
       "ping",
       "capabilities.query",
@@ -78,7 +78,8 @@ AAR 位于 `android/kasumi/build/outputs/aar/kasumi-release.aar`，本地 Maven 
 
 ```kotlin
 dependencies {
-    implementation("dev.kasumi:kasumi:26.11.2-alpha")
+    val kasumiVersion = rootProject.extra["kasumiVersion"] as String
+    implementation("dev.kasumi:kasumi:$kasumiVersion")
 }
 ```
 
@@ -297,9 +298,9 @@ python cli/ksm.py package --platform android --target sdk
 python cli/ksm.py package --platform android --target example
 ```
 
-- Release SDK 产物：`.ksm/release/kasumi/26.11.2-alpha/kasumi-android-sdk-26.11.2-alpha.aar` 与
-  `.ksm/release/kasumi/26.11.2-alpha/kasumi-android-maven-26.11.2-alpha.zip`。
-- Release 示例产物：`.ksm/release/app/26.11.2-alpha/kasumi-android-example-26.11.2-alpha.apk`。
+- Release SDK 产物：`.ksm/release/kasumi/<version>/kasumi-android-sdk-<version>.aar` 与
+  `.ksm/release/kasumi/<version>/kasumi-android-maven-<version>.zip`。
+- Release 示例产物：`.ksm/release/app/<version>/kasumi-android-example-<version>.apk`。
 
 框架维护者测试宿主的 release 构建从以下环境变量读取签名材料：
 
@@ -315,7 +316,7 @@ python cli/ksm.py package --platform android --target example
 
 ## 排查路径
 
-1. 依赖解析失败：确认本地 Maven 仓库存在 `dev/kasumi/kasumi/26.11.2-alpha/`。
+1. 依赖解析失败：确认本地 Maven 仓库存在 `dev/kasumi/kasumi/<version>/`。
 2. 页面空白：检查 `assets/web/index.html`、CSP 和 `KSMWebAssetLoader` 的资源根。
 3. 请求一直超时：检查 `withTimeout`、`runInterruptible` 和主线程回投。
 4. 文件被拒绝：检查虚拟根、picked 句柄和真实 URI 是否越界。

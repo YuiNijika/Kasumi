@@ -23,6 +23,7 @@
 #include "../src/platform/ksm_webview_security.h"
 #include "../src/platform/ksm_webview_host.h"
 #include "../src/platform/ksm_windows_host_services.h"
+#include "ksm_version.h"
 
 namespace {
 
@@ -113,7 +114,7 @@ private:
 class BlockingHostServices final : public KSMHostServices {
 public:
     std::string AppVersion() const override {
-        return "26.11.2-alpha";
+        return KASUMI_VERSION_STRING;
     }
 
     std::string Language() const override {
@@ -440,7 +441,7 @@ void TestKsmRoot(
     if (
         !app_info ||
         app_info->name != "Kasumi" ||
-        app_info->version != "26.11.2-alpha" ||
+        app_info->version != KASUMI_VERSION_STRING ||
         app_info->platform != KSM::Platform::Windows ||
         app_info->language != "en-US"
     ) {

@@ -1,8 +1,29 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(kasumi_windows VERSION 26.11.2 LANGUAGES CXX)
+file(
+    READ
+    "${CMAKE_CURRENT_SOURCE_DIR}/../version.json"
+    KASUMI_VERSION_METADATA
+)
+string(JSON KASUMI_WINDOWS_SDK_VERSION GET "${KASUMI_VERSION_METADATA}" version)
+string(
+    REGEX MATCH
+    "^[0-9]+\\.[0-9]+\\.[0-9]+"
+    KASUMI_PROJECT_VERSION
+    "${KASUMI_WINDOWS_SDK_VERSION}"
+)
+if(NOT KASUMI_PROJECT_VERSION)
+    message(FATAL_ERROR "version.json contains an invalid release version.")
+endif()
 
-set(KASUMI_WINDOWS_SDK_VERSION "26.11.2-alpha")
+project(kasumi_windows VERSION "${KASUMI_PROJECT_VERSION}" LANGUAGES CXX)
+
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated/include")
+configure_file(
+    src/platform/ksm_version.h.in
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/include/ksm_version.h"
+    @ONLY
+)
 
 option(
     KASUMI_BUNDLE_WEBVIEW2_LOADER
@@ -39,6 +60,7 @@ target_include_directories(
     kasumi_windows_bridge
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
@@ -131,6 +153,11 @@ install(
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/kasumi
     FILES_MATCHING
     PATTERN "*.h"
+)
+
+install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/include/ksm_version.h"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/kasumi/platform
 )
 
 configure_package_config_file(

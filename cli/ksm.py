@@ -15,8 +15,14 @@ from pathlib import Path
 
 try:
     from cli.kasumi_config import ConfigError, KasumiConfig, load_config
+    from cli.version_metadata import (
+        check_versions,
+        read_version,
+        sync_versions,
+    )
 except ModuleNotFoundError:
     from kasumi_config import ConfigError, KasumiConfig, load_config
+    from version_metadata import check_versions, read_version, sync_versions
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +60,29 @@ def run(
 
 def codegen() -> None:
     run([sys.executable, str(ROOT / "tools" / "codegen.py")])
+
+
+def manage_version(action: str) -> None:
+    if action == "show":
+        print(read_version(ROOT))
+        return
+    if action == "sync":
+        changed = sync_versions(ROOT)
+        if not changed:
+            print("Version metadata is already synchronized.")
+            return
+        print("Synchronized version metadata:")
+        for path in changed:
+            print(f"  {path}")
+        return
+    mismatches = check_versions(ROOT)
+    if not mismatches:
+        print(f"Version metadata matches {read_version(ROOT)}.")
+        return
+    version = read_version(ROOT)
+    for name, value in mismatches.items():
+        print(f"{name}: expected {version}, found {value}", file=sys.stderr)
+    raise SystemExit(1)
 
 
 def validate_protocol() -> None:
@@ -626,9 +655,17 @@ def test(
 
 
 def release_version(config: KasumiConfig) -> str:
-    if config.windows.version != config.android.version:
-        raise ValueError("Windows and Android versions must match.")
-    return config.windows.version
+    version = read_version(ROOT)
+    configured = {
+        config.windows.version,
+        config.android.version,
+    }
+    if configured != {version}:
+        raise ValueError(
+            "Application versions must match version.json. "
+            "Run pnpm version:sync."
+        )
+    return version
 
 
 def release_directory(version: str) -> Path:
@@ -1197,6 +1234,13 @@ def start() -> None:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("codegen")
     subparsers.add_parser("validate")
+    version_parser = subparsers.add_parser("version")
+    version_parser.add_argument(
+        "action",
+        choices=("show", "sync", "check"),
+        nargs="?",
+        default="show",
+    )
 
     build_parser = subparsers.add_parser(
         "build",
@@ -1233,7 +1277,9 @@ def start() -> None:
     add_config_option(dev_parser)
     args = parser.parse_args()
 
-    if args.command == "validate":
+    if args.command == "version":
+        manage_version(args.action)
+    elif args.command == "validate":
         validate_protocol()
     elif args.command == "codegen":
         codegen()

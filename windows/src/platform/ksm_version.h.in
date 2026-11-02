@@ -1,0 +1,3 @@
+#pragma once
+
+#define KASUMI_VERSION_STRING "@KASUMI_WINDOWS_SDK_VERSION@"

@@ -4,8 +4,33 @@ plugins {
     id("maven-publish")
 }
 
+val kasumiVersion = rootProject.extra["kasumiVersion"] as String
+val generatedVersionDirectory = layout.buildDirectory.dir(
+    "generated/kasumiVersion"
+)
+val generatedVersionFile = generatedVersionDirectory.map {
+    it.file("dev/kasumi/app/internal/KSMVersionMetadata.kt")
+}
+val generateVersionSource = tasks.register("generateKasumiVersionSource") {
+    inputs.property("version", kasumiVersion)
+    outputs.file(generatedVersionFile)
+    doLast {
+        val outputFile = generatedVersionFile.get().asFile
+        outputFile.parentFile.mkdirs()
+        outputFile.writeText(
+            """
+            package dev.kasumi.app.internal
+
+            internal object KSMVersionMetadata {
+                const val VERSION = "$kasumiVersion"
+            }
+            """.trimIndent() + "\n"
+        )
+    }
+}
+
 group = "dev.kasumi"
-version = "26.11.2-alpha"
+version = kasumiVersion
 
 android {
     namespace = "dev.kasumi.app"
@@ -25,9 +50,17 @@ android {
         jvmTarget = "17"
     }
 
+    sourceSets.getByName("main").kotlin.srcDir(
+        generatedVersionDirectory.get().asFile
+    )
+
     publishing {
         singleVariant("release")
     }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(generateVersionSource)
 }
 
 afterEvaluate {

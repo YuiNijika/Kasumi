@@ -19,6 +19,7 @@ import {
   assertVirtualPath,
   assertVirtualStatPath
 } from '../../../frontend/src/api/guards';
+import versionMetadata from '../../../version.json';
 
 type IncomingMessage =
   | KSMRequest<unknown>
@@ -27,6 +28,7 @@ type IncomingMessage =
 type ResponseSender = (message: KSMResponse<unknown> | KSMEvent) => void;
 
 const MAX_INLINE_TEXT_BYTES = 64 * 1024;
+const KASUMI_VERSION = versionMetadata.version;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -81,7 +83,7 @@ export class MockHost {
     if (request.cmd === 'app.getInfo') {
       send(this.ok(id, {
         name: 'Kasumi',
-        version: '26.11.2-alpha',
+        version: KASUMI_VERSION,
         platform: this.platform,
         language: 'en-US'
       }));
@@ -310,7 +312,7 @@ export class MockHost {
         osVersion: '14',
         model: 'Pixel',
         manufacturer: 'Google',
-        appVersion: '26.11.2-alpha',
+        appVersion: KASUMI_VERSION,
         language: 'en-US',
         screenWidth: 1080,
         screenHeight: 2400,

@@ -4,7 +4,7 @@
 
 ```bash
 pnpm create kasumi
-pnpm create kasumi@26.11.2-alpha
+pnpm create kasumi@alpha
 pnpm create kasumi my-app
 pnpm create kasumi my-app --all
 pnpm create kasumi my-app --template react

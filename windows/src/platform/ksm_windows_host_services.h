@@ -14,6 +14,7 @@
 
 #include "ksm_host_services.h"
 #include "ksm_url_policy.h"
+#include "ksm_version.h"
 
 class KSMFileSystem;
 
@@ -23,7 +24,7 @@ public:
         HWND window,
         std::vector<std::string> allowed_external_origins = {},
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
-        std::string app_version = "26.11.2-alpha"
+        std::string app_version = KASUMI_VERSION_STRING
     );
 
     std::string AppVersion() const override;

@@ -1,6 +1,7 @@
 package dev.kasumi.app.bridge
 
 import dev.kasumi.app.generated.KSMGeneratedContract
+import dev.kasumi.app.internal.KSMVersionMetadata
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -115,7 +116,8 @@ class KSMRouter(
                             .put("name", "Kasumi")
                             .put(
                                 "version",
-                                hostServices?.appVersion() ?: "26.11.2-alpha"
+                                hostServices?.appVersion()
+                                    ?: KSMVersionMetadata.VERSION
                             )
                             .put("platform", "android")
                             .put(

@@ -18,7 +18,8 @@ import { renderTemplate } from './template.mjs';
 
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(sourceDirectory, '..', 'package.json');
-export const DEFAULT_RELEASE_VERSION = '26.11.2-alpha';
+const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
+export const DEFAULT_RELEASE_VERSION = packageJson.version;
 
 useSystemCertificates();
 
@@ -28,7 +29,6 @@ export async function run(argv) {
     printHelp();
     return;
   }
-  const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
   if (options.version) {
     console.log(packageJson.version);
     return;

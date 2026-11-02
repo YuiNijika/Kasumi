@@ -3,11 +3,12 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val kasumiVersion = rootProject.extra["kasumiVersion"] as String
 val ksmPackageName = providers.gradleProperty("ksmPackageName")
     .orElse("dev.kasumi.example")
     .get()
 val ksmVersion = providers.gradleProperty("ksmVersion")
-    .orElse("26.11.2-alpha")
+    .orElse(kasumiVersion)
     .get()
 val ksmCommands = providers.gradleProperty("ksmCommands")
     .orElse("")
@@ -88,5 +89,5 @@ android {
 }
 
 dependencies {
-    implementation("dev.kasumi:kasumi:26.11.2-alpha")
+    implementation("dev.kasumi:kasumi:$kasumiVersion")
 }

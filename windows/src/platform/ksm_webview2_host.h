@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include "ksm_version.h"
+
 class KSMFileSystem;
 class KSMWebResourceProvider;
 class KSMWebView2Host;
@@ -38,7 +40,7 @@ public:
                   std::shared_ptr<KSMWebResourceProvider> web_resources = {},
                   std::wstring start_url = L"https://app.local/index.html",
                   bool dev_mode = false,
-                  std::string app_version = "26.11.2-alpha",
+                  std::string app_version = KASUMI_VERSION_STRING,
                   std::vector<std::string> allowed_commands = {},
                   bool decorations = true);
   ~KSMWebView2Host();

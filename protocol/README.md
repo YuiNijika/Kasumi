@@ -13,13 +13,15 @@
 | `errors.json`             | 双端共用的错误码全集                        |
 | `permissions.schema.json` | 权限声明                                    |
 | `kasumi.config.schema.json` | 应用配置、包名、版本、命令 allowlist 和 Windows 标题栏开关 |
+| `../version.json`         | 框架产品版本唯一事实源                      |
+| `kasumi.version.schema.json` | 版本元数据 JSON Schema                   |
 
 Windows、Android 和前端实现都必须以这些文件为准。协议字符串不加 `KSM` 前缀。
 
 ## 当前规模
 
-`commands.json` 当前定义 **29 个命令和 2 个事件**。产品版本为 `26.11.2-alpha`，新增命令使用
-`since: "1.1.0"`。
+`commands.json` 当前定义 **29 个命令和 2 个事件**。产品版本由根目录 `version.json`
+管理，新增命令使用 `since: "1.1.0"`。
 
 | 平台    | 适用命令 | 说明                                 |
 | ------- | -------: | ------------------------------------ |

@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | 应用配置 | `kasumi.config.json` | 两端包名、版本、命令 allowlist 和 Windows 标题栏开关 |
 | 协议 | `protocol/commands.json` | 命令、事件、参数、返回结构、权限和平台能力 |
+| 版本元数据 | `version.json` | 框架产品版本、Release 标签和所有构建产物的版本来源 |
 | 代码生成 | `tools/codegen.py` | 生成 TypeScript、C++、Kotlin 契约常量与参数校验器 |
 | 前端 | `frontend/src/index.ts` | `KSM` 根入口、事件总线和 API 封装 |
 | Windows 根入口 | `windows/src/commands/ksm_phase1.h` | 宿主侧 `KSM` 生命周期、统一调用和原生事件 |
@@ -35,8 +36,21 @@ SDK 与示例必须分开构建。消费者只接收静态库、公共头文件�
 
 ## 当前进度
 
-当前协议基线为 **29 个命令、2 个事件**，产品版本为 `26.11.2-alpha`。新增命令从
-`since: "1.1.0"` 开始记录，命令名和参数以 `protocol/commands.json` 为准。
+当前协议基线为 **29 个命令、2 个事件**。产品版本只维护在根目录 `version.json`。
+新增命令从 `since: "1.1.0"` 开始记录，命令名和参数以 `protocol/commands.json` 为准。
+
+版本维护入口：
+
+| 命令 | 作用 |
+| --- | --- |
+| `pnpm version:show` | 输出 `version.json` 中的当前版本 |
+| `pnpm version:sync` | 同步 npm 包、应用配置、vcpkg manifest 和 `pyproject.toml` |
+| `pnpm version:check` | 检查所有必须保持同步的版本字段 |
+
+Windows CMake 从 `version.json` 生成 `ksm_version.h`，Android Gradle 生成
+`KSMVersionMetadata.kt`，前端契约模拟宿主直接读取 JSON。`package.json`、应用配置、
+`windows/vcpkg.json` 和 `pyproject.toml` 仍需保留版本字面量，由 `version:sync`
+统一更新；不要在构建脚本、运行时源码或测试夹具中重新写死版本。
 
 | 平台 | 适用命令 | 已实现 | 说明 |
 | --- | ---: | ---: | --- |
@@ -56,13 +70,13 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
 
 发布边界已完成：
 
-- Windows SDK 产出 `kasumi-windows-sdk-26.11.2-alpha.zip`，示例单独产出可执行程序 ZIP。
-- Android SDK 产出 `kasumi-android-sdk-26.11.2-alpha.aar`，示例单独产出 APK。
+- Windows SDK 产出 `kasumi-windows-sdk-<version>.zip`，示例单独产出可执行程序 ZIP。
+- Android SDK 产出 `kasumi-android-sdk-<version>.aar`，示例单独产出 APK。
 - `windows/examples/win32-host/` 通过 `find_package(Kasumi CONFIG REQUIRED)` 消费 SDK。
-- `examples/android-host/` 通过 `dev.kasumi:kasumi:26.11.2-alpha` 消费本地 Maven 中的 AAR。
+- `examples/android-host/` 通过 `dev.kasumi:kasumi:<version>` 消费本地 Maven 中的 AAR。
 - Windows SDK 包不包含 `.cpp`，Android Maven 发布不生成 sources JAR。
 
-`26.11.2-alpha` 发布加固边界：
+当前发布加固边界：
 
 - 用户项目 `ksm package` 输出到 `.ksm/dist/packages/`；框架附件输出到 `.ksm/release/kasumi/<version>/`，示例应用输出到 `.ksm/release/app/<version>/`。
 - Android release 缺少四个签名变量时在构建前失败，APK 通过 `apksigner verify` 后才复制到发布目录。
@@ -88,13 +102,13 @@ Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Window
   "$schema": "./protocol/kasumi.config.schema.json",
   "windows": {
     "packageName": "kasumi-win32-example",
-    "version": "26.11.2-alpha",
+    "version": "0.1.0",
     "commands": "all",
     "decorations": true
   },
   "android": {
     "packageName": "dev.kasumi.example",
-    "version": "26.11.2-alpha",
+    "version": "0.1.0",
     "commands": "all"
   }
 }
@@ -217,7 +231,7 @@ await KSM.window.setSize({ width: 960, height: 720 });
 ### Android
 
 - `android/kasumi/` 是发布 AAR 的 Android Library 模块；`android/app/` 只保留维护者测试宿主。
-- 本地 Maven 仓库位于 `android/kasumi/build/repo`，示例通过 `dev.kasumi:kasumi:26.11.2-alpha` 解析。
+- 本地 Maven 仓库位于 `android/kasumi/build/repo`，示例通过 `dev.kasumi:kasumi:<version>` 解析。
 - `examples/android-host/` 是独立消费者工程，不通过 Gradle 源码替换依赖框架模块。
 - `KSMAndroidHostServices` 使用 `HttpsURLConnection` 下载、`ACTION_VIEW` 打开外部链接，并从 `Build`、窗口度量、资源和时区读取设备信息。
 - `KSMWebViewHost` 统一配置 WebView、消息监听、导航、IO 命令协程和 Activity 生命周期，示例不再复制桥接代码。
@@ -250,13 +264,13 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm test --all --target sdk` | 双端契约、配置校验、allowlist、JVM 测试和示例 smoke test 通过 |
 | Android WebView 全屏与内存优化 | SDK、维护者宿主、instrumentation 测试源码和独立示例 Kotlin 编译通过，JVM 测试通过 |
 | `pnpm test` | 协议、TypeScript、契约、Python、Windows CTest 与 smoke test、Android release/JVM/instrumentation 编译全部通过 |
-| `pnpm test:packages` | 34 个包测试通过，覆盖初始化、框架模板、SDK 双平台事务安装与回滚、ZIP 打包、Doctor、Gradle Wrapper、协议命令矩阵和 `decorations` 配置 |
+| `pnpm test:packages` | 40 个包测试通过，覆盖初始化、框架模板、SDK 双平台事务安装与回滚、ZIP 打包、Doctor、Gradle Wrapper、协议命令矩阵和 `decorations` 配置 |
 | `pnpm build:bridge` | `kasumi-bridge` 生成 ESM 与 TypeScript 声明 |
 | React / Vue 模板构建 | TypeScript 检查与 Vite 生产构建通过，输出到 `frontend/dist/` |
 | Next.js 模板构建 | App Router 静态导出通过，CLI 将 `frontend/out/` 同步到 `frontend/dist/` |
 | Nuxt 模板构建 | 静态生成通过，CLI 将 `frontend/.output/public/` 同步到 `frontend/dist/` |
 | `pnpm --filter create-kasumi pack` | npm tarball 包含模板、Gradle Wrapper、vcpkg manifest、命令数据和 bin 入口 |
-| `npm exec --package create-kasumi-26.11.2-alpha.tgz` | 从实际 npm tarball 初始化项目通过 |
+| `npm exec --package create-kasumi-<version>.tgz` | 从实际 npm tarball 初始化项目通过 |
 | `pnpm test:tarballs` | 三个实际 tarball 安装、三个 bin 入口和 basic、React、Vue、Next.js、Nuxt 前端构建全部通过 |
 | 生成的 basic Android 模板 | 挂载本地 Maven AAR 后 `:app:compileDebugKotlin` 通过，确认共享宿主与 debug origin 门禁可编译 |
 | 生成项目 `pnpm typecheck` | 模板 TypeScript 配置通过 |
@@ -267,9 +281,9 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | 生成项目 Windows smoke test | WebView2 加载、前端 `ping`、`app.exit` 后 2.3 秒内退出 |
 | 生成项目 Android 构建 | JDK 21 + 自带 Gradle Wrapper 产出 debug APK |
 | Windows 批处理入口 | `pnpm.cmd` 与 `gradlew.bat` 均通过 `cmd.exe` 启动，不再触发 `spawn EINVAL` |
-| `pnpm ksm package --android --target sdk` | AAR 与 Maven ZIP 汇总到 `.ksm/release/kasumi/26.11.2-alpha/` |
+| `pnpm ksm package --android --target sdk` | AAR 与 Maven ZIP 汇总到 `.ksm/release/kasumi/<version>/` |
 | Android Maven 归档 | 发布前清空本地 Maven 仓库，ZIP 只包含当前版本目录与元数据 |
-| `pnpm ksm build --all --target example` | Windows EXE 与 Android APK 直接输出到 `.ksm/release/app/26.11.2-alpha/` |
+| `pnpm ksm build --all --target example` | Windows EXE 与 Android APK 直接输出到 `.ksm/release/app/<version>/` |
 | `pnpm release:prepare` | 框架与示例附件分别生成到 `.ksm/release/kasumi/`、`.ksm/release/app/`，manifest 文件大小和 SHA-256 校验通过 |
 | `kasumi_win32_example_smoke` | Windows 示例启动、ping 与退出通过 |
 | `kasumi_win32_example_multi_view_smoke` | 实际加载 `multi-view.html` 两侧页面，验证同窗口双 View、独立 windowId/子窗口/边界和命令路由、顶层窗口缩放重排、单 View 关闭后剩余实例继续运行 |
@@ -277,10 +291,13 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | Windows 标题栏构建 | `ON` 与 `OFF` 均编译并通过 smoke test；`OFF` 移除 `WS_CAPTION`，客户区覆盖完整窗口，四边与四角返回对应缩放命中值 |
 | Windows SDK CTest | 标题栏 `ON` 与 `OFF` 构建目录均 2/2 通过，含单 View 和多 View smoke |
 | Windows 多 View 稳定性 | 多 View smoke 连续 20 次通过，并为失败状态补充具体条件诊断 |
-| 维护者 Windows 发布打包 | `pnpm ksm package --windows` 将 SDK ZIP 写入 `.ksm/release/kasumi/26.11.2-alpha/`，示例 ZIP 写入 `.ksm/release/app/26.11.2-alpha/` |
+| 维护者 Windows 发布打包 | `pnpm ksm package --windows` 将 SDK ZIP 写入 `.ksm/release/kasumi/<version>/`，示例 ZIP 写入 `.ksm/release/app/<version>/` |
 | Windows 原生契约 | `kasumi_contract_runner.exe` 输出 `windows contract passed` |
-| `node --test packages/*/tests/*.test.mjs` | 34/34 通过 |
-| `python -m unittest tests.test_kasumi_config` | 14/14 通过 |
+| `node --test packages/*/tests/*.test.mjs` | 40/40 通过 |
+| `python -m unittest tests.test_version_metadata tests.test_kasumi_config` | 18/18 通过 |
+| `node cli/ksm.mjs version check` | `version.json`、npm 包、应用配置、vcpkg 和 Python 元数据一致 |
+| Windows CMake 生成头 | `ksm_version.h` 与安装后的 `KasumiConfig.cmake` 均导出当前版本 |
+| Android 生成源码 | `KSMVersionMetadata.kt` 与 debug APK 的 `versionName` 均来自 `version.json` |
 | TypeScript 双工程检查 | `frontend/tsconfig.json` 与 `tests/tsconfig.json` 均通过 |
 | `git diff --check` | 通过；仅有仓库既有的 LF/CRLF 转换警告 |
 
@@ -443,15 +460,15 @@ KASUMI_ANDROID_KEY_PASSWORD
 `create-kasumi` 的顺序使用 `NPM_TOKEN` 和 npm provenance 发布。Release 资产包含
 Windows SDK、Android Maven 仓库、AAR、示例 ZIP、APK 和 `kasumi-release.json`。
 正式标签发布要求 Windows Authenticode 与 Android APK 签名；普通 CI 不要求证书。
-当前目标版本为 `26.11.2-alpha`，发布标签为 `v26.11.2-alpha`。带预发布后缀的标签
+Release 标签必须与 `version.json` 一致，即 `v<version>`。带预发布后缀的标签
 会创建 GitHub prerelease，并将三个 npm 包发布到 `alpha` dist-tag，不覆盖 `latest`。
 
 CI 使用 `pnpm install --frozen-lockfile`。根锁文件必须只包含根工程和 `packages/*`，
 生成契约后执行 `git diff --exit-code`，避免临时项目依赖或未同步契约进入发布。
 
-当前 npm registry 上 `create-kasumi`、`kasumi-cli` 和 `kasumi-bridge` 均未占用；
-本机 npm 尚未登录，因此本轮只完成 tarball 与模拟 Release 的端到端验证，没有执行
-真实 npm 或 GitHub Release 发布。
+发布前必须先确认 GitHub Release 的 manifest 与 SDK 资产可访问，再按同一提交构建
+npm tarball。正式发布使用 `NPM_TOKEN` 和 npm provenance；不要在 SDK Release 缺失时
+提前发布 `create-kasumi`。
 
 ## 常用命令
 
@@ -523,26 +540,8 @@ gradle -p android :kasumi:assembleRelease :kasumi:publishReleasePublicationToLoc
 `notification`、`permission`、`event`、`window`、`http`、`shell`、`device` 和 `types`。
 `kasumi/api` 只做索引，`kasumi/development` 记录当前实现进度。
 
-此前 10 个线上修订已覆盖 `kasumi/development`、`kasumi/index`、`kasumi/api`、`fs`、
-`types`、`window`、`http`、`shell`、`device` 和 `event`，当前状态为 `approved`。
-本轮又提交了 `kasumi/development` 修订 `bf80e59e-76c8-4b00-b2f9-342908f31352`，
-补充当前实现进度、命令矩阵和 Android `app.local` 资源加载修复，状态已变为
-`approved`，但重新拉取仍返回旧正文。
-本轮发布入口修订已提交为 `kasumi/index` `755b90a0-0a5f-41d8-aa14-92267e4afdc3`、
-`kasumi/configuration` `2c97f846-97ab-4969-b143-195d640e63e3` 和
-`kasumi/development` `0f3cc5d1-9b98-48cb-bb2c-08d4534290a6`，当前状态为
-`pending`，尚未确认线上生效。
-本轮单窗口多 View 文档修订为 `kasumi/development`
-`1fc2b123-b274-4a60-bb87-b6774a158b56`，已补充共享 Environment、子 `HWND`、
-独立路由与生命周期、无面积边界拒绝规则，当前状态为 `pending`。
-多 WebView 示例应用修订为 `kasumi/development`
-`afb06dad-c981-462d-b10f-1df2bfc59d0f`，补充 `--multi-view`
-构建入口、`multi-view.html` 双实例页面、共享便签和 CTest 覆盖，当前状态同样为
-`pending`。
-Android 沉浸式全屏修订为 `kasumi/development`
-`d4b18355-1855-4635-8acd-7479d4942b08`，补充默认隐藏状态栏和导航栏、
-`fullscreen = false` 退出方式与焦点恢复行为，当前状态为 `pending`。
-发布状态以站点实际页面为准，未发布前不得描述为已上线。
+线上页面以站点实际正文为准。`kasumi/development` 与本文档保持一致，
+`kasumi/configuration` 说明应用配置与框架版本元数据的边界，API 页面按模块维护。
 
 同步流程固定为：先用 `docs-rev.py pull` 拉取原文，再用本地编辑器修改，执行
 `push --dry-run` 检查 diff，确认后推送修订，最后重新拉取或读取线上原文确认内容已生效。

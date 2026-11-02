@@ -14,6 +14,7 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile
+      - run: pnpm version:check
       - run: pnpm codegen
       - name: Verify generated contracts
         run: git diff --exit-code -- frontend/src/generated windows/src/generated android/kasumi/src/main/java/dev/kasumi/app/generated
@@ -39,6 +40,7 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile
+      - run: pnpm version:check
       - run: pnpm codegen
       - name: Verify generated contracts
         run: git diff --exit-code -- frontend/src/generated windows/src/generated android/kasumi/src/main/java/dev/kasumi/app/generated
@@ -71,5 +73,6 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile
+      - run: pnpm version:check
       - run: pnpm test:packages
       - run: pnpm test:tarballs

@@ -1,6 +1,6 @@
 # Kasumi Android 示例宿主
 
-> 一个独立 Android 应用工程，通过本地 Maven 中的 `dev.kasumi:kasumi:26.11.2-alpha` 使用 Kasumi SDK。
+> 一个独立 Android 应用工程，通过本地 Maven 中的 Kasumi AAR 使用 SDK。
 
 ## 模块边界
 
@@ -9,7 +9,7 @@
 | 文件 | 责任 |
 | --- | --- |
 | `settings.gradle.kts` | 配置 Google、Maven Central 和本地 Kasumi Maven 仓库 |
-| `app/build.gradle.kts` | 声明 `dev.kasumi:kasumi:26.11.2-alpha` 与共享 Web 资源 |
+| `app/build.gradle.kts` | 从根 `version.json` 读取 SDK 版本并声明 Maven 依赖 |
 | `MainActivity.kt` | Activity 生命周期转发、宿主服务配置和 `KSMWebViewHost` 启动 |
 | `../showcase/` | Windows 与 Android 共用的完整能力页面 |
 
@@ -33,7 +33,7 @@ cd examples/android-host
 直接运行 Wrapper 时 APK 位于
 `examples/android-host/app/build/outputs/apk/debug/app-debug.apk`。从仓库根目录执行
 `pnpm ksm build --android --target example` 时，CLI 会把 APK 复制到
-`.ksm/release/app/26.11.2-alpha/kasumi-android-example-26.11.2-alpha.apk`。
+`.ksm/release/app/<version>/kasumi-android-example-<version>.apk`。
 连接设备或启动模拟器后，可在仓库根目录运行 `pnpm ksm dev --android`。该命令会启动
 `http://localhost:5173` 静态服务器，通过 `adb reverse` 把端口转发到设备，并安装、启动
 示例应用。
@@ -59,7 +59,7 @@ CLI 会通过 `-PksmPackageName`、`-PksmVersion` 和 `-PksmCommands` 注入 Gra
 
 ## 排查
 
-1. 依赖解析失败：先确认本地 Maven 仓库存在 `dev/kasumi/kasumi/26.11.2-alpha/`。
+1. 依赖解析失败：先确认本地 Maven 仓库存在 `dev/kasumi/kasumi/<version>/`。
 2. 页面报 `ERR_NAME_NOT_RESOLVED`：确认宿主使用 `KSMWebAssetLoader.create(context)`，
    且 `assets.srcDir` 指向 `examples/showcase`。
 3. 请求超时：确认 `WebViewCompat.addWebMessageListener` 的来源和 `ksm` 通道名称。

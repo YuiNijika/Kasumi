@@ -68,17 +68,21 @@ pnpm ksm build --all
   "$schema": "./protocol/kasumi.config.schema.json",
   "windows": {
     "packageName": "my-app",
-    "version": "26.11.2-alpha",
+    "version": "0.1.0",
     "commands": "all",
     "decorations": true
   },
   "android": {
     "packageName": "dev.kasumi.my_app",
-    "version": "26.11.2-alpha",
+    "version": "0.1.0",
     "commands": "all"
   }
 }
 ```
+
+框架自身的发布版本只维护在 `version.json`。修改后运行 `pnpm version:sync` 同步 npm
+包、根应用配置、vcpkg manifest 和 Python 包元数据；Windows CMake 与 Android Gradle
+在构建时读取该文件并生成运行时版本常量。
 
 `commands` 支持两种写法：
 
@@ -150,6 +154,9 @@ console.log(pong.pong, capabilities.commands, appInfo.version);
 | `pnpm release:prepare` | 构建并汇总当前版本的全部 Release 附件 |
 | `pnpm ksm test` | 运行契约、配置和平台测试 |
 | `pnpm ksm doctor` | 检查 SDK、工具链、设备与配置 |
+| `pnpm version:show` | 输出 `version.json` 中的框架版本 |
+| `pnpm version:sync` | 同步必须保留字面量的派生版本文件 |
+| `pnpm version:check` | 检查版本元数据与派生文件是否一致 |
 | `pnpm validate:protocol` | 校验协议事实源 |
 | `pnpm codegen` | 生成三端契约 |
 | `pnpm test:packages` | 测试三个发布包 |

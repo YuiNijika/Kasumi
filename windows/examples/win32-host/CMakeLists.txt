@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(kasumi_win32_host VERSION 26.11.2 LANGUAGES CXX)
+project(kasumi_win32_host LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -12,7 +12,7 @@ set(
 )
 set(
     KASUMI_APP_VERSION
-    "26.11.2-alpha"
+    ""
     CACHE STRING
     "Application semantic version"
 )
@@ -26,13 +26,6 @@ set(
 if(NOT KASUMI_APP_PACKAGE_NAME MATCHES "^[A-Za-z0-9][A-Za-z0-9._-]*$")
     message(FATAL_ERROR "KASUMI_APP_PACKAGE_NAME has an invalid format.")
 endif()
-if(
-    NOT KASUMI_APP_VERSION MATCHES
-    "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
-)
-    message(FATAL_ERROR "KASUMI_APP_VERSION must be a semantic version.")
-endif()
-
 option(
     KASUMI_EXAMPLE_EXTERNAL_WEB
     "Copy the showcase web assets beside the executable instead of embedding them"
@@ -58,6 +51,16 @@ option(
 )
 
 find_package(Kasumi CONFIG REQUIRED)
+
+if(NOT KASUMI_APP_VERSION)
+    set(KASUMI_APP_VERSION "${KASUMI_VERSION}")
+endif()
+if(
+    NOT KASUMI_APP_VERSION MATCHES
+    "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+)
+    message(FATAL_ERROR "KASUMI_APP_VERSION must be a semantic version.")
+endif()
 
 add_executable(
     kasumi_win32_example

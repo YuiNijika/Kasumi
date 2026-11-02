@@ -1,5 +1,7 @@
 @PACKAGE_INIT@
 
+set(KASUMI_VERSION "@KASUMI_WINDOWS_SDK_VERSION@")
+
 include(CMakeFindDependencyMacro)
 find_dependency(nlohmann_json CONFIG)
 find_dependency(unofficial-webview2 CONFIG)

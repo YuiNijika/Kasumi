@@ -3,6 +3,7 @@ package dev.kasumi.app.bridge
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.kasumi.app.BuildConfig
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -46,7 +47,7 @@ class BridgeInstrumentedTest {
         var pickedText = "picked"
         var downloadedPath = ""
 
-        override fun appVersion(): String = "26.11.2-alpha"
+        override fun appVersion(): String = BuildConfig.VERSION_NAME
 
         override fun language(): String = "zh-CN"
 
@@ -170,7 +171,7 @@ class BridgeInstrumentedTest {
                 osVersion = "14",
                 model = "Instrumented",
                 manufacturer = "Kasumi",
-                appVersion = "26.11.2-alpha",
+                appVersion = BuildConfig.VERSION_NAME,
                 language = "zh-CN",
                 screenWidth = 1080,
                 screenHeight = 2400,

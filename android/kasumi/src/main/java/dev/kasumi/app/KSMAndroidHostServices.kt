@@ -32,6 +32,7 @@ import dev.kasumi.app.bridge.KSMHostServices
 import dev.kasumi.app.bridge.KSMHttpDownloadResult
 import dev.kasumi.app.bridge.KSMHttpPolicy
 import dev.kasumi.app.bridge.KSMVirtualPath
+import dev.kasumi.app.internal.KSMVersionMetadata
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -53,7 +54,7 @@ class KSMAndroidHostServices(
     private val activity: Activity,
     allowedExternalOrigins: Set<String> = emptySet(),
     private val fileSystem: KSMFileSystem? = null,
-    private val appVersion: String = "26.11.2-alpha"
+    private val appVersion: String = KSMVersionMetadata.VERSION
 ) : KSMHostServices {
     companion object {
         const val REQUEST_OPEN_FILE = 1001
@@ -120,9 +121,9 @@ class KSMAndroidHostServices(
                     0
                 ).versionName
             }
-            versionName?.takeIf { it.isNotBlank() } ?: "26.11.2-alpha"
+            versionName?.takeIf { it.isNotBlank() } ?: KSMVersionMetadata.VERSION
         } catch (_: Exception) {
-            "26.11.2-alpha"
+            KSMVersionMetadata.VERSION
         }
     }
 
