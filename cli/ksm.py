@@ -176,16 +176,18 @@ def resolve_targets(target: str) -> tuple[str, ...]:
     return TARGETS[:-1] if target == "all" else (target,)
 
 
-def android_gradle(project: Path) -> tuple[str, Path]:
+def android_gradle(project: Path) -> tuple[list[str], Path]:
     configured = os.environ.get("GRADLE")
     if configured:
-        return configured, project
-    executable = shutil.which("gradle")
-    if executable is not None:
-        return executable, project
+        return [configured], project
     wrapper = project / ("gradlew.bat" if os.name == "nt" else "gradlew")
     if wrapper.is_file():
-        return str(wrapper), project
+        if os.name == "nt":
+            return [str(wrapper)], project
+        return ["sh", str(wrapper)], project
+    executable = shutil.which("gradle")
+    if executable is not None:
+        return [executable], project
     raise RuntimeError("gradle is required for Android tasks.")
 
 
@@ -486,10 +488,10 @@ def build_windows_example(
 def build_android_sdk() -> None:
     if ANDROID_LOCAL_REPO.exists():
         shutil.rmtree(ANDROID_LOCAL_REPO)
-    executable, cwd = android_gradle(ROOT / "android")
+    command, cwd = android_gradle(ROOT / "android")
     run(
         [
-            executable,
+            *command,
             ":kasumi:assembleRelease",
             ":kasumi:publishReleasePublicationToLocalRepository",
         ],
@@ -512,10 +514,10 @@ def build_android_example(
 ) -> None:
     build_android_sdk()
     project = ROOT / "examples" / "android-host"
-    executable, cwd = android_gradle(project)
+    command, cwd = android_gradle(project)
     run(
         [
-            executable,
+            *command,
             *android_app_gradle_arguments(config),
             "assembleDebug",
         ],
@@ -604,10 +606,10 @@ def test_windows(
 
 def test_android(config: KasumiConfig) -> None:
     build_android_sdk()
-    executable, cwd = android_gradle(ROOT / "android")
+    command, cwd = android_gradle(ROOT / "android")
     run(
         [
-            executable,
+            *command,
             ":kasumi:testDebugUnitTest",
             ":app:testDebugUnitTest",
             ":app:assembleDebugAndroidTest",
