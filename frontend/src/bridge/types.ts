@@ -159,10 +159,49 @@ export interface KSMDeviceApi {
   getInfo(): Promise<KSMDeviceInfo>;
 }
 
+export type KSMSqlDriver = 'sqlite' | 'mysql' | 'postgres' | 'mongodb';
+
+export type KSMSqlValue = string | number | boolean | null;
+
+export interface KSMSqlDriversResult {
+  drivers: KSMSqlDriver[];
+}
+
+export interface KSMSqlOpenResult {
+  connectionId: string;
+}
+
+export interface KSMSqlQueryResult {
+  columns: string[];
+  rows: Array<Record<string, KSMSqlValue>>;
+}
+
+export interface KSMSqlExecuteResult {
+  rowsAffected: number;
+  lastInsertId: number | null;
+}
+
+export interface KSMSqlApi {
+  drivers(): Promise<KSMSqlDriversResult>;
+  open(args: { driver: KSMSqlDriver; url: string }): Promise<KSMSqlOpenResult>;
+  query(args: {
+    connectionId: string;
+    statement: string;
+    params?: KSMSqlValue[];
+  }): Promise<KSMSqlQueryResult>;
+  execute(args: {
+    connectionId: string;
+    statement: string;
+    params?: KSMSqlValue[];
+  }): Promise<KSMSqlExecuteResult>;
+  close(args: { connectionId: string }): Promise<{ closed: boolean }>;
+}
+
 export interface KSMCapabilities {
   platform: KSMPlatform;
   commands: string[];
   permissions: string[];
+  plugins: string[];
 }
 
 export interface KSMAppInfo {

@@ -51,7 +51,14 @@ add_library(
     src/platform/ksm_web_resource.cpp
     src/platform/ksm_webview2_host.cpp
     src/platform/ksm_win32_resource_provider.cpp
+    src/platform/ksm_odbc_sql_driver.cpp
+    src/platform/ksm_sql_driver.cpp
+    src/platform/ksm_sqlite_driver.cpp
     src/platform/ksm_windows_host_services.cpp
+    src/plugins/ksm_dialog_plugin.cpp
+    src/plugins/ksm_filesystem_plugin.cpp
+    src/plugins/ksm_plugin_registry.cpp
+    src/plugins/ksm_sql_plugin.cpp
 )
 
 target_compile_features(kasumi_windows_bridge PUBLIC cxx_std_20)
@@ -65,10 +72,12 @@ target_include_directories(
 )
 
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(unofficial-sqlite3 CONFIG REQUIRED)
 target_link_libraries(
     kasumi_windows_bridge
     PUBLIC
         nlohmann_json::nlohmann_json
+        unofficial::sqlite3::sqlite3
 )
 
 if (WIN32)
@@ -108,6 +117,7 @@ if (WIN32)
         PUBLIC
             comdlg32
             comctl32
+            odbc32
             ole32
             shell32
             shlwapi

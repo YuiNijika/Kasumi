@@ -29,7 +29,8 @@ public:
         std::shared_ptr<KSMHostServices> host_services = nullptr,
         Dispatch dispatch = {},
         std::vector<std::string> allowed_commands = {},
-        bool allow_development_origin = false
+        bool allow_development_origin = false,
+        std::vector<std::shared_ptr<KSMPlugin>> plugins = {}
     );
     ~KSMWebViewHost();
 

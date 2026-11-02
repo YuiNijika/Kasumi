@@ -10,6 +10,8 @@
 | ------------------------- | ------------------------------------------- |
 | `commands.json`           | 命令、事件、参数、返回结构、权限和平台支持  |
 | `commands.schema.json`    | 命令、事件和参数结构的 JSON Schema 校验规则 |
+| `plugins.json`            | 内置插件清单、归属命令和插件版本            |
+| `plugins.schema.json`     | 插件清单的 JSON Schema 校验规则             |
 | `errors.json`             | 双端共用的错误码全集                        |
 | `permissions.schema.json` | 权限声明                                    |
 | `kasumi.config.schema.json` | 应用配置、包名、版本、命令 allowlist 和 Windows 标题栏开关 |
@@ -20,17 +22,18 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 
 ## 当前规模
 
-`commands.json` 当前定义 **29 个命令和 2 个事件**。产品版本由根目录 `version.json`
-管理，新增命令使用 `since: "1.1.0"`。
+`commands.json` 当前定义 **34 个命令和 2 个事件**，`plugins.json` 将全部命令
+归入 **10 个内置插件**。产品版本由根目录 `version.json` 管理，SQL 插件的新增命令
+使用 `since: "1.2.0"`。
 
 | 平台    | 适用命令 | 说明                                 |
 | ------- | -------: | ------------------------------------ |
-| Windows |       28 | 不包含仅 Android 的 `device.getInfo` |
-| Android |       25 | 不包含 Windows 专属窗口命令          |
-| 全集    |       29 | 宿主按平台矩阵过滤                   |
+| Windows |       33 | 不包含仅 Android 的 `device.getInfo` |
+| Android |       30 | 不包含 Windows 专属窗口命令          |
+| 全集    |       34 | 宿主按平台矩阵过滤                   |
 
 `ping` 与 `capabilities.query` 是最小通路。其余命令覆盖文件、对话框、剪贴板、通知、
-权限、事件、窗口、下载、外部链接和设备信息。
+权限、事件、窗口、下载、外部链接、设备信息和数据库访问。
 
 ## 平台矩阵
 
@@ -50,6 +53,7 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 | `shell.openExternal`                                                      | 支持    | 支持    | `shell.open`                         |
 | `http.download`                                                           | 支持    | 支持    | `http.download`                      |
 | `device.getInfo`                                                          | 不支持  | 支持    | `device.info`                        |
+| `sql.drivers`、`sql.open`、`sql.query`、`sql.execute`、`sql.close`        | 支持    | 支持    | `sql`                                |
 
 `capabilities.query` 返回宿主实际实现的命令列表和当前可用权限。Android 对不支持的窗口命令
 返回 `NOT_SUPPORTED`；Windows 对 `device.getInfo` 返回 `NOT_SUPPORTED`。
@@ -61,6 +65,53 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 
 Windows 可额外设置 `decorations` 布尔值，默认 `true`。设为 `false` 时宿主隐藏原生标题栏，
 但保留窗口缩放和工作区行为；应用需自行提供标题栏控件。Android 不接受该字段。
+
+## 插件清单
+
+`plugins.json` 是插件归属的唯一事实源。每个协议命令只能属于一个插件，插件名使用
+小写点分标识符，命令保持 `<domain>.<action>` 形式。当前内置插件为：
+
+| 插件 | 职责 | 命令数 |
+| --- | --- | ---: |
+| `core` | 应用生命周期、权限、事件和能力发现 | 7 |
+| `fs` | 沙箱虚拟文件系统 | 7 |
+| `dialog` | 系统消息框、确认框和文件选择器 | 4 |
+| `clipboard` | 系统剪贴板文本 | 2 |
+| `notification` | 系统通知 | 1 |
+| `window` | 窗口标题、尺寸和生命周期 | 5 |
+| `http` | HTTPS 下载 | 1 |
+| `shell` | 白名单外部链接 | 1 |
+| `device` | 非持久设备信息 | 1 |
+| `sql` | 数据库连接和参数化语句 | 5 |
+
+Windows 的 `KSMRouter` 与 Android 的 `KSMRouter` 先派发插件，再进入仍由核心路由承载
+的平台命令。宿主可以注册自定义 `KSMPlugin` 实现；`fs`、`dialog` 和 `sql` 可以用同 ID
+插件显式替换，但替换实现必须完整声明该 ID 的全部生成命令。其他生成插件 ID 仍为保留值，
+自定义插件也不得抢占任何生成命令。插件自己声明的命令会被加入 `capabilities.query`。
+插件命令若不在 `commands.json` 中，由插件自己的参数校验器负责校验，不绕过宿主权限检查。
+
+## SQL 插件
+
+SQL 插件通过 `sql.drivers` 暴露宿主实际注册的驱动。协议保留四个驱动标识：
+`sqlite`、`mysql`、`postgres` 和 `mongodb`。标识存在不等于运行时驱动已安装，调用
+`sql.open` 前必须先查询 `sql.drivers`。
+
+当前内置实现：
+
+| 驱动 | 状态 | URL 与行为 |
+| --- | --- | --- |
+| `sqlite` | Windows / Android 内置 | `:memory:` 或可写虚拟路径；禁止只读根、picked 路径和真实路径 |
+| `mysql` | Windows 发现系统 ODBC 驱动后内置；Android 通过宿主 SPI 注册 | Windows 使用 `mysql://host[:port]/database?ssl-mode=required` 或 `disabled` |
+| `postgres` | Windows 发现系统 ODBC 驱动后内置；Android 通过宿主 SPI 注册 | Windows 使用 `postgresql://host[:port]/database?sslmode=require` 或 `disable` |
+| `mongodb` | 通过宿主驱动 SPI 注册 | 由注册驱动定义 URL、命令格式和文档映射 |
+
+Windows 的远程驱动 URL 可带可选用户名和密码，但凭据不得出现在错误消息、日志或
+`sql.drivers` 中。TLS 默认开启；只有显式查询参数才允许关闭。ODBC 路由要求系统已安装
+对应厂商驱动，Kasumi SDK 不随包分发 MySQL、PostgreSQL 或 MongoDB 客户端。
+
+SQL 参数只允许字符串、有限数值、布尔值和 `null`。`sql.query` 返回列名与行对象，
+`sql.execute` 返回 `rowsAffected` 和可空的 `lastInsertId`。连接 ID 由宿主生成，
+未知连接返回 `NOT_FOUND`，关闭连接后不得复用。
 
 ## 参数与生成
 

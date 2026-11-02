@@ -133,6 +133,32 @@ const [pong, capabilities, appInfo] = await Promise.all([
 console.log(pong.pong, capabilities.commands, appInfo.version);
 ```
 
+## 插件与 SQL
+
+内置插件清单位于 `protocol/plugins.json`。Windows 和 Android 都默认提供 `fs`、
+`dialog`、`sql` 插件，也可以向 `KSMWebView2Host` 或 `KSMWebViewHost` 注册自定义
+`KSMPlugin`。自定义插件命令会进入 `capabilities.query`，但不会跳过参数、权限和来源校验。
+
+```ts
+const drivers = await KSM.sql.drivers();
+const connection = await KSM.sql.open({
+  driver: "sqlite",
+  url: "app://data/app.db",
+});
+
+const rows = await KSM.sql.query({
+  connectionId: connection.connectionId,
+  statement: "SELECT name FROM sqlite_master",
+});
+
+await KSM.sql.close({ connectionId: connection.connectionId });
+```
+
+SQLite 在两端内置。Windows 还会自动发现系统 MySQL / MariaDB 和 PostgreSQL ODBC
+驱动，只有检测成功的驱动才会出现在 `sql.drivers`。MongoDB 和 Android 远程数据库通过
+`KSMSqlDriver` SPI 注册宿主驱动；前端应先查询可用驱动，不能假设远程数据库客户端
+已经随应用打包。
+
 页面只通过宿主提供的消息通道通信。来源校验、命令 allowlist、权限、虚拟文件路径和平台限制
 仍由 Windows 或 Android 宿主执行。生产模式只接受 `https://app.local`；开发 origin
 仅在 Windows `dev` 或 Android debug APK 中启用。Android WebView 的非应用导航会被直接

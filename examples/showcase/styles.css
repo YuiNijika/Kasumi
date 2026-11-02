@@ -73,6 +73,7 @@ textarea {
 
 button {
   color: inherit;
+  touch-action: manipulation;
 }
 
 a {
@@ -260,6 +261,7 @@ h2 {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 
 h1 {
@@ -275,6 +277,7 @@ h1 em {
 
 h2 {
   margin: 0;
+  scroll-margin-top: 1rem;
   font-size: clamp(1.35rem, 2.2vw, 1.8rem);
   line-height: 1.15;
 }
@@ -568,8 +571,8 @@ textarea {
   resize: vertical;
 }
 
-input:focus,
-textarea:focus {
+input:focus-visible,
+textarea:focus-visible {
   border-color: var(--accent);
   background: var(--surface-strong);
   box-shadow: 0 0 0 0.2rem rgba(13, 107, 87, 0.12);

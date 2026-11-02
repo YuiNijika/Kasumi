@@ -3,6 +3,7 @@ import {
   KSM_COMMANDS,
   KSM_EVENTS,
   KSM_PERMISSIONS,
+  KSM_PLUGINS,
   KSM_WINDOWS_COMMANDS,
   validateKSMArgs
 } from '../../../frontend/src/generated/contract';
@@ -76,7 +77,8 @@ export class MockHost {
       send(this.ok(id, {
         platform: this.platform,
         commands,
-        permissions: KSM_PERMISSIONS
+        permissions: KSM_PERMISSIONS,
+        plugins: KSM_PLUGINS
       }));
       return;
     }
@@ -300,6 +302,52 @@ export class MockHost {
         return;
       }
       send(this.ok(id, { opened: true }));
+      return;
+    }
+    if (request.cmd === 'sql.drivers') {
+      send(this.ok(id, { drivers: ['sqlite'] }));
+      return;
+    }
+    if (request.cmd === 'sql.open') {
+      const driver = this.stringArg(request.args, 'driver');
+      const url = this.stringArg(request.args, 'url');
+      if (driver !== 'sqlite' || url.length === 0) {
+        send(this.error(id, 'NOT_SUPPORTED', 'The SQL driver is unavailable.'));
+        return;
+      }
+      send(this.ok(id, { connectionId: 'sql-mock-1' }));
+      return;
+    }
+    if (request.cmd === 'sql.query') {
+      const connectionId = this.stringArg(request.args, 'connectionId');
+      this.stringArg(request.args, 'statement');
+      if (connectionId !== 'sql-mock-1') {
+        send(this.error(id, 'NOT_FOUND', 'The SQL connection does not exist.'));
+        return;
+      }
+      send(this.ok(id, {
+        columns: ['id', 'name'],
+        rows: [{ id: 1, name: 'contract' }]
+      }));
+      return;
+    }
+    if (request.cmd === 'sql.execute') {
+      const connectionId = this.stringArg(request.args, 'connectionId');
+      const statement = this.stringArg(request.args, 'statement');
+      if (connectionId !== 'sql-mock-1') {
+        send(this.error(id, 'NOT_FOUND', 'The SQL connection does not exist.'));
+        return;
+      }
+      const isDdl = /^\s*(create|alter|drop|truncate)\b/i.test(statement);
+      send(this.ok(id, {
+        rowsAffected: isDdl ? 0 : 1,
+        lastInsertId: isDdl ? null : 1
+      }));
+      return;
+    }
+    if (request.cmd === 'sql.close') {
+      const connectionId = this.stringArg(request.args, 'connectionId');
+      send(this.ok(id, { closed: connectionId === 'sql-mock-1' }));
       return;
     }
     if (request.cmd === 'device.getInfo') {

@@ -197,6 +197,61 @@ export async function runBuiltInApiCases(
   if (overwritten.bytes !== 8) {
     throw new Error('http.download did not allow an explicit overwrite.');
   }
+  const sqlDrivers = await adapter.invoke<{ drivers: string[] }>(
+    'sql.drivers',
+    {}
+  );
+  if (!sqlDrivers.drivers.includes('sqlite')) {
+    throw new Error('sql.drivers did not report the sqlite driver.');
+  }
+  const database = await adapter.invoke<{ connectionId: string }>(
+    'sql.open',
+    { driver: 'sqlite', url: 'app://data/contract.db' }
+  );
+  if (!database.connectionId) {
+    throw new Error('sql.open did not return a connection ID.');
+  }
+  const executed = await adapter.invoke<{
+    rowsAffected: number;
+    lastInsertId: number | null;
+  }>('sql.execute', {
+    connectionId: database.connectionId,
+    statement: 'CREATE TABLE contract (id INTEGER PRIMARY KEY, name TEXT)'
+  });
+  if (executed.rowsAffected !== 0 || executed.lastInsertId !== null) {
+    throw new Error('sql.execute returned mutation metadata for DDL.');
+  }
+  const inserted = await adapter.invoke<{
+    rowsAffected: number;
+    lastInsertId: number | null;
+  }>('sql.execute', {
+    connectionId: database.connectionId,
+    statement: 'INSERT INTO contract (name) VALUES (?)',
+    params: ['contract']
+  });
+  if (inserted.rowsAffected !== 1 || inserted.lastInsertId !== 1) {
+    throw new Error('sql.execute returned invalid insert metadata.');
+  }
+  const queried = await adapter.invoke<{
+    columns: string[];
+    rows: Array<Record<string, unknown>>;
+  }>('sql.query', {
+    connectionId: database.connectionId,
+    statement: 'SELECT id, name FROM contract'
+  });
+  if (
+    queried.columns.join(',') !== 'id,name' ||
+    queried.rows[0]?.name !== 'contract'
+  ) {
+    throw new Error('sql.query returned an invalid result.');
+  }
+  const closedDatabase = await adapter.invoke<{ closed: boolean }>(
+    'sql.close',
+    { connectionId: database.connectionId }
+  );
+  if (!closedDatabase.closed) {
+    throw new Error('sql.close failed.');
+  }
   const external = await adapter.invoke<{ opened: boolean }>(
     'shell.openExternal',
     { url: 'https://example.com/docs' }

@@ -13,6 +13,9 @@
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMRouter.kt` | JSON 校验、权限检查和命令分发 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMHostServices.kt` | Android 平台服务接口 |
 | `kasumi/src/main/java/dev/kasumi/app/KSMAndroidHostServices.kt` | 对话框、文件、剪贴板、通知、下载、链接和设备信息 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMPlugin.kt` | 插件接口、注册表和默认插件 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMSqlDriver.kt` | SQL 驱动 SPI 和内置 SQLite 实现 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMSqlPlugin.kt` | SQL 命令插件与宿主驱动分发 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewHost.kt` | WebView 消息桥、命令并发、导航策略、生命周期和资源释放 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewRuntime.kt` | WebView 默认设置、全屏窗口、前后台暂停和低内存回收 |
 | `kasumi/src/main/res/values/styles.xml` | 无 ActionBar 的 `Theme.Kasumi.Fullscreen` Activity 主题 |
@@ -22,7 +25,7 @@
 | `app/src/test/` | JVM 契约与策略测试 |
 | `app/src/androidTest/` | instrumentation 与真实 Activity 测试 |
 
-Android 当前实现 **25/25 个适用命令**。Windows 专属的窗口标题、最小化、最大化、
+Android 当前实现 **30/30 个适用命令**。Windows 专属的窗口标题、最小化、最大化、
 尺寸调整不提供；`device.getInfo` 仅 Android 提供。
 
 ## 应用配置
@@ -134,8 +137,57 @@ val response = KSM.invoke(
 ```
 
 `KSM` 根入口挂载 `fs`、`dialog`、`clipboard`、`notification`、`permission`、`http`、
-`shell`、`device`、`window` 和 `app`。直接子模块用于可信原生代码；前端命令仍必须经过
-`KSMRouter` 的参数、权限和路径校验。
+`shell`、`device`、`sql`、`window` 和 `app`。直接子模块用于可信原生代码；前端命令仍
+必须经过 `KSMRouter` 的参数、权限和路径校验。
+
+## 插件与 SQL
+
+Android 默认插件由 `ksmDefaultPlugins()` 创建，包括 `fs`、`dialog` 和 `sql`。自定义
+插件实现 `KSMPlugin` 并通过 `KSMWebViewHost` 的 `plugins` 参数注册：
+
+```kotlin
+val plugin = object : KSMPlugin {
+    override val id = "com.example.echo"
+    override val commands = setOf("com.example.echo.ping")
+    override val permissions = setOf("com.example.echo")
+
+    override fun handle(
+        command: String,
+        args: JSONObject,
+        context: KSMPluginContext
+    ): Any {
+        if (!context.hasPermission("com.example.echo")) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The plugin was not authorized."
+            )
+        }
+        return JSONObject().put("pong", true)
+    }
+}
+
+val webViewHost = KSMWebViewHost(
+    activity = this,
+    fileSystem = fileSystem,
+    hostServices = hostServices,
+    entryUrl = "https://app.local/index.html",
+    plugins = listOf(plugin)
+)
+```
+
+`fs`、`dialog` 和 `sql` 可以用同 ID 插件替换；其他生成插件 ID 保留给框架。插件命令
+不在 `protocol/commands.json` 时，`validateArgs` 必须自己拒绝非法参数。
+
+SQL 默认注册 `KSMSqliteDriver`。需要 MySQL、PostgreSQL 或 MongoDB 时，实现
+`KSMSqlDriver` / `KSMSqlConnection`，然后调用：
+
+```kotlin
+hostServices.registerSqlDriver(MyRemoteDriver())
+```
+
+只有注册成功的驱动才会出现在 `sql.drivers`。SQLite 接受 `:memory:` 或
+`app://data`、`app://cache`、`app://tmp` 下的可写路径，不支持真实路径和
+`app://picked`。远程驱动负责自己的连接串、TLS、占位符和游标映射，错误不得泄漏凭据。
 
 `KSMWebViewHost` 封装 `WebViewCompat.addWebMessageListener`，接收消息后放入 IO 协程，
 最多同时执行 8 条命令。超过上限返回 `BUSY`，超时返回 `TIMEOUT`，取消消息会中断任务并

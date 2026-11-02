@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/YuiNijika/Kasumi/main/protocol/kasumi.config.schema.json",
+  "windows": {
+    "packageName": "kasumi-test",
+    "version": "26.11.2-alpha",
+    "commands": "all",
+    "decorations": true
+  },
+  "android": {
+    "packageName": "dev.kasumi.kasumi_test",
+    "version": "26.11.2-alpha",
+    "commands": "all"
+  }
+}

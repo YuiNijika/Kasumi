@@ -34,7 +34,7 @@
                 <h1 id="page-title">把系统能力<br>变成<br><em>真实动作</em>。</h1>
                 <p class="lede">
                     这是 Kasumi的完整基础能力示例。文件、对话框、剪贴板、通知、窗口、
-                    网络与设备信息都会经过真实宿主；平台没有提供的能力会在这里明确标出。
+                    网络、数据库与设备信息都会经过真实宿主；平台没有提供的能力会在这里明确标出。
                 </p>
 
                 <dl class="runtime-facts" aria-label="运行时信息">
@@ -126,7 +126,8 @@
                         再读取目录和元数据，最后可以删除示例文件。
                     </p>
                     <label class="field-label" for="file-content">要写入的内容</label>
-                    <textarea id="file-content" rows="4" maxlength="8000" spellcheck="false">Kasumi示例写入于当前时间：</textarea>
+                    <textarea id="file-content" name="file-content" rows="4" maxlength="8000"
+                        autocomplete="off" spellcheck="false">Kasumi示例写入于当前时间：</textarea>
                     <div class="button-row">
                         <button id="file-roundtrip-button" class="button button-secondary" type="button">
                             完整读写流程
@@ -177,9 +178,33 @@
                     <pre id="dialog-result" class="result-panel" aria-live="polite">尚未选择文件…</pre>
                 </section>
 
-                <section class="module" aria-labelledby="clipboard-title">
+                <section id="sql-module" class="module" aria-labelledby="sql-title">
                     <div class="module-heading">
                         <span class="module-index" aria-hidden="true">04</span>
+                        <div>
+                            <p class="eyebrow">本地数据库</p>
+                            <h2 id="sql-title">写入并查询 SQLite</h2>
+                        </div>
+                        <span id="sql-badge" class="module-badge">读取中</span>
+                    </div>
+                    <p class="module-copy">
+                        这段操作会在 <code>app://data/showcase/showcase.sqlite</code> 中创建示例表，
+                        通过参数写入一条记录，再读取最近的结果。连接会在查询结束后关闭。
+                    </p>
+                    <label class="field-label" for="sql-note">示例记录</label>
+                    <textarea id="sql-note" name="sql-note" rows="3" maxlength="4000" autocomplete="off"
+                        spellcheck="false">来自 Kasumi SQL 插件的一条记录。</textarea>
+                    <div class="button-row">
+                        <button id="sql-run-button" class="button button-primary" type="button">
+                            写入并查询
+                        </button>
+                    </div>
+                    <pre id="sql-result" class="result-panel" aria-live="polite">等待 SQLite 操作…</pre>
+                </section>
+
+                <section class="module" aria-labelledby="clipboard-title">
+                    <div class="module-heading">
+                        <span class="module-index" aria-hidden="true">05</span>
                         <div>
                             <p class="eyebrow">系统剪贴板</p>
                             <h2 id="clipboard-title">带走一段文字</h2>
@@ -188,7 +213,8 @@
                     </div>
                     <label class="field-label" for="clipboard-input">剪贴板内容</label>
                     <div class="inline-field">
-                        <input id="clipboard-input" type="text" value="从 Kasumi示例复制的一段文字" autocomplete="off">
+                        <input id="clipboard-input" name="clipboard-input" type="text"
+                            value="从 Kasumi示例复制的一段文字" autocomplete="off">
                         <button id="clipboard-write-button" class="button button-secondary" type="button"
                             data-command="clipboard.writeText">
                             写入
@@ -202,7 +228,7 @@
 
                 <section class="module" aria-labelledby="notification-title">
                     <div class="module-heading">
-                        <span class="module-index" aria-hidden="true">05</span>
+                        <span class="module-index" aria-hidden="true">06</span>
                         <div>
                             <p class="eyebrow">通知与权限</p>
                             <h2 id="notification-title">让系统提醒你</h2>
@@ -228,7 +254,7 @@
 
                 <section class="module" aria-labelledby="window-title">
                     <div class="module-heading">
-                        <span class="module-index" aria-hidden="true">06</span>
+                        <span class="module-index" aria-hidden="true">07</span>
                         <div>
                             <p class="eyebrow">窗口控制</p>
                             <h2 id="window-title">调整这一扇窗</h2>
@@ -241,11 +267,13 @@
                     <div class="size-fields">
                         <div>
                             <label class="field-label" for="window-width">外框宽度</label>
-                            <input id="window-width" type="number" min="320" step="1" value="920" inputmode="numeric">
+                            <input id="window-width" name="window-width" type="number" min="320" step="1"
+                                value="920" inputmode="numeric" autocomplete="off">
                         </div>
                         <div>
                             <label class="field-label" for="window-height">外框高度</label>
-                            <input id="window-height" type="number" min="240" step="1" value="680" inputmode="numeric">
+                            <input id="window-height" name="window-height" type="number" min="240" step="1"
+                                value="680" inputmode="numeric" autocomplete="off">
                         </div>
                     </div>
                     <div class="button-row">
@@ -277,7 +305,7 @@
 
                 <section class="module" aria-labelledby="network-title">
                     <div class="module-heading">
-                        <span class="module-index" aria-hidden="true">07</span>
+                        <span class="module-index" aria-hidden="true">08</span>
                         <div>
                             <p class="eyebrow">网络出口</p>
                             <h2 id="network-title">下载与外部链接</h2>
@@ -289,8 +317,8 @@
                         白名单；当前示例只允许 <code>https://example.com</code>。
                     </p>
                     <label class="field-label" for="download-path">下载目标路径</label>
-                    <input id="download-path" type="text" value="app://data/showcase-example.html" autocomplete="off"
-                        spellcheck="false">
+                    <input id="download-path" name="download-path" type="text"
+                        value="app://data/showcase-example.html" autocomplete="off" spellcheck="false">
                     <div class="button-row">
                         <button id="download-button" class="button button-primary" type="button"
                             data-command="http.download">
@@ -305,7 +333,7 @@
 
                 <section id="device-module" class="module" aria-labelledby="device-title">
                     <div class="module-heading">
-                        <span class="module-index" aria-hidden="true">08</span>
+                        <span class="module-index" aria-hidden="true">09</span>
                         <div>
                             <p class="eyebrow">设备信息</p>
                             <h2 id="device-title">认识运行环境</h2>
@@ -325,7 +353,7 @@
 
                 <section class="module" aria-labelledby="events-title">
                     <div class="module-heading">
-                        <span class="module-index" aria-hidden="true">09</span>
+                        <span class="module-index" aria-hidden="true">10</span>
                         <div>
                             <p class="eyebrow">事件总线</p>
                             <h2 id="events-title">观察窗口变化</h2>

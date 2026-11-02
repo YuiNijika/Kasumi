@@ -35,6 +35,24 @@ interface KSMHostServices {
     fun isExternalUrlAllowed(url: String): Boolean = false
     fun openExternal(url: String): Boolean = false
     fun deviceInfo(): KSMDeviceInfo? = null
+    fun registerSqlDriver(driver: KSMSqlDriver) {
+        throw UnsupportedOperationException(
+            "This host does not support SQL driver registration."
+        )
+    }
+    fun sqlDrivers(): List<String> = emptyList()
+    fun sqlOpen(driver: String, url: String): String? = null
+    fun sqlQuery(
+        connectionId: String,
+        statement: String,
+        params: List<Any?>
+    ): KSMSqlQueryResult? = null
+    fun sqlExecute(
+        connectionId: String,
+        statement: String,
+        params: List<Any?>
+    ): KSMSqlExecuteResult? = null
+    fun sqlClose(connectionId: String): Boolean = false
     fun cancelRequest(requestId: String) {}
 }
 

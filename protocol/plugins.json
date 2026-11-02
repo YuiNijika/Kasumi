@@ -1,0 +1,108 @@
+{
+  "plugins": {
+    "core": {
+      "name": "Core",
+      "version": "1.0.0",
+      "description": "Application lifecycle, permissions, events and capability discovery.",
+      "commands": [
+        "ping",
+        "capabilities.query",
+        "app.getInfo",
+        "app.exit",
+        "permission.request",
+        "event.subscribe",
+        "event.unsubscribe"
+      ]
+    },
+    "fs": {
+      "name": "Filesystem",
+      "version": "1.0.0",
+      "description": "Sandboxed virtual filesystem access.",
+      "commands": [
+        "fs.readText",
+        "fs.writeText",
+        "fs.exists",
+        "fs.remove",
+        "fs.readDir",
+        "fs.mkdir",
+        "fs.stat"
+      ]
+    },
+    "dialog": {
+      "name": "Dialog",
+      "version": "1.0.0",
+      "description": "Native message, confirmation and file picker dialogs.",
+      "commands": [
+        "dialog.message",
+        "dialog.confirm",
+        "dialog.openFile",
+        "dialog.saveFile"
+      ]
+    },
+    "clipboard": {
+      "name": "Clipboard",
+      "version": "1.0.0",
+      "description": "System clipboard text access.",
+      "commands": [
+        "clipboard.readText",
+        "clipboard.writeText"
+      ]
+    },
+    "notification": {
+      "name": "Notification",
+      "version": "1.0.0",
+      "description": "Native system notifications.",
+      "commands": [
+        "notification.show"
+      ]
+    },
+    "window": {
+      "name": "Window",
+      "version": "1.0.0",
+      "description": "Window title, size, lifecycle and application exit controls.",
+      "commands": [
+        "window.setTitle",
+        "window.minimize",
+        "window.maximize",
+        "window.setSize",
+        "window.close"
+      ]
+    },
+    "http": {
+      "name": "HTTP",
+      "version": "1.0.0",
+      "description": "HTTPS downloads into the virtual filesystem.",
+      "commands": [
+        "http.download"
+      ]
+    },
+    "shell": {
+      "name": "Shell",
+      "version": "1.0.0",
+      "description": "Allowlisted external URL launching.",
+      "commands": [
+        "shell.openExternal"
+      ]
+    },
+    "device": {
+      "name": "Device",
+      "version": "1.0.0",
+      "description": "Non-identifying Android device information.",
+      "commands": [
+        "device.getInfo"
+      ]
+    },
+    "sql": {
+      "name": "SQL",
+      "version": "1.2.0",
+      "description": "Database connections and parameterised SQL statements.",
+      "commands": [
+        "sql.drivers",
+        "sql.open",
+        "sql.query",
+        "sql.execute",
+        "sql.close"
+      ]
+    }
+  }
+}

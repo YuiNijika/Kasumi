@@ -8,16 +8,22 @@
 | --- | --- | --- |
 | 应用配置 | `kasumi.config.json` | 两端包名、版本、命令 allowlist 和 Windows 标题栏开关 |
 | 协议 | `protocol/commands.json` | 命令、事件、参数、返回结构、权限和平台能力 |
+| 插件清单 | `protocol/plugins.json` | 内置插件归属、版本和命令所有权 |
 | 版本元数据 | `version.json` | 框架产品版本、Release 标签和所有构建产物的版本来源 |
 | 代码生成 | `tools/codegen.py` | 生成 TypeScript、C++、Kotlin 契约常量与参数校验器 |
 | 前端 | `frontend/src/index.ts` | `KSM` 根入口、事件总线和 API 封装 |
 | Windows 根入口 | `windows/src/commands/ksm_phase1.h` | 宿主侧 `KSM` 生命周期、统一调用和原生事件 |
 | Windows 路由 | `windows/src/bridge/ksm_router.h` | 请求校验、权限检查和命令分发 |
+| Windows 插件运行时 | `windows/src/plugins/ksm_plugin.h` | 插件 ID、命令归属、参数校验和宿主上下文 |
+| Windows SQL 驱动 | `windows/src/platform/ksm_sql_driver.h` | 连接注册表、驱动 SPI 和 SQLite 内置实现 |
+| Windows 远程 SQL | `windows/src/platform/ksm_odbc_sql_driver.h` | 系统 ODBC 发现、MySQL / PostgreSQL 参数化连接 |
 | Windows 窗口框架 | `windows/src/platform/ksm_window_frame.h` | 原生标题栏隐藏、缩放边框和工作区处理 |
 | Windows WebView2 适配 | `windows/src/platform/ksm_webview2_host.h` | 共享 Environment、单窗口多 View、内嵌资源、消息隔离和 UI 线程回投 |
 | Windows SDK 包 | `windows/CMakeLists.txt` | 静态库、公共头文件、CMake package config 和 CPack |
 | Windows 示例 | `windows/examples/win32-host/` | 独立消费者工程，使用已安装 SDK |
 | Android SDK | `android/kasumi/` | AAR、宿主服务、路由、生成契约和公开 API |
+| Android 插件运行时 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMPlugin.kt` | 插件注册表、默认插件和自定义插件入口 |
+| Android SQL 驱动 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMSqlDriver.kt` | 驱动 SPI、连接生命周期和 SQLite 内置实现 |
 | Android WebView 适配 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewHost.kt` | 消息桥、命令并发、导航、生命周期和资源释放 |
 | Android WebView 运行时 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewRuntime.kt` | 安全默认设置、沉浸式全屏、前后台暂停和低内存回收 |
 | Android 示例 | `examples/android-host/` | 独立消费者工程，使用本地 Maven 中的 AAR |
@@ -36,8 +42,9 @@ SDK 与示例必须分开构建。消费者只接收静态库、公共头文件�
 
 ## 当前进度
 
-当前协议基线为 **29 个命令、2 个事件**。产品版本只维护在根目录 `version.json`。
-新增命令从 `since: "1.1.0"` 开始记录，命令名和参数以 `protocol/commands.json` 为准。
+当前协议基线为 **34 个命令、2 个事件、10 个内置插件**。产品版本只维护在根目录
+`version.json`。SQL 插件新增命令使用 `since: "1.2.0"`，命令名和参数以
+`protocol/commands.json` 为准。
 
 版本维护入口：
 
@@ -54,9 +61,9 @@ Windows CMake 从 `version.json` 生成 `ksm_version.h`，Android Gradle 生成
 
 | 平台 | 适用命令 | 已实现 | 说明 |
 | --- | ---: | ---: | --- |
-| Windows | 28 | 28 | 不含仅 Android 提供的 `device.getInfo` |
-| Android | 25 | 25 | 不含 Windows 专属的窗口标题、最小化、最大化、尺寸调整 |
-| 协议全集 | 29 | 29 | 两端按平台矩阵过滤，不伪造跨平台能力 |
+| Windows | 33 | 33 | 不含仅 Android 提供的 `device.getInfo` |
+| Android | 30 | 30 | 不含 Windows 专属的窗口标题、最小化、最大化、尺寸调整 |
+| 协议全集 | 34 | 34 | 两端按平台矩阵过滤，不伪造跨平台能力 |
 
 本轮新增：
 
@@ -64,9 +71,15 @@ Windows CMake 从 `version.json` 生成 `ksm_version.h`，Android Gradle 生成
 - `shell.openExternal`：只允许宿主显式配置的精确 origin，使用系统浏览器打开。
 - `device.getInfo`：仅 Android 提供非持久设备、显示和运行时信息。
 - `window.setSize`：仅 Windows 提供逻辑外框尺寸调整，最小 `320 × 240`。
+- `sql.drivers`、`sql.open`、`sql.query`、`sql.execute`、`sql.close`：统一 SQL 插件命令，
+  两端内置 SQLite；Windows 在检测到系统 ODBC 驱动时自动提供 MySQL / PostgreSQL，
+  其余远程驱动通过宿主 `KSMSqlDriver` SPI 注册。
+- `plugins.json`：为全部协议命令建立插件归属，生成前端、C++ 和 Kotlin 插件常量。
+- `fs` 与 `dialog` 从路由分支抽成 Windows / Android 内置插件，保留原有命令兼容性。
 
 前端 `KSM` 根入口已挂载 `http`、`shell`、`device` 和 `window.setSize`。Windows 与
 Android 宿主侧根入口分别挂载对应子模块；Android 不提供 Windows 专属窗口方法。
+`KSM.sql` 在两端都可用，实际可用驱动由 `sql.drivers` 返回。
 
 发布边界已完成：
 
@@ -144,7 +157,8 @@ allowlist。JSON Schema 位于 `protocol/kasumi.config.schema.json`。
 
 新增或修改命令时按以下顺序执行，不得手写平行命令清单：
 
-1. 修改 `protocol/commands.json`、`protocol/commands.schema.json` 和 `protocol/permissions.schema.json`。
+1. 修改 `protocol/commands.json`、`protocol/commands.schema.json`、
+   `protocol/plugins.json` 和 `protocol/permissions.schema.json`。
 2. 运行 `python tools/validate_protocol.py`。
 3. 运行 `python tools/codegen.py`，同步 `frontend/src/generated/contract.ts`、`windows/src/generated/contract.h` 和 `android/kasumi/src/main/java/dev/kasumi/app/generated/KSMGeneratedContract.kt`。
 4. 实现 Windows `KSMRouter`、Android `KSMRouter` 和宿主服务。
@@ -152,6 +166,81 @@ allowlist。JSON Schema 位于 `protocol/kasumi.config.schema.json`。
 
 `capabilities.query` 返回宿主实际支持的 `commands` 和已授予的 `permissions`。前端调用
 `KSM.get()` 读取缓存能力；页面重载后 `KSM` 会清理缓存并重新查询。
+
+## 插件系统
+
+插件清单位于 `protocol/plugins.json`，每个协议命令必须且只能归属一个插件。`codegen`
+生成 `KSM_PLUGINS`、`KSM_PLUGIN_COMMANDS` 和 `KSM_COMMAND_PLUGINS`；运行时插件注册表
+只接受唯一 ID 和唯一命令，并把插件权限合并到能力缓存。
+
+| 层级 | 前端 | Windows | Android |
+| --- | --- | --- | --- |
+| 清单 | `KSM_PLUGINS` | `KSMGeneratedContract::Plugins()` | `KSMGeneratedContract.plugins` |
+| 命令入口 | `KSM.invoke` | `KSMPlugin::Handle` | `KSMPlugin.handle` |
+| 参数校验 | 生成的 schema | `KSMPlugin::ValidateArgs` | `KSMPlugin.validateArgs` |
+| 宿主上下文 | 无 | `KSMPluginContext` | `KSMPluginContext` |
+
+默认插件包括 `fs`、`dialog` 和 `sql`。自定义插件通过
+`KSMWebView2Host` / `KSMWebViewHost` 的 `plugins` 参数注册；`fs`、`dialog` 和 `sql`
+允许用同 ID 插件显式替换内置实现，但必须完整声明该 ID 的全部生成命令。其他已生成插件
+ID 仍为保留值，自定义插件也不得抢占任何生成命令。自定义插件命令不在 `commands.json`
+时，必须由插件自己校验参数并返回协议错误码。
+
+Windows 插件实现入口为 `windows/src/plugins/ksm_plugin.h`；Android 入口为
+`android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMPlugin.kt`。插件不得直接读取
+`window.chrome.webview`、`addJavascriptInterface` 或绕过 `KSMRouter`。
+
+## SQL 插件
+
+`KSM.sql` 暴露 `drivers`、`open`、`query`、`execute` 和 `close`。SQLite 在两端内置。
+Windows 启动时发现系统 MySQL / MariaDB 和 PostgreSQL ODBC 驱动并注册对应标识；驱动
+未安装时不会出现在 `sql.drivers`。Android、MongoDB 和其他自定义数据库使用同一
+`KSMSqlDriver` SPI，由宿主注册适配器后才会出现在 `sql.drivers`。协议中的驱动标识
+不等于客户端已经随应用打包。
+
+```ts
+const available = await KSM.sql.drivers();
+if (!available.drivers.includes('sqlite')) {
+  throw new Error('SQLite driver missing');
+}
+
+const connection = await KSM.sql.open({
+  driver: 'sqlite',
+  url: ':memory:'
+});
+
+await KSM.sql.execute({
+  connectionId: connection.connectionId,
+  statement: 'CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL)'
+});
+
+await KSM.sql.execute({
+  connectionId: connection.connectionId,
+  statement: 'INSERT INTO notes (body) VALUES (?)',
+  params: ['hello']
+});
+
+const rows = await KSM.sql.query({
+  connectionId: connection.connectionId,
+  statement: 'SELECT id, body FROM notes ORDER BY id'
+});
+
+await KSM.sql.close({ connectionId: connection.connectionId });
+```
+
+SQLite 只接受 `:memory:` 或 `app://data`、`app://cache`、`app://tmp` 下的可写文件路径。
+远程驱动的 URL、TLS、占位符和迁移策略由各驱动实现定义，前端不能假设四种数据库共享
+同一套 SQL 方言。
+
+`examples/showcase` 的数据库模块会打开 `app://data/showcase/showcase.sqlite`，创建示例表，
+通过参数写入记录，读取最近八条结果，并在 `finally` 中关闭连接。Windows 单 View smoke
+还会用 `:memory:` 完成同样的驱动、执行、查询和关闭链路。
+
+Windows 驱动实现 `KSMSqlDriver` / `KSMSqlConnection`，并通过
+`KSMHostServices::RegisterSqlDriver` 注册。Android 实现 `KSMSqlDriver` /
+`KSMSqlConnection`，并通过 `KSMAndroidHostServices.registerSqlDriver` 注册。驱动错误
+应转换为 `INVALID_ARGS`、`PERMISSION_DENIED`、`NOT_FOUND`、`IO_ERROR` 或
+`NOT_SUPPORTED`，不得把连接字符串、凭据或底层异常原样暴露给前端。
 
 ## 新增 API 的固定边界
 
@@ -309,7 +398,7 @@ Windows 已完成 SDK、内嵌 Web 示例构建和真实桌面 smoke test，`kas
 静态库、CMake 配置和 README；默认示例 ZIP 只包含 EXE，显式启用 Loader 打包时才额外包含
 `WebView2Loader.dll`，外置模式 ZIP 额外包含 `web/`。
 
-Android 已完成 7 个 JVM 测试、WebView 运行时 instrumentation 测试源码、AAR 发布、
+Android 已完成 8 个 JVM 测试、WebView 运行时 instrumentation 测试源码、AAR 发布、
 维护者 APK、instrumentation 测试 APK 和独立
 示例 APK 构建。AAR 和本地 Maven 发布物不包含 Kotlin 源码或 sources JAR，示例 APK 的
 Web 资源位于 `assets/`。本机 JDK 的 `TEMP` 包含短文件名时，Gradle 的 AF_UNIX 连接会
@@ -537,8 +626,9 @@ gradle -p android :kasumi:assembleRelease :kasumi:publishReleasePublicationToLoc
 ## 在线文档同步
 
 在线 API 文档按模块拆分：`kasumi/api/app`、`capabilities`、`fs`、`dialog`、`clipboard`、
-`notification`、`permission`、`event`、`window`、`http`、`shell`、`device` 和 `types`。
-`kasumi/api` 只做索引，`kasumi/development` 记录当前实现进度。
+`notification`、`permission`、`event`、`window`、`http`、`shell`、`device`、`sql` 和
+`types`。`kasumi/plugins` 说明插件注册与扩展方式，`kasumi/plugins/sql` 说明 SQL 驱动
+边界。`kasumi/api` 只做索引，`kasumi/development` 记录当前实现进度。
 
 线上页面以站点实际正文为准。`kasumi/development` 与本文档保持一致，
 `kasumi/configuration` 说明应用配置与框架版本元数据的边界，API 页面按模块维护。

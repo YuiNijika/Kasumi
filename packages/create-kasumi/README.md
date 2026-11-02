@@ -96,6 +96,12 @@ my-app/
 }
 ```
 
+`"all"` 同时启用 `sql.drivers`、`sql.open`、`sql.query`、`sql.execute` 和
+`sql.close`。生成项目的 Windows 模板包含 `sqlite3` vcpkg 依赖，SQLite 可直接使用。
+Windows 会另外发现系统已安装的 MySQL / MariaDB 和 PostgreSQL ODBC 驱动；没有厂商
+驱动时这两个标识不会出现在 `sql.drivers`。MongoDB 和 Android 远程数据库需要通过
+`KSMSqlDriver` SPI 注册宿主驱动。
+
 Windows 还可以设置 `"decorations": false` 隐藏系统标题栏。此时应用需要自行提供最小化、
 最大化和关闭按钮，并在页面中声明可拖拽的标题栏区域：
 

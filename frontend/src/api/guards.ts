@@ -123,3 +123,44 @@ export function assertPositiveInteger(value: unknown, field: string): asserts va
     throw new TypeError(`${field} must be a positive integer.`);
   }
 }
+
+const SQL_DRIVERS = new Set(['sqlite', 'mysql', 'postgres', 'mongodb']);
+
+export function assertSqlDriver(value: unknown): asserts value is string {
+  if (typeof value !== 'string' || !SQL_DRIVERS.has(value)) {
+    throw new TypeError('driver must be sqlite, mysql, postgres or mongodb.');
+  }
+}
+
+export function assertSqlConnectionId(value: unknown): asserts value is string {
+  assertString(value, 'connectionId');
+  if (value.length === 0 || value.length > 128) {
+    throw new TypeError('connectionId must contain between 1 and 128 characters.');
+  }
+}
+
+export function assertSqlStatement(value: unknown): asserts value is string {
+  assertString(value, 'statement');
+  if (value.length === 0) {
+    throw new TypeError('statement must not be empty.');
+  }
+  if (new TextEncoder().encode(value).byteLength > 1024 * 1024) {
+    throw new TypeError('statement must not exceed 1 MiB.');
+  }
+}
+
+export function assertSqlParams(value: unknown): asserts value is unknown[] {
+  if (!Array.isArray(value)) {
+    throw new TypeError('params must be an array.');
+  }
+  for (const param of value) {
+    if (
+      param !== null &&
+      typeof param !== 'string' &&
+      typeof param !== 'boolean' &&
+      (typeof param !== 'number' || !Number.isFinite(param))
+    ) {
+      throw new TypeError('params must contain only strings, finite numbers, booleans or null.');
+    }
+  }
+}

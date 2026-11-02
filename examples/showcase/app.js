@@ -6,6 +6,7 @@
     const MAX_ACTIVITY_ITEMS = 24;
     const SAMPLE_FILE_PATH = 'app://data/showcase/notes.txt';
     const SAMPLE_DIRECTORY_PATH = 'app://data/showcase';
+    const SAMPLE_DATABASE_PATH = 'app://data/showcase/showcase.sqlite';
 
     class BridgeError extends Error {
         constructor(code, message) {
@@ -192,6 +193,11 @@
         dialogOpen: document.querySelector('#dialog-open-button'),
         dialogSave: document.querySelector('#dialog-save-button'),
         dialogResult: document.querySelector('#dialog-result'),
+        sqlModule: document.querySelector('#sql-module'),
+        sqlBadge: document.querySelector('#sql-badge'),
+        sqlNote: document.querySelector('#sql-note'),
+        sqlRun: document.querySelector('#sql-run-button'),
+        sqlResult: document.querySelector('#sql-result'),
         clipboardInput: document.querySelector('#clipboard-input'),
         clipboardWrite: document.querySelector('#clipboard-write-button'),
         clipboardRead: document.querySelector('#clipboard-read-button'),
@@ -328,6 +334,18 @@
         elements.deviceButton.title = deviceSupported
             ? ''
             : 'device.getInfo只在 Android宿主中提供';
+
+        const sqlSupported = [
+            'sql.drivers',
+            'sql.open',
+            'sql.query',
+            'sql.execute',
+            'sql.close'
+        ].every(isSupported);
+        elements.sqlModule.dataset.disabled = String(!sqlSupported);
+        elements.sqlBadge.textContent = sqlSupported ? 'SQLite' : '未启用';
+        elements.sqlRun.disabled = !sqlSupported;
+        elements.sqlRun.title = sqlSupported ? '' : '当前应用没有启用 SQL 插件';
     }
 
     function updateRuntimeInfo() {
@@ -455,6 +473,73 @@
         });
         setResult(elements.fileResult, removed);
         addActivity(removed.removed ? '示例文件已删除。' : '示例文件本来就不存在。');
+    }
+
+    async function runSqliteSample(url, note) {
+        const bus = requireBridge();
+        const available = await bus.invoke('sql.drivers', {});
+        if (!available.drivers.includes('sqlite')) {
+            throw new BridgeError('NOT_SUPPORTED', '当前宿主没有注册 SQLite 驱动。');
+        }
+
+        const connection = await bus.invoke('sql.open', {
+            driver: 'sqlite',
+            url
+        });
+        setResult(elements.sqlResult, `SQLite 连接已建立：${connection.connectionId}`);
+
+        try {
+            await bus.invoke('sql.execute', {
+                connectionId: connection.connectionId,
+                statement: [
+                    'CREATE TABLE IF NOT EXISTS showcase_notes (',
+                    'id INTEGER PRIMARY KEY AUTOINCREMENT,',
+                    'body TEXT NOT NULL,',
+                    'created_at TEXT NOT NULL',
+                    ')'
+                ].join(' ')
+            });
+            const inserted = await bus.invoke('sql.execute', {
+                connectionId: connection.connectionId,
+                statement: 'INSERT INTO showcase_notes (body, created_at) VALUES (?, ?)',
+                params: [note, new Date().toISOString()]
+            });
+            const queried = await bus.invoke('sql.query', {
+                connectionId: connection.connectionId,
+                statement: [
+                    'SELECT id, body, created_at',
+                    'FROM showcase_notes',
+                    'ORDER BY id DESC',
+                    'LIMIT 8'
+                ].join(' ')
+            });
+
+            const result = {
+                drivers: available.drivers,
+                inserted,
+                database: url,
+                columns: queried.columns,
+                rows: queried.rows
+            };
+            setResult(elements.sqlResult, result);
+            return result;
+        } finally {
+            const closed = await bus.invoke('sql.close', {
+                connectionId: connection.connectionId
+            });
+            if (!closed.closed) {
+                addActivity('SQLite 连接没有正常关闭。', 'error');
+            }
+        }
+    }
+
+    async function runSqlRoundtrip() {
+        const note = elements.sqlNote.value.trim();
+        if (!note) {
+            throw new BridgeError('INVALID_ARGS', '先输入要写入的示例记录。');
+        }
+        const result = await runSqliteSample(SAMPLE_DATABASE_PATH, note);
+        addActivity(`SQLite 已写入 1 条记录，并读回 ${result.rows.length} 条。`);
     }
 
     async function showDialog(command) {
@@ -678,6 +763,7 @@
     bind(elements.dialogConfirm, () => showDialog('dialog.confirm'));
     bind(elements.dialogOpen, openPickedFile);
     bind(elements.dialogSave, savePickedFile);
+    bind(elements.sqlRun, runSqlRoundtrip);
     bind(elements.clipboardWrite, writeClipboard);
     bind(elements.clipboardRead, readClipboard);
     bind(elements.notificationPermission, requestNotificationPermission);
@@ -704,6 +790,10 @@
             const result = await requireBridge().invoke('ping', {});
             if (result.pong !== true) {
                 throw new Error('Ping returned an unexpected result.');
+            }
+            const sql = await runSqliteSample(':memory:', 'smoke');
+            if (sql.rows[0]?.body !== 'smoke') {
+                throw new Error('The SQLite roundtrip returned an unexpected row.');
             }
             await requireBridge().invoke('app.exit', {});
         } catch (error) {

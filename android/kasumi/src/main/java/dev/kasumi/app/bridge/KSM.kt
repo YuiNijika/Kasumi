@@ -167,7 +167,9 @@ object KSM {
             platform = KSMPlatform.ANDROID,
             commands = router?.supportedCommands
                 ?: KSMCommandRegistry.supportedCommands,
-            permissions = KSMCommandRegistry.permissions
+            permissions = KSMCommandRegistry.permissions,
+            plugins = router?.supportedPlugins
+                ?: KSMGeneratedContract.plugins
         )
     }
 
@@ -182,10 +184,16 @@ object KSM {
                 List(values.length()) { index -> values.getString(index) }
             }
             .orEmpty()
+        val plugins = data.optJSONArray("plugins")
+            ?.let { values ->
+                List(values.length()) { index -> values.getString(index) }
+            }
+            .orEmpty()
         return KSMCapabilities(
             platform = KSMPlatform.ANDROID,
             commands = commands,
-            permissions = permissions
+            permissions = permissions,
+            plugins = plugins
         )
     }
 }

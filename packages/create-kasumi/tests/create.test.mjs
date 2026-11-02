@@ -288,7 +288,11 @@ test('initializes a source-only project without framework source', async () => {
     );
     assert.equal(vcpkg['version-string'], kasumiVersion);
     assert.match(vcpkg['builtin-baseline'], /^[a-f0-9]{40}$/);
-    assert.deepEqual(vcpkg.dependencies, ['nlohmann-json', 'webview2']);
+    assert.deepEqual(vcpkg.dependencies, [
+      'nlohmann-json',
+      'sqlite3',
+      'webview2'
+    ]);
     const files = await collectFiles(destination);
     for (const file of files) {
       if (path.extname(file).toLowerCase() === '.jar') {

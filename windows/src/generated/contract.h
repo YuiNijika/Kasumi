@@ -342,6 +342,109 @@ inline const Json& ArgSchemas() {
     ],
     "additionalProperties": false
   },
+  "sql.drivers": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "sql.open": {
+    "type": "object",
+    "properties": {
+      "driver": {
+        "type": "string",
+        "enum": [
+          "sqlite",
+          "mysql",
+          "postgres",
+          "mongodb"
+        ]
+      },
+      "url": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 4096
+      }
+    },
+    "required": [
+      "driver",
+      "url"
+    ],
+    "additionalProperties": false
+  },
+  "sql.query": {
+    "type": "object",
+    "properties": {
+      "connectionId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "statement": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 1048576
+      },
+      "params": {
+        "type": "array",
+        "items": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "required": [
+      "connectionId",
+      "statement"
+    ],
+    "additionalProperties": false
+  },
+  "sql.execute": {
+    "type": "object",
+    "properties": {
+      "connectionId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "statement": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 1048576
+      },
+      "params": {
+        "type": "array",
+        "items": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "required": [
+      "connectionId",
+      "statement"
+    ],
+    "additionalProperties": false
+  },
+  "sql.close": {
+    "type": "object",
+    "properties": {
+      "connectionId": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "connectionId"
+    ],
+    "additionalProperties": false
+  },
   "app.exit": {
     "type": "object",
     "properties": {},
@@ -444,26 +547,29 @@ public:
     static const std::vector<std::string>& AndroidCommands();
     static const std::vector<std::string>& Events();
     static const std::vector<std::string>& Permissions();
+    static const std::vector<std::string>& Plugins();
+    static const nlohmann::json& PluginCommands();
+    static const nlohmann::json& CommandPermissions();
     static bool ValidateArgs(const std::string& command, const nlohmann::json& args);
 };
 
 inline const std::vector<std::string>& KSMGeneratedContract::Commands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "http.download", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "app.exit"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::WindowsCommands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "http.download", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "app.exit"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::AndroidCommands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.close", "shell.openExternal", "http.download", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.close", "shell.openExternal", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "app.exit"
     };
     return values;
 }
@@ -477,9 +583,176 @@ inline const std::vector<std::string>& KSMGeneratedContract::Events() {
 
 inline const std::vector<std::string>& KSMGeneratedContract::Permissions() {
     static const std::vector<std::string> values = {
-        "fs.read", "fs.write", "fs.remove", "dialog", "clipboard.read", "clipboard.write", "notification.show", "window.control", "http.download", "shell.open", "device.info"
+        "fs.read", "fs.write", "fs.remove", "dialog", "clipboard.read", "clipboard.write", "notification.show", "window.control", "http.download", "shell.open", "device.info", "sql"
     };
     return values;
+}
+
+inline const std::vector<std::string>& KSMGeneratedContract::Plugins() {
+    static const std::vector<std::string> values = {
+        "core", "fs", "dialog", "clipboard", "notification", "window", "http", "shell", "device", "sql"
+    };
+    return values;
+}
+
+inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {
+    static const nlohmann::json value = nlohmann::json::parse(
+        R"KSMPLUGINS({
+  "core": [
+    "ping",
+    "capabilities.query",
+    "app.getInfo",
+    "app.exit",
+    "permission.request",
+    "event.subscribe",
+    "event.unsubscribe"
+  ],
+  "fs": [
+    "fs.readText",
+    "fs.writeText",
+    "fs.exists",
+    "fs.remove",
+    "fs.readDir",
+    "fs.mkdir",
+    "fs.stat"
+  ],
+  "dialog": [
+    "dialog.message",
+    "dialog.confirm",
+    "dialog.openFile",
+    "dialog.saveFile"
+  ],
+  "clipboard": [
+    "clipboard.readText",
+    "clipboard.writeText"
+  ],
+  "notification": [
+    "notification.show"
+  ],
+  "window": [
+    "window.setTitle",
+    "window.minimize",
+    "window.maximize",
+    "window.setSize",
+    "window.close"
+  ],
+  "http": [
+    "http.download"
+  ],
+  "shell": [
+    "shell.openExternal"
+  ],
+  "device": [
+    "device.getInfo"
+  ],
+  "sql": [
+    "sql.drivers",
+    "sql.open",
+    "sql.query",
+    "sql.execute",
+    "sql.close"
+  ]
+})KSMPLUGINS"
+    );
+    return value;
+}
+
+inline const nlohmann::json& KSMGeneratedContract::CommandPermissions() {
+    static const nlohmann::json value = nlohmann::json::parse(
+        R"KSMPERMISSIONS({
+  "ping": [],
+  "capabilities.query": [],
+  "app.getInfo": [],
+  "device.getInfo": [
+    "device.info"
+  ],
+  "fs.readText": [
+    "fs.read"
+  ],
+  "fs.writeText": [
+    "fs.write"
+  ],
+  "fs.exists": [
+    "fs.read"
+  ],
+  "fs.remove": [
+    "fs.remove"
+  ],
+  "fs.readDir": [
+    "fs.read"
+  ],
+  "fs.mkdir": [
+    "fs.write"
+  ],
+  "fs.stat": [
+    "fs.read"
+  ],
+  "dialog.message": [
+    "dialog"
+  ],
+  "dialog.confirm": [
+    "dialog"
+  ],
+  "dialog.openFile": [
+    "dialog"
+  ],
+  "dialog.saveFile": [
+    "dialog"
+  ],
+  "clipboard.readText": [
+    "clipboard.read"
+  ],
+  "clipboard.writeText": [
+    "clipboard.write"
+  ],
+  "notification.show": [
+    "notification.show"
+  ],
+  "permission.request": [],
+  "event.subscribe": [],
+  "event.unsubscribe": [],
+  "window.setTitle": [
+    "window.control"
+  ],
+  "window.minimize": [
+    "window.control"
+  ],
+  "window.maximize": [
+    "window.control"
+  ],
+  "window.setSize": [
+    "window.control"
+  ],
+  "window.close": [
+    "window.control"
+  ],
+  "shell.openExternal": [
+    "shell.open"
+  ],
+  "http.download": [
+    "http.download"
+  ],
+  "sql.drivers": [
+    "sql"
+  ],
+  "sql.open": [
+    "sql"
+  ],
+  "sql.query": [
+    "sql"
+  ],
+  "sql.execute": [
+    "sql"
+  ],
+  "sql.close": [
+    "sql"
+  ],
+  "app.exit": [
+    "window.control"
+  ]
+})KSMPERMISSIONS"
+    );
+    return value;
 }
 
 inline bool KSMGeneratedContract::ValidateArgs(

@@ -8,6 +8,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = ROOT / "protocol"
+PLUGINS = PROTOCOL / "plugins.json"
 ALLOWED_PLATFORMS = {"windows", "android"}
 REQUIRED_COMMAND_FIELDS = {"args", "result", "permissions", "platforms", "since"}
 REQUIRED_EVENT_FIELDS = {"payload", "platforms", "since"}
@@ -139,7 +140,52 @@ def validate_object_schema(schema: Any, label: str) -> None:
         raise ValueError(f"{label} must declare required fields.")
 
 
-def validate_contract(contract: Any, permissions: Any, errors: Any) -> None:
+def validate_plugins(plugins: Any, commands: dict[str, Any]) -> None:
+    plugins = require_object(plugins, "plugins.json")
+    if set(plugins) != {"plugins"}:
+        raise ValueError("plugins.json must contain only plugins.")
+    definitions = require_object(plugins["plugins"], "plugins")
+    assigned: dict[str, str] = {}
+    for name, definition in definitions.items():
+        if not isinstance(name, str) or not NAME_PATTERN.fullmatch(name):
+            raise ValueError(f"Invalid plugin name: {name}")
+        definition = require_object(definition, f"plugins.{name}")
+        if set(definition) != {"name", "version", "description", "commands"}:
+            raise ValueError(
+                f"Plugin {name} must declare name, version, description and commands."
+            )
+        for field in ("name", "description"):
+            if not isinstance(definition[field], str) or not definition[field]:
+                raise ValueError(f"Plugin {name}.{field} must be a non-empty string.")
+        version = definition["version"]
+        if not isinstance(version, str) or not VERSION_PATTERN.fullmatch(version):
+            raise ValueError(f"Plugin {name}.version must use semantic versioning.")
+        plugin_commands = validate_string_list(
+            definition["commands"],
+            f"plugins.{name}.commands",
+        )
+        for command in plugin_commands:
+            if command not in commands:
+                raise ValueError(f"Plugin {name} references unknown command {command}.")
+            owner = assigned.get(command)
+            if owner is not None:
+                raise ValueError(
+                    f"Command {command} belongs to both {owner} and {name}."
+                )
+            assigned[command] = name
+    unassigned = set(commands) - set(assigned)
+    if unassigned:
+        raise ValueError(
+            "Every command must belong to a plugin: " + ", ".join(sorted(unassigned))
+        )
+
+
+def validate_contract(
+    contract: Any,
+    permissions: Any,
+    errors: Any,
+    plugins: Any,
+) -> None:
     contract = require_object(contract, "commands.json")
     if set(contract) != {"commands", "events"}:
         raise ValueError("commands.json must contain only commands and events.")
@@ -219,6 +265,8 @@ def validate_contract(contract: Any, permissions: Any, errors: Any) -> None:
         ):
             raise ValueError(f"{name}.since must use semantic versioning.")
 
+    validate_plugins(plugins, commands)
+
     errors = require_object(errors, "errors.json")
     if set(errors) != REQUIRED_ERROR_CODES:
         raise ValueError("errors.json must contain the complete standard error set.")
@@ -231,6 +279,7 @@ def validate() -> None:
         load_json(PROTOCOL / "commands.json"),
         load_json(PROTOCOL / "permissions.schema.json"),
         load_json(PROTOCOL / "errors.json"),
+        load_json(PLUGINS),
     )
 
 

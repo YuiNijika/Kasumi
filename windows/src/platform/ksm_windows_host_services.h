@@ -26,6 +26,7 @@ public:
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
         std::string app_version = KASUMI_VERSION_STRING
     );
+    ~KSMWindowsHostServices() override;
 
     std::string AppVersion() const override;
     std::string Language() const override;

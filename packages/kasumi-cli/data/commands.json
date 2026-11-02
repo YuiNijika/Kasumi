@@ -27,6 +27,11 @@
     "window.close",
     "shell.openExternal",
     "http.download",
+    "sql.drivers",
+    "sql.open",
+    "sql.query",
+    "sql.execute",
+    "sql.close",
     "app.exit"
   ],
   "android": [
@@ -54,6 +59,11 @@
     "window.close",
     "shell.openExternal",
     "http.download",
+    "sql.drivers",
+    "sql.open",
+    "sql.query",
+    "sql.execute",
+    "sql.close",
     "app.exit"
   ]
 }

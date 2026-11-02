@@ -181,6 +181,79 @@ class ContractTest {
         }
     }
 
+    private class EchoPlugin : KSMPlugin {
+        override val id: String = "contract.echo"
+        override val commands: Set<String> = setOf("contract.echo")
+        override val permissions: Set<String> = setOf("contract.echo")
+
+        override fun validateArgs(command: String, args: JSONObject): Boolean {
+            return command == "contract.echo" &&
+                args.opt("value") is String
+        }
+
+        override fun handle(
+            command: String,
+            args: JSONObject,
+            context: KSMPluginContext
+        ): Any {
+            if (
+                command != "contract.echo" ||
+                !context.hasPermission("contract.echo")
+            ) {
+                throw KSMHostException(
+                    "PERMISSION_DENIED",
+                    "The custom plugin was not authorized."
+                )
+            }
+            return JSONObject().put("value", args.getString("value"))
+        }
+    }
+
+    private class ReplacementFileSystemPlugin : KSMPlugin {
+        override val id: String = "fs"
+        override val commands: Set<String> = setOf(
+            "fs.readText",
+            "fs.writeText",
+            "fs.exists",
+            "fs.remove",
+            "fs.readDir",
+            "fs.mkdir",
+            "fs.stat"
+        )
+        override val permissions: Set<String> = setOf(
+            "fs.read",
+            "fs.write",
+            "fs.remove"
+        )
+
+        override fun handle(
+            command: String,
+            args: JSONObject,
+            context: KSMPluginContext
+        ): Any {
+            if (command == "fs.exists") {
+                return JSONObject().put("exists", true)
+            }
+            throw KSMHostException(
+                "NOT_SUPPORTED",
+                "The replacement filesystem only supports fs.exists."
+            )
+        }
+    }
+
+    private class GeneratedCommandHijackPlugin : KSMPlugin {
+        override val id: String = "contract.hijack"
+        override val commands: Set<String> = setOf("fs.exists")
+
+        override fun handle(
+            command: String,
+            args: JSONObject,
+            context: KSMPluginContext
+        ): Any {
+            return JSONObject().put("exists", false)
+        }
+    }
+
     private fun invoke(router: KSMRouter, command: String, args: JSONObject): JSONObject {
         val request = JSONObject()
             .put("type", "request")
@@ -636,6 +709,83 @@ class ContractTest {
             }
         } finally {
             KSM.shutdown()
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun pluginRules() {
+        val root = Files.createTempDirectory("kasumi-plugin-rules").toFile()
+        val fileSystem = KSMFileSystem(
+            File(root, "data"),
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        try {
+            val replacement = KSMRouter(
+                fileSystem,
+                null,
+                plugins = listOf(ReplacementFileSystemPlugin())
+            )
+            val exists = invoke(
+                replacement,
+                "fs.exists",
+                JSONObject().put("path", "app://data/plugin.txt")
+            )
+            assertTrue(exists.getBoolean("ok"))
+            assertTrue(exists.getJSONObject("data").getBoolean("exists"))
+
+            assertThrows(IllegalArgumentException::class.java) {
+                KSMRouter(
+                    fileSystem,
+                    null,
+                    plugins = listOf(GeneratedCommandHijackPlugin())
+                )
+            }
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun customPlugin() {
+        val root = Files.createTempDirectory("kasumi-plugin").toFile()
+        val fileSystem = KSMFileSystem(
+            File(root, "data"),
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        val router = KSMRouter(
+            fileSystem,
+            null,
+            plugins = listOf(EchoPlugin())
+        )
+        try {
+            val echoed = invoke(
+                router,
+                "contract.echo",
+                JSONObject().put("value", "plugin")
+            )
+            assertTrue(echoed.getBoolean("ok"))
+            assertEquals(
+                "plugin",
+                echoed.getJSONObject("data").getString("value")
+            )
+
+            val capabilities = invoke(
+                router,
+                "capabilities.query",
+                JSONObject()
+            )
+            val plugins = capabilities.getJSONObject("data")
+                .getJSONArray("plugins")
+                .let { values ->
+                    List(values.length()) { index ->
+                        values.getString(index)
+                    }
+                }
+            assertTrue(plugins.contains("contract.echo"))
+        } finally {
             root.deleteRecursively()
         }
     }

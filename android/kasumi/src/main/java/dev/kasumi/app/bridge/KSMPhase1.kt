@@ -7,7 +7,8 @@ enum class KSMPlatform {
 data class KSMCapabilities(
     val platform: KSMPlatform,
     val commands: List<String>,
-    val permissions: List<String>
+    val permissions: List<String>,
+    val plugins: List<String> = emptyList()
 )
 
 data class KSMAppInfo(
@@ -39,4 +40,14 @@ data class KSMDeviceInfo(
     val deviceName: String,
     val timezone: String,
     val architecture: String
+)
+
+data class KSMSqlQueryResult(
+    val columns: List<String>,
+    val rows: List<List<Any?>>
+)
+
+data class KSMSqlExecuteResult(
+    val rowsAffected: Long,
+    val lastInsertId: Long?
 )

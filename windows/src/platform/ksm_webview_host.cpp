@@ -41,14 +41,16 @@ KSMWebViewHost::KSMWebViewHost(
     std::shared_ptr<KSMHostServices> host_services,
     Dispatch dispatch,
     std::vector<std::string> allowed_commands,
-    bool allow_development_origin
+    bool allow_development_origin,
+    std::vector<std::shared_ptr<KSMPlugin>> plugins
 )
     : send_message_(std::move(send_message)),
       dispatch_(std::move(dispatch)),
       router_(
           std::move(file_system),
           std::move(host_services),
-          std::move(allowed_commands)
+          std::move(allowed_commands),
+          std::move(plugins)
       ),
       allow_development_origin_(allow_development_origin) {
     for (std::size_t index = 0; index < kMaxConcurrentCommands; ++index) {

@@ -10,6 +10,10 @@ import {
   assertBoolean,
   assertHttpUrl,
   assertPositiveInteger,
+  assertSqlConnectionId,
+  assertSqlDriver,
+  assertSqlParams,
+  assertSqlStatement,
   assertString,
   assertVirtualDirectoryPath,
   assertVirtualPath,
@@ -31,6 +35,9 @@ import type {
   KSMNotificationApi,
   KSMPermissionApi,
   KSMShellApi,
+  KSMSqlApi,
+  KSMSqlDriver,
+  KSMSqlValue,
   KSMTransport,
   KSMWindowApi,
   KSMWindowSize
@@ -119,6 +126,36 @@ export class KSM {
   };
   public static readonly device: KSMDeviceApi = {
     getInfo: (): Promise<KSMDeviceInfo> => KSM.invoke('device.getInfo', {})
+  };
+  public static readonly sql: KSMSqlApi = {
+    drivers: (): Promise<{ drivers: KSMSqlDriver[] }> => KSM.invoke('sql.drivers', {}),
+    open: (args): Promise<{ connectionId: string }> => {
+      assertSqlDriver(args.driver);
+      if (typeof args.url !== 'string' || args.url.length === 0) {
+        throw new TypeError('url must be a non-empty string.');
+      }
+      return KSM.invoke('sql.open', args);
+    },
+    query: (args): Promise<{ columns: string[]; rows: Array<Record<string, KSMSqlValue>> }> => {
+      assertSqlConnectionId(args.connectionId);
+      assertSqlStatement(args.statement);
+      if (args.params !== undefined) {
+        assertSqlParams(args.params);
+      }
+      return KSM.invoke('sql.query', args);
+    },
+    execute: (args): Promise<{ rowsAffected: number; lastInsertId: number | null }> => {
+      assertSqlConnectionId(args.connectionId);
+      assertSqlStatement(args.statement);
+      if (args.params !== undefined) {
+        assertSqlParams(args.params);
+      }
+      return KSM.invoke('sql.execute', args);
+    },
+    close: (args): Promise<{ closed: boolean }> => {
+      assertSqlConnectionId(args.connectionId);
+      return KSM.invoke('sql.close', args);
+    }
   };
   public static readonly window: KSMWindowApi = {
     setTitle: (title): Promise<{ updated: boolean }> => KSM.invoke('window.setTitle', { title }),

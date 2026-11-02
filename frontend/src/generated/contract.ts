@@ -27,6 +27,11 @@ export const KSM_COMMANDS = [
   "window.close",
   "shell.openExternal",
   "http.download",
+  "sql.drivers",
+  "sql.open",
+  "sql.query",
+  "sql.execute",
+  "sql.close",
   "app.exit"
 ] as const;
 export const KSM_WINDOWS_COMMANDS = [
@@ -57,6 +62,11 @@ export const KSM_WINDOWS_COMMANDS = [
   "window.close",
   "shell.openExternal",
   "http.download",
+  "sql.drivers",
+  "sql.open",
+  "sql.query",
+  "sql.execute",
+  "sql.close",
   "app.exit"
 ] as const;
 export const KSM_ANDROID_COMMANDS = [
@@ -84,6 +94,11 @@ export const KSM_ANDROID_COMMANDS = [
   "window.close",
   "shell.openExternal",
   "http.download",
+  "sql.drivers",
+  "sql.open",
+  "sql.query",
+  "sql.execute",
+  "sql.close",
   "app.exit"
 ] as const;
 export const KSM_EVENTS = [
@@ -101,7 +116,8 @@ export const KSM_PERMISSIONS = [
   "window.control",
   "http.download",
   "shell.open",
-  "device.info"
+  "device.info",
+  "sql"
 ] as const;
 export const KSM_ERROR_CODES = [
   "INVALID_ARGS",
@@ -115,10 +131,207 @@ export const KSM_ERROR_CODES = [
   "BUSY",
   "INTERNAL_ERROR"
 ] as const;
+export const KSM_PLUGINS = [
+  "core",
+  "fs",
+  "dialog",
+  "clipboard",
+  "notification",
+  "window",
+  "http",
+  "shell",
+  "device",
+  "sql"
+] as const;
+export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = {
+  "core": [
+    "ping",
+    "capabilities.query",
+    "app.getInfo",
+    "app.exit",
+    "permission.request",
+    "event.subscribe",
+    "event.unsubscribe"
+  ],
+  "fs": [
+    "fs.readText",
+    "fs.writeText",
+    "fs.exists",
+    "fs.remove",
+    "fs.readDir",
+    "fs.mkdir",
+    "fs.stat"
+  ],
+  "dialog": [
+    "dialog.message",
+    "dialog.confirm",
+    "dialog.openFile",
+    "dialog.saveFile"
+  ],
+  "clipboard": [
+    "clipboard.readText",
+    "clipboard.writeText"
+  ],
+  "notification": [
+    "notification.show"
+  ],
+  "window": [
+    "window.setTitle",
+    "window.minimize",
+    "window.maximize",
+    "window.setSize",
+    "window.close"
+  ],
+  "http": [
+    "http.download"
+  ],
+  "shell": [
+    "shell.openExternal"
+  ],
+  "device": [
+    "device.getInfo"
+  ],
+  "sql": [
+    "sql.drivers",
+    "sql.open",
+    "sql.query",
+    "sql.execute",
+    "sql.close"
+  ]
+};
+export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {
+  "ping": "core",
+  "capabilities.query": "core",
+  "app.getInfo": "core",
+  "app.exit": "core",
+  "permission.request": "core",
+  "event.subscribe": "core",
+  "event.unsubscribe": "core",
+  "fs.readText": "fs",
+  "fs.writeText": "fs",
+  "fs.exists": "fs",
+  "fs.remove": "fs",
+  "fs.readDir": "fs",
+  "fs.mkdir": "fs",
+  "fs.stat": "fs",
+  "dialog.message": "dialog",
+  "dialog.confirm": "dialog",
+  "dialog.openFile": "dialog",
+  "dialog.saveFile": "dialog",
+  "clipboard.readText": "clipboard",
+  "clipboard.writeText": "clipboard",
+  "notification.show": "notification",
+  "window.setTitle": "window",
+  "window.minimize": "window",
+  "window.maximize": "window",
+  "window.setSize": "window",
+  "window.close": "window",
+  "http.download": "http",
+  "shell.openExternal": "shell",
+  "device.getInfo": "device",
+  "sql.drivers": "sql",
+  "sql.open": "sql",
+  "sql.query": "sql",
+  "sql.execute": "sql",
+  "sql.close": "sql"
+};
+export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
+  "ping": [],
+  "capabilities.query": [],
+  "app.getInfo": [],
+  "device.getInfo": [
+    "device.info"
+  ],
+  "fs.readText": [
+    "fs.read"
+  ],
+  "fs.writeText": [
+    "fs.write"
+  ],
+  "fs.exists": [
+    "fs.read"
+  ],
+  "fs.remove": [
+    "fs.remove"
+  ],
+  "fs.readDir": [
+    "fs.read"
+  ],
+  "fs.mkdir": [
+    "fs.write"
+  ],
+  "fs.stat": [
+    "fs.read"
+  ],
+  "dialog.message": [
+    "dialog"
+  ],
+  "dialog.confirm": [
+    "dialog"
+  ],
+  "dialog.openFile": [
+    "dialog"
+  ],
+  "dialog.saveFile": [
+    "dialog"
+  ],
+  "clipboard.readText": [
+    "clipboard.read"
+  ],
+  "clipboard.writeText": [
+    "clipboard.write"
+  ],
+  "notification.show": [
+    "notification.show"
+  ],
+  "permission.request": [],
+  "event.subscribe": [],
+  "event.unsubscribe": [],
+  "window.setTitle": [
+    "window.control"
+  ],
+  "window.minimize": [
+    "window.control"
+  ],
+  "window.maximize": [
+    "window.control"
+  ],
+  "window.setSize": [
+    "window.control"
+  ],
+  "window.close": [
+    "window.control"
+  ],
+  "shell.openExternal": [
+    "shell.open"
+  ],
+  "http.download": [
+    "http.download"
+  ],
+  "sql.drivers": [
+    "sql"
+  ],
+  "sql.open": [
+    "sql"
+  ],
+  "sql.query": [
+    "sql"
+  ],
+  "sql.execute": [
+    "sql"
+  ],
+  "sql.close": [
+    "sql"
+  ],
+  "app.exit": [
+    "window.control"
+  ]
+};
 
 export type KSMCommandName = (typeof KSM_COMMANDS)[number];
 export type KSMEventName = (typeof KSM_EVENTS)[number];
 export type KSMPermission = (typeof KSM_PERMISSIONS)[number];
+export type KSMPluginName = (typeof KSM_PLUGINS)[number];
 
 interface KSMValueSchema {
   type?: string | readonly string[];
@@ -461,6 +674,109 @@ const KSM_ARG_SCHEMAS: Readonly<Record<string, KSMValueSchema>> = {
     "required": [
       "url",
       "path"
+    ],
+    "additionalProperties": false
+  },
+  "sql.drivers": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "sql.open": {
+    "type": "object",
+    "properties": {
+      "driver": {
+        "type": "string",
+        "enum": [
+          "sqlite",
+          "mysql",
+          "postgres",
+          "mongodb"
+        ]
+      },
+      "url": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 4096
+      }
+    },
+    "required": [
+      "driver",
+      "url"
+    ],
+    "additionalProperties": false
+  },
+  "sql.query": {
+    "type": "object",
+    "properties": {
+      "connectionId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "statement": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 1048576
+      },
+      "params": {
+        "type": "array",
+        "items": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "required": [
+      "connectionId",
+      "statement"
+    ],
+    "additionalProperties": false
+  },
+  "sql.execute": {
+    "type": "object",
+    "properties": {
+      "connectionId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "statement": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 1048576
+      },
+      "params": {
+        "type": "array",
+        "items": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "required": [
+      "connectionId",
+      "statement"
+    ],
+    "additionalProperties": false
+  },
+  "sql.close": {
+    "type": "object",
+    "properties": {
+      "connectionId": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "connectionId"
     ],
     "additionalProperties": false
   },

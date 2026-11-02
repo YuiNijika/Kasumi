@@ -37,7 +37,8 @@ class KSMWebViewHost(
     allowedCommands: Collection<String> = emptyList(),
     private val debug: Boolean = false,
     private val onNativeEvent: ((String) -> Unit)? = null,
-    private val fullscreen: Boolean = true
+    private val fullscreen: Boolean = true,
+    plugins: Collection<KSMPlugin> = emptyList()
 ) : Closeable {
     private class ActiveCommand {
         private val cancelled = AtomicBoolean(false)
@@ -73,11 +74,13 @@ class KSMWebViewHost(
     private val router = KSMRouter(
         fileSystem,
         hostServices,
-        allowedCommands = allowedCommands
-    ) { event ->
-        dispatchNativeEvent(event)
-        dispatchWebEvent(event)
-    }
+        allowedCommands = allowedCommands,
+        eventSender = { event ->
+            dispatchNativeEvent(event)
+            dispatchWebEvent(event)
+        },
+        plugins = plugins
+    )
     private val commandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val activeRequests = ConcurrentHashMap<String, ActiveCommand>()
     private val commandSlots = Semaphore(MAX_CONCURRENT_COMMANDS)

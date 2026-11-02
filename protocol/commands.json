@@ -31,9 +31,10 @@
         "properties": {
           "platform": {"type": "string", "enum": ["windows", "android"]},
           "commands": {"type": "array", "items": {"type": "string"}},
-          "permissions": {"type": "array", "items": {"type": "string"}}
+          "permissions": {"type": "array", "items": {"type": "string"}},
+          "plugins": {"type": "array", "items": {"type": "string"}}
         },
-        "required": ["platform", "commands", "permissions"],
+        "required": ["platform", "commands", "permissions", "plugins"],
         "additionalProperties": false
       },
       "permissions": [],
@@ -625,6 +626,134 @@
       "permissions": ["http.download"],
       "platforms": ["windows", "android"],
       "since": "1.1.0"
+    },
+    "sql.drivers": {
+      "args": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "drivers": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["drivers"],
+        "additionalProperties": false
+      },
+      "permissions": ["sql"],
+      "platforms": ["windows", "android"],
+      "since": "1.2.0"
+    },
+    "sql.open": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "driver": {"type": "string", "enum": ["sqlite", "mysql", "postgres", "mongodb"]},
+          "url": {"type": "string", "minLength": 1, "maxBytes": 4096}
+        },
+        "required": ["driver", "url"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "connectionId": {"type": "string"}
+        },
+        "required": ["connectionId"],
+        "additionalProperties": false
+      },
+      "permissions": ["sql"],
+      "platforms": ["windows", "android"],
+      "since": "1.2.0"
+    },
+    "sql.query": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "connectionId": {"type": "string", "minLength": 1},
+          "statement": {"type": "string", "minLength": 1, "maxBytes": 1048576},
+          "params": {
+            "type": "array",
+            "items": {
+              "type": ["string", "number", "boolean", "null"]
+            }
+          }
+        },
+        "required": ["connectionId", "statement"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "columns": {"type": "array", "items": {"type": "string"}},
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": ["columns", "rows"],
+        "additionalProperties": false
+      },
+      "permissions": ["sql"],
+      "platforms": ["windows", "android"],
+      "since": "1.2.0"
+    },
+    "sql.execute": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "connectionId": {"type": "string", "minLength": 1},
+          "statement": {"type": "string", "minLength": 1, "maxBytes": 1048576},
+          "params": {
+            "type": "array",
+            "items": {
+              "type": ["string", "number", "boolean", "null"]
+            }
+          }
+        },
+        "required": ["connectionId", "statement"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "rowsAffected": {"type": "number"},
+          "lastInsertId": {"type": ["number", "null"]}
+        },
+        "required": ["rowsAffected", "lastInsertId"],
+        "additionalProperties": false
+      },
+      "permissions": ["sql"],
+      "platforms": ["windows", "android"],
+      "since": "1.2.0"
+    },
+    "sql.close": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "connectionId": {"type": "string", "minLength": 1}
+        },
+        "required": ["connectionId"],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "closed": {"type": "boolean"}
+        },
+        "required": ["closed"],
+        "additionalProperties": false
+      },
+      "permissions": ["sql"],
+      "platforms": ["windows", "android"],
+      "since": "1.2.0"
     },
     "app.exit": {
       "args": {

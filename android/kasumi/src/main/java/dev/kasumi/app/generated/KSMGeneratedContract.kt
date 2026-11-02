@@ -33,6 +33,11 @@ object KSMGeneratedContract {
         "window.close",
         "shell.openExternal",
         "http.download",
+        "sql.drivers",
+        "sql.open",
+        "sql.query",
+        "sql.execute",
+        "sql.close",
         "app.exit"
     )
 
@@ -64,6 +69,11 @@ object KSMGeneratedContract {
         "window.close",
         "shell.openExternal",
         "http.download",
+        "sql.drivers",
+        "sql.open",
+        "sql.query",
+        "sql.execute",
+        "sql.close",
         "app.exit"
     )
 
@@ -92,6 +102,11 @@ object KSMGeneratedContract {
         "window.close",
         "shell.openExternal",
         "http.download",
+        "sql.drivers",
+        "sql.open",
+        "sql.query",
+        "sql.execute",
+        "sql.close",
         "app.exit"
     )
 
@@ -111,7 +126,171 @@ object KSMGeneratedContract {
         "window.control",
         "http.download",
         "shell.open",
-        "device.info"
+        "device.info",
+        "sql"
+    )
+
+    val plugins: List<String> = listOf(
+        "core",
+        "fs",
+        "dialog",
+        "clipboard",
+        "notification",
+        "window",
+        "http",
+        "shell",
+        "device",
+        "sql"
+    )
+
+    val pluginCommands: Map<String, List<String>> = mapOf(
+        "core" to listOf(
+            "ping",
+            "capabilities.query",
+            "app.getInfo",
+            "app.exit",
+            "permission.request",
+            "event.subscribe",
+            "event.unsubscribe"
+        ),
+        "fs" to listOf(
+            "fs.readText",
+            "fs.writeText",
+            "fs.exists",
+            "fs.remove",
+            "fs.readDir",
+            "fs.mkdir",
+            "fs.stat"
+        ),
+        "dialog" to listOf(
+            "dialog.message",
+            "dialog.confirm",
+            "dialog.openFile",
+            "dialog.saveFile"
+        ),
+        "clipboard" to listOf(
+            "clipboard.readText",
+            "clipboard.writeText"
+        ),
+        "notification" to listOf(
+            "notification.show"
+        ),
+        "window" to listOf(
+            "window.setTitle",
+            "window.minimize",
+            "window.maximize",
+            "window.setSize",
+            "window.close"
+        ),
+        "http" to listOf(
+            "http.download"
+        ),
+        "shell" to listOf(
+            "shell.openExternal"
+        ),
+        "device" to listOf(
+            "device.getInfo"
+        ),
+        "sql" to listOf(
+            "sql.drivers",
+            "sql.open",
+            "sql.query",
+            "sql.execute",
+            "sql.close"
+        )
+    )
+
+    val commandPermissions: Map<String, List<String>> = mapOf(
+        "ping" to emptyList(),
+        "capabilities.query" to emptyList(),
+        "app.getInfo" to emptyList(),
+        "device.getInfo" to listOf(
+            "device.info"
+        ),
+        "fs.readText" to listOf(
+            "fs.read"
+        ),
+        "fs.writeText" to listOf(
+            "fs.write"
+        ),
+        "fs.exists" to listOf(
+            "fs.read"
+        ),
+        "fs.remove" to listOf(
+            "fs.remove"
+        ),
+        "fs.readDir" to listOf(
+            "fs.read"
+        ),
+        "fs.mkdir" to listOf(
+            "fs.write"
+        ),
+        "fs.stat" to listOf(
+            "fs.read"
+        ),
+        "dialog.message" to listOf(
+            "dialog"
+        ),
+        "dialog.confirm" to listOf(
+            "dialog"
+        ),
+        "dialog.openFile" to listOf(
+            "dialog"
+        ),
+        "dialog.saveFile" to listOf(
+            "dialog"
+        ),
+        "clipboard.readText" to listOf(
+            "clipboard.read"
+        ),
+        "clipboard.writeText" to listOf(
+            "clipboard.write"
+        ),
+        "notification.show" to listOf(
+            "notification.show"
+        ),
+        "permission.request" to emptyList(),
+        "event.subscribe" to emptyList(),
+        "event.unsubscribe" to emptyList(),
+        "window.setTitle" to listOf(
+            "window.control"
+        ),
+        "window.minimize" to listOf(
+            "window.control"
+        ),
+        "window.maximize" to listOf(
+            "window.control"
+        ),
+        "window.setSize" to listOf(
+            "window.control"
+        ),
+        "window.close" to listOf(
+            "window.control"
+        ),
+        "shell.openExternal" to listOf(
+            "shell.open"
+        ),
+        "http.download" to listOf(
+            "http.download"
+        ),
+        "sql.drivers" to listOf(
+            "sql"
+        ),
+        "sql.open" to listOf(
+            "sql"
+        ),
+        "sql.query" to listOf(
+            "sql"
+        ),
+        "sql.execute" to listOf(
+            "sql"
+        ),
+        "sql.close" to listOf(
+            "sql"
+        ),
+        "app.exit" to listOf(
+            "window.control"
+        )
     )
 
     private const val ARG_SCHEMAS_JSON = """{
@@ -443,6 +622,109 @@ object KSMGeneratedContract {
     "required": [
       "url",
       "path"
+    ],
+    "additionalProperties": false
+  },
+  "sql.drivers": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "sql.open": {
+    "type": "object",
+    "properties": {
+      "driver": {
+        "type": "string",
+        "enum": [
+          "sqlite",
+          "mysql",
+          "postgres",
+          "mongodb"
+        ]
+      },
+      "url": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 4096
+      }
+    },
+    "required": [
+      "driver",
+      "url"
+    ],
+    "additionalProperties": false
+  },
+  "sql.query": {
+    "type": "object",
+    "properties": {
+      "connectionId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "statement": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 1048576
+      },
+      "params": {
+        "type": "array",
+        "items": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "required": [
+      "connectionId",
+      "statement"
+    ],
+    "additionalProperties": false
+  },
+  "sql.execute": {
+    "type": "object",
+    "properties": {
+      "connectionId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "statement": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 1048576
+      },
+      "params": {
+        "type": "array",
+        "items": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "required": [
+      "connectionId",
+      "statement"
+    ],
+    "additionalProperties": false
+  },
+  "sql.close": {
+    "type": "object",
+    "properties": {
+      "connectionId": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "connectionId"
     ],
     "additionalProperties": false
   },

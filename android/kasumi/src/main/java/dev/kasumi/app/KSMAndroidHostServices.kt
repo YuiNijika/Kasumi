@@ -31,6 +31,11 @@ import dev.kasumi.app.bridge.KSMHostException
 import dev.kasumi.app.bridge.KSMHostServices
 import dev.kasumi.app.bridge.KSMHttpDownloadResult
 import dev.kasumi.app.bridge.KSMHttpPolicy
+import dev.kasumi.app.bridge.KSMSqlDriver
+import dev.kasumi.app.bridge.KSMSqlDriverRegistry
+import dev.kasumi.app.bridge.KSMSqlExecuteResult
+import dev.kasumi.app.bridge.KSMSqlQueryResult
+import dev.kasumi.app.bridge.KSMSqliteDriver
 import dev.kasumi.app.bridge.KSMVirtualPath
 import dev.kasumi.app.internal.KSMVersionMetadata
 import java.io.ByteArrayOutputStream
@@ -96,6 +101,9 @@ class KSMAndroidHostServices(
     private val pickedFiles = mutableMapOf<String, Uri>()
     private val allowedOrigins = KSMHttpPolicy.normalizeOrigins(allowedExternalOrigins)
     private val activeDownloads = ConcurrentHashMap<String, DownloadSession>()
+    private val sqlDriverRegistry = KSMSqlDriverRegistry().apply {
+        register(KSMSqliteDriver(fileSystem))
+    }
     private val downloadWatchdog = Executors.newSingleThreadScheduledExecutor { task ->
         Thread(task, "kasumi-download-watchdog").apply {
             isDaemon = true
@@ -612,6 +620,7 @@ class KSMAndroidHostServices(
         cancelAllDownloads()
         activeDownloads.clear()
         downloadWatchdog.shutdownNow()
+        sqlDriverRegistry.closeAll()
         synchronized(this) {
             pendingOpenFile?.latch?.countDown()
             pendingSaveFile?.latch?.countDown()
@@ -674,6 +683,38 @@ class KSMAndroidHostServices(
             timezone = TimeZone.getDefault().id,
             architecture = Build.SUPPORTED_ABIS.firstOrNull() ?: Build.CPU_ABI
         )
+    }
+
+    override fun registerSqlDriver(driver: KSMSqlDriver) {
+        sqlDriverRegistry.register(driver)
+    }
+
+    override fun sqlDrivers(): List<String> {
+        return sqlDriverRegistry.drivers()
+    }
+
+    override fun sqlOpen(driver: String, url: String): String? {
+        return sqlDriverRegistry.open(driver, url)
+    }
+
+    override fun sqlQuery(
+        connectionId: String,
+        statement: String,
+        params: List<Any?>
+    ): KSMSqlQueryResult {
+        return sqlDriverRegistry.query(connectionId, statement, params)
+    }
+
+    override fun sqlExecute(
+        connectionId: String,
+        statement: String,
+        params: List<Any?>
+    ): KSMSqlExecuteResult {
+        return sqlDriverRegistry.execute(connectionId, statement, params)
+    }
+
+    override fun sqlClose(connectionId: String): Boolean {
+        return sqlDriverRegistry.close(connectionId)
     }
 
     fun handleActivityResult(

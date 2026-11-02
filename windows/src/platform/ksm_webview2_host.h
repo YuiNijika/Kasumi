@@ -13,6 +13,7 @@
 #include "ksm_version.h"
 
 class KSMFileSystem;
+class KSMPlugin;
 class KSMWebResourceProvider;
 class KSMWebView2Host;
 class KSMWebView2View;
@@ -42,7 +43,8 @@ public:
                   bool dev_mode = false,
                   std::string app_version = KASUMI_VERSION_STRING,
                   std::vector<std::string> allowed_commands = {},
-                  bool decorations = true);
+                  bool decorations = true,
+                  std::vector<std::shared_ptr<KSMPlugin>> plugins = {});
   ~KSMWebView2Host();
 
   KSMWebView2Host(const KSMWebView2Host &) = delete;

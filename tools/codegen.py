@@ -7,6 +7,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = ROOT / "protocol" / "commands.json"
+PLUGINS = ROOT / "protocol" / "plugins.json"
 PERMISSIONS = ROOT / "protocol" / "permissions.schema.json"
 ERRORS = ROOT / "protocol" / "errors.json"
 FRONTEND = ROOT / "frontend" / "src" / "generated"
@@ -47,6 +48,42 @@ def kotlin_list(values: list[str]) -> str:
     return "listOf(\n" + ",\n".join(f'        "{value}"' for value in values) + "\n    )"
 
 
+def kotlin_nested_list(values: list[str], indent: int) -> str:
+    if not values:
+        return "emptyList()"
+    padding = " " * indent
+    closing_padding = " " * (indent - 4)
+    return (
+        "listOf(\n"
+        + ",\n".join(f'{padding}"{value}"' for value in values)
+        + f"\n{closing_padding})"
+    )
+
+
+def kotlin_plugin_command_map(values: dict[str, list[str]]) -> str:
+    if not values:
+        return "emptyMap()"
+    entries = []
+    for name, commands in values.items():
+        entries.append(
+            f'        "{name}" to {kotlin_nested_list(commands, 12)}'
+        )
+    return "mapOf(\n" + ",\n".join(entries) + "\n    )"
+
+
+def kotlin_permission_map(values: dict[str, list[str]]) -> str:
+    if not values:
+        return "emptyMap()"
+    entries = []
+    for name, permissions in values.items():
+        if not permissions:
+            rendered = "emptyList()"
+        else:
+            rendered = kotlin_nested_list(permissions, 12)
+        entries.append(f'        "{name}" to {rendered}')
+    return "mapOf(\n" + ",\n".join(entries) + "\n    )"
+
+
 def commands_for(contract: dict[str, Any], platform: str) -> list[str]:
     return [
         name
@@ -59,6 +96,13 @@ def permissions_for(permission_schema: dict[str, Any]) -> list[str]:
     return list(permission_schema["properties"].keys())
 
 
+def command_permissions(contract: dict[str, Any]) -> dict[str, list[str]]:
+    return {
+        name: definition["permissions"]
+        for name, definition in contract["commands"].items()
+    }
+
+
 def arg_schemas(contract: dict[str, Any]) -> dict[str, Any]:
     return {
         name: definition["args"]
@@ -68,6 +112,7 @@ def arg_schemas(contract: dict[str, Any]) -> dict[str, Any]:
 
 def generate_frontend(
     contract: dict[str, Any],
+    plugins: dict[str, Any],
     permission_schema: dict[str, Any],
     errors: list[str],
 ) -> None:
@@ -77,6 +122,17 @@ def generate_frontend(
     android_commands = commands_for(contract, "android")
     events = list(contract["events"].keys())
     permissions = permissions_for(permission_schema)
+    plugin_ids = list(plugins["plugins"].keys())
+    plugin_commands = {
+        name: definition["commands"]
+        for name, definition in plugins["plugins"].items()
+    }
+    command_plugin = {
+        command: name
+        for name, definition in plugins["plugins"].items()
+        for command in definition["commands"]
+    }
+    command_permission_map = command_permissions(contract)
     schemas = json_text(arg_schemas(contract))
     content = f"""export const KSM_COMMANDS = {js_array(commands)} as const;
 export const KSM_WINDOWS_COMMANDS = {js_array(windows_commands)} as const;
@@ -84,10 +140,15 @@ export const KSM_ANDROID_COMMANDS = {js_array(android_commands)} as const;
 export const KSM_EVENTS = {js_array(events)} as const;
 export const KSM_PERMISSIONS = {js_array(permissions)} as const;
 export const KSM_ERROR_CODES = {js_array(errors)} as const;
+export const KSM_PLUGINS = {js_array(plugin_ids)} as const;
+export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = {json_text(plugin_commands)};
+export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {json_text(command_plugin)};
+export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {json_text(command_permission_map)};
 
 export type KSMCommandName = (typeof KSM_COMMANDS)[number];
 export type KSMEventName = (typeof KSM_EVENTS)[number];
 export type KSMPermission = (typeof KSM_PERMISSIONS)[number];
+export type KSMPluginName = (typeof KSM_PLUGINS)[number];
 
 interface KSMValueSchema {{
   type?: string | readonly string[];
@@ -205,6 +266,7 @@ export function validateKSMArgs(command: string, args: unknown): boolean {{
 
 def generate_windows(
     contract: dict[str, Any],
+    plugins: dict[str, Any],
     permission_schema: dict[str, Any],
     errors: list[str],
 ) -> None:
@@ -214,6 +276,12 @@ def generate_windows(
     android_commands = commands_for(contract, "android")
     events = list(contract["events"].keys())
     permissions = permissions_for(permission_schema)
+    plugin_ids = list(plugins["plugins"].keys())
+    plugin_commands = {
+        name: definition["commands"]
+        for name, definition in plugins["plugins"].items()
+    }
+    command_permission_map = command_permissions(contract)
     schema_json = json_text(arg_schemas(contract)).replace(
         ")KSMSCHEMA",
         ")KSMSCHEMA_ESCAPED",
@@ -326,6 +394,9 @@ public:
     static const std::vector<std::string>& AndroidCommands();
     static const std::vector<std::string>& Events();
     static const std::vector<std::string>& Permissions();
+    static const std::vector<std::string>& Plugins();
+    static const nlohmann::json& PluginCommands();
+    static const nlohmann::json& CommandPermissions();
     static bool ValidateArgs(const std::string& command, const nlohmann::json& args);
 }};
 
@@ -364,6 +435,27 @@ inline const std::vector<std::string>& KSMGeneratedContract::Permissions() {{
     return values;
 }}
 
+inline const std::vector<std::string>& KSMGeneratedContract::Plugins() {{
+    static const std::vector<std::string> values = {{
+        {", ".join(json.dumps(value) for value in plugin_ids)}
+    }};
+    return values;
+}}
+
+inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {{
+    static const nlohmann::json value = nlohmann::json::parse(
+        R"KSMPLUGINS({json_text(plugin_commands)})KSMPLUGINS"
+    );
+    return value;
+}}
+
+inline const nlohmann::json& KSMGeneratedContract::CommandPermissions() {{
+    static const nlohmann::json value = nlohmann::json::parse(
+        R"KSMPERMISSIONS({json_text(command_permission_map)})KSMPERMISSIONS"
+    );
+    return value;
+}}
+
 inline bool KSMGeneratedContract::ValidateArgs(
     const std::string& command,
     const nlohmann::json& args
@@ -384,6 +476,7 @@ inline bool KSMGeneratedContract::ValidateArgs(
 
 def generate_android(
     contract: dict[str, Any],
+    plugins: dict[str, Any],
     permission_schema: dict[str, Any],
     errors: list[str],
 ) -> None:
@@ -393,6 +486,12 @@ def generate_android(
     android_commands = commands_for(contract, "android")
     events = list(contract["events"].keys())
     permissions = permissions_for(permission_schema)
+    plugin_ids = list(plugins["plugins"].keys())
+    plugin_commands = {
+        name: definition["commands"]
+        for name, definition in plugins["plugins"].items()
+    }
+    command_permission_map = command_permissions(contract)
     schema_json = json_text(arg_schemas(contract))
     content = f"""package dev.kasumi.app.generated
 
@@ -409,6 +508,12 @@ object KSMGeneratedContract {{
     val events: List<String> = {kotlin_list(events)}
 
     val permissions: List<String> = {kotlin_list(permissions)}
+
+    val plugins: List<String> = {kotlin_list(plugin_ids)}
+
+    val pluginCommands: Map<String, List<String>> = {kotlin_plugin_command_map(plugin_commands)}
+
+    val commandPermissions: Map<String, List<String>> = {kotlin_permission_map(command_permission_map)}
 
     private const val ARG_SCHEMAS_JSON = \"\"\"{schema_json}\"\"\"
     private val argSchemas = JSONObject(ARG_SCHEMAS_JSON)
@@ -520,11 +625,12 @@ object KSMGeneratedContract {{
 
 def main() -> None:
     contract = load_json(PROTOCOL)
+    plugins = load_json(PLUGINS)
     permission_schema = load_json(PERMISSIONS)
     errors = list(load_json(ERRORS).keys())
-    generate_frontend(contract, permission_schema, errors)
-    generate_windows(contract, permission_schema, errors)
-    generate_android(contract, permission_schema, errors)
+    generate_frontend(contract, plugins, permission_schema, errors)
+    generate_windows(contract, plugins, permission_schema, errors)
+    generate_android(contract, plugins, permission_schema, errors)
 
 
 if __name__ == "__main__":

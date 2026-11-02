@@ -19,6 +19,7 @@
 #include "../src/commands/ksm_filesystem.h"
 #include "../src/commands/ksm_phase1.h"
 #include "../src/platform/ksm_host_services.h"
+#include "../src/platform/ksm_sqlite_driver.h"
 #include "../src/platform/ksm_url_policy.h"
 #include "../src/platform/ksm_webview_security.h"
 #include "../src/platform/ksm_webview_host.h"
@@ -242,6 +243,120 @@ public:
 
     bool SetWindowSize(const KSMWindowSize& size) override {
         return size.width >= 320 && size.height >= 240;
+    }
+};
+
+class ContractEchoPlugin final : public KSMPlugin {
+public:
+    const std::string& Id() const override {
+        static const std::string id = "contract.echo";
+        return id;
+    }
+
+    const std::vector<std::string>& Commands() const override {
+        static const std::vector<std::string> commands = {
+            "contract.echo"
+        };
+        return commands;
+    }
+
+    const std::vector<std::string>& Permissions() const override {
+        static const std::vector<std::string> permissions = {
+            "contract.echo"
+        };
+        return permissions;
+    }
+
+    bool ValidateArgs(
+        const std::string& command,
+        const Json& args
+    ) const override {
+        return command == "contract.echo" &&
+            args.contains("value") &&
+            args.at("value").is_string();
+    }
+
+    Json Handle(
+        const std::string& command,
+        const Json& args,
+        const KSMPluginContext& context
+    ) override {
+        if (
+            command != "contract.echo" ||
+            !context.has_permission("contract.echo")
+        ) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The custom plugin was not authorized."
+            );
+        }
+        return Json{{"value", args.at("value")}};
+    }
+};
+
+class ReplacementFileSystemPlugin final : public KSMPlugin {
+public:
+    const std::string& Id() const override {
+        static const std::string id = "fs";
+        return id;
+    }
+
+    const std::vector<std::string>& Commands() const override {
+        static const std::vector<std::string> commands = {
+            "fs.readText",
+            "fs.writeText",
+            "fs.exists",
+            "fs.remove",
+            "fs.readDir",
+            "fs.mkdir",
+            "fs.stat"
+        };
+        return commands;
+    }
+
+    const std::vector<std::string>& Permissions() const override {
+        static const std::vector<std::string> permissions = {
+            "fs.read",
+            "fs.write",
+            "fs.remove"
+        };
+        return permissions;
+    }
+
+    Json Handle(
+        const std::string& command,
+        const Json& args,
+        const KSMPluginContext&
+    ) override {
+        (void)args;
+        if (command == "fs.exists") {
+            return Json{{"exists", true}};
+        }
+        throw KSMHostException(
+            "NOT_SUPPORTED",
+            "The replacement filesystem only supports fs.exists."
+        );
+    }
+};
+
+class GeneratedCommandHijackPlugin final : public KSMPlugin {
+public:
+    const std::string& Id() const override {
+        static const std::string id = "contract.hijack";
+        return id;
+    }
+
+    const std::vector<std::string>& Commands() const override {
+        static const std::vector<std::string> commands = {"fs.exists"};
+        return commands;
+    }
+
+    Json Handle(
+        const std::string&,
+        const Json&,
+        const KSMPluginContext&
+    ) override {
+        return Json{{"exists", false}};
     }
 };
 
@@ -694,6 +809,197 @@ void TestNewCommands(
     );
 }
 
+void TestSqlPlugin(
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    auto services = std::make_shared<BlockingHostServices>();
+    services->RegisterSqlDriver(
+        std::make_shared<KSMSqliteDriver>(file_system)
+    );
+    KSMRouter router(file_system, services);
+
+    const auto drivers = Invoke(router, "sql.drivers", Json::object());
+    ExpectOk(drivers);
+    if (
+        drivers.at("data").at("drivers").size() != 1 ||
+        drivers.at("data").at("drivers").at(0) != "sqlite"
+    ) {
+        throw std::runtime_error("sql.drivers did not report SQLite.");
+    }
+
+    const auto opened = Invoke(
+        router,
+        "sql.open",
+        Json{{"driver", "sqlite"}, {"url", ":memory:"}}
+    );
+    ExpectOk(opened);
+    const std::string connection_id =
+        opened.at("data").at("connectionId").get<std::string>();
+
+    const auto created = Invoke(
+        router,
+        "sql.execute",
+        Json{
+            {"connectionId", connection_id},
+            {"statement", "CREATE TABLE contract (id INTEGER PRIMARY KEY, name TEXT)"}
+        }
+    );
+    ExpectOk(created);
+    if (
+        created.at("data").at("rowsAffected") != 0 ||
+        !created.at("data").at("lastInsertId").is_null()
+    ) {
+        throw std::runtime_error("SQLite DDL returned mutation metadata.");
+    }
+    const auto inserted = Invoke(
+        router,
+        "sql.execute",
+        Json{
+            {"connectionId", connection_id},
+            {"statement", "INSERT INTO contract (name) VALUES (?)"},
+            {"params", Json::array({"kasumi"})}
+        }
+    );
+    ExpectOk(inserted);
+    if (
+        inserted.at("data").at("rowsAffected") != 1 ||
+        inserted.at("data").at("lastInsertId") != 1
+    ) {
+        throw std::runtime_error("sql.execute returned invalid changes.");
+    }
+
+    const auto updated = Invoke(
+        router,
+        "sql.execute",
+        Json{
+            {"connectionId", connection_id},
+            {"statement", "UPDATE contract SET name = ? WHERE id = ?"},
+            {"params", Json::array({"updated", 1})}
+        }
+    );
+    ExpectOk(updated);
+    if (
+        updated.at("data").at("rowsAffected") != 1 ||
+        !updated.at("data").at("lastInsertId").is_null()
+    ) {
+        throw std::runtime_error("SQLite UPDATE returned an insert ID.");
+    }
+
+    const auto queried = Invoke(
+        router,
+        "sql.query",
+        Json{
+            {"connectionId", connection_id},
+            {"statement", "SELECT id, name FROM contract WHERE id = ?"},
+            {"params", Json::array({1})}
+        }
+    );
+    ExpectOk(queried);
+    if (
+        queried.at("data").at("columns").at(1) != "name" ||
+        queried.at("data").at("rows").at(0).at("name") != "updated"
+    ) {
+        throw std::runtime_error("sql.query returned invalid rows.");
+    }
+
+    ExpectOk(Invoke(
+        router,
+        "sql.close",
+        Json{{"connectionId", connection_id}}
+    ));
+    ExpectError(
+        Invoke(
+            router,
+            "sql.open",
+            Json{{"driver", "mysql"}, {"url", "mysql://localhost/db"}}
+        ),
+        "NOT_SUPPORTED"
+    );
+    ExpectError(
+        Invoke(
+            router,
+            "sql.open",
+            Json{{"driver", "sqlite"}, {"url", "app://picked/db.sqlite"}}
+        ),
+        "PERMISSION_DENIED"
+    );
+}
+
+void TestCustomPlugin(
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    KSMRouter router(
+        file_system,
+        nullptr,
+        {},
+        {std::make_shared<ContractEchoPlugin>()}
+    );
+    const auto echoed = Invoke(
+        router,
+        "contract.echo",
+        Json{{"value", "plugin"}}
+    );
+    ExpectOk(echoed);
+    if (echoed.at("data").at("value") != "plugin") {
+        throw std::runtime_error("The custom plugin returned invalid data.");
+    }
+    const auto capabilities = Invoke(
+        router,
+        "capabilities.query",
+        Json::object()
+    );
+    ExpectOk(capabilities);
+    if (
+        std::find(
+            capabilities.at("data").at("plugins").begin(),
+            capabilities.at("data").at("plugins").end(),
+            "contract.echo"
+        ) == capabilities.at("data").at("plugins").end()
+    ) {
+        throw std::runtime_error(
+            "capabilities.query omitted the custom plugin."
+        );
+    }
+}
+
+void TestPluginRules(
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    KSMRouter replacement(
+        file_system,
+        nullptr,
+        {},
+        {std::make_shared<ReplacementFileSystemPlugin>()}
+    );
+    const auto exists = Invoke(
+        replacement,
+        "fs.exists",
+        Json{{"path", "app://data/plugin.txt"}}
+    );
+    ExpectOk(exists);
+    if (exists.at("data").at("exists") != true) {
+        throw std::runtime_error("The replacement filesystem was not used.");
+    }
+
+    bool hijack_rejected = false;
+    try {
+        KSMRouter invalid(
+            file_system,
+            nullptr,
+            {},
+            {std::make_shared<GeneratedCommandHijackPlugin>()}
+        );
+        (void)invalid;
+    } catch (const std::invalid_argument&) {
+        hijack_rejected = true;
+    }
+    if (!hijack_rejected) {
+        throw std::runtime_error(
+            "A custom plugin hijacked a generated command."
+        );
+    }
+}
+
 void TestCommandAllowlist(
     const std::shared_ptr<KSMFileSystem>& file_system
 ) {
@@ -1068,6 +1374,9 @@ int main() {
         TestWebViewSecurity();
         TestUrlPolicy();
         TestNewCommands(file_system);
+        TestSqlPlugin(file_system);
+        TestCustomPlugin(file_system);
+        TestPluginRules(file_system);
         TestCommandAllowlist(file_system);
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

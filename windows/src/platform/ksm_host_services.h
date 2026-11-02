@@ -1,13 +1,19 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "ksm_file_metadata.h"
+
+class KSMSqlDriver;
+class KSMSqlDriverRegistry;
 
 struct KSMHttpDownloadResult {
     std::string path;
@@ -34,6 +40,24 @@ struct KSMDeviceInfo {
     std::string architecture;
 };
 
+using KSMSqlValue = std::variant<
+    std::nullptr_t,
+    std::int64_t,
+    double,
+    std::string,
+    bool
+>;
+
+struct KSMSqlQueryResult {
+    std::vector<std::string> columns;
+    std::vector<std::vector<KSMSqlValue>> rows;
+};
+
+struct KSMSqlExecuteResult {
+    std::uint64_t rows_affected;
+    std::optional<std::int64_t> last_insert_id;
+};
+
 class KSMHostException final : public std::runtime_error {
 public:
     KSMHostException(std::string code, const std::string& message)
@@ -50,7 +74,8 @@ private:
 
 class KSMHostServices {
 public:
-    virtual ~KSMHostServices() = default;
+    KSMHostServices();
+    virtual ~KSMHostServices();
 
     virtual std::string AppVersion() const = 0;
     virtual std::string Language() const = 0;
@@ -112,7 +137,27 @@ public:
     virtual std::optional<KSMDeviceInfo> GetDeviceInfo() const {
         return std::nullopt;
     }
+    void RegisterSqlDriver(std::shared_ptr<KSMSqlDriver> driver);
+    virtual std::vector<std::string> SqlDrivers() const;
+    virtual std::optional<std::string> SqlOpen(
+        const std::string& driver,
+        const std::string& url
+    );
+    virtual std::optional<KSMSqlQueryResult> SqlQuery(
+        const std::string& connection_id,
+        const std::string& statement,
+        const std::vector<KSMSqlValue>& params
+    );
+    virtual std::optional<KSMSqlExecuteResult> SqlExecute(
+        const std::string& connection_id,
+        const std::string& statement,
+        const std::vector<KSMSqlValue>& params
+    );
+    virtual bool SqlClose(const std::string& connection_id);
     virtual void CancelRequest(const std::string& request_id) {
         (void)request_id;
     }
+
+private:
+    std::unique_ptr<KSMSqlDriverRegistry> sql_drivers_;
 };

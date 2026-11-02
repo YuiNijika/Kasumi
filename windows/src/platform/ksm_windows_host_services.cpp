@@ -14,11 +14,12 @@
 #include <limits>
 #include <memory>
 #include <system_error>
-#include <utility>
 #include <vector>
 
 #include "../commands/ksm_filesystem.h"
 #include "../platform/ksm_virtual_path.h"
+#include "ksm_odbc_sql_driver.h"
+#include "ksm_sqlite_driver.h"
 
 namespace {
 
@@ -200,7 +201,13 @@ KSMWindowsHostServices::KSMWindowsHostServices(
       allowed_external_origins_(
           KSMUrlPolicy::NormalizeOrigins(allowed_external_origins)
       ) {
+    RegisterSqlDriver(std::make_shared<KSMSqliteDriver>(file_system_));
+    for (auto& driver : KSMOdbcSqlDriver::Discover()) {
+        RegisterSqlDriver(std::move(driver));
+    }
 }
+
+KSMWindowsHostServices::~KSMWindowsHostServices() = default;
 
 std::string KSMWindowsHostServices::AppVersion() const {
     return app_version_;

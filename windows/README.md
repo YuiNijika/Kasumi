@@ -14,6 +14,11 @@
 | `src/bridge/ksm_router.h` | 参数校验、权限检查和命令分发 |
 | `src/platform/ksm_host_services.h` | 宿主平台服务接口 |
 | `src/platform/ksm_windows_host_services.h` | 文件、对话框、剪贴板、通知、下载、链接和窗口服务 |
+| `src/platform/ksm_sql_driver.h` | SQL 驱动 SPI、连接注册表和安全错误边界 |
+| `src/platform/ksm_sqlite_driver.h` | 内置 SQLite 驱动与参数绑定 |
+| `src/platform/ksm_odbc_sql_driver.h` | 基于系统 ODBC 的 MySQL / PostgreSQL 可选驱动 |
+| `src/plugins/ksm_plugin.h` | 可注册插件接口、命令和权限声明 |
+| `src/plugins/ksm_sql_plugin.h` | SQL 命令插件与宿主驱动分发 |
 | `src/platform/ksm_web_resource.h` | 内嵌 Web 资源提供器接口和 URL 到资源路径解析 |
 | `src/platform/ksm_win32_resource_provider.h` | 从 Win32 `RCDATA` 读取页面、样式和脚本 |
 | `src/platform/ksm_webview_host.h` | 工作线程、超时、取消、单响应和事件投递 |
@@ -22,7 +27,7 @@
 | `tests/contract_runner.cpp` | Windows 契约、安全策略和生命周期测试 |
 | `examples/win32-host/` | 独立 Win32 + WebView2 示例工程 |
 
-Windows 当前实现 **28/28 个适用命令**。`device.getInfo` 是 Android 专属命令，
+Windows 当前实现 **33/33 个适用命令**。`device.getInfo` 是 Android 专属命令，
 Windows 返回 `NOT_SUPPORTED`。
 
 ## 应用配置
@@ -137,6 +142,60 @@ const std::string response = KSM::Invoke(
 | Shell | `KSM::Shell` | `OpenExternal` |
 | 设备 | `KSM::Device` | `GetInfo`，Windows 返回空 |
 | 应用 | `KSM::App` | 版本、语言和退出 |
+
+## 插件与 SQL
+
+Windows 宿主默认加载 `fs`、`dialog` 和 `sql` 插件。插件接口位于
+`include/kasumi/plugins/ksm_plugin.h`，消费方可以通过 `KSMWebView2Host` 构造函数传入
+额外插件：
+
+```cpp
+#include <memory>
+#include <vector>
+#include <kasumi/platform/ksm_webview2_host.h>
+#include <kasumi/plugins/ksm_plugin.h>
+
+auto host = std::make_shared<KSMWebView2Host>(
+    window,
+    file_system,
+    std::vector<std::string>{"https://example.com"},
+    web_root,
+    user_data_folder,
+    false,
+    web_resources,
+    L"https://app.local/index.html",
+    false,
+    KASUMI_APP_VERSION,
+    ConfiguredCommands(),
+    true,
+    std::vector<std::shared_ptr<KSMPlugin>>{
+        std::make_shared<MyPlugin>()
+    }
+);
+```
+
+`fs`、`dialog` 和 `sql` 可以用同 ID 自定义插件替换，但替换插件必须完整声明该 ID 在
+`protocol/plugins.json` 中的全部命令。其他生成插件 ID 保留给框架；自定义插件也不得
+抢占任何生成命令。自定义命令不在 `protocol/commands.json` 时，插件必须实现自己的
+参数校验。
+
+SQL 驱动实现 `KSMSqlDriver` 和 `KSMSqlConnection`，然后注册到宿主服务：
+
+```cpp
+services->RegisterSqlDriver(std::make_shared<MyPostgresDriver>());
+```
+
+Windows 内置 SQLite。宿主启动时会发现系统已安装的 MySQL / MariaDB 和 PostgreSQL
+ODBC 驱动，并自动注册 `mysql`、`postgres`；没有对应 ODBC 驱动时，这两个标识不会出现在
+`sql.drivers`。MySQL URL 使用
+`mysql://host[:port]/database?ssl-mode=required|disabled`，
+PostgreSQL URL 使用
+`postgresql://host[:port]/database?sslmode=require|disable`，默认要求
+TLS。`mongodb` 需要通过 `KSMSqlDriver` SPI 注册宿主驱动。
+
+SQLite 接受 `:memory:` 或可写虚拟路径，不接受 `app://picked` 和真实路径。驱动返回的
+异常必须转换为协议错误码，连接字符串和凭据不得出现在前端错误消息中。ODBC 适配器要求
+用户自行安装数据库厂商驱动，Kasumi 不随包分发 MySQL、PostgreSQL 或 MongoDB 客户端。
 
 ## SDK 构建
 

@@ -2,6 +2,8 @@ import type { ContractAdapter } from './helpers';
 import {
   KSM_ANDROID_COMMANDS,
   KSM_PERMISSIONS,
+  KSM_PLUGINS,
+  KSM_PLUGIN_COMMANDS,
   KSM_WINDOWS_COMMANDS
 } from '../../frontend/src/generated/contract';
 import { runFsCases } from './cases/fs.readText.test';
@@ -22,6 +24,7 @@ export async function runContractSuite(adapter: ContractAdapter): Promise<void> 
     platform: string;
     commands: string[];
     permissions: string[];
+    plugins: string[];
   }>(
     'capabilities.query',
     {}
@@ -43,6 +46,19 @@ export async function runContractSuite(adapter: ContractAdapter): Promise<void> 
   for (const permission of KSM_PERMISSIONS) {
     if (!capabilities.permissions.includes(permission)) {
       throw new Error(`capabilities.query did not include ${permission}.`);
+    }
+  }
+  for (const plugin of KSM_PLUGINS) {
+    if (!capabilities.plugins.includes(plugin)) {
+      throw new Error(`capabilities.query did not include plugin ${plugin}.`);
+    }
+    for (const command of KSM_PLUGIN_COMMANDS[plugin] ?? []) {
+      if (
+        (expectedCommands as readonly string[]).includes(command) &&
+        !capabilities.commands.includes(command)
+      ) {
+        throw new Error(`Plugin ${plugin} command ${command} is missing.`);
+      }
     }
   }
   await expectError(

@@ -12,24 +12,70 @@ class KSMRouter(
     private val fileSystem: KSMFileSystem? = null,
     private val hostServices: KSMHostServices? = null,
     allowedCommands: Collection<String> = emptyList(),
-    private val eventSender: (String) -> Unit = {}
+    private val eventSender: (String) -> Unit = {},
+    plugins: Collection<KSMPlugin> = emptyList()
 ) {
     companion object {
         private const val MAX_INLINE_TEXT_BYTES = 64 * 1024
     }
 
+    private val pluginRegistry = KSMPluginRegistry(
+        ksmDefaultPlugins().filterNot { defaultPlugin ->
+            plugins.any { it.id == defaultPlugin.id }
+        } + plugins
+    )
+
+    init {
+        val replaceable = setOf("fs", "dialog", "sql")
+        val reserved = KSMGeneratedContract.plugins
+            .filterNot { it in replaceable }
+            .toSet()
+        for (plugin in plugins) {
+            require(plugin.id !in reserved) {
+                "The custom Kasumi plugin ID conflicts with a built-in plugin."
+            }
+            val generatedCommandsForPlugin =
+                KSMGeneratedContract.pluginCommands[plugin.id]
+            if (plugin.id in replaceable) {
+                require(
+                    plugin.commands == generatedCommandsForPlugin?.toSet().orEmpty()
+                ) {
+                    "A replacement built-in plugin must own exactly the " +
+                        "generated commands for its plugin ID."
+                }
+            } else {
+                require(
+                    plugin.commands.none {
+                        it in KSMGeneratedContract.commands
+                    }
+                ) {
+                    "A custom Kasumi plugin cannot take ownership of a " +
+                        "generated command."
+                }
+            }
+        }
+    }
+
     private val subscribedEvents = ConcurrentHashMap.newKeySet<String>()
     private val grantedPermissions = ConcurrentHashMap.newKeySet<String>().apply {
         addAll(KSMCommandRegistry.permissions)
+        addAll(pluginRegistry.permissions)
     }
     private val allowedCommandNames = allowedCommands.toSet()
-    val supportedCommands: List<String> = if (allowedCommandNames.isEmpty()) {
+    private val generatedCommands: List<String> = if (allowedCommandNames.isEmpty()) {
         KSMCommandRegistry.supportedCommands
     } else {
         KSMCommandRegistry.supportedCommands.filter {
             it in allowedCommandNames
         }
     }
+    private val pluginCommands = pluginRegistry.commands.filter {
+        allowedCommandNames.isEmpty() || it in allowedCommandNames
+    }
+    val supportedCommands: List<String> = (
+        generatedCommands + pluginCommands
+    ).distinct()
+    val supportedPlugins: List<String> = capabilityPlugins()
 
     fun emitEvent(event: String, payload: JSONObject) {
         if (event !in subscribedEvents) {
@@ -62,12 +108,14 @@ class KSMRouter(
                 "Request exceeds the 64KB message limit."
             )
         }
+        var responseId: Any? = JSONObject.NULL
         return try {
             val request = JSONObject(message)
             if (request.optString("type") == "cancel") {
                 return ""
             }
             val id = request.opt("id")
+            responseId = id
             if (
                 request.optString("type") != "request" ||
                 !request.has("id") ||
@@ -80,7 +128,8 @@ class KSMRouter(
             } else {
                 val args = request.getJSONObject("args")
                 val command = request.getString("cmd")
-                if (!KSMGeneratedContract.isKnownCommand(command)) {
+                val generatedCommand = KSMGeneratedContract.isKnownCommand(command)
+                if (!generatedCommand && !pluginRegistry.owns(command)) {
                     return errorResponse(
                         id,
                         "UNKNOWN_COMMAND",
@@ -94,14 +143,32 @@ class KSMRouter(
                         "The command is disabled by application configuration."
                     )
                 }
-                if (!KSMGeneratedContract.validateArgs(command, args)) {
+                val validArgs = if (generatedCommand) {
+                    KSMGeneratedContract.validateArgs(command, args)
+                } else {
+                    pluginRegistry.validateArgs(command, args)
+                }
+                if (!validArgs) {
                     return errorResponse(
                         id,
                         "INVALID_ARGS",
                         "Arguments do not match the command schema."
                     )
                 }
-                when (command) {
+                if (pluginRegistry.owns(command)) {
+                    val data = pluginRegistry.handle(
+                        command,
+                        args,
+                        KSMPluginContext(
+                            fileSystem = fileSystem,
+                            hostServices = hostServices,
+                            hasPermission = { permission ->
+                                permission in grantedPermissions
+                            }
+                        )
+                    ) ?: JSONObject.NULL
+                    successResponse(id, data)
+                } else when (command) {
                     "ping" -> successResponse(id, JSONObject().put("pong", true))
                     "capabilities.query" -> successResponse(
                         id,
@@ -109,6 +176,7 @@ class KSMRouter(
                             .put("platform", "android")
                             .put("commands", supportedCommands)
                             .put("permissions", JSONArray(grantedPermissions.toList()))
+                            .put("plugins", JSONArray(capabilityPlugins()))
                     )
                     "app.getInfo" -> successResponse(
                         id,
@@ -134,7 +202,9 @@ class KSMRouter(
                             errorResponse(id, "INVALID_ARGS", "permission is required.")
                         } else {
                             val permission = args.getString("permission")
-                            val known = permission in KSMGeneratedContract.permissions
+                            val known =
+                                permission in KSMGeneratedContract.permissions ||
+                                pluginRegistry.knows(permission)
                             if (!known) {
                                 return errorResponse(
                                     id,
@@ -193,6 +263,11 @@ class KSMRouter(
                     "device.getInfo" -> deviceInfo(id)
                     "shell.openExternal" -> openExternal(id, args)
                     "http.download" -> download(id, args)
+                    "sql.drivers" -> sqlDrivers(id)
+                    "sql.open" -> sqlOpen(id, args)
+                    "sql.query" -> sqlQuery(id, args)
+                    "sql.execute" -> sqlExecute(id, args)
+                    "sql.close" -> sqlClose(id, args)
                     "window.setTitle",
                     "window.minimize",
                     "window.maximize",
@@ -246,6 +321,8 @@ class KSMRouter(
             }
         } catch (_: JSONException) {
             errorResponse(JSONObject.NULL, "INVALID_ARGS", "Request is not valid JSON.")
+        } catch (error: KSMHostException) {
+            errorResponse(responseId, error.code, error.message)
         } catch (_: Exception) {
             errorResponse(JSONObject.NULL, "INTERNAL_ERROR", "The command failed unexpectedly.")
         }
@@ -810,8 +887,179 @@ class KSMRouter(
         )
     }
 
+    private fun sqlDrivers(id: Any?): String {
+        if (!requirePermission(id, "sql")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val host = hostServices ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The SQL service is not configured."
+        )
+        return successResponse(
+            id,
+            JSONObject().put("drivers", JSONArray(host.sqlDrivers()))
+        )
+    }
+
+    private fun sqlOpen(id: Any?, args: JSONObject): String {
+        if (!requirePermission(id, "sql")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val host = hostServices ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The SQL service is not configured."
+        )
+        val driver = args.opt("driver")
+        val url = args.opt("url")
+        if (driver !is String || url !is String) {
+            return errorResponse(id, "INVALID_ARGS", "driver and url are required.")
+        }
+        val connectionId = try {
+            host.sqlOpen(driver, url)
+        } catch (error: KSMHostException) {
+            return errorResponse(id, error.code, error.message)
+        } ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The requested SQL driver is not available."
+        )
+        return successResponse(
+            id,
+            JSONObject().put("connectionId", connectionId)
+        )
+    }
+
+    private fun sqlQuery(id: Any?, args: JSONObject): String {
+        if (!requirePermission(id, "sql")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val host = hostServices ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The SQL service is not configured."
+        )
+        val connectionId = args.opt("connectionId")
+        val statement = args.opt("statement")
+        if (connectionId !is String || statement !is String) {
+            return errorResponse(id, "INVALID_ARGS", "connectionId and statement are required.")
+        }
+        val params = sqlParams(id, args) ?: return errorResponse(
+            id,
+            "INVALID_ARGS",
+            "params must contain only strings, numbers, booleans or null."
+        )
+        val result = try {
+            host.sqlQuery(connectionId, statement, params)
+        } catch (error: KSMHostException) {
+            return errorResponse(id, error.code, error.message)
+        } ?: return errorResponse(
+            id,
+            "IO_ERROR",
+            "The SQL query could not be completed."
+        )
+        val rows = JSONArray()
+        for (row in result.rows) {
+            val value = JSONObject()
+            for (index in result.columns.indices) {
+                value.put(
+                    result.columns[index],
+                    row.getOrNull(index) ?: JSONObject.NULL
+                )
+            }
+            rows.put(value)
+        }
+        return successResponse(
+            id,
+            JSONObject()
+                .put("columns", JSONArray(result.columns))
+                .put("rows", rows)
+        )
+    }
+
+    private fun sqlExecute(id: Any?, args: JSONObject): String {
+        if (!requirePermission(id, "sql")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val host = hostServices ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The SQL service is not configured."
+        )
+        val connectionId = args.opt("connectionId")
+        val statement = args.opt("statement")
+        if (connectionId !is String || statement !is String) {
+            return errorResponse(id, "INVALID_ARGS", "connectionId and statement are required.")
+        }
+        val params = sqlParams(id, args) ?: return errorResponse(
+            id,
+            "INVALID_ARGS",
+            "params must contain only strings, numbers, booleans or null."
+        )
+        val result = try {
+            host.sqlExecute(connectionId, statement, params)
+        } catch (error: KSMHostException) {
+            return errorResponse(id, error.code, error.message)
+        } ?: return errorResponse(
+            id,
+            "IO_ERROR",
+            "The SQL statement could not be executed."
+        )
+        return successResponse(
+            id,
+            JSONObject()
+                .put("rowsAffected", result.rowsAffected)
+                .put("lastInsertId", result.lastInsertId ?: JSONObject.NULL)
+        )
+    }
+
+    private fun sqlClose(id: Any?, args: JSONObject): String {
+        if (!requirePermission(id, "sql")) {
+            return errorResponse(id, "PERMISSION_DENIED", "The requested permission was denied.")
+        }
+        val host = hostServices ?: return errorResponse(
+            id,
+            "NOT_SUPPORTED",
+            "The SQL service is not configured."
+        )
+        val connectionId = args.opt("connectionId")
+        if (connectionId !is String) {
+            return errorResponse(id, "INVALID_ARGS", "connectionId is required.")
+        }
+        return successResponse(
+            id,
+            JSONObject().put("closed", host.sqlClose(connectionId))
+        )
+    }
+
+    private fun sqlParams(id: Any?, args: JSONObject): List<Any?>? {
+        if (!args.has("params")) {
+            return emptyList()
+        }
+        val raw = args.optJSONArray("params") ?: return null
+        val values = mutableListOf<Any?>()
+        for (index in 0 until raw.length()) {
+            values.add(
+                when (val value = raw.opt(index)) {
+                    null,
+                    JSONObject.NULL -> null
+                    is String,
+                    is Boolean,
+                    is Number -> value
+                    else -> return null
+                }
+            )
+        }
+        return values
+    }
+
     private fun requirePermission(id: Any?, permission: String): Boolean {
         return permission in grantedPermissions
+    }
+
+    private fun capabilityPlugins(): List<String> {
+        return (KSMGeneratedContract.plugins + pluginRegistry.ids).distinct()
     }
 
     private fun textResponse(id: Any?, value: String, path: String): String {

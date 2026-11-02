@@ -2,11 +2,15 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <set>
+#include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "../commands/ksm_filesystem.h"
@@ -15,6 +19,9 @@
 #include "../platform/ksm_host_services.h"
 #include "../platform/ksm_url_policy.h"
 #include "../platform/ksm_virtual_path.h"
+#include "../plugins/ksm_dialog_plugin.h"
+#include "../plugins/ksm_filesystem_plugin.h"
+#include "../plugins/ksm_sql_plugin.h"
 #include "ksm_version.h"
 #include "ksm_command_registry.h"
 
@@ -78,20 +85,178 @@ Json DirectoryEntryJson(const KSMDirectoryEntry& entry) {
     return value;
 }
 
+KSMSqlValue SqlValueFromJson(const Json& value) {
+    if (value.is_null()) {
+        return nullptr;
+    }
+    if (value.is_boolean()) {
+        return value.get<bool>();
+    }
+    if (value.is_number_integer()) {
+        return value.get<std::int64_t>();
+    }
+    if (value.is_number_unsigned()) {
+        const auto number = value.get<std::uint64_t>();
+        if (number > static_cast<std::uint64_t>(
+                std::numeric_limits<std::int64_t>::max()
+            )) {
+            throw KSMHostException(
+                "INVALID_ARGS",
+                "SQL integer parameters must fit in a signed 64-bit integer."
+            );
+        }
+        return static_cast<std::int64_t>(number);
+    }
+    if (value.is_number()) {
+        return value.get<double>();
+    }
+    if (value.is_string()) {
+        return value.get<std::string>();
+    }
+    throw KSMHostException(
+        "INVALID_ARGS",
+        "SQL parameters must be strings, numbers, booleans or null."
+    );
+}
+
+Json SqlValueToJson(const KSMSqlValue& value) {
+    return std::visit(
+        [](const auto& item) -> Json {
+            using T = std::decay_t<decltype(item)>;
+            if constexpr (std::is_same_v<T, std::nullptr_t>) {
+                return nullptr;
+            } else {
+                return item;
+            }
+        },
+        value
+    );
+}
+
+bool Contains(
+    const std::vector<std::string>& values,
+    const std::string& value
+) {
+    return std::find(values.begin(), values.end(), value) != values.end();
+}
+
+void AppendUnique(
+    std::vector<std::string>& values,
+    const std::string& value
+) {
+    if (!Contains(values, value)) {
+        values.push_back(value);
+    }
+}
+
+std::vector<std::shared_ptr<KSMPlugin>> BuildPlugins(
+    std::vector<std::shared_ptr<KSMPlugin>> additional
+) {
+    const std::set<std::string> built_in_ids = {"fs", "dialog", "sql"};
+    const auto& generated_ids = KSMGeneratedContract::Plugins();
+    std::set<std::string> seen;
+    std::set<std::string> overridden_ids;
+    for (const auto& plugin : additional) {
+        if (!plugin) {
+            throw std::invalid_argument("A Kasumi plugin cannot be null.");
+        }
+        if (
+            !seen.insert(plugin->Id()).second ||
+            (
+                Contains(generated_ids, plugin->Id()) &&
+                built_in_ids.find(plugin->Id()) == built_in_ids.end()
+            )
+        ) {
+            throw std::invalid_argument(
+                "The custom Kasumi plugin ID conflicts with a built-in plugin."
+            );
+        }
+        const auto& commands = plugin->Commands();
+        if (built_in_ids.contains(plugin->Id())) {
+            const auto& generated_commands = KSMGeneratedContract::PluginCommands()
+                .at(plugin->Id());
+            const std::set<std::string> expected(
+                generated_commands.begin(),
+                generated_commands.end()
+            );
+            const std::set<std::string> actual(
+                commands.begin(),
+                commands.end()
+            );
+            if (actual != expected) {
+                throw std::invalid_argument(
+                    "A replacement built-in plugin must own exactly the "
+                    "generated commands for its plugin ID."
+                );
+            }
+        } else {
+            for (const auto& command : commands) {
+                if (Contains(KSMGeneratedContract::Commands(), command)) {
+                    throw std::invalid_argument(
+                        "A custom Kasumi plugin cannot take ownership of a "
+                        "generated command."
+                    );
+                }
+            }
+        }
+        overridden_ids.insert(plugin->Id());
+    }
+
+    auto plugins = KSMDefaultPlugins();
+    plugins.erase(
+        std::remove_if(
+            plugins.begin(),
+            plugins.end(),
+            [&overridden_ids](const std::shared_ptr<KSMPlugin>& plugin) {
+                return overridden_ids.contains(plugin->Id());
+            }
+        ),
+        plugins.end()
+    );
+    plugins.insert(
+        plugins.end(),
+        std::make_move_iterator(additional.begin()),
+        std::make_move_iterator(additional.end())
+    );
+    return plugins;
+}
+
 }
 
 KSMRouter::KSMRouter(
     std::shared_ptr<KSMFileSystem> file_system,
     std::shared_ptr<KSMHostServices> host_services,
-    std::vector<std::string> allowed_commands
+    std::vector<std::string> allowed_commands,
+    std::vector<std::shared_ptr<KSMPlugin>> plugins
 )
     : file_system_(std::move(file_system)),
       host_services_(std::move(host_services)),
-      supported_commands_(
-          KSMCommandRegistry::SupportedCommands(allowed_commands)
-      ) {
+      plugin_registry_(BuildPlugins(std::move(plugins))) {
+    supported_commands_ = KSMCommandRegistry::SupportedCommands(
+        allowed_commands
+    );
+    const std::set<std::string> requested(
+        allowed_commands.begin(),
+        allowed_commands.end()
+    );
+    for (const auto& plugin_id : KSMGeneratedContract::Plugins()) {
+        AppendUnique(plugin_ids_, plugin_id);
+    }
+    for (const auto& plugin_id : plugin_registry_.PluginIds()) {
+        AppendUnique(plugin_ids_, plugin_id);
+    }
+    for (const auto& command : plugin_registry_.Commands()) {
+        if (allowed_commands.empty() || requested.contains(command)) {
+            AppendUnique(supported_commands_, command);
+        }
+    }
     const auto& permissions = KSMGeneratedContract::Permissions();
     granted_permissions_.insert(permissions.begin(), permissions.end());
+    const auto& plugin_permissions = plugin_registry_.Permissions();
+    granted_permissions_.insert(
+        plugin_permissions.begin(),
+        plugin_permissions.end()
+    );
 }
 
 const std::vector<std::string>& KSMRouter::SupportedCommands() const {
@@ -204,7 +369,11 @@ void KSMRouter::HandleMessage(
         const Json& args = request.at("args");
 
         const auto& known_commands = KSMGeneratedContract::Commands();
-        if (std::find(known_commands.begin(), known_commands.end(), command) == known_commands.end()) {
+        const bool generated_command = Contains(known_commands, command);
+        if (
+            !generated_command &&
+            !plugin_registry_.OwnsCommand(command)
+        ) {
             SendError(
                 id,
                 "UNKNOWN_COMMAND",
@@ -228,7 +397,10 @@ void KSMRouter::HandleMessage(
             );
             return;
         }
-        if (!KSMGeneratedContract::ValidateArgs(command, args)) {
+        const bool valid_args = generated_command
+            ? KSMGeneratedContract::ValidateArgs(command, args)
+            : plugin_registry_.ValidateArgs(command, args);
+        if (!valid_args) {
             SendError(
                 id,
                 "INVALID_ARGS",
@@ -260,7 +432,8 @@ void KSMRouter::HandleMessage(
                 Json{
                     {"platform", "windows"},
                     {"commands", supported_commands_},
-                    {"permissions", permissions}
+                    {"permissions", permissions},
+                    {"plugins", plugin_ids_}
                 },
                 send_response
             );
@@ -311,12 +484,9 @@ void KSMRouter::HandleMessage(
                 return;
             }
             const std::string permission = args.at("permission").get<std::string>();
-            const auto& permissions = KSMGeneratedContract::Permissions();
-            const bool known = std::find(
-                permissions.begin(),
-                permissions.end(),
-                permission
-            ) != permissions.end();
+            const bool known =
+                Contains(KSMGeneratedContract::Permissions(), permission) ||
+                plugin_registry_.KnowsPermission(permission);
             if (!known) {
                 SendError(
                     id,
@@ -359,6 +529,24 @@ void KSMRouter::HandleMessage(
                 SendSuccess(id, Json{{"unsubscribed", true}}, send_response);
             }
             return;
+        }
+
+        if (plugin_registry_.OwnsCommand(command)) {
+            const auto data = plugin_registry_.Handle(
+                command,
+                args,
+                KSMPluginContext{
+                    .file_system = file_system_,
+                    .host_services = host_services_,
+                    .has_permission = [this](const std::string& permission) {
+                        return HasPermission(permission);
+                    }
+                }
+            );
+            if (data) {
+                SendSuccess(id, *data, send_response);
+                return;
+            }
         }
 
         if (command == "fs.readDir" ||
@@ -1047,6 +1235,208 @@ void KSMRouter::HandleMessage(
             SendSuccess(
                 id,
                 Json{{"opened", host_services_->OpenExternal(url)}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "sql.drivers") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The SQL service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("sql")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            SendSuccess(
+                id,
+                Json{{"drivers", host_services_->SqlDrivers()}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "sql.open") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The SQL service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("sql")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            if (!IsString(args, "driver") || !IsString(args, "url")) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "driver and url are required.",
+                    send_response
+                );
+                return;
+            }
+            const auto connection_id = host_services_->SqlOpen(
+                args.at("driver").get<std::string>(),
+                args.at("url").get<std::string>()
+            );
+            if (!connection_id) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The requested SQL driver is not available.",
+                    send_response
+                );
+                return;
+            }
+            SendSuccess(
+                id,
+                Json{{"connectionId", *connection_id}},
+                send_response
+            );
+            return;
+        }
+
+        if (
+            command == "sql.query" ||
+            command == "sql.execute" ||
+            command == "sql.close"
+        ) {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The SQL service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!HasPermission("sql")) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            if (!IsString(args, "connectionId")) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "connectionId is required.",
+                    send_response
+                );
+                return;
+            }
+            const std::string connection_id =
+                args.at("connectionId").get<std::string>();
+            if (command == "sql.close") {
+                SendSuccess(
+                    id,
+                    Json{{"closed", host_services_->SqlClose(connection_id)}},
+                    send_response
+                );
+                return;
+            }
+            if (!IsString(args, "statement")) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "statement is required.",
+                    send_response
+                );
+                return;
+            }
+            std::vector<KSMSqlValue> params;
+            if (args.contains("params")) {
+                for (const auto& param : args.at("params")) {
+                    params.push_back(SqlValueFromJson(param));
+                }
+            }
+            const std::string statement =
+                args.at("statement").get<std::string>();
+            if (command == "sql.query") {
+                const auto result = host_services_->SqlQuery(
+                    connection_id,
+                    statement,
+                    params
+                );
+                if (!result) {
+                    SendError(
+                        id,
+                        "IO_ERROR",
+                        "The SQL query could not be completed.",
+                        send_response
+                    );
+                    return;
+                }
+                Json rows = Json::array();
+                for (const auto& row : result->rows) {
+                    Json value = Json::object();
+                    for (
+                        std::size_t index = 0;
+                        index < row.size() && index < result->columns.size();
+                        ++index
+                    ) {
+                        value[result->columns[index]] =
+                            SqlValueToJson(row[index]);
+                    }
+                    rows.push_back(std::move(value));
+                }
+                SendSuccess(
+                    id,
+                    Json{
+                        {"columns", result->columns},
+                        {"rows", rows}
+                    },
+                    send_response
+                );
+                return;
+            }
+            const auto result = host_services_->SqlExecute(
+                connection_id,
+                statement,
+                params
+            );
+            if (!result) {
+                SendError(
+                    id,
+                    "IO_ERROR",
+                    "The SQL statement could not be executed.",
+                    send_response
+                );
+                return;
+            }
+            Json last_insert_id = nullptr;
+            if (result->last_insert_id) {
+                last_insert_id = *result->last_insert_id;
+            }
+            SendSuccess(
+                id,
+                Json{
+                    {"rowsAffected", result->rows_affected},
+                    {"lastInsertId", last_insert_id}
+                },
                 send_response
             );
             return;
