@@ -6,12 +6,17 @@ import { templates, workflowSteps } from '@/data/site'
 
 <template>
   <section
-    class="section-block workflow-section"
+    class="relative scroll-mt-[90px] border-t border-line bg-bg-subtle/70 py-24 max-md:py-[76px] max-sm:py-16"
     data-section="workflow"
     aria-labelledby="workflow-title"
   >
-    <div class="section-shell workflow-layout">
-      <div class="workflow-intro" data-reveal>
+    <div
+      class="mx-auto grid w-[calc(100%-48px)] max-w-site grid-cols-[minmax(0,0.82fr)_minmax(500px,1.18fr)] items-start gap-[clamp(42px,7vw,90px)] max-lg:grid-cols-1 max-md:w-[calc(100%-32px)] max-sm:w-[calc(100%-24px)]"
+    >
+      <div
+        class="sticky top-[98px] max-lg:static [&>header]:mb-[26px]"
+        data-reveal
+      >
         <SectionHeading
           eyebrow="开发方式"
           title="从创建到发布，只记一组命令"
@@ -21,37 +26,59 @@ import { templates, workflowSteps } from '@/data/site'
 
         <CopyCommand command="pnpm create kasumi" />
 
-        <div class="template-list" aria-label="可用模板">
-          <span>支持模板</span>
-          <ul>
-            <li v-for="name in templates" :key="name" translate="no">
+        <div class="mt-[26px] flex items-start gap-4 max-sm:flex-col" aria-label="可用模板">
+          <span class="flex-none pt-1 font-mono text-[0.62rem] text-muted-strong">
+            支持模板
+          </span>
+          <ul class="m-0 flex list-none flex-wrap gap-1.5 p-0">
+            <li
+              v-for="name in templates"
+              :key="name"
+              class="rounded-xs border border-line bg-surface px-2 py-[3px] font-mono text-[0.63rem] text-text-soft"
+              translate="no"
+            >
               {{ name }}
             </li>
           </ul>
         </div>
       </div>
 
-      <div class="workflow-panel" data-reveal>
-        <div class="workflow-panel__bar">
-          <span class="window-dots" aria-hidden="true">
-            <i></i>
-            <i></i>
-            <i></i>
+      <div class="overflow-hidden rounded-md border border-line bg-surface" data-reveal>
+        <div
+          class="flex min-h-[42px] items-center gap-3 border-b border-line px-3.5 font-mono text-[0.61rem] text-muted-strong"
+        >
+          <span class="inline-flex gap-[5px]" aria-hidden="true">
+            <i class="size-1.5 rounded-full bg-accent"></i>
+            <i class="size-1.5 rounded-full bg-line-strong"></i>
+            <i class="size-1.5 rounded-full bg-line-strong"></i>
           </span>
           <span>项目终端</span>
         </div>
 
-        <ol>
-          <li v-for="step in workflowSteps" :key="step.step">
-            <div class="workflow-step__copy">
-              <span class="workflow-step__number">{{ step.step }}</span>
+        <ol class="m-0 list-none p-0">
+          <li
+            v-for="step in workflowSteps"
+            :key="step.step"
+            class="border-b border-line p-6 last:border-b-0 max-sm:p-5"
+          >
+            <div class="flex items-start gap-[15px]">
+              <span class="flex-none pt-0.5 font-mono text-[0.63rem] text-accent">
+                {{ step.step }}
+              </span>
               <div>
-                <h3>{{ step.title }}</h3>
-                <p>{{ step.description }}</p>
+                <h3 class="m-0 font-display text-base font-[650] text-text">
+                  {{ step.title }}
+                </h3>
+                <p class="mt-[5px] text-[0.77rem] leading-[1.65] text-muted">
+                  {{ step.description }}
+                </p>
               </div>
             </div>
-            <code translate="no">
-              <span aria-hidden="true">$</span>
+            <code
+              class="mt-3.5 ml-[27px] block overflow-x-auto rounded-xs border border-line bg-bg-subtle px-3 py-2.5 font-mono text-[0.72rem] whitespace-nowrap text-text-soft max-sm:ml-0"
+              translate="no"
+            >
+              <span class="mr-[7px] text-accent" aria-hidden="true">$</span>
               {{ step.command }}
             </code>
           </li>
@@ -60,180 +87,3 @@ import { templates, workflowSteps } from '@/data/site'
     </div>
   </section>
 </template>
-
-<style scoped>
-.workflow-section {
-  background: color-mix(in srgb, var(--bg-subtle) 68%, transparent);
-}
-
-.workflow-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 0.82fr) minmax(500px, 1.18fr);
-  gap: clamp(42px, 7vw, 90px);
-  align-items: start;
-}
-
-.workflow-intro {
-  position: sticky;
-  top: calc(var(--nav-height) + 36px);
-}
-
-.workflow-intro :deep(.section-heading) {
-  margin-bottom: 26px;
-}
-
-.template-list {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  margin-top: 26px;
-}
-
-.template-list > span {
-  flex: none;
-  padding-top: 4px;
-  color: var(--muted-strong);
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-}
-
-.template-list ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-
-.template-list li {
-  padding: 3px 8px;
-  color: var(--text-soft);
-  font-family: var(--font-mono);
-  font-size: 0.63rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-}
-
-.workflow-panel {
-  overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-
-.workflow-panel__bar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  min-height: 42px;
-  padding: 0 14px;
-  color: var(--muted-strong);
-  font-family: var(--font-mono);
-  font-size: 0.61rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.window-dots {
-  display: inline-flex;
-  gap: 5px;
-}
-
-.window-dots i {
-  width: 6px;
-  height: 6px;
-  background: var(--border-strong);
-  border-radius: 50%;
-}
-
-.window-dots i:first-child {
-  background: var(--accent);
-}
-
-.workflow-panel ol {
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-
-.workflow-panel li {
-  padding: 24px;
-}
-
-.workflow-panel li + li {
-  border-top: 1px solid var(--border);
-}
-
-.workflow-step__copy {
-  display: flex;
-  gap: 15px;
-  align-items: flex-start;
-}
-
-.workflow-step__number {
-  flex: none;
-  padding-top: 2px;
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-size: 0.63rem;
-}
-
-h3 {
-  margin: 0;
-  color: var(--text);
-  font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 650;
-}
-
-p {
-  margin: 5px 0 0;
-  color: var(--muted);
-  font-size: 0.77rem;
-  line-height: 1.65;
-}
-
-code {
-  display: block;
-  padding: 10px 12px;
-  margin: 14px 0 0 27px;
-  overflow-x: auto;
-  color: var(--text-soft);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  white-space: nowrap;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-}
-
-code span {
-  margin-right: 7px;
-  color: var(--accent);
-}
-
-@media (max-width: 980px) {
-  .workflow-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .workflow-intro {
-    position: static;
-  }
-}
-
-@media (max-width: 560px) {
-  .template-list {
-    flex-direction: column;
-  }
-
-  .workflow-panel li {
-    padding: 20px;
-  }
-
-  code {
-    margin-left: 0;
-  }
-}
-</style>

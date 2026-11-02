@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
-import { createHighlighter } from 'shiki'
 
 import type { CodeLanguage } from '@/data/site'
+import type { HighlighterCore, LanguageRegistration } from 'shiki/core'
 
 const props = defineProps<{
   code: string
@@ -11,14 +11,31 @@ const props = defineProps<{
 
 const highlightedCode = ref('')
 const isLoading = ref(true)
-let highlighterPromise: ReturnType<typeof createHighlighter> | undefined
+let highlighterPromise: Promise<HighlighterCore> | undefined
 let renderVersion = 0
 
+type LanguageModule = {
+  default: LanguageRegistration[]
+}
+
+const languageLoaders: Record<CodeLanguage, () => Promise<LanguageModule>> = {
+  typescript: () => import('shiki/langs/typescript.mjs'),
+  cpp: () => import('shiki/langs/cpp.mjs'),
+  kotlin: () => import('shiki/langs/kotlin.mjs'),
+  json: () => import('shiki/langs/json.mjs'),
+}
+
 function getHighlighter() {
-  highlighterPromise ??= createHighlighter({
-    themes: ['vesper'],
-    langs: ['typescript', 'cpp', 'kotlin', 'json'],
-  })
+  highlighterPromise ??= Promise.all([
+    import('shiki/core'),
+    import('shiki/engine/javascript'),
+    import('shiki/themes/vesper.mjs'),
+  ]).then(([core, engine, theme]) =>
+    core.createHighlighterCore({
+      themes: [theme.default],
+      engine: engine.createJavaScriptRegexEngine(),
+    }),
+  )
 
   return highlighterPromise
 }
@@ -28,10 +45,21 @@ async function renderCode() {
   isLoading.value = true
 
   try {
-    const highlighter = await getHighlighter()
+    const [highlighter, language] = await Promise.all([
+      getHighlighter(),
+      languageLoaders[props.language](),
+    ])
 
     if (version !== renderVersion) {
       return
+    }
+
+    if (!highlighter.getLoadedLanguages().includes(props.language)) {
+      await highlighter.loadLanguage(language.default)
+
+      if (version !== renderVersion) {
+        return
+      }
     }
 
     // Shiki escapes source text before wrapping it in token spans
@@ -60,88 +88,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="code-block" :aria-busy="isLoading">
+  <div
+    class="code-block h-full min-h-0 min-w-0 overflow-hidden [&_.line]:block [&_.line]:min-h-0 [&_.line]:whitespace-pre [&_pre::-webkit-scrollbar-thumb:hover]:bg-[#505050] [&_pre::-webkit-scrollbar-thumb]:rounded-full [&_pre::-webkit-scrollbar-thumb]:border-2 [&_pre::-webkit-scrollbar-thumb]:border-transparent [&_pre::-webkit-scrollbar-thumb]:bg-[#343434] [&_pre::-webkit-scrollbar-thumb]:bg-clip-padding [&_pre::-webkit-scrollbar-track]:bg-transparent [&_pre::-webkit-scrollbar]:h-[7px] [&_pre::-webkit-scrollbar]:w-[7px] [&_pre]:m-0 [&_pre]:h-full [&_pre]:overflow-auto [&_pre]:bg-transparent! [&_pre]:p-5 [&_pre]:font-mono [&_pre]:text-[length:clamp(0.66rem,0.9vw,0.75rem)] [&_pre]:leading-[1.65] [&_pre]:whitespace-pre [&_pre]:text-[#d8d3cb] [&_pre]:[scrollbar-color:#3a3a3a_transparent] [&_pre]:[scrollbar-gutter:stable] [&_pre]:[scrollbar-width:thin] [&_pre]:[tab-size:2] max-sm:[&_pre]:px-[13px] max-sm:[&_pre]:py-4"
+    :aria-busy="isLoading"
+  >
     <div
       v-if="highlightedCode"
-      class="code-block__highlight"
+      class="h-full min-h-0"
       v-html="highlightedCode"
     ></div>
-    <pre v-else class="code-block__fallback"><code>{{ code }}</code></pre>
+    <pre v-else class="min-h-full"><code>{{ code }}</code></pre>
   </div>
 </template>
-
-<style scoped>
-.code-block {
-  min-width: 0;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.code-block__highlight {
-  height: 100%;
-  min-height: 0;
-}
-
-.code-block :deep(.shiki),
-.code-block__fallback {
-  height: 100%;
-  padding: 20px;
-  margin: 0;
-  overflow: auto;
-  color: #d8d3cb;
-  font-family: var(--font-mono);
-  font-size: clamp(0.66rem, 0.9vw, 0.75rem);
-  line-height: 1.65;
-  white-space: normal;
-  tab-size: 2;
-  background: transparent !important;
-  scrollbar-color: #3a3a3a transparent;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-}
-
-.code-block :deep(.line) {
-  display: block;
-  min-height: 0;
-  white-space: pre;
-}
-
-.code-block__fallback {
-  min-height: 100%;
-  white-space: pre;
-}
-
-.code-block :deep(.shiki)::-webkit-scrollbar,
-.code-block__fallback::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
-
-.code-block :deep(.shiki)::-webkit-scrollbar-track,
-.code-block__fallback::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.code-block :deep(.shiki)::-webkit-scrollbar-thumb,
-.code-block__fallback::-webkit-scrollbar-thumb {
-  background: #343434;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background-clip: padding-box;
-}
-
-.code-block :deep(.shiki)::-webkit-scrollbar-thumb:hover,
-.code-block__fallback::-webkit-scrollbar-thumb:hover {
-  background: #505050;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-@media (max-width: 560px) {
-  .code-block :deep(.shiki),
-  .code-block__fallback {
-    padding: 16px 13px;
-  }
-}
-</style>

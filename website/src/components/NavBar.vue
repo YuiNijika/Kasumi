@@ -91,24 +91,37 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <header class="nav-wrap">
-    <nav class="nav-shell" aria-label="主要导航">
+  <header
+    class="nav-surface sticky top-0 z-40 border-b border-line bg-nav pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-[1.3]"
+  >
+    <nav
+      class="relative mx-auto flex min-h-[62px] w-[min(calc(100%-48px),1240px)] items-center justify-between max-md:w-[min(calc(100%-32px),1240px)]"
+      aria-label="主要导航"
+    >
       <button
-        class="brand"
+        class="inline-flex min-h-11 items-center gap-[9px] text-text"
         type="button"
         aria-label="返回 Kasumi 首页"
         @click="scrollToTop"
       >
-        <span class="brand__name" translate="no">{{ siteMeta.name }}</span>
+        <span
+          class="font-display text-[1.04rem] font-[650] tracking-[-0.025em]"
+          translate="no"
+        >
+          {{ siteMeta.name }}
+        </span>
       </button>
 
-      <div class="nav-links">
+      <div class="flex items-center gap-0.5 max-[900px]:hidden">
         <button
           v-for="item in navigation"
           :key="item.target"
           type="button"
-          class="nav-link"
-          :class="{ 'nav-link--active': activeSection === item.target }"
+          class="relative inline-flex min-h-11 items-center px-[11px] text-[0.78rem] font-semibold text-muted transition-colors after:absolute after:inset-x-[11px] after:bottom-[3px] after:h-px after:origin-center after:scale-x-[0.6] after:bg-accent after:opacity-0 after:transition-[opacity,transform] hover:text-text"
+          :class="{
+            'text-text after:scale-x-100 after:opacity-100':
+              activeSection === item.target,
+          }"
           :aria-current="activeSection === item.target ? 'location' : undefined"
           @click="navigateTo(item.target)"
         >
@@ -116,9 +129,9 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <div class="nav-actions">
+      <div class="flex items-center gap-1">
         <button
-          class="icon-button"
+          class="grid size-11 place-items-center rounded-xs border border-transparent text-muted transition-colors hover:border-line hover:bg-surface-hover hover:text-text"
           type="button"
           :aria-label="isDark ? '切换到日间模式' : '切换到夜间模式'"
           @click="toggleTheme"
@@ -157,7 +170,7 @@ onBeforeUnmount(() => {
         </button>
 
         <a
-          class="icon-button github-link"
+          class="grid size-11 place-items-center rounded-xs border border-transparent text-muted transition-colors hover:border-line hover:bg-surface-hover hover:text-text max-[420px]:hidden"
           :href="siteMeta.repository"
           target="_blank"
           rel="noreferrer"
@@ -172,7 +185,7 @@ onBeforeUnmount(() => {
         </a>
 
         <a
-          class="nav-cta"
+          class="ml-1 inline-flex min-h-11 items-center gap-[7px] rounded-xs bg-accent px-[13px] text-[0.76rem] font-[750] text-[#190c03] no-underline transition-[background-color,transform] hover:bg-accent-bright active:scale-[0.97] max-md:hidden"
           :href="siteMeta.documentation"
           target="_blank"
           rel="noreferrer"
@@ -182,34 +195,44 @@ onBeforeUnmount(() => {
         </a>
 
         <button
-          class="icon-button menu-toggle"
+          class="hidden size-11 place-items-center rounded-xs border border-transparent text-muted transition-colors hover:border-line hover:bg-surface-hover hover:text-text max-[900px]:grid"
           type="button"
           :aria-expanded="isOpen"
           aria-controls="mobile-navigation"
           :aria-label="isOpen ? '关闭导航菜单' : '打开导航菜单'"
           @click="isOpen = !isOpen"
         >
-          <span :class="{ 'menu-toggle__line--top': isOpen }" aria-hidden="true"></span>
-          <span :class="{ 'menu-toggle__line--bottom': isOpen }" aria-hidden="true"></span>
+          <span
+            class="mx-auto my-[3.5px] block h-[1.5px] w-[15px] bg-current transition-[opacity,transform]"
+            :class="{ 'translate-y-[2.5px] rotate-45': isOpen }"
+            aria-hidden="true"
+          ></span>
+          <span
+            class="mx-auto my-[3.5px] block h-[1.5px] w-[15px] bg-current transition-[opacity,transform]"
+            :class="{ '-translate-y-[2.5px] -rotate-45': isOpen }"
+            aria-hidden="true"
+          ></span>
         </button>
       </div>
 
       <div
         v-if="isOpen"
         id="mobile-navigation"
-        class="mobile-menu"
+        class="absolute top-[calc(100%+1px)] right-0 left-0 grid gap-0 rounded-b-md border border-t-0 border-line bg-nav p-2 shadow-soft backdrop-blur-lg"
       >
         <button
           v-for="item in navigation"
           :key="item.target"
           type="button"
-          :class="{ 'mobile-menu__item--active': activeSection === item.target }"
+          class="flex min-h-11 items-center justify-between rounded-xs px-2.5 py-3 text-[0.86rem] font-[650] text-text-soft hover:bg-surface-hover hover:text-text"
+          :class="{ 'bg-surface-hover text-text': activeSection === item.target }"
           @click="navigateTo(item.target)"
         >
           {{ item.label }}
           <span aria-hidden="true">→</span>
         </button>
         <a
+          class="flex items-center justify-between rounded-xs px-2.5 py-3 text-[0.86rem] font-[650] text-accent-bright no-underline hover:bg-surface-hover hover:text-text"
           :href="siteMeta.documentation"
           target="_blank"
           rel="noreferrer"
@@ -222,232 +245,3 @@ onBeforeUnmount(() => {
     </nav>
   </header>
 </template>
-
-<style scoped>
-.nav-wrap {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  padding-top: env(safe-area-inset-top);
-  background: var(--nav-bg);
-  border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(16px) saturate(130%);
-}
-
-.nav-shell {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: min(calc(100% - 48px), 1240px);
-  min-height: var(--nav-height);
-  margin-inline: auto;
-}
-
-.brand {
-  display: inline-flex;
-  gap: 9px;
-  align-items: center;
-  color: var(--text);
-}
-
-.brand__mark {
-  display: grid;
-  width: 27px;
-  height: 27px;
-  color: #1a0c02;
-  font-family: var(--font-display);
-  font-size: 0.86rem;
-  font-weight: 800;
-  background: var(--accent);
-  border-radius: 6px;
-  place-items: center;
-}
-
-.brand__name {
-  font-family: var(--font-display);
-  font-size: 1.04rem;
-  font-weight: 650;
-  letter-spacing: -0.025em;
-}
-
-.nav-links {
-  display: flex;
-  gap: 2px;
-  align-items: center;
-}
-
-.nav-link {
-  position: relative;
-  padding: 8px 11px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-  transition: color 150ms ease;
-}
-
-.nav-link::after {
-  position: absolute;
-  right: 11px;
-  bottom: 3px;
-  left: 11px;
-  height: 1px;
-  content: "";
-  background: var(--accent);
-  opacity: 0;
-  transform: scaleX(0.6);
-  transition:
-    opacity 150ms ease,
-    transform 150ms ease;
-}
-
-.nav-link:hover,
-.nav-link--active {
-  color: var(--text);
-}
-
-.nav-link--active::after {
-  opacity: 1;
-  transform: scaleX(1);
-}
-
-.nav-actions {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-
-.icon-button {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  color: var(--muted);
-  border: 1px solid transparent;
-  border-radius: var(--radius-xs);
-  place-items: center;
-  transition:
-    color 150ms ease,
-    background-color 150ms ease,
-    border-color 150ms ease;
-}
-
-.icon-button:hover {
-  color: var(--text);
-  background: var(--surface-hover);
-  border-color: var(--border);
-}
-
-.nav-cta {
-  display: inline-flex;
-  gap: 7px;
-  align-items: center;
-  min-height: 34px;
-  padding: 0 13px;
-  margin-left: 4px;
-  color: #190c03;
-  font-size: 0.76rem;
-  font-weight: 750;
-  text-decoration: none;
-  background: var(--accent);
-  border-radius: var(--radius-xs);
-  transition:
-    background-color 150ms ease,
-    transform 120ms ease;
-}
-
-.nav-cta:hover {
-  background: var(--accent-bright);
-}
-
-.nav-cta:active {
-  transform: scale(0.97);
-}
-
-.menu-toggle {
-  display: none;
-}
-
-.menu-toggle span {
-  display: block;
-  width: 15px;
-  height: 1.5px;
-  margin: 3.5px auto;
-  background: currentColor;
-  transition:
-    opacity 150ms ease,
-    transform 150ms ease;
-}
-
-.menu-toggle__line--top {
-  transform: translateY(2.5px) rotate(45deg);
-}
-
-.menu-toggle__line--bottom {
-  transform: translateY(-2.5px) rotate(-45deg);
-}
-
-.mobile-menu {
-  position: absolute;
-  top: calc(100% + 1px);
-  right: 0;
-  left: 0;
-  display: grid;
-  padding: 8px;
-  background: var(--nav-bg);
-  border: 1px solid var(--border);
-  border-top: 0;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(18px);
-}
-
-.mobile-menu button,
-.mobile-menu a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 10px;
-  color: var(--text-soft);
-  font-size: 0.86rem;
-  font-weight: 650;
-  text-decoration: none;
-  border-radius: var(--radius-xs);
-}
-
-.mobile-menu button:hover,
-.mobile-menu a:hover,
-.mobile-menu__item--active {
-  color: var(--text);
-  background: var(--surface-hover);
-}
-
-.mobile-menu a {
-  color: var(--accent-bright);
-}
-
-@media (max-width: 900px) {
-  .nav-links {
-    display: none;
-  }
-
-  .menu-toggle {
-    display: grid;
-  }
-}
-
-@media (max-width: 820px) {
-  .nav-shell {
-    width: min(calc(100% - 32px), 1240px);
-  }
-
-  .nav-cta {
-    display: none;
-  }
-}
-
-@media (max-width: 420px) {
-  .github-link {
-    display: none;
-  }
-}
-</style>

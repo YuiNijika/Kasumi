@@ -51,12 +51,20 @@ onBeforeUnmount(() => observer?.disconnect())
 </script>
 
 <template>
-  <button class="skip-link" type="button" @click="focusMainContent">
+  <button
+    class="fixed left-3 top-3 z-[100] -translate-y-[160%] rounded-xs bg-accent px-4 py-2.5 text-[0.82rem] font-extrabold text-[#170b03] transition-transform duration-150 focus:translate-y-0"
+    type="button"
+    @click="focusMainContent"
+  >
     跳到主要内容
   </button>
 
   <NavBar />
-  <main ref="mainContent" class="site-main" tabindex="-1">
+  <main
+    ref="mainContent"
+    class="focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-accent-bright"
+    tabindex="-1"
+  >
     <HeroSection />
     <AdvantagesSection />
     <PlatformsSection />

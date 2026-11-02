@@ -5,11 +5,11 @@ import { techStack } from '@/data/site'
 
 <template>
   <section
-    class="section-block"
+    class="relative scroll-mt-[90px] border-t border-line py-24 max-md:py-[76px] max-sm:py-16"
     data-section="stack"
     aria-labelledby="tech-stack-title"
   >
-    <div class="section-shell">
+    <div class="mx-auto w-[calc(100%-48px)] max-w-site max-md:w-[calc(100%-32px)] max-sm:w-[calc(100%-24px)]">
       <div data-reveal>
         <SectionHeading
           eyebrow="技术栈"
@@ -20,105 +20,32 @@ import { techStack } from '@/data/site'
         />
       </div>
 
-      <div class="stack-grid">
+      <div class="grid grid-cols-4 gap-3 max-lg:grid-cols-2 max-sm:grid-cols-1">
         <article
           v-for="item in techStack"
           :key="item.name"
-          class="stack-card"
+          class="min-h-[235px] rounded-md border border-line bg-surface p-[22px] transition-colors hover:border-line-strong hover:bg-surface-hover max-sm:min-h-[205px]"
           data-reveal
         >
-          <div class="stack-card__head">
-            <span class="stack-card__mark" translate="no">{{ item.mark }}</span>
-            <span class="stack-card__role" translate="no">{{ item.role }}</span>
+          <div class="flex items-center justify-between gap-3">
+            <span
+              class="grid size-[38px] place-items-center rounded-xs border border-accent-line bg-accent-wash font-mono text-[0.68rem] font-bold text-accent-bright"
+              translate="no"
+            >
+              {{ item.mark }}
+            </span>
+            <span class="text-right font-mono text-[0.57rem] text-muted-strong" translate="no">
+              {{ item.role }}
+            </span>
           </div>
-          <h3 translate="no">{{ item.name }}</h3>
-          <p>{{ item.description }}</p>
+          <h3 class="mt-10 font-display text-xl font-[650] tracking-[-0.02em] text-text" translate="no">
+            {{ item.name }}
+          </h3>
+          <p class="mt-2.5 text-[0.77rem] leading-[1.7] text-muted">
+            {{ item.description }}
+          </p>
         </article>
       </div>
     </div>
   </section>
 </template>
-
-<style scoped>
-.stack-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.stack-card {
-  min-height: 235px;
-  padding: 22px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease;
-}
-
-.stack-card:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-strong);
-}
-
-.stack-card__head {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.stack-card__mark {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  color: var(--accent-bright);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 700;
-  background: var(--accent-wash);
-  border: 1px solid var(--accent-line);
-  border-radius: var(--radius-xs);
-  place-items: center;
-}
-
-.stack-card__role {
-  color: var(--muted-strong);
-  font-family: var(--font-mono);
-  font-size: 0.57rem;
-  text-align: right;
-}
-
-h3 {
-  margin: 40px 0 0;
-  color: var(--text);
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-}
-
-p {
-  margin: 9px 0 0;
-  color: var(--muted);
-  font-size: 0.77rem;
-  line-height: 1.7;
-}
-
-@media (max-width: 980px) {
-  .stack-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 560px) {
-  .stack-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .stack-card {
-    min-height: 205px;
-  }
-}
-</style>

@@ -50,11 +50,19 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="copy-command">
-    <span class="copy-command__prompt" aria-hidden="true">$</span>
-    <code translate="no">{{ command }}</code>
+  <div
+    class="flex min-h-[54px] w-full max-w-[420px] items-center gap-2.5 rounded-sm border border-line-strong bg-surface px-3.5 py-1 font-mono text-text max-[420px]:gap-2 max-[420px]:px-3"
+  >
+    <span class="shrink-0 text-[0.84rem] font-extrabold text-accent" aria-hidden="true">$</span>
+    <code
+      class="min-w-0 flex-1 truncate text-[0.76rem] max-[420px]:text-[0.69rem]"
+      translate="no"
+    >
+      {{ command }}
+    </code>
     <button
       type="button"
+      class="grid size-11 shrink-0 place-items-center rounded-xs bg-accent text-[#190c03] transition-[background-color,transform] duration-150 hover:bg-accent-bright active:scale-[0.97]"
       :aria-label="
         state === 'copied'
           ? '创建命令已复制'
@@ -108,7 +116,7 @@ onBeforeUnmount(() => {
         />
       </svg>
     </button>
-    <span class="visually-hidden" aria-live="polite">
+    <span class="sr-only" aria-live="polite">
       {{
         state === 'copied'
           ? '创建命令已复制到剪贴板'
@@ -119,85 +127,3 @@ onBeforeUnmount(() => {
     </span>
   </div>
 </template>
-
-<style scoped>
-.copy-command {
-  display: flex;
-  gap: 11px;
-  align-items: center;
-  width: min(100%, 420px);
-  min-height: 54px;
-  padding: 5px 5px 5px 15px;
-  color: var(--text);
-  font-family: var(--font-mono);
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-}
-
-.copy-command__prompt {
-  color: var(--accent);
-  font-size: 0.84rem;
-  font-weight: 800;
-}
-
-.copy-command code {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 0.8rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.copy-command button {
-  display: grid;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  min-height: 42px;
-  padding: 0;
-  color: #190c03;
-  background: var(--accent);
-  border-radius: var(--radius-xs);
-  place-items: center;
-  transition:
-    background-color 150ms ease,
-    transform 120ms ease;
-}
-
-.copy-command button:hover {
-  background: var(--accent-bright);
-}
-
-.copy-command button:active {
-  transform: scale(0.97);
-}
-
-@media (max-width: 560px) {
-  .copy-command {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .copy-command code {
-    font-size: 0.75rem;
-  }
-}
-
-@media (max-width: 420px) {
-  .copy-command {
-    gap: 8px;
-    padding-left: 12px;
-  }
-
-  .copy-command code {
-    font-size: 0.69rem;
-  }
-
-  .copy-command button {
-    width: 40px;
-  }
-}
-</style>

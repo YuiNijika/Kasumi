@@ -13,16 +13,29 @@ function scrollToTop() {
 </script>
 
 <template>
-  <footer class="site-footer">
-    <div class="footer-cta-wrap">
-      <div class="section-shell footer-cta">
-        <div class="footer-cta__copy">
-          <p class="eyebrow">现在开始</p>
-          <h2>用熟悉的 Web 界面，交付下一款应用。</h2>
+  <footer class="border-t border-line pb-[calc(30px+env(safe-area-inset-bottom))] max-sm:pb-[calc(24px+env(safe-area-inset-bottom))]">
+    <div class="border-b border-line bg-[linear-gradient(90deg,var(--site-accent-wash),transparent_64%)]">
+      <div
+        class="mx-auto grid w-[calc(100%-48px)] max-w-site grid-cols-[minmax(0,1fr)_auto] items-center gap-11 py-[62px] max-md:w-[calc(100%-32px)] max-md:grid-cols-1 max-md:gap-[26px] max-sm:w-[calc(100%-24px)]"
+      >
+        <div class="min-w-0">
+          <p class="mb-3 font-mono text-[0.7rem] font-bold tracking-[0.06em] text-accent-bright">
+            现在开始
+          </p>
+          <h2
+            class="m-0 max-w-[22ch] text-balance font-display text-[clamp(2rem,4vw,3.2rem)] font-[650] leading-[1.06] tracking-[-0.045em] text-text"
+          >
+            用熟悉的 Web 界面，交付下一款应用。
+          </h2>
         </div>
-        <div class="footer-cta__actions">
+        <div class="flex flex-col items-start gap-2.5">
           <CopyCommand :command="hero.command" />
-          <a :href="siteMeta.documentation" target="_blank" rel="noreferrer">
+          <a
+            class="inline-flex items-center gap-1.5 text-[0.76rem] font-bold text-accent-bright no-underline hover:text-text"
+            :href="siteMeta.documentation"
+            target="_blank"
+            rel="noreferrer"
+          >
             阅读开发文档
             <span aria-hidden="true">↗</span>
           </a>
@@ -30,21 +43,43 @@ function scrollToTop() {
       </div>
     </div>
 
-    <div class="section-shell footer-body">
-      <div class="footer-main">
-        <div class="footer-brand">
-          <button type="button" aria-label="返回页面顶部" @click="scrollToTop">
-            <span aria-hidden="true">K</span>
-            <strong translate="no">{{ siteMeta.name }}</strong>
+    <div class="mx-auto w-[calc(100%-48px)] max-w-site max-md:w-[calc(100%-32px)] max-sm:w-[calc(100%-24px)]">
+      <div
+        class="grid grid-cols-[1.4fr_0.7fr_0.7fr] gap-[54px] py-[42px] max-md:grid-cols-2 max-sm:grid-cols-1 max-sm:gap-7"
+      >
+        <div class="max-md:col-span-2 max-sm:col-span-1">
+          <button
+            class="inline-flex items-center gap-[9px] text-text"
+            type="button"
+            aria-label="返回页面顶部"
+            @click="scrollToTop"
+          >
+            <span
+              class="grid size-[27px] place-items-center rounded-xs bg-accent font-display text-[0.86rem] font-extrabold text-[#190c03]"
+              aria-hidden="true"
+            >
+              K
+            </span>
+            <strong
+              class="font-display text-[1.1rem] font-[650] tracking-[-0.025em]"
+              translate="no"
+            >
+              {{ siteMeta.name }}
+            </strong>
           </button>
-          <p>{{ siteMeta.description }}</p>
+          <p class="mt-[13px] max-w-[38ch] text-[0.76rem] text-muted-strong">
+            {{ siteMeta.description }}
+          </p>
         </div>
 
-        <nav aria-label="页脚导航">
-          <p>资源</p>
+        <nav class="flex flex-col" aria-label="页脚导航">
+          <p class="mt-0.5 mb-3 font-mono text-[0.6rem] font-[650] text-muted-strong">
+            资源
+          </p>
           <a
             v-for="link in footerLinks"
             :key="link.href"
+            class="mb-2 inline-flex w-fit items-center gap-[5px] text-[0.75rem] text-muted no-underline hover:text-accent-bright"
             :href="link.href"
             target="_blank"
             rel="noreferrer"
@@ -54,17 +89,26 @@ function scrollToTop() {
           </a>
         </nav>
 
-        <div class="footer-meta">
-          <p>平台</p>
-          <span>Windows</span>
-          <span>Android</span>
-          <span>MIT License</span>
+        <div class="flex flex-col">
+          <p class="mt-0.5 mb-3 font-mono text-[0.6rem] font-[650] text-muted-strong">
+            平台
+          </p>
+          <span class="mb-2 w-fit text-[0.75rem] text-muted">Windows</span>
+          <span class="mb-2 w-fit text-[0.75rem] text-muted">Android</span>
+          <span class="mb-2 w-fit text-[0.75rem] text-muted">MIT License</span>
         </div>
       </div>
 
-      <div class="footer-bottom">
-        <p>© 2026 Kasumi</p>
-        <a :href="siteMeta.repository" target="_blank" rel="noreferrer">
+      <div
+        class="flex items-center justify-between border-t border-line pt-5 text-[0.65rem] text-muted-strong max-sm:flex-col max-sm:items-start max-sm:gap-2"
+      >
+        <p class="m-0">© 2026 Kasumi</p>
+        <a
+          class="inline-flex items-center gap-[5px] text-muted no-underline hover:text-accent-bright"
+          :href="siteMeta.repository"
+          target="_blank"
+          rel="noreferrer"
+        >
           GitHub
           <span aria-hidden="true">↗</span>
         </a>
@@ -72,205 +116,3 @@ function scrollToTop() {
     </div>
   </footer>
 </template>
-
-<style scoped>
-.site-footer {
-  padding-bottom: calc(30px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border);
-}
-
-.footer-cta-wrap {
-  background: linear-gradient(90deg, var(--accent-wash), transparent 64%);
-  border-bottom: 1px solid var(--border);
-}
-
-.footer-cta {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 44px;
-  align-items: center;
-  padding-block: 62px;
-}
-
-.footer-cta .eyebrow {
-  margin-bottom: 12px;
-}
-
-h2 {
-  max-width: 22ch;
-  margin: 0;
-  color: var(--text);
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3.2rem);
-  font-weight: 650;
-  letter-spacing: -0.045em;
-  line-height: 1.06;
-  text-wrap: balance;
-}
-
-.footer-cta__copy {
-  min-width: 0;
-}
-
-.footer-cta__actions {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  flex-direction: column;
-}
-
-.footer-cta__actions > a {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  color: var(--accent-bright);
-  font-size: 0.76rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.footer-cta__actions > a:hover {
-  color: var(--text);
-}
-
-.footer-main {
-  display: grid;
-  grid-template-columns: 1.4fr 0.7fr 0.7fr;
-  gap: 54px;
-  padding: 42px 0;
-}
-
-.footer-body {
-  padding-top: 0;
-}
-
-.footer-brand > button {
-  display: inline-flex;
-  gap: 9px;
-  align-items: center;
-  color: var(--text);
-}
-
-.footer-brand > button span {
-  display: grid;
-  width: 27px;
-  height: 27px;
-  color: #190c03;
-  font-family: var(--font-display);
-  font-size: 0.86rem;
-  font-weight: 800;
-  background: var(--accent);
-  border-radius: 6px;
-  place-items: center;
-}
-
-.footer-brand strong {
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  font-weight: 650;
-  letter-spacing: -0.025em;
-}
-
-.footer-brand p {
-  max-width: 38ch;
-  margin: 13px 0 0;
-  color: var(--muted-strong);
-  font-size: 0.76rem;
-}
-
-nav,
-.footer-meta {
-  display: flex;
-  flex-direction: column;
-}
-
-.footer-main nav > p,
-.footer-meta > p {
-  margin: 2px 0 12px;
-  color: var(--muted-strong);
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  font-weight: 650;
-}
-
-nav a,
-.footer-meta span {
-  width: fit-content;
-  margin-bottom: 8px;
-  color: var(--muted);
-  font-size: 0.75rem;
-  text-decoration: none;
-}
-
-nav a {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-}
-
-nav a:hover {
-  color: var(--accent-bright);
-}
-
-.footer-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 20px;
-  color: var(--muted-strong);
-  font-size: 0.65rem;
-  border-top: 1px solid var(--border);
-}
-
-.footer-bottom p {
-  margin: 0;
-}
-
-.footer-bottom a {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  color: var(--muted);
-  text-decoration: none;
-}
-
-.footer-bottom a:hover {
-  color: var(--accent-bright);
-}
-
-@media (max-width: 820px) {
-  .footer-cta {
-    grid-template-columns: 1fr;
-    gap: 26px;
-  }
-
-  .footer-main {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .footer-brand {
-    grid-column: 1 / -1;
-  }
-}
-
-@media (max-width: 560px) {
-  .site-footer {
-    padding-bottom: calc(24px + env(safe-area-inset-bottom));
-  }
-
-  .footer-main {
-    grid-template-columns: 1fr;
-    gap: 28px;
-  }
-
-  .footer-brand {
-    grid-column: auto;
-  }
-
-  .footer-bottom {
-    gap: 8px;
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-</style>

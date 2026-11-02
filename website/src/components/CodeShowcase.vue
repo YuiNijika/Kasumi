@@ -97,24 +97,30 @@ function fileTreeGroups(example: CodeExample): FileTreeGroup[] {
 
 <template>
   <figure
-    class="app-window"
+    class="m-0 flex h-[500px] max-h-[calc(100dvh-96px)] flex-col overflow-hidden rounded-md border border-code-border bg-code-bg text-code-text shadow-soft max-sm:h-[470px] max-sm:max-h-[calc(100dvh-72px)]"
     aria-label="Kasumi 应用的方法示例、文件树与高亮代码"
   >
-    <header class="app-window__bar">
-      <span class="window-dots" aria-hidden="true">
-        <i></i>
-        <i></i>
-        <i></i>
+    <header
+      class="grid min-h-[49px] flex-none grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border-b border-code-border bg-code-surface px-3.5 max-sm:grid-cols-1 max-sm:pl-2"
+    >
+      <span class="inline-flex gap-1.5 max-sm:hidden" aria-hidden="true">
+        <i class="size-[7px] rounded-full bg-accent"></i>
+        <i class="size-[7px] rounded-full bg-[#3b3b3b]"></i>
+        <i class="size-[7px] rounded-full bg-[#3b3b3b]"></i>
       </span>
 
-      <div class="example-tabs" role="tablist" aria-label="方法示例">
+      <div
+        class="flex min-w-0 self-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        role="tablist"
+        aria-label="方法示例"
+      >
         <button
           v-for="(example, index) in examples"
           :id="`example-tab-${example.id}`"
           :key="example.id"
           type="button"
           role="tab"
-          class="example-tab"
+          class="inline-flex flex-none items-center gap-[7px] border-b border-transparent px-[11px] text-[0.65rem] font-[650] whitespace-nowrap text-[#77736c] transition-[color,background-color,border-color] hover:bg-[#151515] hover:text-[#c4c0b8] aria-selected:border-accent aria-selected:bg-code-bg aria-selected:text-[#efede8] [&_svg]:size-3.5"
           :aria-controls="`example-panel-${example.id}`"
           :aria-selected="activeExampleIndex === index"
           :tabindex="activeExampleIndex === index ? 0 : -1"
@@ -132,27 +138,32 @@ function fileTreeGroups(example: CodeExample): FileTreeGroup[] {
       v-show="activeExampleIndex === exampleIndex"
       :id="`example-panel-${example.id}`"
       :key="example.id"
-      class="example-panel"
+      class="grid min-h-0 flex-1 auto-rows-fr grid-cols-[156px_minmax(0,1fr)] overflow-hidden max-sm:grid-rows-[142px_minmax(0,1fr)] max-sm:grid-cols-1"
       role="tabpanel"
       :aria-labelledby="`example-tab-${example.id}`"
       tabindex="0"
     >
       <div
-        class="file-tree"
+        class="min-h-0 overflow-y-auto border-r border-code-border bg-[#0a0a0a] p-2.5 [scrollbar-color:#3a3a3a_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb:hover]:bg-[#505050] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent [&::-webkit-scrollbar-thumb]:bg-[#343434] [&::-webkit-scrollbar-thumb]:bg-clip-padding [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-[7px] max-sm:h-[142px] max-sm:border-r-0 max-sm:border-b max-sm:border-code-border"
         role="group"
         :aria-label="`${example.label}示例文件`"
       >
-        <p class="file-tree__root">
-          <span aria-hidden="true"></span>
+        <p
+          class="m-0 flex items-center gap-[7px] px-[7px] pt-[5px] pb-2.5 font-mono text-[0.59rem] text-[#a7a39c]"
+        >
+          <span class="size-1.5 rounded-full bg-accent" aria-hidden="true"></span>
           kirakira-app
         </p>
 
         <div
           v-for="group in fileTreeGroups(example)"
           :key="group.folder || 'root'"
-          class="file-tree__group"
+          class="[&+&]:mt-2"
         >
-          <p v-if="group.folder" class="file-tree__folder">
+          <p
+            v-if="group.folder"
+            class="m-0 mb-0.5 flex items-center gap-1.5 px-[7px] py-[5px] font-mono text-[0.56rem] text-[#77736d]"
+          >
             <svg
               aria-hidden="true"
               viewBox="0 0 20 20"
@@ -174,329 +185,57 @@ function fileTreeGroups(example: CodeExample): FileTreeGroup[] {
             v-for="entry in group.files"
             :key="entry.file.path"
             type="button"
-            class="file-tree__file"
-            :class="{ 'file-tree__file--active': selectedFileIndex(example) === entry.index }"
+            class="flex w-full min-w-0 items-center gap-[7px] rounded-[3px] py-1.5 pr-[7px] pl-[18px] text-left font-mono text-[0.56rem] text-[#77736d] transition-colors hover:bg-[#151515] hover:text-[#d4d0c8]"
+            :class="{
+              'bg-[#1b1b1b] text-[#f0ede7]':
+                selectedFileIndex(example) === entry.index,
+            }"
             :aria-pressed="selectedFileIndex(example) === entry.index"
             @click="selectFile(example.id, entry.index)"
           >
             <CodeLanguageIcon :language="entry.file.language" />
-            <span translate="no">{{ entry.name }}</span>
+            <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" translate="no">
+              {{ entry.name }}
+            </span>
           </button>
         </div>
       </div>
 
-      <div class="code-pane">
-        <header v-if="selectedFile(example)" class="code-pane__bar">
-          <span translate="no">{{ selectedFile(example)?.path }}</span>
+      <div class="flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <header
+          v-if="selectedFile(example)"
+          class="flex min-h-[38px] items-center justify-between gap-4 border-b border-code-border bg-[#101010] px-3.5 font-mono text-[0.56rem] text-[#6f6b64]"
+        >
+          <span
+            class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[#b6b2ab]"
+            translate="no"
+          >
+            {{ selectedFile(example)?.path }}
+          </span>
           <span>{{ example.method }}</span>
         </header>
 
-        <CodeBlock
-          v-if="
-            activeExampleIndex === exampleIndex &&
-            selectedFile(example)
-          "
-          :code="selectedFile(example)?.code ?? ''"
-          :language="selectedFile(example)?.language ?? 'typescript'"
-        />
+        <div class="min-h-0 flex-1 overflow-hidden">
+          <CodeBlock
+            v-if="
+              activeExampleIndex === exampleIndex &&
+              selectedFile(example)
+            "
+            :code="selectedFile(example)?.code ?? ''"
+            :language="selectedFile(example)?.language ?? 'typescript'"
+          />
+        </div>
       </div>
     </div>
 
-    <footer class="app-window__status">
-      <span>
-        <i aria-hidden="true"></i>
+    <footer
+      class="flex min-h-[34px] flex-none items-center justify-between border-t border-code-border bg-code-surface px-3.5 font-mono text-[0.58rem] text-[#65615b]"
+    >
+      <span class="inline-flex items-center gap-[7px]">
+        <i class="size-[5px] rounded-full bg-accent" aria-hidden="true"></i>
         {{ activeExample?.method }}
       </span>
       <span>Shiki · UTF-8</span>
     </footer>
   </figure>
 </template>
-
-<style scoped>
-.app-window {
-  display: flex;
-  height: 500px;
-  max-height: calc(100dvh - 96px);
-  margin: 0;
-  flex-direction: column;
-  overflow: hidden;
-  color: var(--code-text);
-  background: var(--code-bg);
-  border: 1px solid var(--code-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-soft);
-}
-
-.app-window__bar {
-  display: grid;
-  flex: none;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  min-height: 49px;
-  padding: 0 14px;
-  background: var(--code-surface);
-  border-bottom: 1px solid var(--code-border);
-}
-
-.window-dots {
-  display: inline-flex;
-  gap: 6px;
-}
-
-.window-dots i {
-  width: 7px;
-  height: 7px;
-  background: #3b3b3b;
-  border-radius: 50%;
-}
-
-.window-dots i:first-child {
-  background: var(--accent);
-}
-
-.example-tabs {
-  display: flex;
-  min-width: 0;
-  align-self: stretch;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.example-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.example-tab {
-  display: inline-flex;
-  flex: none;
-  gap: 7px;
-  align-items: center;
-  padding: 0 11px;
-  color: #77736c;
-  font-size: 0.65rem;
-  font-weight: 650;
-  white-space: nowrap;
-  border-bottom: 1px solid transparent;
-  transition:
-    color 150ms ease,
-    background-color 150ms ease,
-    border-color 150ms ease;
-}
-
-.example-tab :deep(svg) {
-  width: 14px;
-  height: 14px;
-}
-
-.example-tab:hover {
-  color: #c4c0b8;
-  background: #151515;
-}
-
-.example-tab[aria-selected="true"] {
-  color: #efede8;
-  background: var(--code-bg);
-  border-bottom-color: var(--accent);
-}
-
-.example-panel {
-  display: grid;
-  flex: 1 1 auto;
-  grid-template-columns: 156px minmax(0, 1fr);
-  min-height: 0;
-  overflow: hidden;
-}
-
-.file-tree {
-  min-height: 0;
-  padding: 10px 8px;
-  overflow-y: auto;
-  background: #0a0a0a;
-  border-right: 1px solid var(--code-border);
-  scrollbar-color: #3a3a3a transparent;
-  scrollbar-width: thin;
-}
-
-.file-tree::-webkit-scrollbar {
-  width: 7px;
-}
-
-.file-tree::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.file-tree::-webkit-scrollbar-thumb {
-  background: #343434;
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background-clip: padding-box;
-}
-
-.file-tree::-webkit-scrollbar-thumb:hover {
-  background: #505050;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-.file-tree__root {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  padding: 5px 7px 10px;
-  margin: 0;
-  color: #a7a39c;
-  font-family: var(--font-mono);
-  font-size: 0.59rem;
-}
-
-.file-tree__root span {
-  width: 6px;
-  height: 6px;
-  background: var(--accent);
-  border-radius: 50%;
-}
-
-.file-tree__group + .file-tree__group {
-  margin-top: 8px;
-}
-
-.file-tree__folder {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  padding: 5px 7px;
-  margin: 0 0 2px;
-  color: #77736d;
-  font-family: var(--font-mono);
-  font-size: 0.56rem;
-}
-
-.file-tree__file {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  width: 100%;
-  min-width: 0;
-  padding: 6px 7px 6px 18px;
-  color: #77736d;
-  font-family: var(--font-mono);
-  font-size: 0.56rem;
-  text-align: left;
-  border-radius: 3px;
-  transition:
-    color 150ms ease,
-    background-color 150ms ease;
-}
-
-.file-tree__file:hover {
-  color: #d4d0c8;
-  background: #151515;
-}
-
-.file-tree__file--active {
-  color: #f0ede7;
-  background: #1b1b1b;
-}
-
-.file-tree__file span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.code-pane {
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.code-pane :deep(.code-block) {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.code-pane__bar {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 38px;
-  padding: 0 14px;
-  color: #6f6b64;
-  font-family: var(--font-mono);
-  font-size: 0.56rem;
-  background: #101010;
-  border-bottom: 1px solid var(--code-border);
-}
-
-.code-pane__bar span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  color: #b6b2ab;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.app-window__status {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 34px;
-  padding: 0 14px;
-  color: #65615b;
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
-  background: var(--code-surface);
-  border-top: 1px solid var(--code-border);
-}
-
-.app-window__status span:first-child {
-  display: inline-flex;
-  gap: 7px;
-  align-items: center;
-}
-
-.app-window__status i {
-  width: 5px;
-  height: 5px;
-  background: var(--accent);
-  border-radius: 50%;
-}
-
-@media (max-width: 560px) {
-  .app-window {
-    height: 470px;
-    max-height: calc(100dvh - 72px);
-  }
-
-  .app-window__bar {
-    grid-template-columns: minmax(0, 1fr);
-    padding-left: 8px;
-  }
-
-  .window-dots {
-    display: none;
-  }
-
-  .example-panel {
-    grid-template-columns: 1fr;
-    grid-template-rows: 142px minmax(0, 1fr);
-  }
-
-  .file-tree {
-    height: 142px;
-    border-right: 0;
-    border-bottom: 1px solid var(--code-border);
-  }
-
-  .code-pane {
-    min-height: 0;
-  }
-}
-</style>

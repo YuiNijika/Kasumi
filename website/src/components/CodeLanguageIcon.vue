@@ -4,56 +4,29 @@ import type { CodeLanguage } from '@/data/site'
 defineProps<{
   language: CodeLanguage
 }>()
+
+const iconClasses: Record<CodeLanguage, string> = {
+  typescript: 'bg-[#3178c6]',
+  cpp: 'bg-[#00599c]',
+  kotlin: 'bg-[linear-gradient(135deg,#7f52ff_0_58%,#e44857_58%_78%,#ff8c00_78%)]',
+  json: 'bg-[#5e5b55]',
+}
+
+const iconLabels: Record<CodeLanguage, string> = {
+  typescript: 'TS',
+  cpp: 'C++',
+  kotlin: 'K',
+  json: '{}',
+}
 </script>
 
 <template>
   <span
-    class="language-icon"
-    :class="`language-icon--${language}`"
+    class="grid size-[18px] shrink-0 place-items-center rounded-[4px] font-mono text-[0.43rem] font-extrabold leading-none tracking-[-0.03em] text-white"
+    :class="iconClasses[language]"
     aria-hidden="true"
     translate="no"
   >
-    {{
-      language === 'typescript'
-        ? 'TS'
-        : language === 'cpp'
-          ? 'C++'
-          : language === 'kotlin'
-            ? 'K'
-            : '{}'
-    }}
+    {{ iconLabels[language] }}
   </span>
 </template>
-
-<style scoped>
-.language-icon {
-  display: grid;
-  flex: none;
-  width: 18px;
-  height: 18px;
-  color: #fff;
-  font-family: var(--font-mono);
-  font-size: 0.43rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  border-radius: 4px;
-  place-items: center;
-}
-
-.language-icon--typescript {
-  background: #3178c6;
-}
-
-.language-icon--cpp {
-  background: #00599c;
-}
-
-.language-icon--kotlin {
-  background: linear-gradient(135deg, #7f52ff 0 58%, #e44857 58% 78%, #ff8c00 78%);
-}
-
-.language-icon--json {
-  background: #5e5b55;
-}
-</style>

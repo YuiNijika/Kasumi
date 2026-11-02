@@ -5,11 +5,11 @@ import { platforms } from '@/data/site'
 
 <template>
   <section
-    class="section-block section-block--muted"
+    class="relative scroll-mt-[90px] border-t border-line bg-bg-subtle/75 py-24 max-md:py-[76px] max-sm:py-16"
     data-section="platforms"
     aria-labelledby="platforms-title"
   >
-    <div class="section-shell">
+    <div class="mx-auto w-[calc(100%-48px)] max-w-site max-md:w-[calc(100%-32px)] max-sm:w-[calc(100%-24px)]">
       <div data-reveal>
         <SectionHeading
           eyebrow="平台支持"
@@ -19,33 +19,48 @@ import { platforms } from '@/data/site'
         />
       </div>
 
-      <div class="platform-grid">
+      <div class="grid grid-cols-2 gap-3.5 max-md:grid-cols-1">
         <article
           v-for="platform in platforms"
           :key="platform.id"
-          class="platform-card"
+          class="flex min-h-[380px] flex-col rounded-md border border-line bg-surface p-7 transition-colors hover:border-line-strong hover:bg-surface-hover max-md:min-h-[340px] max-sm:p-[22px]"
           data-reveal
         >
-          <div class="platform-card__top">
-            <span class="platform-card__mark" translate="no">
+          <div class="flex items-center justify-between">
+            <span
+              class="grid h-[30px] min-w-11 place-items-center rounded-xs border border-accent-line bg-accent-wash px-2 font-mono text-[0.65rem] font-bold text-accent-bright"
+              translate="no"
+            >
               {{ platform.shortName }}
             </span>
-            <span class="platform-card__runtime" translate="no">
+            <span class="font-mono text-[0.62rem] text-muted-strong" translate="no">
               {{ platform.runtime }}
             </span>
           </div>
 
-          <h3>{{ platform.name }}</h3>
-          <p>{{ platform.description }}</p>
+          <h3 class="mt-[42px] font-display text-[clamp(2rem,3.4vw,3rem)] font-[650] leading-none tracking-[-0.045em] text-text">
+            {{ platform.name }}
+          </h3>
+          <p class="mt-[15px] max-w-[46ch] text-[0.88rem] leading-[1.72] text-muted">
+            {{ platform.description }}
+          </p>
 
-          <ul :aria-label="`${platform.name} 能力`">
-            <li v-for="feature in platform.features" :key="feature">
-              <span aria-hidden="true">✓</span>
+          <ul
+            class="mt-auto grid grid-cols-2 gap-x-3.5 gap-y-[9px] border-t border-line pt-5 max-sm:grid-cols-1"
+            :aria-label="`${platform.name} 能力`"
+          >
+            <li
+              v-for="feature in platform.features"
+              :key="feature"
+              class="flex min-w-0 items-center gap-[7px] text-[0.77rem] text-text-soft"
+            >
+              <span class="text-[0.66rem] text-accent" aria-hidden="true">✓</span>
               {{ feature }}
             </li>
           </ul>
 
           <a
+            class="mt-[22px] inline-flex items-center gap-1.5 self-start text-[0.75rem] font-bold text-accent-bright hover:text-text"
             href="https://blog.miomoe.cn/docs/kasumi/development"
             target="_blank"
             rel="noreferrer"
@@ -58,134 +73,3 @@ import { platforms } from '@/data/site'
     </div>
   </section>
 </template>
-
-<style scoped>
-.platform-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.platform-card {
-  display: flex;
-  min-height: 380px;
-  padding: 28px;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease;
-}
-
-.platform-card:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-strong);
-}
-
-.platform-card__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.platform-card__mark {
-  display: grid;
-  min-width: 44px;
-  height: 30px;
-  padding-inline: 8px;
-  color: var(--accent-bright);
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  font-weight: 700;
-  background: var(--accent-wash);
-  border: 1px solid var(--accent-line);
-  border-radius: var(--radius-xs);
-  place-items: center;
-}
-
-.platform-card__runtime {
-  color: var(--muted-strong);
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-}
-
-h3 {
-  margin: 42px 0 0;
-  color: var(--text);
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 3.4vw, 3rem);
-  font-weight: 650;
-  letter-spacing: -0.045em;
-  line-height: 1;
-}
-
-p {
-  max-width: 46ch;
-  margin: 15px 0 0;
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.72;
-}
-
-ul {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px 14px;
-  padding: 20px 0 0;
-  margin: auto 0 0;
-  list-style: none;
-  border-top: 1px solid var(--border);
-}
-
-li {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  min-width: 0;
-  color: var(--text-soft);
-  font-size: 0.77rem;
-}
-
-li span {
-  color: var(--accent);
-  font-size: 0.66rem;
-}
-
-.platform-card > a {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  align-self: flex-start;
-  margin-top: 22px;
-  color: var(--accent-bright);
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.platform-card > a:hover {
-  color: var(--text);
-}
-
-@media (max-width: 820px) {
-  .platform-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .platform-card {
-    min-height: 340px;
-  }
-}
-
-@media (max-width: 560px) {
-  .platform-card {
-    padding: 22px;
-  }
-
-  ul {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

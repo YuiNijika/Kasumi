@@ -5,11 +5,13 @@ import { comparisonRows } from '@/data/site'
 
 <template>
   <section
-    class="section-block"
+    class="relative scroll-mt-[90px] border-t border-line py-24 max-md:py-[76px] max-sm:py-16"
     data-section="comparison"
     aria-labelledby="comparison-title"
   >
-    <div class="section-shell">
+    <div
+      class="mx-auto w-[calc(100%-48px)] max-w-site max-md:w-[calc(100%-32px)] max-sm:w-[calc(100%-24px)]"
+    >
       <div data-reveal>
         <SectionHeading
           eyebrow="方案对比"
@@ -21,30 +23,71 @@ import { comparisonRows } from '@/data/site'
       </div>
 
       <div
-        class="table-frame"
+        class="overflow-x-auto overscroll-x-contain rounded-md border border-line bg-surface focus-visible:outline-offset-6"
         tabindex="0"
         role="region"
         aria-label="Kasumi、Tauri 2 与 Electron 能力对比表"
         data-reveal
       >
-        <table>
-          <caption>
+        <table class="w-full min-w-[760px] border-collapse">
+          <caption class="sr-only">
             Kasumi、Tauri 2 与 Electron 的能力对比
           </caption>
           <thead>
             <tr>
-              <th scope="col">维度</th>
-              <th scope="col">Kasumi</th>
-              <th scope="col">Tauri 2</th>
-              <th scope="col">Electron</th>
+              <th
+                scope="col"
+                class="bg-bg-subtle px-[21px] py-4 text-left font-mono text-[0.63rem] font-[650] text-muted uppercase max-sm:px-4 max-sm:py-3.5"
+              >
+                维度
+              </th>
+              <th
+                scope="col"
+                class="bg-bg-subtle px-[21px] py-4 text-left font-mono text-[0.63rem] font-[650] text-accent-bright uppercase max-sm:px-4 max-sm:py-3.5"
+              >
+                Kasumi
+              </th>
+              <th
+                scope="col"
+                class="bg-bg-subtle px-[21px] py-4 text-left font-mono text-[0.63rem] font-[650] text-muted uppercase max-sm:px-4 max-sm:py-3.5"
+              >
+                Tauri 2
+              </th>
+              <th
+                scope="col"
+                class="bg-bg-subtle px-[21px] py-4 text-left font-mono text-[0.63rem] font-[650] text-muted uppercase max-sm:px-4 max-sm:py-3.5"
+              >
+                Electron
+              </th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in comparisonRows" :key="row.criterion">
-              <th scope="row">{{ row.criterion }}</th>
-              <td>{{ row.kasumi }}</td>
-              <td>{{ row.tauri }}</td>
-              <td>{{ row.electron }}</td>
+            <tr
+              v-for="row in comparisonRows"
+              :key="row.criterion"
+              class="border-b border-line last:border-b-0 hover:bg-surface-hover"
+            >
+              <th
+                scope="row"
+                class="w-[18%] px-[21px] py-4 text-left text-[0.77rem] font-[650] text-text-soft max-sm:px-4 max-sm:py-3.5"
+              >
+                {{ row.criterion }}
+              </th>
+              <td
+                class="w-[27%] bg-accent-wash px-[21px] py-4 text-[0.77rem] font-semibold text-text max-sm:px-4 max-sm:py-3.5"
+              >
+                <span
+                  class="mr-2 inline-block size-[5px] translate-y-0.5 rounded-full bg-accent"
+                  aria-hidden="true"
+                ></span>
+                {{ row.kasumi }}
+              </td>
+              <td class="w-[27%] px-[21px] py-4 text-[0.77rem] text-muted max-sm:px-4 max-sm:py-3.5">
+                {{ row.tauri }}
+              </td>
+              <td class="w-[27%] px-[21px] py-4 text-[0.77rem] text-muted max-sm:px-4 max-sm:py-3.5">
+                {{ row.electron }}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -52,100 +95,3 @@ import { comparisonRows } from '@/data/site'
     </div>
   </section>
 </template>
-
-<style scoped>
-.table-frame {
-  overflow-x: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overscroll-behavior-inline: contain;
-}
-
-.table-frame:focus-visible {
-  outline-offset: 6px;
-}
-
-table {
-  width: 100%;
-  min-width: 760px;
-  border-collapse: collapse;
-}
-
-caption {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  white-space: nowrap;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-}
-
-th,
-td {
-  padding: 16px 21px;
-  text-align: left;
-  border-bottom: 1px solid var(--border);
-}
-
-thead th {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 0.63rem;
-  font-weight: 650;
-  background: var(--bg-subtle);
-  text-transform: uppercase;
-}
-
-thead th:nth-child(2) {
-  color: var(--accent-bright);
-}
-
-tbody tr:last-child th,
-tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-tbody tr:hover {
-  background: var(--surface-hover);
-}
-
-tbody th {
-  width: 18%;
-  color: var(--text-soft);
-  font-size: 0.77rem;
-  font-weight: 650;
-}
-
-td {
-  width: 27%;
-  color: var(--muted);
-  font-size: 0.77rem;
-}
-
-td:nth-child(2) {
-  color: var(--text);
-  font-weight: 600;
-  background: var(--accent-wash);
-}
-
-td:nth-child(2)::before {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  margin-right: 8px;
-  vertical-align: 1px;
-  content: "";
-  background: var(--accent);
-  border-radius: 50%;
-}
-
-@media (max-width: 560px) {
-  th,
-  td {
-    padding: 14px 16px;
-  }
-}
-</style>
