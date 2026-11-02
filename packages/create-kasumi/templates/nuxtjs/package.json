@@ -28,7 +28,7 @@
   "private": true,
   "devDependencies": {
     "kasumi-cli": "^__KASUMI_PACKAGE_VERSION__",
-    "typescript": "^7.0.2",
+    "typescript": "~5.9.3",
     "vue-tsc": "^3.3.14"
   }
 }

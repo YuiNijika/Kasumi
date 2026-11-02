@@ -185,11 +185,11 @@ async function copyDirectory(
       continue;
     }
     const content = await readFile(sourcePath, 'utf8');
-    await writeFile(
-      destinationPath,
-      replaceText(content, replacements),
-      'utf8'
+    const renderedContent = replaceText(content, replacements).replace(
+      /\r\n?/g,
+      '\n'
     );
+    await writeFile(destinationPath, renderedContent, 'utf8');
   }
 }
 

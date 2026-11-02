@@ -10,7 +10,43 @@ permissions:
   contents: read
 
 jobs:
+  release-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate release secrets
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          KASUMI_ANDROID_KEYSTORE_BASE64: ${{ secrets.KASUMI_ANDROID_KEYSTORE_BASE64 }}
+          KASUMI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KASUMI_ANDROID_KEYSTORE_PASSWORD }}
+          KASUMI_ANDROID_KEY_ALIAS: ${{ secrets.KASUMI_ANDROID_KEY_ALIAS }}
+          KASUMI_ANDROID_KEY_PASSWORD: ${{ secrets.KASUMI_ANDROID_KEY_PASSWORD }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            echo "Skipping release secret validation for a non-tag run."
+            exit 0
+          fi
+
+          missing=0
+          for name in \
+            WINDOWS_CERTIFICATE_BASE64 \
+            WINDOWS_CERTIFICATE_PASSWORD \
+            KASUMI_ANDROID_KEYSTORE_BASE64 \
+            KASUMI_ANDROID_KEYSTORE_PASSWORD \
+            KASUMI_ANDROID_KEY_ALIAS \
+            KASUMI_ANDROID_KEY_PASSWORD \
+            NPM_TOKEN
+          do
+            if [[ -z "${!name}" ]]; then
+              echo "::error title=Missing release secret::$name is required for tagged releases."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
   windows-package:
+    needs: release-preflight
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,6 +143,7 @@ jobs:
           if-no-files-found: error
 
   android-package:
+    needs: release-preflight
     runs-on: ubuntu-latest
     env:
       KASUMI_ANDROID_KEYSTORE: ${{ github.workspace }}/release.keystore
