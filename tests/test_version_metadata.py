@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from cli.ksm import android_sdk_version
 from cli.version_metadata import (
     ROOT,
     VERSION_SENSITIVE_SOURCES,
@@ -19,6 +20,9 @@ from cli.version_metadata import (
 class VersionMetadataTest(unittest.TestCase):
     def test_current_versions_match(self) -> None:
         self.assertEqual(check_versions(ROOT), {})
+
+    def test_android_sdk_version_reads_version_metadata(self) -> None:
+        self.assertEqual(android_sdk_version(), read_version(ROOT))
 
     def test_rejects_invalid_semver(self) -> None:
         with self.assertRaises(VersionMetadataError):

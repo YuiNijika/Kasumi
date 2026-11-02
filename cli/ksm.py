@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -143,15 +142,7 @@ def read_app_config(path: Path) -> KasumiConfig:
 
 
 def android_sdk_version() -> str:
-    build_file = ROOT / "android" / "kasumi" / "build.gradle.kts"
-    match = re.search(
-        r'^version\s*=\s*"([^"]+)"',
-        build_file.read_text(encoding="utf-8"),
-        re.MULTILINE,
-    )
-    if match is None:
-        raise RuntimeError(f"Android SDK version not found in {build_file}")
-    return match.group(1)
+    return read_version(ROOT)
 
 
 def frontend_checks(include_contract: bool = False) -> None:
