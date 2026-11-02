@@ -360,6 +360,25 @@ struct KSMWebView2View::Impl
             })
             .Get(),
         &navigation_completed_token);
+    webview->add_SourceChanged(
+        Callback<ICoreWebView2SourceChangedEventHandler>(
+            [weak](ICoreWebView2 *,
+                   ICoreWebView2SourceChangedEventArgs *args) -> HRESULT {
+              const auto self = weak.lock();
+              if (!self || self->closed || !args) {
+                return S_OK;
+              }
+              BOOL is_new_document = FALSE;
+              if (
+                  SUCCEEDED(args->get_IsNewDocument(&is_new_document)) &&
+                  is_new_document
+              ) {
+                self->webview_host.ResetForNavigation();
+              }
+              return S_OK;
+            })
+            .Get(),
+        &source_changed_token);
     ResizeToClient();
   }
 
@@ -600,6 +619,9 @@ struct KSMWebView2View::Impl
     if (navigation_completed_token.value != 0) {
       webview->remove_NavigationCompleted(navigation_completed_token);
     }
+    if (source_changed_token.value != 0) {
+      webview->remove_SourceChanged(source_changed_token);
+    }
     if (web_resource_token.value != 0) {
       webview->remove_WebResourceRequested(web_resource_token);
     }
@@ -727,6 +749,7 @@ struct KSMWebView2View::Impl
   EventRegistrationToken new_window_token{};
   EventRegistrationToken message_token{};
   EventRegistrationToken navigation_completed_token{};
+  EventRegistrationToken source_changed_token{};
   EventRegistrationToken web_resource_token{};
   std::mutex ui_mutex;
   std::deque<std::function<void()>> ui_tasks;

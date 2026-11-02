@@ -1,12 +1,62 @@
 #include "ksm_sql_driver.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+namespace {
+
+constexpr std::size_t kMaxSqlConnections = 32;
+constexpr std::size_t kMaxSqlResultRows = 10000;
+constexpr std::size_t kMaxSqlResultBytes = 16 * 1024 * 1024;
+
+std::size_t SqlValueBytes(const KSMSqlValue& value) {
+    return std::visit(
+        [](const auto& item) -> std::size_t {
+            using T = std::decay_t<decltype(item)>;
+            if constexpr (std::is_same_v<T, std::string>) {
+                return item.size();
+            }
+            if constexpr (std::is_same_v<T, std::nullptr_t>) {
+                return 0;
+            }
+            if constexpr (std::is_same_v<T, bool>) {
+                return 1;
+            }
+            return sizeof(item);
+        },
+        value
+    );
+}
+
+void ValidateSqlResult(const KSMSqlQueryResult& result) {
+    if (result.rows.size() > kMaxSqlResultRows) {
+        throw KSMHostException(
+            "RESOURCE_LIMIT",
+            "The SQL result exceeds the maximum row count."
+        );
+    }
+    std::size_t bytes = 0;
+    for (const auto& row : result.rows) {
+        for (const auto& value : row) {
+            bytes += SqlValueBytes(value);
+            if (bytes > kMaxSqlResultBytes) {
+                throw KSMHostException(
+                    "RESOURCE_LIMIT",
+                    "The SQL result exceeds the maximum payload size."
+                );
+            }
+        }
+    }
+}
+
+}  // namespace
 
 class KSMSqlDriverRegistry {
 public:
@@ -37,6 +87,7 @@ private:
     mutable std::mutex mutex_;
     std::unordered_map<std::string, std::shared_ptr<KSMSqlDriver>> drivers_;
     std::unordered_map<std::string, Connection> connections_;
+    std::size_t pending_connections_ = 0;
     std::uint64_t next_connection_id_ = 1;
 };
 
@@ -84,8 +135,30 @@ std::optional<std::string> KSMSqlDriverRegistry::Open(
     if (!selected) {
         return std::nullopt;
     }
-    auto connection = selected->Open(url);
+    {
+        std::lock_guard lock(mutex_);
+        if (
+            connections_.size() + pending_connections_ >=
+            kMaxSqlConnections
+        ) {
+            throw KSMHostException(
+                "RESOURCE_LIMIT",
+                "The SQL connection limit has been reached."
+            );
+        }
+        ++pending_connections_;
+    }
+    std::shared_ptr<KSMSqlConnection> connection;
+    try {
+        connection = selected->Open(url);
+    } catch (...) {
+        std::lock_guard lock(mutex_);
+        --pending_connections_;
+        throw;
+    }
     if (!connection) {
+        std::lock_guard lock(mutex_);
+        --pending_connections_;
         throw KSMHostException(
             "IO_ERROR",
             "The SQL driver did not create a connection."
@@ -94,6 +167,7 @@ std::optional<std::string> KSMSqlDriverRegistry::Open(
     std::string connection_id;
     {
         std::lock_guard lock(mutex_);
+        --pending_connections_;
         connection_id = "sql-" + std::to_string(next_connection_id_++);
         connections_.emplace(
             connection_id,
@@ -122,7 +196,9 @@ std::optional<KSMSqlQueryResult> KSMSqlDriverRegistry::Query(
             "The SQL connection does not exist."
         );
     }
-    return connection->Query(statement, params);
+    auto result = connection->Query(statement, params);
+    ValidateSqlResult(result);
+    return result;
 }
 
 std::optional<KSMSqlExecuteResult> KSMSqlDriverRegistry::Execute(

@@ -10,5 +10,6 @@ object KSMErrorCode {
     const val CANCELLED = "CANCELLED"
     const val TIMEOUT = "TIMEOUT"
     const val BUSY = "BUSY"
+    const val RESOURCE_LIMIT = "RESOURCE_LIMIT"
     const val INTERNAL_ERROR = "INTERNAL_ERROR"
 }

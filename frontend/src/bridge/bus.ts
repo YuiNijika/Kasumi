@@ -7,6 +7,15 @@ import type {
 } from './types.js';
 
 const DEFAULT_TIMEOUT_MS = 10000;
+export const MAX_REQUEST_TIMEOUT_MS = 600000;
+
+function createSessionId(): string {
+  const cryptoApi = globalThis.crypto;
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return cryptoApi.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
 
 interface PendingRequest<TResult> {
   resolve: (value: TResult) => void;
@@ -19,6 +28,7 @@ export class KSMBus {
   private readonly eventListeners = new Map<string, Set<(payload: unknown) => void>>();
   private readonly unsubscribeTransport: () => void;
   private nextRequestId = 0;
+  private readonly requestPrefix = `req-${createSessionId()}`;
   private readonly subscribedEvents = new Set<string>();
 
   public constructor(private readonly transport: KSMTransport) {
@@ -39,8 +49,13 @@ export class KSMBus {
   }
 
   public discardPending(message: string): void {
-    for (const pending of this.pending.values()) {
+    for (const [id, pending] of this.pending.entries()) {
       clearTimeout(pending.timer);
+      try {
+        this.transport.send({ type: 'cancel', id });
+      } catch {
+        // The host may already be gone while the bridge is being disposed.
+      }
       pending.reject(new Error(message));
     }
     this.pending.clear();
@@ -51,10 +66,18 @@ export class KSMBus {
     args: TArgs,
     timeoutMs: number = DEFAULT_TIMEOUT_MS
   ): Promise<TResult> {
-    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-      return Promise.reject(new Error('Kasumi timeoutMs must be positive.'));
+    if (
+      !Number.isSafeInteger(timeoutMs) ||
+      timeoutMs <= 0 ||
+      timeoutMs > MAX_REQUEST_TIMEOUT_MS
+    ) {
+      return Promise.reject(
+        new Error(
+          `Kasumi timeoutMs must be an integer between 1 and ${MAX_REQUEST_TIMEOUT_MS}.`
+        )
+      );
     }
-    const id = `req-${++this.nextRequestId}`;
+    const id = `${this.requestPrefix}-${++this.nextRequestId}`;
     const request: KSMRequest<TArgs> = {
       type: 'request',
       id,

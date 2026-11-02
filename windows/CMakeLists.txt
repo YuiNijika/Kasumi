@@ -55,10 +55,19 @@ add_library(
     src/platform/ksm_sql_driver.cpp
     src/platform/ksm_sqlite_driver.cpp
     src/platform/ksm_windows_host_services.cpp
+    src/plugins/ksm_clipboard_plugin.cpp
     src/plugins/ksm_dialog_plugin.cpp
     src/plugins/ksm_filesystem_plugin.cpp
+    src/plugins/ksm_http_plugin.cpp
+    src/plugins/ksm_log_plugin.cpp
+    src/plugins/ksm_notification_plugin.cpp
+    src/plugins/ksm_os_plugin.cpp
+    src/plugins/ksm_path_plugin.cpp
     src/plugins/ksm_plugin_registry.cpp
+    src/plugins/ksm_shell_plugin.cpp
     src/plugins/ksm_sql_plugin.cpp
+    src/plugins/ksm_store_plugin.cpp
+    src/plugins/ksm_window_plugin.cpp
 )
 
 target_compile_features(kasumi_windows_bridge PUBLIC cxx_std_20)

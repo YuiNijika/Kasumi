@@ -15,13 +15,25 @@ const capabilities = await KSM.get();
 `kasumi-bridge` 只通过宿主提供的 WebView 消息通道通信。页面来源校验、命令
 allowlist、权限、路径守卫和平台限制仍由 Windows 或 Android 宿主执行。
 
-文件系统、对话框和 SQL 另有独立插件包：
+内置模块均可通过独立插件包导入：
 
 ```ts
 import { readText } from "kasumi-plugin-fs";
 import { confirm } from "kasumi-plugin-dialog";
+import { readText as readClipboard } from "kasumi-plugin-clipboard";
+import { show } from "kasumi-plugin-notification";
+import { setSize } from "kasumi-plugin-window";
+import { download } from "kasumi-plugin-http";
+import { openExternal } from "kasumi-plugin-shell";
+import { getInfo } from "kasumi-plugin-device";
 import { drivers } from "kasumi-plugin-sql";
+import { join } from "kasumi-plugin-path";
+import { get as getStored } from "kasumi-plugin-store";
+import { getInfo as getOperatingSystem } from "kasumi-plugin-os";
+import { write as writeLog } from "kasumi-plugin-log";
 ```
 
-`kasumi-bridge` 同时提供 `kasumi-bridge/fs`、`kasumi-bridge/dialog` 和
-`kasumi-bridge/sql` 子路径，插件包通过它们复用同一套实现。
+`kasumi-bridge` 同时提供 `fs`、`dialog`、`clipboard`、`notification`、`window`、
+`http`、`shell`、`device`、`sql`、`path`、`store`、`os` 和 `log` 子路径，插件包通过
+它们复用同一套实现。`KSM.fs`、`KSM.dialog`、`KSM.path`、`KSM.store`、`KSM.os` 和
+`KSM.log` 等根对象继续作为兼容入口。

@@ -8,19 +8,28 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class ContractTest {
-    private class TestHostServices : KSMHostServices {
+    private class TestHostServices(
+        private val version: String = "9.9.9",
+        private val languageTag: String = "zh-CN"
+    ) : KSMHostServices {
         var clipboardText = "clipboard"
         var pickedText = "picked"
         var downloadedPath = ""
+        var downloadRequestId = ""
+        var loggedLevel = ""
+        var loggedTarget = ""
+        var loggedMessage = ""
 
         override fun appVersion(): String {
-            return "9.9.9"
+            return version
         }
 
         override fun language(): String {
-            return "zh-CN"
+            return languageTag
         }
 
         override fun showMessage(title: String, message: String): Boolean {
@@ -144,6 +153,7 @@ class ContractTest {
                 return null
             }
             downloadedPath = path
+            downloadRequestId = requestId ?: ""
             return KSMHttpDownloadResult(path, 42)
         }
 
@@ -170,6 +180,27 @@ class ContractTest {
                 timezone = "Asia/Shanghai",
                 architecture = "arm64-v8a"
             )
+        }
+
+        override fun operatingSystemInfo(): KSMOperatingSystemInfo {
+            return KSMOperatingSystemInfo(
+                platform = "android",
+                architecture = "arm64-v8a",
+                version = "14",
+                locale = "zh-CN",
+                timezone = "Asia/Shanghai"
+            )
+        }
+
+        override fun writeLog(
+            level: String,
+            target: String,
+            message: String
+        ): Boolean {
+            loggedLevel = level
+            loggedTarget = target
+            loggedMessage = message
+            return true
         }
 
         override fun closeWindow(): Boolean {
@@ -241,6 +272,30 @@ class ContractTest {
         }
     }
 
+    private class ReplacementClipboardPlugin : KSMPlugin {
+        override val id: String = "clipboard"
+        override val commands: Set<String> = setOf(
+            "clipboard.readText",
+            "clipboard.writeText"
+        )
+        override val permissions: Set<String> = setOf(
+            "clipboard.read",
+            "clipboard.write"
+        )
+
+        override fun handle(
+            command: String,
+            args: JSONObject,
+            context: KSMPluginContext
+        ): Any {
+            return if (command == "clipboard.readText") {
+                JSONObject().put("text", "replacement")
+            } else {
+                JSONObject().put("written", true)
+            }
+        }
+    }
+
     private class GeneratedCommandHijackPlugin : KSMPlugin {
         override val id: String = "contract.hijack"
         override val commands: Set<String> = setOf("fs.exists")
@@ -251,6 +306,46 @@ class ContractTest {
             context: KSMPluginContext
         ): Any {
             return JSONObject().put("exists", false)
+        }
+    }
+
+    private class LimitSqlConnection : KSMSqlConnection {
+        override fun query(
+            statement: String,
+            params: List<Any?>
+        ): KSMSqlQueryResult {
+            return when (statement) {
+                "rows" -> KSMSqlQueryResult(
+                    listOf("value"),
+                    List(10_001) { listOf<Any?>(1L) }
+                )
+                "bytes" -> KSMSqlQueryResult(
+                    listOf("value"),
+                    listOf(listOf<Any?>("x".repeat(16 * 1024 * 1024 + 1)))
+                )
+                else -> KSMSqlQueryResult(
+                    listOf("value"),
+                    listOf(listOf<Any?>(1L))
+                )
+            }
+        }
+
+        override fun execute(
+            statement: String,
+            params: List<Any?>
+        ): KSMSqlExecuteResult {
+            return KSMSqlExecuteResult(0, null)
+        }
+
+        override fun close() {
+        }
+    }
+
+    private class LimitSqlDriver : KSMSqlDriver {
+        override val name: String = "limits"
+
+        override fun open(url: String): KSMSqlConnection {
+            return LimitSqlConnection()
         }
     }
 
@@ -294,6 +389,14 @@ class ContractTest {
                     .getJSONArray("commands")
                     .length() > 0
             )
+            val capabilityCommands = capabilities.getJSONObject("data")
+                .getJSONArray("commands")
+                .let { values ->
+                    List(values.length()) { index ->
+                        values.getString(index)
+                    }
+                }
+            assertFalse(capabilityCommands.contains("window.setSize"))
 
             assertError(
                 invoke(router, "unknown.command", JSONObject()),
@@ -322,6 +425,7 @@ class ContractTest {
             )
             assertEquals(42L, download.getJSONObject("data").getLong("bytes"))
             assertEquals("app://data/file.bin", hostServices.downloadedPath)
+            assertEquals("contract", hostServices.downloadRequestId)
             assertError(
                 invoke(
                     router,
@@ -380,6 +484,162 @@ class ContractTest {
                 "arm64-v8a",
                 device.getJSONObject("data").getString("architecture")
             )
+
+            val pathDirectories = invoke(
+                router,
+                "path.dirs",
+                JSONObject()
+            )
+            assertTrue(pathDirectories.getBoolean("ok"))
+            assertEquals(
+                "app://data",
+                pathDirectories.getJSONObject("data").getString("data")
+            )
+            val joinedPath = invoke(
+                router,
+                "path.join",
+                JSONObject()
+                    .put("base", "app://data")
+                    .put("segments", org.json.JSONArray().put("notes").put("entry.json"))
+            )
+            assertTrue(joinedPath.getBoolean("ok"))
+            assertEquals(
+                "app://data/notes/entry.json",
+                joinedPath.getJSONObject("data").getString("path")
+            )
+            assertError(
+                invoke(
+                    router,
+                    "path.normalize",
+                    JSONObject().put("path", "app://data/notes/../entry.json")
+                ),
+                "INVALID_ARGS"
+            )
+            val dirname = invoke(
+                router,
+                "path.dirname",
+                JSONObject().put("path", "app://data/notes/entry.json")
+            )
+            assertEquals(
+                "app://data/notes",
+                dirname.getJSONObject("data").getString("path")
+            )
+            val basename = invoke(
+                router,
+                "path.basename",
+                JSONObject()
+                    .put("path", "app://data/notes/entry.json")
+                    .put("suffix", ".json")
+            )
+            assertEquals(
+                "entry",
+                basename.getJSONObject("data").getString("name")
+            )
+            val extension = invoke(
+                router,
+                "path.extname",
+                JSONObject().put("path", "app://data/notes/entry.json")
+            )
+            assertEquals(
+                ".json",
+                extension.getJSONObject("data").getString("extension")
+            )
+            assertTrue(
+                invoke(
+                    router,
+                    "path.isAbsolute",
+                    JSONObject().put("path", "app://data")
+                ).getJSONObject("data").getBoolean("absolute")
+            )
+
+            val profile = JSONObject()
+                .put("theme", "light")
+                .put("notifications", true)
+            assertTrue(
+                invoke(
+                    router,
+                    "store.set",
+                    JSONObject()
+                        .put("key", "profile")
+                        .put("value", profile)
+                ).getBoolean("ok")
+            )
+            val stored = invoke(
+                router,
+                "store.get",
+                JSONObject().put("key", "profile")
+            )
+            assertTrue(stored.getJSONObject("data").getBoolean("found"))
+            assertEquals(
+                "light",
+                stored.getJSONObject("data")
+                    .getJSONObject("value")
+                    .getString("theme")
+            )
+            val storedKeys = invoke(
+                router,
+                "store.keys",
+                JSONObject()
+            )
+            assertEquals(
+                "profile",
+                storedKeys.getJSONObject("data")
+                    .getJSONArray("keys")
+                    .getString(0)
+            )
+            assertTrue(
+                invoke(
+                    router,
+                    "store.delete",
+                    JSONObject().put("key", "profile")
+                ).getJSONObject("data").getBoolean("deleted")
+            )
+            assertTrue(
+                fileSystem.writeText(
+                    "app://data/.kasumi/store.json",
+                    "{"
+                )
+            )
+            assertError(
+                invoke(
+                    router,
+                    "store.get",
+                    JSONObject().put("key", "profile")
+                ),
+                "IO_ERROR"
+            )
+            assertTrue(
+                invoke(router, "store.clear", JSONObject()).getBoolean("ok")
+            )
+
+            val operatingSystem = invoke(
+                router,
+                "os.getInfo",
+                JSONObject()
+            )
+            assertTrue(operatingSystem.getBoolean("ok"))
+            assertEquals(
+                "android",
+                operatingSystem.getJSONObject("data").getString("platform")
+            )
+            assertEquals(
+                "Asia/Shanghai",
+                operatingSystem.getJSONObject("data").getString("timezone")
+            )
+            assertTrue(
+                invoke(
+                    router,
+                    "log.write",
+                    JSONObject()
+                        .put("level", "info")
+                        .put("message", "contract")
+                        .put("target", "kasumi")
+                ).getBoolean("ok")
+            )
+            assertEquals("info", hostServices.loggedLevel)
+            assertEquals("kasumi", hostServices.loggedTarget)
+            assertEquals("contract", hostServices.loggedMessage)
+
             assertError(
                 invoke(
                     router,
@@ -613,7 +873,7 @@ class ContractTest {
 
             KSM.init(router, fileSystem, hostServices)
             val rootPing = KSM.invoke(
-                "window-1",
+                KSM.DEFAULT_WINDOW_ID,
                 "ping",
                 JSONObject()
             )
@@ -643,6 +903,47 @@ class ContractTest {
                 KSM.fs.stat("app://data/root-dir")?.kind
             )
             assertTrue(KSM.fs.readDir("app://data")?.isNotEmpty() == true)
+            assertEquals(
+                "app://data/notes/entry.json",
+                KSM.path.join(
+                    "app://data",
+                    listOf("notes", "entry.json")
+                )
+            )
+            assertEquals(
+                "app://data/notes",
+                KSM.path.dirname("app://data/notes/entry.json")
+            )
+            assertEquals(
+                "entry",
+                KSM.path.basename("app://data/notes/entry.json", ".json")
+            )
+            assertEquals(
+                ".json",
+                KSM.path.extname("app://data/notes/entry.json")
+            )
+            assertTrue(KSM.path.isAbsolute("app://data") == true)
+            assertTrue(
+                KSM.store.set(
+                    "profile",
+                    JSONObject().put("theme", "light")
+                )
+            )
+            assertEquals(
+                "light",
+                (KSM.store.get("profile")?.value as JSONObject)
+                    .getString("theme")
+            )
+            assertTrue(KSM.store.keys()?.contains("profile") == true)
+            assertTrue(KSM.store.delete("profile") == true)
+            assertEquals("android", KSM.os.getInfo()?.platform)
+            assertTrue(
+                KSM.log.write(
+                    level = "info",
+                    message = "native",
+                    target = "kasumi"
+                )
+            )
             assertTrue(KSM.get().commands.isNotEmpty())
             assertTrue(KSM.dialog.message("Kasumi", "root"))
             assertEquals("clipboard", KSM.clipboard.readText())
@@ -714,6 +1015,209 @@ class ContractTest {
     }
 
     @Test
+    fun windowRegistryRoutesRequestsAndEvents() {
+        val leftRoot = Files.createTempDirectory("kasumi-left-window").toFile()
+        val rightRoot = Files.createTempDirectory("kasumi-right-window").toFile()
+        val leftFileSystem = KSMFileSystem(
+            File(leftRoot, "data"),
+            File(leftRoot, "cache"),
+            File(leftRoot, "tmp")
+        )
+        val rightFileSystem = KSMFileSystem(
+            File(rightRoot, "data"),
+            File(rightRoot, "cache"),
+            File(rightRoot, "tmp")
+        )
+        val leftRouter = KSMRouter(
+            leftFileSystem,
+            TestHostServices("1.0.0", "en-US")
+        )
+        val rightRouter = KSMRouter(
+            rightFileSystem,
+            TestHostServices("2.0.0", "ja-JP")
+        )
+        var leftEvent = false
+        var rightEvent = false
+        var unsubscribeLeft: () -> Unit = {}
+        var unsubscribeRight: () -> Unit = {}
+
+        try {
+            KSM.registerWindow(
+                "left",
+                leftRouter,
+                leftFileSystem,
+                TestHostServices("1.0.0", "en-US")
+            )
+            KSM.registerWindow(
+                "right",
+                rightRouter,
+                rightFileSystem,
+                TestHostServices("2.0.0", "ja-JP")
+            )
+
+            val leftInfo = KSM.invoke(
+                "left",
+                "app.getInfo",
+                JSONObject()
+            )
+            val rightInfo = KSM.invoke(
+                "right",
+                "app.getInfo",
+                JSONObject()
+            )
+            assertEquals(
+                "1.0.0",
+                leftInfo.getJSONObject("data").getString("version")
+            )
+            assertEquals(
+                "2.0.0",
+                rightInfo.getJSONObject("data").getString("version")
+            )
+            assertThrows(IllegalStateException::class.java) {
+                KSM.app.getInfo()
+            }
+            assertThrows(IllegalStateException::class.java) {
+                KSM.get()
+            }
+
+            unsubscribeLeft = KSM.on("left", "window.resized") {
+                leftEvent = true
+            }
+            unsubscribeRight = KSM.on("right", "window.resized") {
+                rightEvent = true
+            }
+            KSM.emitEvent(
+                "left",
+                "window.resized",
+                JSONObject().put("width", 800).put("height", 600)
+            )
+            assertTrue(leftEvent)
+            assertFalse(rightEvent)
+
+            KSM.unregisterWindow("left")
+            assertEquals(
+                "2.0.0",
+                KSM.app.getInfo().version
+            )
+            assertTrue(KSM.get().commands.contains("app.getInfo"))
+            assertThrows(IllegalStateException::class.java) {
+                KSM.invoke("left", "ping", JSONObject())
+            }
+        } finally {
+            unsubscribeLeft()
+            unsubscribeRight()
+            KSM.unregisterWindow("left")
+            KSM.unregisterWindow("right")
+            leftRoot.deleteRecursively()
+            rightRoot.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun sqlResourceLimits() {
+        val registry = KSMSqlDriverRegistry()
+        registry.register(LimitSqlDriver())
+        val connectionId = registry.open("limits", ":memory:")
+        assertTrue(connectionId != null)
+        val connection = requireNotNull(connectionId)
+
+        val rowLimit = assertThrows(KSMHostException::class.java) {
+            registry.query(connection, "rows", emptyList())
+        }
+        assertEquals("RESOURCE_LIMIT", rowLimit.code)
+        val byteLimit = assertThrows(KSMHostException::class.java) {
+            registry.query(connection, "bytes", emptyList())
+        }
+        assertEquals("RESOURCE_LIMIT", byteLimit.code)
+
+        val connections = KSMSqlDriverRegistry()
+        connections.register(LimitSqlDriver())
+        repeat(32) {
+            assertTrue(connections.open("limits", ":memory:") != null)
+        }
+        val connectionLimit = assertThrows(KSMHostException::class.java) {
+            connections.open("limits", ":memory:")
+        }
+        assertEquals("RESOURCE_LIMIT", connectionLimit.code)
+        connections.closeAll()
+        registry.closeAll()
+    }
+
+    @Test
+    fun storeWritesAreSerializedAcrossPluginInstances() {
+        val root = Files.createTempDirectory("kasumi-store-concurrency").toFile()
+        val fileSystem = KSMFileSystem(
+            File(root, "data"),
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        val context = KSMPluginContext(
+            fileSystem = fileSystem,
+            hostServices = null,
+            hasPermission = { it == "store" }
+        )
+        val leftPlugin = KSMStorePlugin()
+        val rightPlugin = KSMStorePlugin()
+        val start = CountDownLatch(1)
+        var leftFailure: Throwable? = null
+        var rightFailure: Throwable? = null
+        val leftThread = Thread {
+            try {
+                start.await()
+                repeat(20) { index ->
+                    leftPlugin.handle(
+                        "store.set",
+                        JSONObject()
+                            .put("key", "left-$index")
+                            .put("value", index),
+                        context
+                    )
+                }
+            } catch (error: Throwable) {
+                leftFailure = error
+            }
+        }
+        val rightThread = Thread {
+            try {
+                start.await()
+                repeat(20) { index ->
+                    rightPlugin.handle(
+                        "store.set",
+                        JSONObject()
+                            .put("key", "right-$index")
+                            .put("value", index),
+                        context
+                    )
+                }
+            } catch (error: Throwable) {
+                rightFailure = error
+            }
+        }
+
+        try {
+            leftThread.start()
+            rightThread.start()
+            start.countDown()
+            leftThread.join(TimeUnit.SECONDS.toMillis(5))
+            rightThread.join(TimeUnit.SECONDS.toMillis(5))
+            assertFalse(leftThread.isAlive)
+            assertFalse(rightThread.isAlive)
+            assertTrue(leftFailure == null)
+            assertTrue(rightFailure == null)
+            val keys = leftPlugin.handle(
+                "store.keys",
+                JSONObject(),
+                context
+            ).let { result ->
+                (result as JSONObject).getJSONArray("keys")
+            }
+            assertEquals(40, keys.length())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun pluginRules() {
         val root = Files.createTempDirectory("kasumi-plugin-rules").toFile()
         val fileSystem = KSMFileSystem(
@@ -734,6 +1238,22 @@ class ContractTest {
             )
             assertTrue(exists.getBoolean("ok"))
             assertTrue(exists.getJSONObject("data").getBoolean("exists"))
+
+            val clipboard = KSMRouter(
+                fileSystem,
+                null,
+                plugins = listOf(ReplacementClipboardPlugin())
+            )
+            val clipboardText = invoke(
+                clipboard,
+                "clipboard.readText",
+                JSONObject()
+            )
+            assertTrue(clipboardText.getBoolean("ok"))
+            assertEquals(
+                "replacement",
+                clipboardText.getJSONObject("data").getString("text")
+            )
 
             assertThrows(IllegalArgumentException::class.java) {
                 KSMRouter(

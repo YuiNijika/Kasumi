@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <string>
 #include <utility>
 
@@ -14,6 +15,7 @@ namespace {
 using Json = nlohmann::json;
 
 constexpr long long kDefaultTimeoutMs = 10000;
+constexpr long long kMaxTimeoutMs = 600000;
 
 void SendError(
     const Json& id,
@@ -104,21 +106,32 @@ void KSMWebViewHost::OnMessageReceived(const std::string& message) {
         }
         if (request.contains("timeoutMs")) {
             const auto& timeout = request.at("timeoutMs");
-            if (
-                (!timeout.is_number_integer() && !timeout.is_number_unsigned()) ||
-                timeout.get<long long>() <= 0
-            ) {
+            bool valid_timeout = false;
+            if (timeout.is_number_unsigned()) {
+                const auto value = timeout.get<std::uint64_t>();
+                valid_timeout =
+                    value > 0 && value <= static_cast<std::uint64_t>(kMaxTimeoutMs);
+                if (valid_timeout) {
+                    timeout_ms = static_cast<long long>(value);
+                }
+            } else if (timeout.is_number_integer()) {
+                const auto value = timeout.get<long long>();
+                valid_timeout = value > 0 && value <= kMaxTimeoutMs;
+                if (valid_timeout) {
+                    timeout_ms = value;
+                }
+            }
+            if (!valid_timeout) {
                 SendError(
                     RequestId(id),
                     "INVALID_ARGS",
-                    "timeoutMs must be a positive integer.",
+                    "timeoutMs must be an integer between 1 and 600000.",
                     [this](const std::string& response) {
                         PostResponse(response);
                     }
                 );
                 return;
             }
-            timeout_ms = timeout.get<long long>();
         }
     }
 
@@ -144,7 +157,21 @@ void KSMWebViewHost::OnMessageReceived(const std::string& message) {
         return;
     }
 
-    RegisterRequest(state, timeout_ms);
+    if (!RegisterRequest(state, timeout_ms)) {
+        {
+            std::lock_guard lock(queue_mutex_);
+            --in_flight_;
+        }
+        SendError(
+            RequestId(id),
+            "BUSY",
+            "A request with this ID is already in flight.",
+            [this](const std::string& response) {
+                PostResponse(response);
+            }
+        );
+        return;
+    }
     {
         std::lock_guard lock(queue_mutex_);
         tasks_.push_back([this, message, state] {
@@ -212,12 +239,15 @@ void KSMWebViewHost::CancelRequest(const std::string& id) {
     }
 }
 
-void KSMWebViewHost::RegisterRequest(
+bool KSMWebViewHost::RegisterRequest(
     const std::shared_ptr<RequestState>& state,
     long long timeout_ms
 ) {
     if (!state->id.empty()) {
         std::lock_guard lock(queue_mutex_);
+        if (active_requests_.contains(state->id)) {
+            return false;
+        }
         active_requests_[state->id] = state;
     }
     {
@@ -229,6 +259,20 @@ void KSMWebViewHost::RegisterRequest(
         });
     }
     timer_ready_.notify_one();
+    return true;
+}
+
+void KSMWebViewHost::ResetForNavigation() {
+    {
+        std::lock_guard lock(queue_mutex_);
+        for (const auto& [id, state] : active_requests_) {
+            state->completed.store(true);
+            router_.CancelRequest(id);
+        }
+        active_requests_.clear();
+        std::lock_guard timer_lock(timer_mutex_);
+        deadlines_.clear();
+    }
 }
 
 void KSMWebViewHost::UnregisterRequest(

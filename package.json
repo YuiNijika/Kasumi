@@ -24,8 +24,8 @@
     "version:sync": "node cli/ksm.mjs version sync",
     "version:check": "node cli/ksm.mjs version check",
     "build:bridge": "pnpm --filter kasumi-bridge build",
-    "build:plugins": "pnpm --filter kasumi-plugin-fs build && pnpm --filter kasumi-plugin-dialog build && pnpm --filter kasumi-plugin-sql build",
-    "pack:packages": "pnpm build:bridge && pnpm build:plugins && pnpm --filter kasumi-cli pack && pnpm --filter kasumi-bridge pack && pnpm --filter create-kasumi pack && pnpm --filter kasumi-plugin-fs pack && pnpm --filter kasumi-plugin-dialog pack && pnpm --filter kasumi-plugin-sql pack",
+    "build:plugins": "pnpm --filter kasumi-plugin-fs build && pnpm --filter kasumi-plugin-dialog build && pnpm --filter kasumi-plugin-clipboard build && pnpm --filter kasumi-plugin-notification build && pnpm --filter kasumi-plugin-window build && pnpm --filter kasumi-plugin-http build && pnpm --filter kasumi-plugin-shell build && pnpm --filter kasumi-plugin-device build && pnpm --filter kasumi-plugin-sql build && pnpm --filter kasumi-plugin-path build && pnpm --filter kasumi-plugin-store build && pnpm --filter kasumi-plugin-os build && pnpm --filter kasumi-plugin-log build",
+    "pack:packages": "pnpm build:bridge && pnpm build:plugins && pnpm --filter kasumi-cli pack && pnpm --filter kasumi-bridge pack && pnpm --filter create-kasumi pack && pnpm --filter kasumi-plugin-fs pack && pnpm --filter kasumi-plugin-dialog pack && pnpm --filter kasumi-plugin-clipboard pack && pnpm --filter kasumi-plugin-notification pack && pnpm --filter kasumi-plugin-window pack && pnpm --filter kasumi-plugin-http pack && pnpm --filter kasumi-plugin-shell pack && pnpm --filter kasumi-plugin-device pack && pnpm --filter kasumi-plugin-sql pack && pnpm --filter kasumi-plugin-path pack && pnpm --filter kasumi-plugin-store pack && pnpm --filter kasumi-plugin-os pack && pnpm --filter kasumi-plugin-log pack",
     "validate:protocol": "pnpm ksm validate",
     "codegen": "pnpm ksm codegen"
   },

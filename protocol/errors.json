@@ -8,5 +8,6 @@
   "CANCELLED": "The request was cancelled.",
   "TIMEOUT": "The request timed out.",
   "BUSY": "The requested resource is busy.",
+  "RESOURCE_LIMIT": "The requested operation exceeds a resource limit.",
   "INTERNAL_ERROR": "The operation failed unexpectedly."
 }

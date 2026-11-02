@@ -99,6 +99,32 @@ bool IsCommandEnabled(std::string_view command) {
     ) != state.allowed_commands.end();
 }
 
+std::optional<Json> InvokePluginData(
+    std::string_view command,
+    const Json& args
+) {
+    if (!IsCommandEnabled(command)) {
+        return std::nullopt;
+    }
+    try {
+        const Json response = Json::parse(
+            KSM::Invoke(command, args.dump()),
+            nullptr,
+            false
+        );
+        if (
+            response.is_discarded() ||
+            !response.value("ok", false) ||
+            !response.contains("data")
+        ) {
+            return std::nullopt;
+        }
+        return Json(response.at("data"));
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+}
+
 std::string InvalidArgsResponse(const Json& id) {
     return Json{
         {"type", "response"},
@@ -598,6 +624,198 @@ std::optional<KSMDeviceInfo> KSM::Device::GetInfo() {
     return host_services
         ? host_services->GetDeviceInfo()
         : std::nullopt;
+}
+
+std::optional<KSM::PathDirectories> KSM::Path::Dirs() {
+    const auto data = InvokePluginData("path.dirs", Json::object());
+    if (!data) {
+        return std::nullopt;
+    }
+    return PathDirectories{
+        .data = data->value("data", std::string()),
+        .cache = data->value("cache", std::string()),
+        .temp = data->value("temp", std::string()),
+        .resource = data->value("resource", std::string()),
+        .asset = data->value("asset", std::string())
+    };
+}
+
+std::optional<std::string> KSM::Path::Join(
+    std::string_view base,
+    const std::vector<std::string>& segments
+) {
+    const auto data = InvokePluginData(
+        "path.join",
+        Json{
+            {"base", std::string(base)},
+            {"segments", segments}
+        }
+    );
+    return data
+        ? std::optional<std::string>(data->value("path", std::string()))
+        : std::nullopt;
+}
+
+std::optional<std::string> KSM::Path::Normalize(std::string_view path) {
+    const auto data = InvokePluginData(
+        "path.normalize",
+        Json{{"path", std::string(path)}}
+    );
+    return data
+        ? std::optional<std::string>(data->value("path", std::string()))
+        : std::nullopt;
+}
+
+std::optional<std::string> KSM::Path::Dirname(std::string_view path) {
+    const auto data = InvokePluginData(
+        "path.dirname",
+        Json{{"path", std::string(path)}}
+    );
+    return data
+        ? std::optional<std::string>(data->value("path", std::string()))
+        : std::nullopt;
+}
+
+std::optional<std::string> KSM::Path::Basename(
+    std::string_view path,
+    std::string_view suffix
+) {
+    Json args{{"path", std::string(path)}};
+    if (!suffix.empty()) {
+        args["suffix"] = std::string(suffix);
+    }
+    const auto data = InvokePluginData("path.basename", args);
+    return data
+        ? std::optional<std::string>(data->value("name", std::string()))
+        : std::nullopt;
+}
+
+std::optional<std::string> KSM::Path::Extname(std::string_view path) {
+    const auto data = InvokePluginData(
+        "path.extname",
+        Json{{"path", std::string(path)}}
+    );
+    return data
+        ? std::optional<std::string>(
+            data->value("extension", std::string())
+        )
+        : std::nullopt;
+}
+
+std::optional<bool> KSM::Path::IsAbsolute(std::string_view path) {
+    const auto data = InvokePluginData(
+        "path.isAbsolute",
+        Json{{"path", std::string(path)}}
+    );
+    return data
+        ? std::optional<bool>(data->value("absolute", false))
+        : std::nullopt;
+}
+
+std::optional<KSM::StoreGetResult> KSM::Store::Get(std::string_view key) {
+    const auto data = InvokePluginData(
+        "store.get",
+        Json{{"key", std::string(key)}}
+    );
+    if (!data || !data->contains("value")) {
+        return std::nullopt;
+    }
+    return StoreGetResult{
+        .found = data->value("found", false),
+        .value_json = data->at("value").dump()
+    };
+}
+
+bool KSM::Store::Set(
+    std::string_view key,
+    std::string_view value_json
+) {
+    const Json value = Json::parse(std::string(value_json), nullptr, false);
+    if (value.is_discarded()) {
+        return false;
+    }
+    const auto data = InvokePluginData(
+        "store.set",
+        Json{
+            {"key", std::string(key)},
+            {"value", value}
+        }
+    );
+    return data && data->value("updated", false);
+}
+
+std::optional<bool> KSM::Store::Delete(std::string_view key) {
+    const auto data = InvokePluginData(
+        "store.delete",
+        Json{{"key", std::string(key)}}
+    );
+    return data
+        ? std::optional<bool>(data->value("deleted", false))
+        : std::nullopt;
+}
+
+bool KSM::Store::Clear() {
+    const auto data = InvokePluginData("store.clear", Json::object());
+    return data && data->value("cleared", false);
+}
+
+std::optional<std::vector<std::string>> KSM::Store::Keys() {
+    const auto data = InvokePluginData("store.keys", Json::object());
+    if (!data || !data->contains("keys") || !data->at("keys").is_array()) {
+        return std::nullopt;
+    }
+    return data->at("keys").get<std::vector<std::string>>();
+}
+
+std::optional<KSM::OperatingSystemInfo> KSM::Os::GetInfo() {
+    const auto data = InvokePluginData("os.getInfo", Json::object());
+    if (!data) {
+        return std::nullopt;
+    }
+    return OperatingSystemInfo{
+        .platform = data->value("platform", std::string()),
+        .architecture = data->value("architecture", std::string()),
+        .version = data->value("version", std::string()),
+        .locale = data->value("locale", std::string()),
+        .timezone = data->value("timezone", std::string()),
+        .app_version = data->value("appVersion", std::string())
+    };
+}
+
+namespace {
+
+std::string_view LogLevelName(KSM::LogLevel level) {
+    switch (level) {
+        case KSM::LogLevel::Trace:
+            return "trace";
+        case KSM::LogLevel::Debug:
+            return "debug";
+        case KSM::LogLevel::Info:
+            return "info";
+        case KSM::LogLevel::Warn:
+            return "warn";
+        case KSM::LogLevel::Error:
+            return "error";
+    }
+    return "info";
+}
+
+} // namespace
+
+bool KSM::Log::Write(
+    LogLevel level,
+    std::string_view message,
+    std::string_view target
+) {
+    Json args{
+        {"level", std::string(LogLevelName(level))},
+        {"message", std::string(message)}
+    };
+    if (!target.empty()) {
+        args["target"] = std::string(target);
+    }
+    const auto data = InvokePluginData("log.write", args);
+    return data && data->value("logged", false);
 }
 
 std::optional<KSM::AppInfo> KSM::App::GetInfo() {

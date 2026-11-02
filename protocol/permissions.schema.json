@@ -14,7 +14,10 @@
     "http.download": {"type": "object", "description": "Download HTTPS resources into the Kasumi virtual filesystem.", "required": ["description"], "properties": {"description": {"type": "string"}}},
     "shell.open": {"type": "object", "description": "Open allowlisted web origins in the system browser.", "required": ["description"], "properties": {"description": {"type": "string"}}},
     "device.info": {"type": "object", "description": "Read non-identifying Android device and display information.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "sql": {"type": "object", "description": "Open database connections and execute SQL statements.", "required": ["description"], "properties": {"description": {"type": "string"}}}
+    "sql": {"type": "object", "description": "Open database connections and execute SQL statements.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "store": {"type": "object", "description": "Read and write the application JSON store.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "os.info": {"type": "object", "description": "Read non-identifying operating system information.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "log.write": {"type": "object", "description": "Write messages to the platform logger.", "required": ["description"], "properties": {"description": {"type": "string"}}}
   },
   "additionalProperties": false
 }

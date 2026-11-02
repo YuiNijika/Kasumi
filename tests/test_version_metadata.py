@@ -42,6 +42,10 @@ class VersionMetadataTest(unittest.TestCase):
             self.assertIn("packages/kasumi-plugin-fs/package.json", changed)
             self.assertIn("packages/kasumi-plugin-dialog/package.json", changed)
             self.assertIn("packages/kasumi-plugin-sql/package.json", changed)
+            self.assertIn("packages/kasumi-plugin-path/package.json", changed)
+            self.assertIn("packages/kasumi-plugin-store/package.json", changed)
+            self.assertIn("packages/kasumi-plugin-os/package.json", changed)
+            self.assertIn("packages/kasumi-plugin-log/package.json", changed)
             self.assertEqual(check_versions(root), {})
             self.assertEqual(read_version(root), "1.0.0")
 
@@ -67,7 +71,17 @@ class VersionMetadataTest(unittest.TestCase):
             root / "packages" / "create-kasumi" / "package.json",
             root / "packages" / "kasumi-plugin-fs" / "package.json",
             root / "packages" / "kasumi-plugin-dialog" / "package.json",
+            root / "packages" / "kasumi-plugin-clipboard" / "package.json",
+            root / "packages" / "kasumi-plugin-notification" / "package.json",
+            root / "packages" / "kasumi-plugin-window" / "package.json",
+            root / "packages" / "kasumi-plugin-http" / "package.json",
+            root / "packages" / "kasumi-plugin-shell" / "package.json",
+            root / "packages" / "kasumi-plugin-device" / "package.json",
             root / "packages" / "kasumi-plugin-sql" / "package.json",
+            root / "packages" / "kasumi-plugin-path" / "package.json",
+            root / "packages" / "kasumi-plugin-store" / "package.json",
+            root / "packages" / "kasumi-plugin-os" / "package.json",
+            root / "packages" / "kasumi-plugin-log" / "package.json",
         ]
         for path in package_paths:
             path.parent.mkdir(parents=True, exist_ok=True)

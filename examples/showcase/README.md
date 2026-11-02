@@ -88,6 +88,7 @@ SDK 会先发布到 `android/kasumi/build/repo`，独立示例再从该 Maven �
 | 窗口   | `window.setTitle`、`window.setSize`、`window.minimize`、`window.maximize`、`window.close`    |
 | 网络   | `http.download`、`shell.openExternal`                                                        |
 | 设备   | `device.getInfo`                                                                             |
+| 基础插件 | `path.dirs`、`store.get`、`store.set`、`store.clear`、`os.getInfo`、`log.write`              |
 | 事件   | `event.subscribe`、`event.unsubscribe`、`window.resized`、`webview.reloaded`                 |
 
 `?smoke=1` 依次执行 `ping`、SQLite 内存数据库往返和 `app.exit`，供单 View Windows
@@ -100,6 +101,8 @@ SDK 会先发布到 `android/kasumi/build/repo`，独立示例再从该 Maven �
 - 文件选择器只返回虚拟句柄，页面不接触真实文件系统路径。
 - SQLite 示例只使用 `app://data/showcase/showcase.sqlite`，并通过参数写入用户输入。
 - 设备信息不读取 Android ID、序列号、IMEI、广告 ID 或其他持久标识。
+- 设置存储只写入应用沙箱中的 `app://data/.kasumi/store.json`，清空操作必须先经过原生确认。
+- 路径示例只处理 `app://` 虚拟根，系统信息与诊断日志不采集持久设备标识。
 - 页面不使用内联脚本、内联样式或远程资源。
 
 ## 排查路径
@@ -116,3 +119,6 @@ SDK 会先发布到 `android/kasumi/build/repo`，独立示例再从该 Maven �
    是否启用了全部五个 SQL 命令。
 9. SQLite 写入失败：确认目标位于 `app://data`、`app://cache` 或 `app://tmp` 下，
    并检查应用是否授予 `sql` 权限。
+10. 设置无法保存：确认 `store` 插件及其 `store` 权限已启用，并检查
+    `app://data/.kasumi/store.json` 是否可写。
+11. 路径示例返回 `INVALID_ARGS`：确认传入值来自 `path.dirs`，不要改成真实文件系统路径。

@@ -38,10 +38,12 @@ class KSMWebViewHost(
     private val debug: Boolean = false,
     private val onNativeEvent: ((String) -> Unit)? = null,
     private val fullscreen: Boolean = true,
-    plugins: Collection<KSMPlugin> = emptyList()
+    plugins: Collection<KSMPlugin> = emptyList(),
+    val windowId: String = nextWindowId()
 ) : Closeable {
     private class ActiveCommand {
         private val cancelled = AtomicBoolean(false)
+        private val suppressResponse = AtomicBoolean(false)
 
         @Volatile
         private var job: Job? = null
@@ -58,7 +60,10 @@ class KSMWebViewHost(
             }
         }
 
-        fun cancel() {
+        fun cancel(silent: Boolean = false) {
+            if (silent) {
+                suppressResponse.set(true)
+            }
             cancelled.set(true)
             job?.cancel()
             thread?.interrupt()
@@ -66,6 +71,10 @@ class KSMWebViewHost(
 
         fun isCancelled(): Boolean {
             return cancelled.get()
+        }
+
+        fun shouldSuppressResponse(): Boolean {
+            return suppressResponse.get()
         }
     }
 
@@ -79,7 +88,8 @@ class KSMWebViewHost(
             dispatchNativeEvent(event)
             dispatchWebEvent(event)
         },
-        plugins = plugins
+        plugins = plugins,
+        requestScope = windowId
     )
     private val commandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val activeRequests = ConcurrentHashMap<String, ActiveCommand>()
@@ -124,6 +134,9 @@ class KSMWebViewHost(
     @Volatile
     private var started = false
 
+    @Volatile
+    private var timersPaused = false
+
     init {
         val entryUri = Uri.parse(entryUrl)
         require(
@@ -140,7 +153,7 @@ class KSMWebViewHost(
         KSMWebViewRuntime.prepareWindow(activity, fullscreen)
         KSMWebViewRuntime.configure(webView, debug)
         configureWebView(assetRoot)
-        KSM.init(router, fileSystem, hostServices)
+        KSM.registerWindow(windowId, router, fileSystem, hostServices)
     }
 
     fun start() {
@@ -159,12 +172,18 @@ class KSMWebViewHost(
             if (fullscreen) {
                 KSMWebViewRuntime.applyFullscreen(activity)
             }
-            KSMWebViewRuntime.resume(webView)
+            if (timersPaused) {
+                timersPaused = false
+                KSMWebViewRuntime.resume(webView)
+            } else {
+                webView.onResume()
+            }
         }
     }
 
     fun onPause() {
-        if (!closed) {
+        if (!closed && !timersPaused) {
+            timersPaused = true
             KSMWebViewRuntime.pause(webView)
         }
     }
@@ -174,7 +193,7 @@ class KSMWebViewHost(
             return
         }
         if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
-            hostServices.cancelAllDownloads()
+            hostServices.cancelDownloads(windowId)
         }
         KSMWebViewRuntime.trimMemory(webView, level)
     }
@@ -183,7 +202,7 @@ class KSMWebViewHost(
         if (closed) {
             return
         }
-        hostServices.cancelAllDownloads()
+        hostServices.cancelDownloads(windowId)
         KSMWebViewRuntime.trimMemory(
             webView,
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL
@@ -202,10 +221,12 @@ class KSMWebViewHost(
         }
         closed = true
         commandScope.cancel()
-        activeRequests.values.forEach(ActiveCommand::cancel)
-        activeRequests.clear()
-        hostServices.shutdown()
-        KSM.shutdown()
+        resetSession(silent = true)
+        if (timersPaused) {
+            timersPaused = false
+            KSMWebViewRuntime.resume(webView)
+        }
+        KSM.unregisterWindow(windowId)
         WebViewCompat.removeWebMessageListener(webView, MESSAGE_CHANNEL)
         webView.removeOnLayoutChangeListener(layoutListener)
         KSMWebViewRuntime.destroy(webView)
@@ -225,6 +246,17 @@ class KSMWebViewHost(
                 super.onPageFinished(view, url)
                 if (!closed && isAllowedUrl(url)) {
                     router.emitSystemEvent("webview.reloaded", JSONObject())
+                }
+            }
+
+            override fun onPageStarted(
+                view: WebView,
+                url: String,
+                favicon: android.graphics.Bitmap?
+            ) {
+                super.onPageStarted(view, url, favicon)
+                if (!closed) {
+                    resetSession(silent = true)
                 }
             }
 
@@ -328,7 +360,7 @@ class KSMWebViewHost(
         active: ActiveCommand?
     ): String {
         if (active?.isCancelled() == true) {
-            return cancelledResponse(id)
+            return if (active.shouldSuppressResponse()) "" else cancelledResponse(id)
         }
         return try {
             withTimeout(timeoutMs) {
@@ -338,15 +370,15 @@ class KSMWebViewHost(
             }
         } catch (_: TimeoutCancellationException) {
             if (id != null) {
-                hostServices.cancelRequest(id)
+                hostServices.cancelRequest(scopedRequestId(id))
             }
             timeoutResponse(id)
         } catch (_: CancellationException) {
             if (id == null) {
                 throw CancellationException("Command was cancelled.")
             }
-            hostServices.cancelRequest(id)
-            cancelledResponse(id)
+            hostServices.cancelRequest(scopedRequestId(id))
+            if (active?.shouldSuppressResponse() == true) "" else cancelledResponse(id)
         }
     }
 
@@ -355,7 +387,20 @@ class KSMWebViewHost(
             return
         }
         activeRequests[id]?.cancel()
-        hostServices.cancelRequest(id)
+        hostServices.cancelRequest(scopedRequestId(id))
+    }
+
+    private fun resetSession(silent: Boolean) {
+        val requests = activeRequests.entries.toList()
+        activeRequests.clear()
+        for ((id, command) in requests) {
+            command.cancel(silent)
+            hostServices.cancelRequest(scopedRequestId(id))
+        }
+    }
+
+    private fun scopedRequestId(id: String): String {
+        return "$windowId:$id"
     }
 
     private fun dispatchNativeEvent(event: String) {
@@ -367,6 +412,7 @@ class KSMWebViewHost(
             if (parsed.optString("type") == "event") {
                 onNativeEvent?.invoke(event)
                 KSM.emitEvent(
+                    windowId,
                     parsed.getString("event"),
                     parsed.optJSONObject("payload") ?: JSONObject()
                 )
@@ -483,7 +529,11 @@ class KSMWebViewHost(
         }
         val raw = request.opt("timeoutMs") as? Number ?: return null
         val value = raw.toLong()
-        if (value <= 0 || raw.toDouble() != value.toDouble()) {
+        if (
+            value <= 0 ||
+            value > MAX_TIMEOUT_MS ||
+            raw.toDouble() != value.toDouble()
+        ) {
             return null
         }
         return value
@@ -492,6 +542,12 @@ class KSMWebViewHost(
     companion object {
         private const val MAX_CONCURRENT_COMMANDS = 8
         private const val DEFAULT_TIMEOUT_MS = 10000L
+        private const val MAX_TIMEOUT_MS = 600000L
         private const val MESSAGE_CHANNEL = "ksm"
+        private val windowIdSequence = java.util.concurrent.atomic.AtomicLong(1)
+
+        private fun nextWindowId(): String {
+            return "window-${windowIdSequence.getAndIncrement()}"
+        }
     }
 }

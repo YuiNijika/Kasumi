@@ -3,6 +3,7 @@
 #include <commdlg.h>
 #include <shellapi.h>
 #include <winhttp.h>
+#include <winternl.h>
 
 #include <algorithm>
 #include <atomic>
@@ -599,21 +600,31 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
         );
     }
 
-    const std::filesystem::path part = target->parent_path() /
-        (L"." + target->filename().wstring() + L"." +
-            std::to_wstring(next_download_part.fetch_add(1)) + L".part");
-    std::ofstream output(part, std::ios::binary | std::ios::trunc);
-    if (!output) {
-        throw KSMHostException("IO_ERROR", "The temporary file could not be created.");
-    }
-
     const std::string key = request_id.empty()
         ? "anonymous-" + std::to_string(next_download_part.fetch_add(1))
         : request_id;
     auto state = std::make_shared<DownloadState>();
     {
         std::lock_guard lock(download_mutex_);
-        downloads_[key] = state;
+        if (downloads_.contains(key)) {
+            throw KSMHostException(
+                "BUSY",
+                "A download with this request ID is already running."
+            );
+        }
+        downloads_.emplace(key, state);
+    }
+
+    const std::filesystem::path part = target->parent_path() /
+        (L"." + target->filename().wstring() + L"." +
+            std::to_wstring(next_download_part.fetch_add(1)) + L".part");
+    std::ofstream output(part, std::ios::binary | std::ios::trunc);
+    if (!output) {
+        {
+            std::lock_guard lock(download_mutex_);
+            downloads_.erase(key);
+        }
+        throw KSMHostException("IO_ERROR", "The temporary file could not be created.");
     }
 
     const auto cleanup = [this, &key, &part, &state]() {
@@ -1011,6 +1022,83 @@ bool KSMWindowsHostServices::SetWindowSize(const KSMWindowSize& size) {
 
 std::optional<KSMDeviceInfo> KSMWindowsHostServices::GetDeviceInfo() const {
     return std::nullopt;
+}
+
+std::optional<KSMOperatingSystemInfo>
+KSMWindowsHostServices::GetOperatingSystemInfo() const {
+    RTL_OSVERSIONINFOW version_info{};
+    version_info.dwOSVersionInfoSize = sizeof(version_info);
+    const HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    if (!ntdll) {
+        return std::nullopt;
+    }
+    using RtlGetVersionFn = LONG(WINAPI*)(PRTL_OSVERSIONINFOW);
+    const auto rtl_get_version = reinterpret_cast<RtlGetVersionFn>(
+        GetProcAddress(ntdll, "RtlGetVersion")
+    );
+    if (!rtl_get_version || rtl_get_version(&version_info) != 0) {
+        return std::nullopt;
+    }
+
+    SYSTEM_INFO system_info{};
+    GetNativeSystemInfo(&system_info);
+    std::string architecture = "unknown";
+    switch (system_info.wProcessorArchitecture) {
+    case PROCESSOR_ARCHITECTURE_AMD64:
+        architecture = "x86_64";
+        break;
+    case PROCESSOR_ARCHITECTURE_ARM64:
+        architecture = "arm64";
+        break;
+    case PROCESSOR_ARCHITECTURE_ARM:
+        architecture = "arm";
+        break;
+    case PROCESSOR_ARCHITECTURE_INTEL:
+        architecture = "x86";
+        break;
+    default:
+        break;
+    }
+
+    wchar_t locale[LOCALE_NAME_MAX_LENGTH]{};
+    if (GetUserDefaultLocaleName(locale, LOCALE_NAME_MAX_LENGTH) == 0) {
+        return std::nullopt;
+    }
+
+    DYNAMIC_TIME_ZONE_INFORMATION timezone{};
+    std::string timezone_id;
+    if (GetDynamicTimeZoneInformation(&timezone) != TIME_ZONE_ID_INVALID) {
+        timezone_id = ToUtf8(timezone.TimeZoneKeyName);
+        if (timezone_id.empty()) {
+            timezone_id = ToUtf8(timezone.StandardName);
+        }
+    }
+    if (timezone_id.empty()) {
+        timezone_id = "UTC";
+    }
+
+    return KSMOperatingSystemInfo{
+        "windows",
+        architecture,
+        std::to_string(version_info.dwMajorVersion) + "." +
+            std::to_string(version_info.dwMinorVersion) + "." +
+            std::to_string(version_info.dwBuildNumber),
+        ToUtf8(locale),
+        timezone_id
+    };
+}
+
+bool KSMWindowsHostServices::WriteLog(
+    const std::string& level,
+    const std::string& target,
+    const std::string& message
+) {
+    const std::string line =
+        "[" + level + "] [" +
+        (target.empty() ? std::string("kasumi") : target) +
+        "] " + message + "\n";
+    OutputDebugStringW(ToWide(line).c_str());
+    return true;
 }
 
 void KSMWindowsHostServices::CancelRequest(const std::string& request_id) {

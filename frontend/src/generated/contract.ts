@@ -32,6 +32,20 @@ export const KSM_COMMANDS = [
   "sql.query",
   "sql.execute",
   "sql.close",
+  "path.dirs",
+  "path.join",
+  "path.normalize",
+  "path.dirname",
+  "path.basename",
+  "path.extname",
+  "path.isAbsolute",
+  "store.get",
+  "store.set",
+  "store.delete",
+  "store.clear",
+  "store.keys",
+  "os.getInfo",
+  "log.write",
   "app.exit"
 ] as const;
 export const KSM_WINDOWS_COMMANDS = [
@@ -67,6 +81,20 @@ export const KSM_WINDOWS_COMMANDS = [
   "sql.query",
   "sql.execute",
   "sql.close",
+  "path.dirs",
+  "path.join",
+  "path.normalize",
+  "path.dirname",
+  "path.basename",
+  "path.extname",
+  "path.isAbsolute",
+  "store.get",
+  "store.set",
+  "store.delete",
+  "store.clear",
+  "store.keys",
+  "os.getInfo",
+  "log.write",
   "app.exit"
 ] as const;
 export const KSM_ANDROID_COMMANDS = [
@@ -99,6 +127,20 @@ export const KSM_ANDROID_COMMANDS = [
   "sql.query",
   "sql.execute",
   "sql.close",
+  "path.dirs",
+  "path.join",
+  "path.normalize",
+  "path.dirname",
+  "path.basename",
+  "path.extname",
+  "path.isAbsolute",
+  "store.get",
+  "store.set",
+  "store.delete",
+  "store.clear",
+  "store.keys",
+  "os.getInfo",
+  "log.write",
   "app.exit"
 ] as const;
 export const KSM_EVENTS = [
@@ -117,7 +159,10 @@ export const KSM_PERMISSIONS = [
   "http.download",
   "shell.open",
   "device.info",
-  "sql"
+  "sql",
+  "store",
+  "os.info",
+  "log.write"
 ] as const;
 export const KSM_ERROR_CODES = [
   "INVALID_ARGS",
@@ -129,6 +174,7 @@ export const KSM_ERROR_CODES = [
   "CANCELLED",
   "TIMEOUT",
   "BUSY",
+  "RESOURCE_LIMIT",
   "INTERNAL_ERROR"
 ] as const;
 export const KSM_PLUGINS = [
@@ -141,7 +187,11 @@ export const KSM_PLUGINS = [
   "http",
   "shell",
   "device",
-  "sql"
+  "sql",
+  "path",
+  "store",
+  "os",
+  "log"
 ] as const;
 export interface KSMPluginMetadata {
   name: string;
@@ -234,7 +284,7 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "name": "Clipboard",
     "version": "1.0.0",
     "description": "System clipboard text access.",
-    "frontendPackage": "kasumi-bridge",
+    "frontendPackage": "kasumi-plugin-clipboard",
     "platforms": [
       "windows",
       "android"
@@ -256,7 +306,7 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "name": "Notification",
     "version": "1.0.0",
     "description": "Native system notifications.",
-    "frontendPackage": "kasumi-bridge",
+    "frontendPackage": "kasumi-plugin-notification",
     "platforms": [
       "windows",
       "android"
@@ -275,7 +325,7 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "name": "Window",
     "version": "1.0.0",
     "description": "Window title, size, lifecycle and application exit controls.",
-    "frontendPackage": "kasumi-bridge",
+    "frontendPackage": "kasumi-plugin-window",
     "platforms": [
       "windows",
       "android"
@@ -298,7 +348,7 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "name": "HTTP",
     "version": "1.0.0",
     "description": "HTTPS downloads into the virtual filesystem.",
-    "frontendPackage": "kasumi-bridge",
+    "frontendPackage": "kasumi-plugin-http",
     "platforms": [
       "windows",
       "android"
@@ -317,7 +367,7 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "name": "Shell",
     "version": "1.0.0",
     "description": "Allowlisted external URL launching.",
-    "frontendPackage": "kasumi-bridge",
+    "frontendPackage": "kasumi-plugin-shell",
     "platforms": [
       "windows",
       "android"
@@ -336,7 +386,7 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "name": "Device",
     "version": "1.0.0",
     "description": "Non-identifying Android device information.",
-    "frontendPackage": "kasumi-bridge",
+    "frontendPackage": "kasumi-plugin-device",
     "platforms": [
       "android"
     ],
@@ -371,6 +421,88 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "sql.query",
       "sql.execute",
       "sql.close"
+    ]
+  },
+  "path": {
+    "name": "Path",
+    "version": "1.3.0",
+    "description": "Virtual application path inspection and construction.",
+    "frontendPackage": "kasumi-plugin-path",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [],
+    "defaultPermissions": [],
+    "commands": [
+      "path.dirs",
+      "path.join",
+      "path.normalize",
+      "path.dirname",
+      "path.basename",
+      "path.extname",
+      "path.isAbsolute"
+    ]
+  },
+  "store": {
+    "name": "Store",
+    "version": "1.3.0",
+    "description": "Persistent JSON key-value storage inside application data.",
+    "frontendPackage": "kasumi-plugin-store",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "store"
+    ],
+    "defaultPermissions": [
+      "store"
+    ],
+    "commands": [
+      "store.get",
+      "store.set",
+      "store.delete",
+      "store.clear",
+      "store.keys"
+    ]
+  },
+  "os": {
+    "name": "OS",
+    "version": "1.3.0",
+    "description": "Non-identifying operating system and runtime information.",
+    "frontendPackage": "kasumi-plugin-os",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "os.info"
+    ],
+    "defaultPermissions": [
+      "os.info"
+    ],
+    "commands": [
+      "os.getInfo"
+    ]
+  },
+  "log": {
+    "name": "Log",
+    "version": "1.3.0",
+    "description": "Platform logger access with bounded messages.",
+    "frontendPackage": "kasumi-plugin-log",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "log.write"
+    ],
+    "defaultPermissions": [
+      "log.write"
+    ],
+    "commands": [
+      "log.write"
     ]
   }
 };
@@ -428,6 +560,28 @@ export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = 
     "sql.query",
     "sql.execute",
     "sql.close"
+  ],
+  "path": [
+    "path.dirs",
+    "path.join",
+    "path.normalize",
+    "path.dirname",
+    "path.basename",
+    "path.extname",
+    "path.isAbsolute"
+  ],
+  "store": [
+    "store.get",
+    "store.set",
+    "store.delete",
+    "store.clear",
+    "store.keys"
+  ],
+  "os": [
+    "os.getInfo"
+  ],
+  "log": [
+    "log.write"
   ]
 };
 export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {
@@ -464,7 +618,21 @@ export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {
   "sql.open": "sql",
   "sql.query": "sql",
   "sql.execute": "sql",
-  "sql.close": "sql"
+  "sql.close": "sql",
+  "path.dirs": "path",
+  "path.join": "path",
+  "path.normalize": "path",
+  "path.dirname": "path",
+  "path.basename": "path",
+  "path.extname": "path",
+  "path.isAbsolute": "path",
+  "store.get": "store",
+  "store.set": "store",
+  "store.delete": "store",
+  "store.clear": "store",
+  "store.keys": "store",
+  "os.getInfo": "os",
+  "log.write": "log"
 };
 export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
   "ping": [],
@@ -553,6 +721,34 @@ export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>
   ],
   "sql.close": [
     "sql"
+  ],
+  "path.dirs": [],
+  "path.join": [],
+  "path.normalize": [],
+  "path.dirname": [],
+  "path.basename": [],
+  "path.extname": [],
+  "path.isAbsolute": [],
+  "store.get": [
+    "store"
+  ],
+  "store.set": [
+    "store"
+  ],
+  "store.delete": [
+    "store"
+  ],
+  "store.clear": [
+    "store"
+  ],
+  "store.keys": [
+    "store"
+  ],
+  "os.getInfo": [
+    "os.info"
+  ],
+  "log.write": [
+    "log.write"
   ],
   "app.exit": [
     "window.control"
@@ -1008,6 +1204,209 @@ const KSM_ARG_SCHEMAS: Readonly<Record<string, KSMValueSchema>> = {
     },
     "required": [
       "connectionId"
+    ],
+    "additionalProperties": false
+  },
+  "path.dirs": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "path.join": {
+    "type": "object",
+    "properties": {
+      "base": {
+        "type": "string",
+        "minLength": 1
+      },
+      "segments": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxBytes": 256
+        }
+      }
+    },
+    "required": [
+      "base",
+      "segments"
+    ],
+    "additionalProperties": false
+  },
+  "path.normalize": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 8192
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "path.dirname": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 8192
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "path.basename": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 8192
+      },
+      "suffix": {
+        "type": "string",
+        "maxBytes": 256
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "path.extname": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 8192
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "path.isAbsolute": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 8192
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "store.get": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 256
+      }
+    },
+    "required": [
+      "key"
+    ],
+    "additionalProperties": false
+  },
+  "store.set": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 256
+      },
+      "value": {
+        "type": [
+          "object",
+          "array",
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "key",
+      "value"
+    ],
+    "additionalProperties": false
+  },
+  "store.delete": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 256
+      }
+    },
+    "required": [
+      "key"
+    ],
+    "additionalProperties": false
+  },
+  "store.clear": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "store.keys": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "os.getInfo": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "log.write": {
+    "type": "object",
+    "properties": {
+      "level": {
+        "type": "string",
+        "enum": [
+          "trace",
+          "debug",
+          "info",
+          "warn",
+          "error"
+        ]
+      },
+      "message": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 65536
+      },
+      "target": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 128
+      }
+    },
+    "required": [
+      "level",
+      "message"
     ],
     "additionalProperties": false
   },

@@ -13,7 +13,8 @@ class KSMRouter(
     private val hostServices: KSMHostServices? = null,
     allowedCommands: Collection<String> = emptyList(),
     private val eventSender: (String) -> Unit = {},
-    plugins: Collection<KSMPlugin> = emptyList()
+    plugins: Collection<KSMPlugin> = emptyList(),
+    private val requestScope: String = ""
 ) {
     companion object {
         private const val MAX_INLINE_TEXT_BYTES = 64 * 1024
@@ -26,7 +27,9 @@ class KSMRouter(
     )
 
     init {
-        val replaceable = setOf("fs", "dialog", "sql")
+        val replaceable = KSMGeneratedContract.plugins
+            .filterNot { it == "core" }
+            .toSet()
         val reserved = KSMGeneratedContract.plugins
             .filterNot { it in replaceable }
             .toSet()
@@ -69,8 +72,12 @@ class KSMRouter(
             it in allowedCommandNames
         }
     }
+    private val unsupportedGeneratedCommands =
+        KSMGeneratedContract.commands.toSet() -
+            KSMCommandRegistry.supportedCommands.toSet()
     private val pluginCommands = pluginRegistry.commands.filter {
-        allowedCommandNames.isEmpty() || it in allowedCommandNames
+        it !in unsupportedGeneratedCommands &&
+            (allowedCommandNames.isEmpty() || it in allowedCommandNames)
     }
     val supportedCommands: List<String> = (
         generatedCommands + pluginCommands
@@ -156,6 +163,11 @@ class KSMRouter(
                     )
                 }
                 if (pluginRegistry.owns(command)) {
+                    val rawRequestId = id as? String
+                    val scopedRequestId = rawRequestId
+                        ?.takeIf { requestScope.isNotEmpty() }
+                        ?.let { "$requestScope:$it" }
+                        ?: rawRequestId
                     val data = pluginRegistry.handle(
                         command,
                         args,
@@ -164,7 +176,9 @@ class KSMRouter(
                             hostServices = hostServices,
                             hasPermission = { permission ->
                                 permission in grantedPermissions
-                            }
+                            },
+                            requestId = scopedRequestId,
+                            windowId = requestScope.ifEmpty { null }
                         )
                     ) ?: JSONObject.NULL
                     successResponse(id, data)

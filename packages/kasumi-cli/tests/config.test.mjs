@@ -571,8 +571,8 @@ test('expands all to the platform command matrix', async () => {
       'utf8'
     );
     const config = await readConfig(temporaryRoot, 'kasumi.config.json');
-    assert.equal(config.windows.commands.length, 33);
-    assert.equal(config.android.commands.length, 30);
+    assert.equal(config.windows.commands.length, 47);
+    assert.equal(config.android.commands.length, 44);
     assert.equal(config.windows.commands.includes('device.getInfo'), false);
     assert.equal(config.android.commands.includes('device.getInfo'), true);
   } finally {

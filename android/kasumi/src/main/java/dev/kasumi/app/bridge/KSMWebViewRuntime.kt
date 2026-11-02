@@ -18,6 +18,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
 object KSMWebViewRuntime {
+    private val timerLock = Any()
+    private var pausedTimerLeases = 0
+
     fun prepareWindow(activity: Activity, fullscreen: Boolean = true) {
         activity.requestWindowFeature(Window.FEATURE_NO_TITLE)
         if (!fullscreen) {
@@ -78,11 +81,23 @@ object KSMWebViewRuntime {
 
     fun pause(webView: WebView) {
         webView.onPause()
-        webView.pauseTimers()
+        synchronized(timerLock) {
+            pausedTimerLeases += 1
+            if (pausedTimerLeases == 1) {
+                webView.pauseTimers()
+            }
+        }
     }
 
     fun resume(webView: WebView) {
-        webView.resumeTimers()
+        synchronized(timerLock) {
+            if (pausedTimerLeases > 0) {
+                pausedTimerLeases -= 1
+                if (pausedTimerLeases == 0) {
+                    webView.resumeTimers()
+                }
+            }
+        }
         webView.onResume()
     }
 
@@ -97,7 +112,6 @@ object KSMWebViewRuntime {
 
     fun destroy(webView: WebView) {
         (webView.parent as? ViewGroup)?.removeView(webView)
-        webView.resumeTimers()
         webView.stopLoading()
         webView.clearHistory()
         webView.removeAllViews()

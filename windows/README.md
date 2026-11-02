@@ -13,12 +13,21 @@
 | `src/bridge/ksm_command_registry.h` | Windows 已实现命令清单 |
 | `src/bridge/ksm_router.h` | 参数校验、权限检查和命令分发 |
 | `src/platform/ksm_host_services.h` | 宿主平台服务接口 |
-| `src/platform/ksm_windows_host_services.h` | 文件、对话框、剪贴板、通知、下载、链接和窗口服务 |
+| `src/platform/ksm_windows_host_services.h` | 文件、对话框、剪贴板、通知、下载、链接、窗口、系统信息和日志服务 |
 | `src/platform/ksm_sql_driver.h` | SQL 驱动 SPI、连接注册表和安全错误边界 |
 | `src/platform/ksm_sqlite_driver.h` | 内置 SQLite 驱动与参数绑定 |
 | `src/platform/ksm_odbc_sql_driver.h` | 基于系统 ODBC 的 MySQL / PostgreSQL 可选驱动 |
 | `src/plugins/ksm_plugin.h` | 可注册插件接口、命令和权限声明 |
+| `src/plugins/ksm_clipboard_plugin.h` | 剪贴板命令插件 |
+| `src/plugins/ksm_notification_plugin.h` | 通知命令插件 |
+| `src/plugins/ksm_window_plugin.h` | 窗口命令插件 |
+| `src/plugins/ksm_http_plugin.h` | HTTPS 下载命令插件 |
+| `src/plugins/ksm_shell_plugin.h` | 外部链接命令插件 |
 | `src/plugins/ksm_sql_plugin.h` | SQL 命令插件与宿主驱动分发 |
+| `src/plugins/ksm_path_plugin.h` | 虚拟路径命令插件 |
+| `src/plugins/ksm_store_plugin.h` | 应用 JSON 存储命令插件 |
+| `src/plugins/ksm_os_plugin.h` | 系统信息命令插件 |
+| `src/plugins/ksm_log_plugin.h` | 平台日志命令插件 |
 | `src/platform/ksm_web_resource.h` | 内嵌 Web 资源提供器接口和 URL 到资源路径解析 |
 | `src/platform/ksm_win32_resource_provider.h` | 从 Win32 `RCDATA` 读取页面、样式和脚本 |
 | `src/platform/ksm_webview_host.h` | 工作线程、超时、取消、单响应和事件投递 |
@@ -27,7 +36,7 @@
 | `tests/contract_runner.cpp` | Windows 契约、安全策略和生命周期测试 |
 | `examples/win32-host/` | 独立 Win32 + WebView2 示例工程 |
 
-Windows 当前实现 **33/33 个适用命令**。`device.getInfo` 是 Android 专属命令，
+Windows 当前实现 **47/47 个适用命令**。`device.getInfo` 是 Android 专属命令，
 Windows 返回 `NOT_SUPPORTED`。
 
 ## 应用配置
@@ -128,7 +137,8 @@ const std::string response = KSM::Invoke(
 ```
 
 `KSM::Invoke(windowId, ...)` 按 WebView View 维护独立路由器和事件订阅。空 `windowId` 使用默认
-路由上下文。宿主根入口直接调用 `KSMHostServices`，不得通过 `KSM::Invoke` 递归回路由。
+路由上下文。请求 `timeoutMs` 范围为 `1..600000`；重复活动请求 ID 返回 `BUSY`。宿主根入口
+直接调用 `KSMHostServices`，不得通过 `KSM::Invoke` 递归回路由。
 
 | 子模块 | 入口 | 宿主服务 |
 | --- | --- | --- |
@@ -141,11 +151,49 @@ const std::string response = KSM::Invoke(
 | HTTP | `KSM::Http` | `Download` |
 | Shell | `KSM::Shell` | `OpenExternal` |
 | 设备 | `KSM::Device` | `GetInfo`，Windows 返回空 |
+| 虚拟路径 | `KSM::Path` | `Dirs`、`Join`、`Normalize`、`Dirname`、`Basename`、`Extname`、`IsAbsolute` |
+| 存储 | `KSM::Store` | 读取、写入、删除、清空和列出 JSON 键值，数据位于 `app://data/.kasumi/store.json` |
+| 系统信息 | `KSM::Os` | `GetInfo`，不采集持久设备标识 |
+| 日志 | `KSM::Log` | `Write`，使用固定的日志级别并输出到 `OutputDebugStringW` |
 | 应用 | `KSM::App` | 版本、语言和退出 |
+
+```cpp
+const auto roots = KSM::Path::Dirs();
+if (!roots) {
+    throw std::runtime_error("Kasumi path directories are unavailable.");
+}
+
+const auto config_path = KSM::Path::Join(
+    roots->data,
+    {"notes", "config.json"}
+);
+if (!config_path) {
+    throw std::runtime_error("The virtual path is invalid.");
+}
+
+if (!KSM::Store::Set("profile", R"({"theme":"light"})")) {
+    throw std::runtime_error("The profile could not be stored.");
+}
+const auto profile = KSM::Store::Get("profile");
+if (!profile || !profile->found) {
+    throw std::runtime_error("The profile was not found.");
+}
+
+KSM::Log::Write(
+    KSM::LogLevel::Info,
+    "Profile loaded from " + *config_path,
+    "settings"
+);
+```
+
+`KSM::Path`、`KSM::Store`、`KSM::Os` 和 `KSM::Log` 会复用插件路由与权限校验，应在
+插件处理器之外调用，避免在命令处理期间再次进入路由。
 
 ## 插件与 SQL
 
-Windows 宿主默认加载 `fs`、`dialog` 和 `sql` 插件。插件接口位于
+Windows 宿主默认加载 `fs`、`dialog`、`clipboard`、`notification`、`window`、`http`、
+`shell`、`sql`、`path`、`store`、`os` 和 `log` 插件。`core` 仍由路由层实现，
+`device` 仅 Android 注册。插件接口位于
 `include/kasumi/plugins/ksm_plugin.h`，消费方可以通过 `KSMWebView2Host` 构造函数传入
 额外插件：
 
@@ -174,10 +222,10 @@ auto host = std::make_shared<KSMWebView2Host>(
 );
 ```
 
-`fs`、`dialog` 和 `sql` 可以用同 ID 自定义插件替换，但替换插件必须完整声明该 ID 在
-`protocol/plugins.json` 中的全部命令。其他生成插件 ID 保留给框架；自定义插件也不得
-抢占任何生成命令。自定义命令不在 `protocol/commands.json` 时，插件必须实现自己的
-参数校验。
+除 `core` 外的内置插件都可以用同 ID 自定义插件替换，但替换插件必须完整声明该 ID 在
+`protocol/plugins.json` 中的全部命令。自定义插件不得抢占其他生成命令。自定义命令不在
+`protocol/commands.json` 时，插件必须实现自己的参数校验。插件上下文携带请求 ID，
+下载插件用它连接 `KSMHostServices::CancelRequest`。
 
 SQL 驱动实现 `KSMSqlDriver` 和 `KSMSqlConnection`，然后注册到宿主服务：
 
@@ -196,6 +244,10 @@ TLS。`mongodb` 需要通过 `KSMSqlDriver` SPI 注册宿主驱动。
 SQLite 接受 `:memory:` 或可写虚拟路径，不接受 `app://picked` 和真实路径。驱动返回的
 异常必须转换为协议错误码，连接字符串和凭据不得出现在前端错误消息中。ODBC 适配器要求
 用户自行安装数据库厂商驱动，Kasumi 不随包分发 MySQL、PostgreSQL 或 MongoDB 客户端。
+
+每个宿主服务最多保持 32 个连接。单次查询最多返回 10,000 行和 16 MiB 结果数据；超限返回
+`RESOURCE_LIMIT`，不会截断结果。Store 的完整读改写使用进程级锁，多个 View 的插件实例
+不会覆盖彼此的 `store.json` 更新。
 
 ## SDK 构建
 
@@ -297,7 +349,8 @@ CSP 由 `index.html` 响应头注入。
 
 每个 WebView View 分配单调递增且不复用的 `windowId`。同一窗口的 View 共享
 WebView2 Environment，但各自拥有子 `HWND`、路由器、宿主服务、请求队列、超时计时器
-和事件订阅。关闭一个 View 不影响同一窗口中的其他 View，关闭顶层窗口会关闭全部 View。
+和事件订阅。新文档开始或关闭 View 时，宿主取消旧请求、清理计时器并抑制迟到响应。
+关闭一个 View 不影响同一窗口中的其他 View，关闭顶层窗口会关闭全部 View。
 
 ### 多 WebView 实例
 
@@ -383,6 +436,7 @@ View。尺寸边界会夹取到父窗口客户区；创建参数和 `SetBounds()
 - 下载到同目录 `.part` 文件，成功后用 `MoveFileExW` 提交。
 - 取消或超时会关闭 WinHTTP 句柄并删除临时文件。
 - `overwrite` 缺省为 `false`；目标存在返回 `IO_ERROR`。
+- 请求 ID 在创建 `.part` 文件前原子占用；同一 ID 的并发下载返回 `BUSY`。
 
 `shell.openExternal` 使用 `ShellExecuteW`，服务层再次执行精确 origin 白名单校验。
 默认空白名单，调用方必须通过 `KSMWindowsHostServices` 或 `KSMWebView2Host` 构造参数
@@ -401,7 +455,7 @@ python cli/ksm.py test --platform windows --target example
 
 | 测试 | 位置 | 覆盖内容 |
 | --- | --- | --- |
-| `kasumi_contract` | SDK 构建目录 | 路由、策略、文件、权限、超时、取消和根入口 |
+| `kasumi_contract` | SDK 构建目录 | 路由、策略、文件、权限、重复请求 ID、超时上限、取消、SQL 限额、Store 并发和根入口 |
 | `kasumi_win32_example_smoke` | 示例构建目录 | 隐藏启动示例、加载页面、执行 `ping` 并退出 |
 | `kasumi_win32_example_multi_view_smoke` | 示例构建目录 | 同一窗口创建两个 View、独立身份与边界、两个页面分别完成命令写入、关闭单个 View 后其余实例继续运行 |
 
@@ -437,7 +491,8 @@ EXE/DLL 执行 `signtool verify /pa /all`。普通 CI 可以构建未签名产�
 2. `find_package(Kasumi)` 失败：检查 `CMAKE_PREFIX_PATH` 是否指向 SDK 安装目录。
 3. 链接失败：确认消费者链接的是 `Kasumi::kasumi_windows_bridge`。
 4. 页面空白：默认模式检查内嵌资源是否重新生成；外置模式检查 `web/index.html` 与 EXE 同级。
-5. 请求一直超时：检查 WebView2 消息是否回到 UI 线程，来源是否为 `https://app.local`。
+5. 请求一直超时：检查 WebView2 消息是否回到 UI 线程、来源是否为 `https://app.local`，
+   以及 `timeoutMs` 是否在 `1..600000`。
 6. 外部链接被拒绝：检查 origin 是否包含正确 scheme、host 和端口。
 7. 下载失败：检查 HTTPS、重定向、目标路径、覆盖策略和 `.part` 清理。
 8. 窗口尺寸不变：检查窗口是否最大化、最小化或全屏，以及目标显示器工作区。
@@ -445,3 +500,4 @@ EXE/DLL 执行 `signtool verify /pa /all`。普通 CI 可以构建未签名产�
    的 View 保持 `fill_parent=true`。
 10. 关闭一个标签后顶层窗口退出：确认调用的是 `DestroyView(windowId)`，而不是
     `KSM.window.close()` 或 `KSMWebView2Host::Close()`。
+11. SQL 返回 `RESOURCE_LIMIT`：减少结果列、行数或分页查询；连接额度需关闭旧连接后释放。

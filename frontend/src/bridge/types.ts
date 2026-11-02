@@ -10,6 +10,7 @@ export type KSMErrorCode =
   | 'CANCELLED'
   | 'TIMEOUT'
   | 'BUSY'
+  | 'RESOURCE_LIMIT'
   | 'INTERNAL_ERROR';
 
 export interface KSMError {
@@ -138,6 +139,71 @@ export interface KSMShellOpenResult {
 
 export interface KSMShellApi {
   openExternal(args: { url: string }): Promise<KSMShellOpenResult>;
+}
+
+export type KSMJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | KSMJsonValue[]
+  | { [key: string]: KSMJsonValue };
+
+export interface KSMStoreGetResult {
+  found: boolean;
+  value: KSMJsonValue;
+}
+
+export interface KSMStoreApi {
+  get(args: { key: string }): Promise<KSMStoreGetResult>;
+  set(args: { key: string; value: KSMJsonValue }): Promise<{ updated: true }>;
+  delete(args: { key: string }): Promise<{ deleted: boolean }>;
+  clear(): Promise<{ cleared: true }>;
+  keys(): Promise<{ keys: string[] }>;
+}
+
+export interface KSMPathDirectories {
+  data: string;
+  cache: string;
+  temp: string;
+  resource: string;
+  asset: string;
+}
+
+export interface KSMPathApi {
+  dirs(): Promise<KSMPathDirectories>;
+  join(args: { base: string; segments: string[] }): Promise<{ path: string }>;
+  normalize(args: { path: string }): Promise<{ path: string }>;
+  dirname(args: { path: string }): Promise<{ path: string }>;
+  basename(args: {
+    path: string;
+    suffix?: string;
+  }): Promise<{ name: string }>;
+  extname(args: { path: string }): Promise<{ extension: string }>;
+  isAbsolute(args: { path: string }): Promise<{ absolute: boolean }>;
+}
+
+export interface KSMOperatingSystemInfo {
+  platform: KSMPlatform;
+  architecture: string;
+  version: string;
+  locale: string;
+  timezone: string;
+  appVersion: string;
+}
+
+export interface KSMOperatingSystemApi {
+  getInfo(): Promise<KSMOperatingSystemInfo>;
+}
+
+export type KSMLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
+
+export interface KSMLogApi {
+  write(args: {
+    level: KSMLogLevel;
+    message: string;
+    target?: string;
+  }): Promise<{ logged: true }>;
 }
 
 export interface KSMDeviceInfo {

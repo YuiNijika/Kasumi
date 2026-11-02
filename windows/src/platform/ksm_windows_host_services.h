@@ -71,6 +71,13 @@ public:
     bool OpenExternal(const std::string& url) override;
     bool SetWindowSize(const KSMWindowSize& size) override;
     std::optional<KSMDeviceInfo> GetDeviceInfo() const override;
+    std::optional<KSMOperatingSystemInfo>
+    GetOperatingSystemInfo() const override;
+    bool WriteLog(
+        const std::string& level,
+        const std::string& target,
+        const std::string& message
+    ) override;
     void CancelRequest(const std::string& request_id) override;
 
 private:

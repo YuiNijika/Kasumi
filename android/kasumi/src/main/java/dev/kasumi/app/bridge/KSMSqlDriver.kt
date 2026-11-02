@@ -7,6 +7,41 @@ import android.util.Base64
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicLong
 
+private const val MAX_SQL_CONNECTIONS = 32
+private const val MAX_SQL_RESULT_ROWS = 10000
+private const val MAX_SQL_RESULT_BYTES = 16 * 1024 * 1024
+
+private fun sqlValueBytes(value: Any?): Int {
+    return when (value) {
+        null, is Boolean -> 1
+        is ByteArray -> value.size
+        is String -> value.toByteArray(Charsets.UTF_8).size
+        is Number -> 8
+        else -> 0
+    }
+}
+
+private fun validateSqlResult(result: KSMSqlQueryResult) {
+    if (result.rows.size > MAX_SQL_RESULT_ROWS) {
+        throw KSMHostException(
+            "RESOURCE_LIMIT",
+            "The SQL result exceeds the maximum row count."
+        )
+    }
+    var bytes = 0
+    for (row in result.rows) {
+        for (value in row) {
+            bytes += sqlValueBytes(value)
+            if (bytes > MAX_SQL_RESULT_BYTES) {
+                throw KSMHostException(
+                    "RESOURCE_LIMIT",
+                    "The SQL result exceeds the maximum payload size."
+                )
+            }
+        }
+    }
+}
+
 interface KSMSqlDriver {
     val name: String
 
@@ -30,6 +65,7 @@ class KSMSqlDriverRegistry {
     private val drivers = linkedMapOf<String, KSMSqlDriver>()
     private val connections = mutableMapOf<String, KSMSqlConnection>()
     private val nextConnectionId = AtomicLong(1)
+    private var pendingConnections = 0
 
     fun register(driver: KSMSqlDriver) {
         require(driver.name.isNotBlank()) {
@@ -52,9 +88,29 @@ class KSMSqlDriverRegistry {
         val driver = synchronized(lock) {
             drivers[driverName]
         } ?: return null
-        val connection = driver.open(url)
+        synchronized(lock) {
+            if (
+                connections.size + pendingConnections >=
+                MAX_SQL_CONNECTIONS
+            ) {
+                throw KSMHostException(
+                    "RESOURCE_LIMIT",
+                    "The SQL connection limit has been reached."
+                )
+            }
+            pendingConnections += 1
+        }
+        val connection = try {
+            driver.open(url)
+        } catch (error: Exception) {
+            synchronized(lock) {
+                pendingConnections -= 1
+            }
+            throw error
+        }
         val connectionId = "sql-${nextConnectionId.getAndIncrement()}"
         synchronized(lock) {
+            pendingConnections -= 1
             connections[connectionId] = connection
         }
         return connectionId
@@ -66,9 +122,11 @@ class KSMSqlDriverRegistry {
         params: List<Any?>
     ): KSMSqlQueryResult {
         val connection = requireConnection(connectionId)
-        return synchronized(connection) {
+        val result = synchronized(connection) {
             connection.query(statement, params)
         }
+        validateSqlResult(result)
+        return result
     }
 
     fun execute(
@@ -170,8 +228,25 @@ private class KSMSqliteConnection(
             database.rawQuery(statement, args).use { cursor ->
                 val columns = cursor.columnNames.toList()
                 val rows = mutableListOf<List<Any?>>()
+                var resultBytes = 0
                 while (cursor.moveToNext()) {
-                    rows.add(columns.indices.map { readValue(cursor, it) })
+                    if (rows.size >= MAX_SQL_RESULT_ROWS) {
+                        throw KSMHostException(
+                            "RESOURCE_LIMIT",
+                            "The SQL result exceeds the maximum row count."
+                        )
+                    }
+                    val row = columns.indices.map { readValue(cursor, it) }
+                    for (value in row) {
+                        resultBytes += sqlValueBytes(value)
+                        if (resultBytes > MAX_SQL_RESULT_BYTES) {
+                            throw KSMHostException(
+                                "RESOURCE_LIMIT",
+                                "The SQL result exceeds the maximum payload size."
+                            )
+                        }
+                    }
+                    rows.add(row)
                 }
                 KSMSqlQueryResult(columns, rows)
             }

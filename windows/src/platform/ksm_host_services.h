@@ -40,6 +40,14 @@ struct KSMDeviceInfo {
     std::string architecture;
 };
 
+struct KSMOperatingSystemInfo {
+    std::string platform;
+    std::string architecture;
+    std::string version;
+    std::string locale;
+    std::string timezone;
+};
+
 using KSMSqlValue = std::variant<
     std::nullptr_t,
     std::int64_t,
@@ -136,6 +144,20 @@ public:
     }
     virtual std::optional<KSMDeviceInfo> GetDeviceInfo() const {
         return std::nullopt;
+    }
+    virtual std::optional<KSMOperatingSystemInfo>
+    GetOperatingSystemInfo() const {
+        return std::nullopt;
+    }
+    virtual bool WriteLog(
+        const std::string& level,
+        const std::string& target,
+        const std::string& message
+    ) {
+        (void)level;
+        (void)target;
+        (void)message;
+        return false;
     }
     void RegisterSqlDriver(std::shared_ptr<KSMSqlDriver> driver);
     virtual std::vector<std::string> SqlDrivers() const;

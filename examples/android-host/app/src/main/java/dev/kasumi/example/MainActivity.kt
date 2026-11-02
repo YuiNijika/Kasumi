@@ -58,6 +58,9 @@ class MainActivity : Activity() {
         if (::webViewHost.isInitialized) {
             webViewHost.close()
         }
+        if (::hostServices.isInitialized) {
+            hostServices.shutdown()
+        }
         super.onDestroy()
     }
 

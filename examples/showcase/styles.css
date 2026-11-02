@@ -257,7 +257,8 @@ code {
 }
 
 h1,
-h2 {
+h2,
+h3 {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -280,6 +281,12 @@ h2 {
   scroll-margin-top: 1rem;
   font-size: clamp(1.35rem, 2.2vw, 1.8rem);
   line-height: 1.15;
+}
+
+h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.25;
 }
 
 .lede {
@@ -536,6 +543,38 @@ h2 {
 
 .device-grid:empty {
   display: none;
+}
+
+.toolkit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.toolkit-panel {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-medium);
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.toolkit-panel p {
+  margin: 0.7rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.toolkit-panel .field-label {
+  margin-top: 0.8rem;
+}
+
+.toolkit-panel h3 + .field-label {
+  margin-top: 0.75rem;
+}
+
+.toolkit-panel textarea {
+  margin-bottom: 0.15rem;
 }
 
 .field-label {
@@ -829,6 +868,7 @@ textarea:focus-visible {
   }
 
   .size-fields,
+  .toolkit-grid,
   .event-strip {
     grid-template-columns: 1fr;
   }

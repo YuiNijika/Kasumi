@@ -1,0 +1,60 @@
+:root {
+  color-scheme: dark;
+  --bg: #080808;
+  --bg-subtle: #0b0b0b;
+  --surface: #101010;
+  --surface-hover: #151515;
+  --surface-strong: #181818;
+  --text: #f4f2ed;
+  --text-soft: #c9c5bd;
+  --muted: #918c83;
+  --muted-strong: #68645d;
+  --accent: #ff7a18;
+  --accent-bright: #ff9a4d;
+  --accent-deep: #cf5100;
+  --accent-wash: rgb(255 122 24 / 11%);
+  --accent-line: rgb(255 122 24 / 28%);
+  --border: rgb(255 255 255 / 9%);
+  --border-strong: rgb(255 255 255 / 15%);
+  --nav-bg: rgb(8 8 8 / 84%);
+  --page-glow: rgb(255 122 24 / 13%);
+  --grid-line: rgb(255 255 255 / 3.5%);
+  --code-bg: #0d0d0d;
+  --code-surface: #121212;
+  --code-border: rgb(255 255 255 / 9%);
+  --code-text: #e8e5df;
+  --code-muted: #64615b;
+  --shadow-soft: 0 24px 70px rgb(0 0 0 / 34%);
+  --font-display: "Bahnschrift", "Avenir Next", "Segoe UI Variable Display", "PingFang SC", sans-serif;
+  --font-body: "Avenir Next", "Segoe UI Variable Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "Cascadia Code", "SFMono-Regular", "Liberation Mono", monospace;
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --page-width: 1180px;
+  --nav-height: 62px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f5f0;
+  --bg-subtle: #f1eee8;
+  --surface: #fffdfa;
+  --surface-hover: #fff8ef;
+  --surface-strong: #ffffff;
+  --text: #171512;
+  --text-soft: #454039;
+  --muted: #6d675f;
+  --muted-strong: #8d867d;
+  --accent: #e96500;
+  --accent-bright: #ff7a18;
+  --accent-deep: #b84600;
+  --accent-wash: rgb(233 101 0 / 9%);
+  --accent-line: rgb(233 101 0 / 26%);
+  --border: rgb(29 23 17 / 11%);
+  --border-strong: rgb(29 23 17 / 18%);
+  --nav-bg: rgb(247 245 240 / 88%);
+  --page-glow: rgb(255 122 24 / 10%);
+  --grid-line: rgb(29 23 17 / 4.5%);
+  --shadow-soft: 0 24px 70px rgb(70 45 20 / 12%);
+}

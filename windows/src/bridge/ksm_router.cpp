@@ -152,8 +152,13 @@ void AppendUnique(
 std::vector<std::shared_ptr<KSMPlugin>> BuildPlugins(
     std::vector<std::shared_ptr<KSMPlugin>> additional
 ) {
-    const std::set<std::string> built_in_ids = {"fs", "dialog", "sql"};
     const auto& generated_ids = KSMGeneratedContract::Plugins();
+    std::set<std::string> replaceable_ids;
+    for (const auto& plugin_id : generated_ids) {
+        if (plugin_id != "core") {
+            replaceable_ids.insert(plugin_id);
+        }
+    }
     std::set<std::string> seen;
     std::set<std::string> overridden_ids;
     for (const auto& plugin : additional) {
@@ -164,7 +169,7 @@ std::vector<std::shared_ptr<KSMPlugin>> BuildPlugins(
             !seen.insert(plugin->Id()).second ||
             (
                 Contains(generated_ids, plugin->Id()) &&
-                built_in_ids.find(plugin->Id()) == built_in_ids.end()
+                !replaceable_ids.contains(plugin->Id())
             )
         ) {
             throw std::invalid_argument(
@@ -172,7 +177,7 @@ std::vector<std::shared_ptr<KSMPlugin>> BuildPlugins(
             );
         }
         const auto& commands = plugin->Commands();
-        if (built_in_ids.contains(plugin->Id())) {
+        if (replaceable_ids.contains(plugin->Id())) {
             const auto& generated_commands = KSMGeneratedContract::PluginCommands()
                 .at(plugin->Id());
             const std::set<std::string> expected(
@@ -246,6 +251,12 @@ KSMRouter::KSMRouter(
         AppendUnique(plugin_ids_, plugin_id);
     }
     for (const auto& command : plugin_registry_.Commands()) {
+        if (
+            Contains(KSMGeneratedContract::Commands(), command) &&
+            !Contains(KSMGeneratedContract::WindowsCommands(), command)
+        ) {
+            continue;
+        }
         if (allowed_commands.empty() || requested.contains(command)) {
             AppendUnique(supported_commands_, command);
         }
@@ -540,7 +551,10 @@ void KSMRouter::HandleMessage(
                     .host_services = host_services_,
                     .has_permission = [this](const std::string& permission) {
                         return HasPermission(permission);
-                    }
+                    },
+                    .request_id = id.is_string()
+                        ? id.get<std::string>()
+                        : std::string()
                 }
             );
             if (data) {

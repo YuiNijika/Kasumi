@@ -12,10 +12,20 @@
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSM.kt` | 根入口、生命周期、统一调用和原生事件 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMRouter.kt` | JSON 校验、权限检查和命令分发 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMHostServices.kt` | Android 平台服务接口 |
-| `kasumi/src/main/java/dev/kasumi/app/KSMAndroidHostServices.kt` | 对话框、文件、剪贴板、通知、下载、链接和设备信息 |
+| `kasumi/src/main/java/dev/kasumi/app/KSMAndroidHostServices.kt` | 对话框、文件、剪贴板、通知、下载、链接、设备、系统信息和日志 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMPlugin.kt` | 插件接口、注册表和默认插件 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMClipboardPlugin.kt` | 剪贴板命令插件 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMNotificationPlugin.kt` | 通知命令插件 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMWindowPlugin.kt` | 关闭窗口插件 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMHttpPlugin.kt` | HTTPS 下载命令插件 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMShellPlugin.kt` | 外部链接命令插件 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMDevicePlugin.kt` | 非持久设备信息插件 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMSqlDriver.kt` | SQL 驱动 SPI 和内置 SQLite 实现 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMSqlPlugin.kt` | SQL 命令插件与宿主驱动分发 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMPathPlugin.kt` | 虚拟路径命令插件 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMStorePlugin.kt` | 应用 JSON 存储命令插件 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMOperatingSystemPlugin.kt` | 系统信息命令插件 |
+| `kasumi/src/main/java/dev/kasumi/app/bridge/KSMLogPlugin.kt` | 平台日志命令插件 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewHost.kt` | WebView 消息桥、命令并发、导航策略、生命周期和资源释放 |
 | `kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewRuntime.kt` | WebView 默认设置、全屏窗口、前后台暂停和低内存回收 |
 | `kasumi/src/main/res/values/styles.xml` | 无 ActionBar 的 `Theme.Kasumi.Fullscreen` Activity 主题 |
@@ -25,7 +35,7 @@
 | `app/src/test/` | JVM 契约与策略测试 |
 | `app/src/androidTest/` | instrumentation 与真实 Activity 测试 |
 
-Android 当前实现 **30/30 个适用命令**。Windows 专属的窗口标题、最小化、最大化、
+Android 当前实现 **44/44 个适用命令**。Windows 专属的窗口标题、最小化、最大化、
 尺寸调整不提供；`device.getInfo` 仅 Android 提供。
 
 ## 应用配置
@@ -137,13 +147,16 @@ val response = KSM.invoke(
 ```
 
 `KSM` 根入口挂载 `fs`、`dialog`、`clipboard`、`notification`、`permission`、`http`、
-`shell`、`device`、`sql`、`window` 和 `app`。直接子模块用于可信原生代码；前端命令仍
+`shell`、`device`、`sql`、`path`、`store`、`os`、`log`、`window` 和 `app`。直接子模块
+用于可信原生代码；前端命令仍
 必须经过 `KSMRouter` 的参数、权限和路径校验。
 
 ## 插件与 SQL
 
-Android 默认插件由 `ksmDefaultPlugins()` 创建，包括 `fs`、`dialog` 和 `sql`。自定义
-插件实现 `KSMPlugin` 并通过 `KSMWebViewHost` 的 `plugins` 参数注册：
+Android 默认插件由 `ksmDefaultPlugins()` 创建，包括 `fs`、`dialog`、`clipboard`、
+`notification`、`window`、`http`、`shell`、`device`、`sql`、`path`、`store`、`os` 和
+`log`。`core` 由路由层实现。
+自定义插件实现 `KSMPlugin` 并通过 `KSMWebViewHost` 的 `plugins` 参数注册：
 
 ```kotlin
 val plugin = object : KSMPlugin {
@@ -175,8 +188,9 @@ val webViewHost = KSMWebViewHost(
 )
 ```
 
-`fs`、`dialog` 和 `sql` 可以用同 ID 插件替换；其他生成插件 ID 保留给框架。插件命令
-不在 `protocol/commands.json` 时，`validateArgs` 必须自己拒绝非法参数。
+除 `core` 外的内置插件都可以用同 ID 插件替换，但必须完整声明该插件的全部生成命令。
+插件不得抢占其他生成命令。插件命令不在 `protocol/commands.json` 时，`validateArgs`
+必须自己拒绝非法参数。插件上下文携带 `requestId`，下载插件用它连接宿主取消和超时链路。
 
 SQL 默认注册 `KSMSqliteDriver`。需要 MySQL、PostgreSQL 或 MongoDB 时，实现
 `KSMSqlDriver` / `KSMSqlConnection`，然后调用：
@@ -189,10 +203,20 @@ hostServices.registerSqlDriver(MyRemoteDriver())
 `app://data`、`app://cache`、`app://tmp` 下的可写路径，不支持真实路径和
 `app://picked`。远程驱动负责自己的连接串、TLS、占位符和游标映射，错误不得泄漏凭据。
 
+每个宿主服务最多同时打开 32 个连接。单次查询最多返回 10,000 行和 16 MiB 结果数据，
+超限返回 `RESOURCE_LIMIT`，不会截断结果。Store 插件使用进程级共享锁包裹完整读改写流程，
+多个 WebView 的插件实例不会互相覆盖 `store.json`。
+
 `KSMWebViewHost` 封装 `WebViewCompat.addWebMessageListener`，接收消息后放入 IO 协程，
 最多同时执行 8 条命令。超过上限返回 `BUSY`，超时返回 `TIMEOUT`，取消消息会中断任务并
 返回 `CANCELLED`。每个活动请求只保留一个可取消句柄，请求结束后立即移除，不维护无界
-取消 ID 集合。
+取消 ID 集合。`timeoutMs` 必须是 `1..600000` 范围内的整数。
+
+每个 `KSMWebViewHost` 生成稳定且不复用的 `windowId`，并注册到 `KSM` 的窗口表。
+`KSM.invoke(windowId, ...)` 和 `KSM.on(windowId, ...)` 只访问目标窗口；无窗口参数 API
+仅在恰好注册一个窗口时可用。`onPageStarted` 会静默取消当前窗口旧请求并抑制迟到响应。
+`close()` 只注销当前窗口，不会关闭共享的 `KSMAndroidHostServices`，服务生命周期由
+Activity 或 Application 所有者统一管理。
 
 Activity 必须把 `onResume`、`onPause`、`onTrimMemory`、`onLowMemory` 和 `onDestroy`
 转发给 `KSMWebViewHost`，并在窗口焦点恢复时转发 `onWindowFocusChanged`。宿主在前后台
@@ -232,7 +256,9 @@ val result = KSM.http.download(
 - 目标必须是 `app://data`、`app://cache` 或 `app://tmp` 下的文件。
 - 目标已存在且未允许覆盖时返回 `IO_ERROR`。
 - 下载到同目录临时 `.part` 文件，成功后提交；失败、取消或异常时删除。
-- 取消消息会 `disconnect` 活动连接；`onTrimMemory` 和 Activity 销毁会取消所有下载。
+- 请求 ID 在创建 `.part` 文件前原子占用；同一 ID 的并发下载返回 `BUSY`。
+- 取消消息会 `disconnect` 活动连接；`onTrimMemory` 只取消当前窗口下载，Activity 销毁
+  由宿主服务统一关闭剩余下载。
 
 ### `shell.openExternal`
 
@@ -259,8 +285,8 @@ val info = KSM.device.getInfo()
 ## 生命周期
 
 示例 Activity 在 `onCreate` 创建文件系统、宿主服务和 `KSMWebViewHost`，在 `onDestroy`
-统一取消命令协程、下载和消息监听，关闭 `KSM` 并销毁 WebView。旋转会重建 Activity，
-旧请求的响应由 Activity 销毁检查抑制。`onTrimMemory` 在低内存级别取消活动下载，清理
+销毁当前 WebView 并调用 `hostServices.shutdown()`。旋转会重建 Activity，旧请求的响应由
+窗口注销和 Activity 销毁检查抑制。`onTrimMemory` 在低内存级别取消当前窗口下载，清理
 WebView 内存缓存并释放可回收页面内存，保留磁盘缓存以避免反复重新下载资源。
 
 文件选择器、通知权限和 Activity Result 都通过宿主服务等待结果；超时后清理 pending
@@ -268,8 +294,8 @@ WebView 内存缓存并释放可回收页面内存，保留磁盘缓存以避免
 `app://picked/<id>` 映射在宿主关闭时释放，不会跨 Activity 生命周期继续持有 URI。
 
 Android O 及以上把 WebView 渲染进程设置为绑定当前应用，并允许系统在 WebView 不可见时
-waive 渲染进程优先级，降低应用进入后台后继续占用 WebView 内存的概率。Android 当前只
-维护一个 Kasumi WebView 实例，因此暂停和恢复定时器按进程级行为处理。
+waive 渲染进程优先级，降低应用进入后台后继续占用 WebView 内存的概率。多个 WebView
+共用进程级定时器暂停状态时使用租约计数，单个窗口恢复不会提前恢复其他窗口。
 
 `KSMWebViewHost` 默认 `fullscreen = true`，隐藏 ActionBar、状态栏和导航栏，并把 WebView
 扩展到系统栏与刘海区域。系统栏可通过边缘滑动临时显示，窗口重新获得焦点后会再次隐藏。
@@ -288,9 +314,9 @@ Activity 需要声明：
 ## WebView 安全
 
 WebView 只允许 `https://app.local` 和开发用 `http://localhost:5173`。其他 `http` /
-`https` 导航交给系统浏览器，`intent:`、`file:` 等 scheme 会被拒绝；`window.open`
-被拒绝，生产构建关闭 WebView 调试。CSP、导航拦截和来源校验必须保持开启，不使用
-`addJavascriptInterface`。
+`https` 导航直接拦截，应用必须通过 `shell.openExternal` 的精确 origin 白名单打开外部
+链接；`intent:`、`file:` 等 scheme 同样拒绝。`window.open` 被拒绝，生产构建关闭
+WebView 调试。CSP、导航拦截和来源校验必须保持开启，不使用 `addJavascriptInterface`。
 
 使用 `KSMWebAssetLoader.create(context, assetRoot)` 创建资源加载器。该入口固定域名
 `app.local`，并拒绝包含路径穿越的资源和请求路径。AndroidX 默认域名是
@@ -333,7 +359,7 @@ gradle -p android :kasumi:testDebugUnitTest :app:testDebugUnitTest :app:assemble
 
 | 测试 | 覆盖内容 |
 | --- | --- |
-| `ContractTest` | 根入口子模块、文件、picked、权限、新 API、关闭后不可用 |
+| `ContractTest` | 根入口子模块、文件、picked、权限、新 API、双窗口路由、窗口级事件、SQL 限额、Store 并发、关闭后不可用 |
 | `KSMHttpPolicyTest` | HTTPS、凭据、origin、端口、重定向和长度边界 |
 | `NavigationPolicyTest` | WebView 来源和外部导航白名单 |
 | `BridgeInstrumentedTest` | 路径守卫、大文本、事件、picked/bundled 资源、通知权限 |
@@ -370,9 +396,12 @@ python cli/ksm.py package --platform android --target example
 
 1. 依赖解析失败：确认本地 Maven 仓库存在 `dev/kasumi/kasumi/<version>/`。
 2. 页面空白：检查 `assets/web/index.html`、CSP 和 `KSMWebAssetLoader` 的资源根。
-3. 请求一直超时：检查 `withTimeout`、`runInterruptible` 和主线程回投。
+3. 请求一直超时：检查 `withTimeout`、`runInterruptible`、主线程回投和
+   `timeoutMs` 是否在 `1..600000`。
 4. 文件被拒绝：检查虚拟根、picked 句柄和真实 URI 是否越界。
 5. 下载失败：检查 HTTPS、重定向、目标覆盖策略、网络权限和 `.part` 清理。
 6. 外部链接被拒绝：检查 origin 白名单、scheme、host 和端口。
 7. 通知不显示：先请求 `notification.show`，再检查 `POST_NOTIFICATIONS`。
 8. Activity 旋转后异常：检查旧请求是否被取消，迟到响应是否被抑制。
+9. 多 WebView 请求走错窗口：检查是否显式传入 `KSMWebViewHost.windowId`，不要把默认窗口
+   上下文用于多窗口路由。

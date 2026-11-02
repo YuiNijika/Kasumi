@@ -197,6 +197,121 @@ export async function runBuiltInApiCases(
   if (overwritten.bytes !== 8) {
     throw new Error('http.download did not allow an explicit overwrite.');
   }
+  const directories = await adapter.invoke<{
+    data: string;
+    cache: string;
+    temp: string;
+    resource: string;
+    asset: string;
+  }>('path.dirs', {});
+  if (
+    directories.data !== 'app://data' ||
+    directories.cache !== 'app://cache' ||
+    directories.temp !== 'app://tmp' ||
+    directories.resource !== 'app://res' ||
+    directories.asset !== 'app://assets'
+  ) {
+    throw new Error('path.dirs returned invalid virtual directories.');
+  }
+  const joinedPath = await adapter.invoke<{ path: string }>('path.join', {
+    base: 'app://data',
+    segments: ['notes', 'entry.txt']
+  });
+  if (joinedPath.path !== 'app://data/notes/entry.txt') {
+    throw new Error('path.join returned the wrong virtual path.');
+  }
+  const normalizedPath = await adapter.invoke<{ path: string }>(
+    'path.normalize',
+    { path: 'app://data/notes/' }
+  );
+  if (normalizedPath.path !== 'app://data/notes') {
+    throw new Error('path.normalize did not remove the trailing separator.');
+  }
+  const parentPath = await adapter.invoke<{ path: string }>('path.dirname', {
+    path: 'app://data/notes/entry.txt'
+  });
+  if (parentPath.path !== 'app://data/notes') {
+    throw new Error('path.dirname returned the wrong parent path.');
+  }
+  const baseName = await adapter.invoke<{ name: string }>('path.basename', {
+    path: 'app://data/notes/entry.txt',
+    suffix: '.txt'
+  });
+  if (baseName.name !== 'entry') {
+    throw new Error('path.basename did not remove the suffix.');
+  }
+  const extension = await adapter.invoke<{ extension: string }>(
+    'path.extname',
+    { path: 'app://data/notes/entry.txt' }
+  );
+  if (extension.extension !== '.txt') {
+    throw new Error('path.extname returned the wrong extension.');
+  }
+  const absolute = await adapter.invoke<{ absolute: boolean }>(
+    'path.isAbsolute',
+    { path: 'app://data/notes/entry.txt' }
+  );
+  if (!absolute.absolute) {
+    throw new Error('path.isAbsolute did not recognize a virtual path.');
+  }
+  const storedValue = { name: 'Kasumi', active: true, tags: ['desktop'] };
+  const stored = await adapter.invoke<{ updated: boolean }>('store.set', {
+    key: 'profile',
+    value: storedValue
+  });
+  if (!stored.updated) {
+    throw new Error('store.set failed.');
+  }
+  const storedResult = await adapter.invoke<{
+    found: boolean;
+    value: unknown;
+  }>('store.get', { key: 'profile' });
+  if (
+    !storedResult.found ||
+    JSON.stringify(storedResult.value) !== JSON.stringify(storedValue)
+  ) {
+    throw new Error('store.get returned the wrong value.');
+  }
+  const storedKeys = await adapter.invoke<{ keys: string[] }>('store.keys', {});
+  if (!storedKeys.keys.includes('profile')) {
+    throw new Error('store.keys did not list the stored key.');
+  }
+  const deletedValue = await adapter.invoke<{ deleted: boolean }>('store.delete', {
+    key: 'profile'
+  });
+  if (!deletedValue.deleted) {
+    throw new Error('store.delete failed.');
+  }
+  const clearedStore = await adapter.invoke<{ cleared: boolean }>('store.clear', {});
+  if (!clearedStore.cleared) {
+    throw new Error('store.clear failed.');
+  }
+  const operatingSystem = await adapter.invoke<{
+    platform: KSMPlatform;
+    architecture: string;
+    version: string;
+    locale: string;
+    timezone: string;
+    appVersion: string;
+  }>('os.getInfo', {});
+  if (
+    operatingSystem.platform !== platform ||
+    !operatingSystem.architecture ||
+    !operatingSystem.version ||
+    !operatingSystem.locale ||
+    !operatingSystem.timezone ||
+    !operatingSystem.appVersion
+  ) {
+    throw new Error('os.getInfo returned invalid operating system data.');
+  }
+  const logged = await adapter.invoke<{ logged: boolean }>('log.write', {
+    level: 'info',
+    message: 'contract',
+    target: 'kasumi'
+  });
+  if (!logged.logged) {
+    throw new Error('log.write failed.');
+  }
   const sqlDrivers = await adapter.invoke<{ drivers: string[] }>(
     'sql.drivers',
     {}

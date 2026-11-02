@@ -1,6 +1,32 @@
+import type { KSMJsonValue, KSMLogLevel } from '../bridge/types.js';
+
+const MAX_JSON_DEPTH = 32;
+const LOG_LEVELS = new Set<KSMLogLevel>([
+  'trace',
+  'debug',
+  'info',
+  'warn',
+  'error'
+]);
+
 export function assertString(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string') {
     throw new TypeError(`${field} must be a string.`);
+  }
+}
+
+export function assertBoundedString(
+  value: unknown,
+  field: string,
+  maxBytes: number,
+  allowEmpty = false
+): asserts value is string {
+  assertString(value, field);
+  if (!allowEmpty && value.length === 0) {
+    throw new TypeError(`${field} must not be empty.`);
+  }
+  if (new TextEncoder().encode(value).byteLength > maxBytes) {
+    throw new TypeError(`${field} must not exceed ${maxBytes} bytes.`);
   }
 }
 
@@ -121,6 +147,58 @@ export function assertPositiveInteger(value: unknown, field: string): asserts va
     value <= 0
   ) {
     throw new TypeError(`${field} must be a positive integer.`);
+  }
+}
+
+export function assertJsonValue(
+  value: unknown,
+  field: string,
+  depth = 0,
+  seen = new WeakSet<object>()
+): asserts value is KSMJsonValue {
+  if (depth > MAX_JSON_DEPTH) {
+    throw new TypeError(`${field} exceeds the maximum JSON depth.`);
+  }
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'boolean'
+  ) {
+    return;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new TypeError(`${field} must contain only finite numbers.`);
+    }
+    return;
+  }
+  if (typeof value !== 'object') {
+    throw new TypeError(`${field} must be a JSON value.`);
+  }
+  if (seen.has(value)) {
+    throw new TypeError(`${field} must not contain cyclic references.`);
+  }
+  seen.add(value);
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      assertJsonValue(item, `${field}[${index}]`, depth + 1, seen);
+    });
+    seen.delete(value);
+    return;
+  }
+  for (const [key, item] of Object.entries(value)) {
+    assertJsonValue(item, `${field}.${key}`, depth + 1, seen);
+  }
+  seen.delete(value);
+}
+
+export function assertStoreKey(value: unknown): asserts value is string {
+  assertBoundedString(value, 'key', 256);
+}
+
+export function assertLogLevel(value: unknown): asserts value is KSMLogLevel {
+  if (typeof value !== 'string' || !LOG_LEVELS.has(value as KSMLogLevel)) {
+    throw new TypeError('level must be trace, debug, info, warn or error.');
   }
 }
 

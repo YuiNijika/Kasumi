@@ -14,13 +14,53 @@
       "types": "./dist/api/dialog.d.ts",
       "import": "./dist/api/dialog.js"
     },
+    "./clipboard": {
+      "types": "./dist/api/clipboard.d.ts",
+      "import": "./dist/api/clipboard.js"
+    },
+    "./device": {
+      "types": "./dist/api/device.d.ts",
+      "import": "./dist/api/device.js"
+    },
     "./fs": {
       "types": "./dist/api/fs.d.ts",
       "import": "./dist/api/fs.js"
     },
+    "./http": {
+      "types": "./dist/api/http.d.ts",
+      "import": "./dist/api/http.js"
+    },
+    "./log": {
+      "types": "./dist/api/log.d.ts",
+      "import": "./dist/api/log.js"
+    },
+    "./notification": {
+      "types": "./dist/api/notification.d.ts",
+      "import": "./dist/api/notification.js"
+    },
+    "./os": {
+      "types": "./dist/api/os.d.ts",
+      "import": "./dist/api/os.js"
+    },
+    "./path": {
+      "types": "./dist/api/path.d.ts",
+      "import": "./dist/api/path.js"
+    },
+    "./shell": {
+      "types": "./dist/api/shell.d.ts",
+      "import": "./dist/api/shell.js"
+    },
     "./sql": {
       "types": "./dist/api/sql.d.ts",
       "import": "./dist/api/sql.js"
+    },
+    "./store": {
+      "types": "./dist/api/store.d.ts",
+      "import": "./dist/api/store.js"
+    },
+    "./window": {
+      "types": "./dist/api/window.d.ts",
+      "import": "./dist/api/window.js"
     }
   },
   "files": [

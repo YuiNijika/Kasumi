@@ -5,9 +5,18 @@
 #include <string>
 #include <utility>
 
+#include "ksm_clipboard_plugin.h"
 #include "ksm_dialog_plugin.h"
 #include "ksm_filesystem_plugin.h"
+#include "ksm_http_plugin.h"
+#include "ksm_log_plugin.h"
+#include "ksm_notification_plugin.h"
+#include "ksm_os_plugin.h"
+#include "ksm_path_plugin.h"
+#include "ksm_shell_plugin.h"
 #include "ksm_sql_plugin.h"
+#include "ksm_store_plugin.h"
+#include "ksm_window_plugin.h"
 
 KSMPluginRegistry::KSMPluginRegistry(
     std::vector<std::shared_ptr<KSMPlugin>> plugins
@@ -106,6 +115,15 @@ std::vector<std::shared_ptr<KSMPlugin>> KSMDefaultPlugins() {
     return {
         std::make_shared<KSMFileSystemPlugin>(),
         std::make_shared<KSMDialogPlugin>(),
-        std::make_shared<KSMSqlPlugin>()
+        std::make_shared<KSMClipboardPlugin>(),
+        std::make_shared<KSMNotificationPlugin>(),
+        std::make_shared<KSMWindowPlugin>(),
+        std::make_shared<KSMHttpPlugin>(),
+        std::make_shared<KSMShellPlugin>(),
+        std::make_shared<KSMSqlPlugin>(),
+        std::make_shared<KSMPathPlugin>(),
+        std::make_shared<KSMStorePlugin>(),
+        std::make_shared<KSMOperatingSystemPlugin>(),
+        std::make_shared<KSMLogPlugin>()
     };
 }

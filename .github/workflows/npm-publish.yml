@@ -77,8 +77,48 @@ jobs:
         run: pnpm --filter kasumi-plugin-dialog publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-clipboard
+        run: pnpm --filter kasumi-plugin-clipboard publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-notification
+        run: pnpm --filter kasumi-plugin-notification publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-window
+        run: pnpm --filter kasumi-plugin-window publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-http
+        run: pnpm --filter kasumi-plugin-http publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-shell
+        run: pnpm --filter kasumi-plugin-shell publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-device
+        run: pnpm --filter kasumi-plugin-device publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish kasumi-plugin-sql
         run: pnpm --filter kasumi-plugin-sql publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-path
+        run: pnpm --filter kasumi-plugin-path publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-store
+        run: pnpm --filter kasumi-plugin-store publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-os
+        run: pnpm --filter kasumi-plugin-os publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-log
+        run: pnpm --filter kasumi-plugin-log publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish kasumi-cli
@@ -92,7 +132,7 @@ jobs:
       - name: Verify published versions
         run: |
           VERSION="${RELEASE_TAG#v}"
-          for package in kasumi-bridge kasumi-plugin-fs kasumi-plugin-dialog kasumi-plugin-sql kasumi-cli create-kasumi
+          for package in kasumi-bridge kasumi-plugin-fs kasumi-plugin-dialog kasumi-plugin-clipboard kasumi-plugin-notification kasumi-plugin-window kasumi-plugin-http kasumi-plugin-shell kasumi-plugin-device kasumi-plugin-sql kasumi-plugin-path kasumi-plugin-store kasumi-plugin-os kasumi-plugin-log kasumi-cli create-kasumi
           do
             test "$(npm view "$package@$NPM_TAG" version)" = "$VERSION"
           done

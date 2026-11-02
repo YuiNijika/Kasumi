@@ -42,6 +42,7 @@ export class MockHost {
     ['app://assets/index.html', '<!doctype html>'],
     ['app://data/large.txt', 'x'.repeat(MAX_INLINE_TEXT_BYTES + 1)]
   ]);
+  private readonly store = new Map<string, unknown>();
 
   private nextTempId = 1;
   private capabilityQueries = 0;
@@ -302,6 +303,122 @@ export class MockHost {
         return;
       }
       send(this.ok(id, { opened: true }));
+      return;
+    }
+    if (request.cmd === 'path.dirs') {
+      send(this.ok(id, {
+        data: 'app://data',
+        cache: 'app://cache',
+        temp: 'app://tmp',
+        resource: 'app://res',
+        asset: 'app://assets'
+      }));
+      return;
+    }
+    if (request.cmd === 'path.join') {
+      const base = this.stringArg(request.args, 'base');
+      const segments = isRecord(request.args) && Array.isArray(request.args.segments)
+        ? request.args.segments
+        : [];
+      const path = [base, ...segments].join('/').replace(/\/+$/, '');
+      send(this.ok(id, { path }));
+      return;
+    }
+    if (request.cmd === 'path.normalize') {
+      send(this.ok(id, {
+        path: this.stringArg(request.args, 'path').replace(/\/+$/, '')
+      }));
+      return;
+    }
+    if (request.cmd === 'path.dirname') {
+      const path = this.stringArg(request.args, 'path').replace(/\/+$/, '');
+      const separator = path.lastIndexOf('/');
+      const root = path.match(/^app:\/\/(?:data|cache|tmp|picked|res|assets)/)?.[0] ?? path;
+      send(this.ok(id, {
+        path: separator <= 'app://'.length + 1
+          ? root
+          : path.substring(0, separator)
+      }));
+      return;
+    }
+    if (request.cmd === 'path.basename') {
+      const path = this.stringArg(request.args, 'path').replace(/\/+$/, '');
+      const separator = path.lastIndexOf('/');
+      let name = separator <= 'app://'.length + 1
+        ? ''
+        : path.substring(separator + 1);
+      if (
+        isRecord(request.args) &&
+        typeof request.args.suffix === 'string' &&
+        name.length > request.args.suffix.length &&
+        name.endsWith(request.args.suffix)
+      ) {
+        name = name.slice(0, -request.args.suffix.length);
+      }
+      send(this.ok(id, { name }));
+      return;
+    }
+    if (request.cmd === 'path.extname') {
+      const path = this.stringArg(request.args, 'path').replace(/\/+$/, '');
+      const separator = path.lastIndexOf('/');
+      const dot = path.lastIndexOf('.');
+      const nameStart = separator === -1 ? 'app://'.length : separator + 1;
+      send(this.ok(id, {
+        extension: dot <= nameStart || (separator !== -1 && dot < separator)
+          ? ''
+          : path.substring(dot)
+      }));
+      return;
+    }
+    if (request.cmd === 'path.isAbsolute') {
+      const value = this.stringArg(request.args, 'path');
+      send(this.ok(id, { absolute: /^app:\/\/(data|cache|tmp|picked|res|assets)(?:\/|$)/.test(value) }));
+      return;
+    }
+    if (request.cmd === 'store.get') {
+      const key = this.stringArg(request.args, 'key');
+      send(this.ok(id, this.store.has(key)
+        ? { found: true, value: this.store.get(key) }
+        : { found: false, value: null }));
+      return;
+    }
+    if (request.cmd === 'store.set') {
+      if (!isRecord(request.args) || !('value' in request.args)) {
+        throw new TypeError('value is required.');
+      }
+      this.store.set(this.stringArg(request.args, 'key'), request.args.value);
+      send(this.ok(id, { updated: true }));
+      return;
+    }
+    if (request.cmd === 'store.delete') {
+      const key = this.stringArg(request.args, 'key');
+      send(this.ok(id, { deleted: this.store.delete(key) }));
+      return;
+    }
+    if (request.cmd === 'store.clear') {
+      this.store.clear();
+      send(this.ok(id, { cleared: true }));
+      return;
+    }
+    if (request.cmd === 'store.keys') {
+      send(this.ok(id, { keys: [...this.store.keys()].sort() }));
+      return;
+    }
+    if (request.cmd === 'os.getInfo') {
+      send(this.ok(id, {
+        platform: this.platform,
+        architecture: this.platform === 'windows' ? 'x86_64' : 'arm64-v8a',
+        version: this.platform === 'windows' ? '10.0.22631' : '14',
+        locale: 'en-US',
+        timezone: 'Asia/Shanghai',
+        appVersion: KASUMI_VERSION
+      }));
+      return;
+    }
+    if (request.cmd === 'log.write') {
+      this.stringArg(request.args, 'level');
+      this.stringArg(request.args, 'message');
+      send(this.ok(id, { logged: true }));
       return;
     }
     if (request.cmd === 'sql.drivers') {

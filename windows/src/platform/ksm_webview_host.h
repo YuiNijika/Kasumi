@@ -39,6 +39,7 @@ public:
         const std::string& message,
         const std::string& origin
     );
+    void ResetForNavigation();
     void NotifyWebViewReloaded();
     void NotifyWindowResized(int width, int height);
     bool IsAllowedOrigin(const std::string& origin) const;
@@ -62,7 +63,7 @@ private:
     void TimerLoop();
     void PostResponse(const std::string& message);
     void CancelRequest(const std::string& id);
-    void RegisterRequest(
+    bool RegisterRequest(
         const std::shared_ptr<RequestState>& state,
         long long timeout_ms
     );

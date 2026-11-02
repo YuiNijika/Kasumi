@@ -5,7 +5,9 @@ import org.json.JSONObject
 data class KSMPluginContext(
     val fileSystem: KSMFileSystem?,
     val hostServices: KSMHostServices?,
-    val hasPermission: (String) -> Boolean
+    val hasPermission: (String) -> Boolean,
+    val requestId: String? = null,
+    val windowId: String? = null
 )
 
 interface KSMPlugin {
@@ -85,6 +87,16 @@ fun ksmDefaultPlugins(): List<KSMPlugin> {
     return listOf(
         KSMFileSystemPlugin(),
         KSMDialogPlugin(),
-        KSMSqlPlugin()
+        KSMClipboardPlugin(),
+        KSMNotificationPlugin(),
+        KSMWindowPlugin(),
+        KSMHttpPlugin(),
+        KSMShellPlugin(),
+        KSMDevicePlugin(),
+        KSMSqlPlugin(),
+        KSMPathPlugin(),
+        KSMStorePlugin(),
+        KSMOperatingSystemPlugin(),
+        KSMLogPlugin()
     )
 }

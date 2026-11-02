@@ -22,15 +22,15 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 
 ## 当前规模
 
-`commands.json` 当前定义 **34 个命令和 2 个事件**，`plugins.json` 将全部命令
-归入 **10 个内置插件**。产品版本由根目录 `version.json` 管理，SQL 插件的新增命令
-使用 `since: "1.2.0"`。
+`commands.json` 当前定义 **48 个命令和 2 个事件**，`plugins.json` 将全部命令
+归入 **14 个内置插件**。产品版本由根目录 `version.json` 管理，SQL 插件的新增命令
+使用 `since: "1.2.0"`，路径、存储、系统和日志插件使用 `since: "1.3.0"`。
 
 | 平台    | 适用命令 | 说明                                 |
 | ------- | -------: | ------------------------------------ |
-| Windows |       33 | 不包含仅 Android 的 `device.getInfo` |
-| Android |       30 | 不包含 Windows 专属窗口命令          |
-| 全集    |       34 | 宿主按平台矩阵过滤                   |
+| Windows |       47 | 不包含仅 Android 的 `device.getInfo` |
+| Android |       44 | 不包含 Windows 专属窗口命令          |
+| 全集    |       48 | 宿主按平台矩阵过滤                   |
 
 `ping` 与 `capabilities.query` 是最小通路。其余命令覆盖文件、对话框、剪贴板、通知、
 权限、事件、窗口、下载、外部链接、设备信息和数据库访问。
@@ -54,6 +54,10 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 | `http.download`                                                           | 支持    | 支持    | `http.download`                      |
 | `device.getInfo`                                                          | 不支持  | 支持    | `device.info`                        |
 | `sql.drivers`、`sql.open`、`sql.query`、`sql.execute`、`sql.close`        | 支持    | 支持    | `sql`                                |
+| `path.dirs`、`path.join`、`path.normalize`、`path.dirname`、`path.basename`、`path.extname`、`path.isAbsolute` | 支持 | 支持 | 无 |
+| `store.get`、`store.set`、`store.delete`、`store.clear`、`store.keys`     | 支持    | 支持    | `store`                              |
+| `os.getInfo`                                                              | 支持    | 支持    | `os.info`                            |
+| `log.write`                                                               | 支持    | 支持    | `log.write`                          |
 
 `capabilities.query` 返回宿主实际实现的命令列表和当前可用权限。Android 对不支持的窗口命令
 返回 `NOT_SUPPORTED`；Windows 对 `device.getInfo` 返回 `NOT_SUPPORTED`。
@@ -78,19 +82,27 @@ Windows 可额外设置 `decorations` 布尔值，默认 `true`。设为 `false`
 | `core` | `kasumi-bridge` | 应用生命周期、权限、事件和能力发现 | 7 |
 | `fs` | `kasumi-plugin-fs` | 沙箱虚拟文件系统 | 7 |
 | `dialog` | `kasumi-plugin-dialog` | 系统消息框、确认框和文件选择器 | 4 |
-| `clipboard` | `kasumi-bridge` | 系统剪贴板文本 | 2 |
-| `notification` | `kasumi-bridge` | 系统通知 | 1 |
-| `window` | `kasumi-bridge` | 窗口标题、尺寸和生命周期 | 5 |
-| `http` | `kasumi-bridge` | HTTPS 下载 | 1 |
-| `shell` | `kasumi-bridge` | 白名单外部链接 | 1 |
-| `device` | `kasumi-bridge` | 非持久设备信息 | 1 |
+| `clipboard` | `kasumi-plugin-clipboard` | 系统剪贴板文本 | 2 |
+| `notification` | `kasumi-plugin-notification` | 系统通知 | 1 |
+| `window` | `kasumi-plugin-window` | 窗口标题、尺寸和生命周期 | 5 |
+| `http` | `kasumi-plugin-http` | HTTPS 下载 | 1 |
+| `shell` | `kasumi-plugin-shell` | 白名单外部链接 | 1 |
+| `device` | `kasumi-plugin-device` | 非持久设备信息，仅 Android | 1 |
 | `sql` | `kasumi-plugin-sql` | 数据库连接和参数化语句 | 5 |
+| `path` | `kasumi-plugin-path` | 虚拟路径检查、拼接和规范化 | 7 |
+| `store` | `kasumi-plugin-store` | 应用数据目录内的 JSON 键值存储 | 5 |
+| `os` | `kasumi-plugin-os` | 非持久系统与运行时信息 | 1 |
+| `log` | `kasumi-plugin-log` | 平台调试日志 | 1 |
 
-Windows 的 `KSMRouter` 与 Android 的 `KSMRouter` 先派发插件，再进入仍由核心路由承载
-的平台命令。宿主可以注册自定义 `KSMPlugin` 实现；`fs`、`dialog` 和 `sql` 可以用同 ID
-插件显式替换，但替换实现必须完整声明该 ID 的全部生成命令。其他生成插件 ID 仍为保留值，
-自定义插件也不得抢占任何生成命令。插件自己声明的命令会被加入 `capabilities.query`。
-插件命令若不在 `commands.json` 中，由插件自己的参数校验器负责校验，不绕过宿主权限检查。
+Windows 的 `KSMRouter` 与 Android 的 `KSMRouter` 先派发原生插件，只有 `core` 生命
+周期命令仍由路由层处理。宿主可以注册自定义 `KSMPlugin` 实现；除 `core` 外的生成插件
+ID 都可以用同 ID 插件显式替换，但替换实现必须完整声明该 ID 的全部生成命令。自定义插件
+不得抢占其他生成命令。插件自己声明的命令会被加入 `capabilities.query`。插件命令若不在
+`commands.json` 中，由插件自己的参数校验器负责校验，不绕过宿主权限检查。
+
+Windows 默认注册 `fs`、`dialog`、`clipboard`、`notification`、`window`、`http`、
+`shell`、`sql`、`path`、`store`、`os` 和 `log`；Android 默认注册这些插件并额外注册
+`device`。插件上下文携带当前请求 ID，`http.download` 使用它连接宿主取消链路。
 
 代码生成会输出 `KSM_PLUGIN_METADATA`、C++ `PluginMetadata()` 和 Kotlin
 `pluginMetadata`。前端插件包只重新导出对应模块 API，原生权限、参数和来源校验仍在
@@ -180,6 +192,37 @@ SQL 参数只允许字符串、有限数值、布尔值和 `null`。`sql.query` 
 仅 Windows 可用，返回 `{ updated }`。按当前 DPI 转成物理像素并夹取到工作区；最大化、
 最小化或全屏状态返回 `NOT_SUPPORTED`。
 
+### `path.*`
+
+`path.dirs` 返回 `data`、`cache`、`temp`、`resource` 和 `asset` 五个虚拟根。其余方法只
+接受 `app://data`、`app://cache`、`app://tmp`、`app://picked`、`app://res` 和
+`app://assets`，不会解析真实文件系统路径。`path.join` 的每一段必须是相对片段；`.`、
+`..`、反斜杠、冒号和空段均返回 `INVALID_ARGS`。`path.basename` 支持可选 `suffix`，
+`path.extname` 返回包含点号的扩展名。
+
+### `store.*`
+
+存储文件固定为 `app://data/.kasumi/store.json`，根值必须是 JSON 对象。key 最大 256 字节，
+单值最大 1 MiB，整个存储最大 16 MiB。`store.get` 未命中时返回
+`{ found: false, value: null }`；删除不存在的 key 返回 `{ deleted: false }`；
+`store.clear` 删除整个存储文件。损坏的 JSON、读取失败或写入失败返回 `IO_ERROR`。
+
+### `os.getInfo`
+
+返回 `platform`、`architecture`、`version`、`locale`、`timezone` 和 `appVersion`。
+不返回主机名、用户名、设备序列号或其他可持久识别设备的信息。Windows 使用系统时区 ID，
+Android 使用 IANA 时区 ID。
+
+### `log.write`
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `level` | string | 是 | `trace`、`debug`、`info`、`warn` 或 `error` |
+| `message` | string | 是 | 最大 64 KiB |
+| `target` | string | 否 | 最大 128 字节，默认由宿主选择 |
+
+返回 `{ logged: true }`。日志只写入平台调试通道，不自动上传、不持久化。
+
 ## 调用示例
 
 ```ts
@@ -208,7 +251,18 @@ await KSM.shell.openExternal({ url: "https://example.com/docs" });
 }
 ```
 
-每个请求只返回一次响应。错误码必须属于 `errors.json`。
+每个请求只返回一次响应。请求 ID 必须在当前文档会话内唯一，重复 ID 返回 `BUSY`。
+`timeoutMs` 是可选整数，范围为 `1..600000`，越界返回 `INVALID_ARGS`。
+
+| 错误码 | 使用边界 |
+| --- | --- |
+| `TIMEOUT` | 请求超过 `timeoutMs` |
+| `CANCELLED` | 页面重载、显式取消或宿主要求中止 |
+| `BUSY` | 重复请求 ID、下载 ID 或并发槽位已满 |
+| `RESOURCE_LIMIT` | SQL 结果行数、结果字节数或连接数超过上限 |
+
+错误码必须属于 `errors.json`。页面开始新文档时，前端和宿主都必须静默清理旧请求，并抑制
+迟到的响应。
 
 ## 排查路径
 

@@ -1,4 +1,4 @@
-import { KSMBus } from './bus.js';
+import { KSMBus, MAX_REQUEST_TIMEOUT_MS } from './bus.js';
 import { KSMWebMessageTransport } from './transport.js';
 import {
   KSM_COMMANDS,
@@ -8,12 +8,16 @@ import {
 } from '../generated/contract.js';
 import {
   assertBoolean,
+  assertBoundedString,
   assertHttpUrl,
+  assertJsonValue,
+  assertLogLevel,
   assertPositiveInteger,
   assertSqlConnectionId,
   assertSqlDriver,
   assertSqlParams,
   assertSqlStatement,
+  assertStoreKey,
   assertString,
   assertVirtualDirectoryPath,
   assertVirtualPath,
@@ -32,12 +36,19 @@ import type {
   KSMFsApi,
   KSMHttpApi,
   KSMHttpDownloadResult,
+  KSMLogApi,
   KSMNotificationApi,
+  KSMOperatingSystemApi,
+  KSMOperatingSystemInfo,
+  KSMPathApi,
+  KSMPathDirectories,
   KSMPermissionApi,
   KSMShellApi,
   KSMSqlApi,
   KSMSqlDriver,
   KSMSqlValue,
+  KSMStoreApi,
+  KSMStoreGetResult,
   KSMTransport,
   KSMWindowApi,
   KSMWindowSize
@@ -126,6 +137,75 @@ export class KSM {
   };
   public static readonly device: KSMDeviceApi = {
     getInfo: (): Promise<KSMDeviceInfo> => KSM.invoke('device.getInfo', {})
+  };
+  public static readonly store: KSMStoreApi = {
+    get: (args): Promise<KSMStoreGetResult> => {
+      assertStoreKey(args.key);
+      return KSM.invoke('store.get', args);
+    },
+    set: (args): Promise<{ updated: true }> => {
+      assertStoreKey(args.key);
+      assertJsonValue(args.value, 'value');
+      return KSM.invoke('store.set', args);
+    },
+    delete: (args): Promise<{ deleted: boolean }> => {
+      assertStoreKey(args.key);
+      return KSM.invoke('store.delete', args);
+    },
+    clear: (): Promise<{ cleared: true }> => KSM.invoke('store.clear', {}),
+    keys: (): Promise<{ keys: string[] }> => KSM.invoke('store.keys', {})
+  };
+  public static readonly path: KSMPathApi = {
+    dirs: (): Promise<KSMPathDirectories> => KSM.invoke('path.dirs', {}),
+    join: (args): Promise<{ path: string }> => {
+      assertBoundedString(args.base, 'base', 8192);
+      if (!Array.isArray(args.segments)) {
+        throw new TypeError('segments must be an array.');
+      }
+      args.segments.forEach((segment, index) => {
+        assertBoundedString(segment, `segments[${index}]`, 256);
+      });
+      return KSM.invoke('path.join', args);
+    },
+    normalize: (args): Promise<{ path: string }> => {
+      assertBoundedString(args.path, 'path', 8192);
+      return KSM.invoke('path.normalize', args);
+    },
+    dirname: (args): Promise<{ path: string }> => {
+      assertBoundedString(args.path, 'path', 8192);
+      return KSM.invoke('path.dirname', args);
+    },
+    basename: (args): Promise<{ name: string }> => {
+      assertBoundedString(args.path, 'path', 8192);
+      if (args.suffix !== undefined) {
+        assertBoundedString(args.suffix, 'suffix', 256, true);
+      }
+      return KSM.invoke('path.basename', args);
+    },
+    extname: (args): Promise<{ extension: string }> => {
+      assertBoundedString(args.path, 'path', 8192);
+      return KSM.invoke('path.extname', args);
+    },
+    isAbsolute: (args): Promise<{ absolute: boolean }> => {
+      assertString(args.path, 'path');
+      if (args.path.length === 0) {
+        throw new TypeError('path must not be empty.');
+      }
+      return KSM.invoke('path.isAbsolute', args);
+    }
+  };
+  public static readonly os: KSMOperatingSystemApi = {
+    getInfo: (): Promise<KSMOperatingSystemInfo> => KSM.invoke('os.getInfo', {})
+  };
+  public static readonly log: KSMLogApi = {
+    write: (args): Promise<{ logged: true }> => {
+      assertLogLevel(args.level);
+      assertBoundedString(args.message, 'message', 65536);
+      if (args.target !== undefined) {
+        assertBoundedString(args.target, 'target', 128);
+      }
+      return KSM.invoke('log.write', args);
+    }
   };
   public static readonly sql: KSMSqlApi = {
     drivers: (): Promise<{ drivers: KSMSqlDriver[] }> => KSM.invoke('sql.drivers', {}),
@@ -269,6 +349,17 @@ export class KSM {
     args: TArgs,
     timeoutMs = 10000
   ): Promise<TResult> {
+    if (
+      !Number.isSafeInteger(timeoutMs) ||
+      timeoutMs <= 0 ||
+      timeoutMs > MAX_REQUEST_TIMEOUT_MS
+    ) {
+      const error = new Error(
+        `timeoutMs must be an integer between 1 and ${MAX_REQUEST_TIMEOUT_MS}.`
+      );
+      error.name = 'INVALID_ARGS';
+      throw error;
+    }
     if (
       (KSM_COMMANDS as readonly string[]).includes(cmd) &&
       !validateKSMArgs(cmd, args)

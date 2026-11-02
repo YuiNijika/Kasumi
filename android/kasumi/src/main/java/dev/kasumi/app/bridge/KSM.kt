@@ -5,16 +5,26 @@ import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicLong
 
 object KSM {
+    const val DEFAULT_WINDOW_ID = "default"
+
+    private data class WindowState(
+        val router: KSMRouter,
+        val fileSystem: KSMFileSystem?,
+        val hostServices: KSMHostServices?,
+        var cachedCapabilities: KSMCapabilities
+    )
+
+    private data class ResolvedWindow(
+        val id: String,
+        val state: WindowState
+    )
+
     private val stateLock = Any()
     private val listenerLock = Any()
     private val nextRequestId = AtomicLong(1)
+    private val windows = mutableMapOf<String, WindowState>()
     private val eventListeners =
-        mutableMapOf<String, MutableSet<(JSONObject) -> Unit>>()
-
-    private var router: KSMRouter? = null
-    private var fileSystem: KSMFileSystem? = null
-    private var hostServices: KSMHostServices? = null
-    private var cachedCapabilities = defaultCapabilities()
+        mutableMapOf<String, MutableMap<String, MutableSet<(JSONObject) -> Unit>>>()
 
     val fs = KSMFs
     val dialog = KSMDialog
@@ -24,6 +34,10 @@ object KSM {
     val http = KSMHttp
     val shell = KSMShell
     val device = KSMDevice
+    val path = KSMPath
+    val store = KSMStore
+    val os = KSMOperatingSystem
+    val log = KSMLog
     val window = KSMWindow
     val app = KSMApp
 
@@ -32,27 +46,47 @@ object KSM {
         fileSystem: KSMFileSystem? = null,
         hostServices: KSMHostServices? = null
     ) {
+        registerWindow(
+            DEFAULT_WINDOW_ID,
+            router,
+            fileSystem,
+            hostServices
+        )
+    }
+
+    fun registerWindow(
+        windowId: String,
+        router: KSMRouter,
+        fileSystem: KSMFileSystem? = null,
+        hostServices: KSMHostServices? = null
+    ) {
+        require(windowId.isNotBlank()) {
+            "A Kasumi window ID must not be blank."
+        }
         synchronized(stateLock) {
-            this.router = router
-            this.fileSystem = fileSystem
-            this.hostServices = hostServices
-            cachedCapabilities = defaultCapabilities()
+            windows[windowId] = WindowState(
+                router = router,
+                fileSystem = fileSystem,
+                hostServices = hostServices,
+                cachedCapabilities = capabilitiesFor(router)
+            )
         }
         synchronized(listenerLock) {
-            eventListeners.clear()
+            eventListeners.remove(windowId)
+        }
+    }
+
+    fun unregisterWindow(windowId: String) {
+        synchronized(stateLock) {
+            windows.remove(windowId)
+        }
+        synchronized(listenerLock) {
+            eventListeners.remove(windowId)
         }
     }
 
     fun shutdown() {
-        synchronized(stateLock) {
-            router = null
-            fileSystem = null
-            hostServices = null
-            cachedCapabilities = defaultCapabilities()
-        }
-        synchronized(listenerLock) {
-            eventListeners.clear()
-        }
+        unregisterWindow(DEFAULT_WINDOW_ID)
     }
 
     fun invoke(
@@ -60,22 +94,19 @@ object KSM {
         command: String,
         args: JSONObject
     ): JSONObject {
-        val activeRouter = synchronized(stateLock) {
-            checkNotNull(router) { "KSM must be initialized before use." }
-        }
+        val resolved = resolveWindow(windowId)
         val request = JSONObject()
             .put("type", "request")
             .put("id", "req-native-${nextRequestId.getAndIncrement()}")
             .put("cmd", command)
             .put("args", args)
-        if (!windowId.isNullOrEmpty()) {
-            request.put("windowId", windowId)
-        }
-        val response = JSONObject(activeRouter.handleMessage(request.toString()))
+        val response = JSONObject(resolved.state.router.handleMessage(request.toString()))
         if (response.optBoolean("ok") && command == "capabilities.query") {
             response.optJSONObject("data")?.let { data ->
                 synchronized(stateLock) {
-                    cachedCapabilities = capabilitiesFrom(data)
+                    windows[resolved.id]?.let { state ->
+                        state.cachedCapabilities = capabilitiesFrom(data)
+                    }
                 }
             }
         }
@@ -87,43 +118,85 @@ object KSM {
     }
 
     fun on(event: String, handler: (JSONObject) -> Unit): () -> Unit {
+        return on(null, event, handler)
+    }
+
+    fun on(
+        windowId: String?,
+        event: String,
+        handler: (JSONObject) -> Unit
+    ): () -> Unit {
         require(event in KSMGeneratedContract.events) {
             "Unknown Kasumi event: $event"
         }
-        if (!isCommandEnabled("event.subscribe")) {
+        val resolved = resolveWindow(windowId)
+        if (!isCommandEnabled(resolved.id, "event.subscribe")) {
             return {}
         }
         synchronized(listenerLock) {
             eventListeners
+                .getOrPut(resolved.id) { mutableMapOf() }
                 .getOrPut(event) { mutableSetOf() }
                 .add(handler)
         }
         return removeListener@{
-            if (!isCommandEnabled("event.unsubscribe")) {
+            if (
+                isCommandEnabledOrNull(
+                    resolved.id,
+                    "event.unsubscribe"
+                ) != true
+            ) {
                 return@removeListener
             }
             synchronized(listenerLock) {
-                val listeners = eventListeners[event] ?: return@synchronized
+                val windowListeners = eventListeners[resolved.id]
+                    ?: return@synchronized
+                val listeners = windowListeners[event] ?: return@synchronized
                 listeners.remove(handler)
                 if (listeners.isEmpty()) {
-                    eventListeners.remove(event)
+                    windowListeners.remove(event)
+                }
+                if (windowListeners.isEmpty()) {
+                    eventListeners.remove(resolved.id)
                 }
             }
         }
     }
 
     internal fun isCommandEnabled(command: String): Boolean {
+        val resolved = resolveWindow(null)
+        return isCommandEnabled(resolved.id, command)
+    }
+
+    private fun isCommandEnabled(windowId: String, command: String): Boolean {
+        return isCommandEnabledOrNull(windowId, command)
+            ?: error("Kasumi window is not registered: $windowId")
+    }
+
+    private fun isCommandEnabledOrNull(
+        windowId: String,
+        command: String
+    ): Boolean? {
         return synchronized(stateLock) {
-            val activeRouter = checkNotNull(router) {
-                "KSM must be initialized before use."
-            }
-            activeRouter.supportedCommands.contains(command)
+            windows[windowId]?.router?.supportedCommands?.contains(command)
         }
     }
 
     fun emitEvent(event: String, payload: JSONObject) {
+        emitEvent(null, event, payload)
+    }
+
+    fun emitEvent(
+        windowId: String?,
+        event: String,
+        payload: JSONObject
+    ) {
+        val resolved = resolveWindow(windowId)
         val listeners = synchronized(listenerLock) {
-            eventListeners[event]?.toList().orEmpty()
+            eventListeners[resolved.id]
+                ?.get(event)
+                ?.toList()
+                .orEmpty()
         }
         for (listener in listeners) {
             try {
@@ -139,7 +212,12 @@ object KSM {
     }
 
     fun get(): KSMCapabilities {
-        return synchronized(stateLock) { cachedCapabilities }
+        val resolved = resolveWindow(null)
+        return synchronized(stateLock) {
+            requireNotNull(windows[resolved.id]?.cachedCapabilities) {
+                "Kasumi window is not registered: ${resolved.id}"
+            }
+        }
     }
 
     fun queryCapabilities(): KSMCapabilities {
@@ -147,29 +225,58 @@ object KSM {
     }
 
     internal fun requireFileSystem(): KSMFileSystem {
-        return synchronized(stateLock) {
-            checkNotNull(fileSystem) {
-                "KSM must be initialized with a filesystem before use."
-            }
+        return requireFileSystem(null)
+    }
+
+    internal fun requireFileSystem(windowId: String?): KSMFileSystem {
+        val resolved = resolveWindow(windowId)
+        return checkNotNull(resolved.state.fileSystem) {
+            "KSM must be initialized with a filesystem before use."
         }
     }
 
     internal fun requireHostServices(): KSMHostServices {
-        return synchronized(stateLock) {
-            checkNotNull(hostServices) {
-                "KSM must be initialized with host services before use."
+        return requireHostServices(null)
+    }
+
+    internal fun requireHostServices(windowId: String?): KSMHostServices {
+        val resolved = resolveWindow(windowId)
+        return checkNotNull(resolved.state.hostServices) {
+            "KSM must be initialized with host services before use."
+        }
+    }
+
+    private fun resolveWindow(windowId: String?): ResolvedWindow {
+        return checkNotNull(resolveWindowOrNull(windowId)) {
+            if (windowId.isNullOrBlank()) {
+                "KSM must be attached to exactly one WebView window before use."
+            } else {
+                "Kasumi window is not registered: $windowId"
             }
         }
     }
 
-    private fun defaultCapabilities(): KSMCapabilities {
+    private fun resolveWindowOrNull(windowId: String?): ResolvedWindow? {
+        return synchronized(stateLock) {
+            if (!windowId.isNullOrBlank()) {
+                return@synchronized windows[windowId]?.let {
+                    ResolvedWindow(windowId, it)
+                }
+            }
+            if (windows.size != 1) {
+                return@synchronized null
+            }
+            val entry = windows.entries.single()
+            ResolvedWindow(entry.key, entry.value)
+        }
+    }
+
+    private fun capabilitiesFor(router: KSMRouter): KSMCapabilities {
         return KSMCapabilities(
             platform = KSMPlatform.ANDROID,
-            commands = router?.supportedCommands
-                ?: KSMCommandRegistry.supportedCommands,
+            commands = router.supportedCommands,
             permissions = KSMCommandRegistry.permissions,
-            plugins = router?.supportedPlugins
-                ?: KSMGeneratedContract.plugins
+            plugins = router.supportedPlugins
         )
     }
 

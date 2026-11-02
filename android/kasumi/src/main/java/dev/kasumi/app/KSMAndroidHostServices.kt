@@ -21,6 +21,7 @@ import android.provider.Settings
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
+import android.util.Log
 import androidx.core.content.ContextCompat
 import dev.kasumi.app.bridge.KSMDirectoryEntry
 import dev.kasumi.app.bridge.KSMDeviceInfo
@@ -31,6 +32,7 @@ import dev.kasumi.app.bridge.KSMHostException
 import dev.kasumi.app.bridge.KSMHostServices
 import dev.kasumi.app.bridge.KSMHttpDownloadResult
 import dev.kasumi.app.bridge.KSMHttpPolicy
+import dev.kasumi.app.bridge.KSMOperatingSystemInfo
 import dev.kasumi.app.bridge.KSMSqlDriver
 import dev.kasumi.app.bridge.KSMSqlDriverRegistry
 import dev.kasumi.app.bridge.KSMSqlExecuteResult
@@ -475,15 +477,20 @@ class KSMAndroidHostServices(
         if (!parent.exists() && !parent.mkdirs()) {
             throw KSMHostException("IO_ERROR", "The target directory could not be created.")
         }
-        val part = File(parent, ".${target.name}.${System.nanoTime()}.part")
         var current = KSMHttpPolicy.parseHttpUrl(url, httpsOnly = true)
             ?: throw KSMHostException("INVALID_ARGS", "url must use HTTPS.")
         var redirects = 0
         val session = DownloadSession()
         val downloadKey = requestId ?: "anonymous-${System.nanoTime()}"
+        if (activeDownloads.putIfAbsent(downloadKey, session) != null) {
+            throw KSMHostException(
+                "BUSY",
+                "A download with this request ID is already running."
+            )
+        }
+        val part = File(parent, ".${target.name}.${System.nanoTime()}.part")
         val deadlineNanos =
             System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(DOWNLOAD_TOTAL_TIMEOUT_MS)
-        activeDownloads[downloadKey] = session
         session.deadlineTask = downloadWatchdog.schedule(
             {
                 session.cancelled.set(true)
@@ -591,6 +598,9 @@ class KSMAndroidHostServices(
             if (session.cancelled.get()) {
                 throw downloadCancellation(deadlineNanos)
             }
+            if (System.nanoTime() >= deadlineNanos) {
+                throw KSMHostException("TIMEOUT", "The download timed out.")
+            }
             throw KSMHostException(
                 "IO_ERROR",
                 error.message ?: "The connection timed out."
@@ -614,6 +624,13 @@ class KSMAndroidHostServices(
 
     fun cancelAllDownloads() {
         activeDownloads.values.forEach(::cancelDownload)
+    }
+
+    fun cancelDownloads(windowId: String) {
+        val prefix = "$windowId:"
+        activeDownloads.entries
+            .filter { it.key.startsWith(prefix) }
+            .forEach { (_, session) -> cancelDownload(session) }
     }
 
     fun shutdown() {
@@ -683,6 +700,37 @@ class KSMAndroidHostServices(
             timezone = TimeZone.getDefault().id,
             architecture = Build.SUPPORTED_ABIS.firstOrNull() ?: Build.CPU_ABI
         )
+    }
+
+    override fun operatingSystemInfo(): KSMOperatingSystemInfo {
+        return KSMOperatingSystemInfo(
+            platform = "android",
+            architecture = Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown",
+            version = Build.VERSION.RELEASE ?: "unknown",
+            locale = language(),
+            timezone = TimeZone.getDefault().id
+        )
+    }
+
+    override fun writeLog(
+        level: String,
+        target: String,
+        message: String
+    ): Boolean {
+        val priority = when (level) {
+            "trace" -> Log.VERBOSE
+            "debug" -> Log.DEBUG
+            "info" -> Log.INFO
+            "warn" -> Log.WARN
+            else -> Log.ERROR
+        }
+        val tag = target.ifBlank { "Kasumi" }.take(23)
+        return try {
+            Log.println(priority, tag, message)
+            true
+        } catch (_: RuntimeException) {
+            false
+        }
     }
 
     override fun registerSqlDriver(driver: KSMSqlDriver) {

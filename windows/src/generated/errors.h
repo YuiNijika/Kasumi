@@ -10,5 +10,6 @@ inline constexpr char IO_ERROR[] = "IO_ERROR";
 inline constexpr char CANCELLED[] = "CANCELLED";
 inline constexpr char TIMEOUT[] = "TIMEOUT";
 inline constexpr char BUSY[] = "BUSY";
+inline constexpr char RESOURCE_LIMIT[] = "RESOURCE_LIMIT";
 inline constexpr char INTERNAL_ERROR[] = "INTERNAL_ERROR";
 }

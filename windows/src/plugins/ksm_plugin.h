@@ -13,6 +13,7 @@ struct KSMPluginContext {
     std::shared_ptr<KSMFileSystem> file_system;
     std::shared_ptr<KSMHostServices> host_services;
     std::function<bool(const std::string&)> has_permission;
+    std::string request_id;
 };
 
 class KSMPlugin {

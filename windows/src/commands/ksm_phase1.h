@@ -101,6 +101,72 @@ struct KSM final {
         static std::optional<KSMDeviceInfo> GetInfo();
     };
 
+    struct PathDirectories {
+        std::string data;
+        std::string cache;
+        std::string temp;
+        std::string resource;
+        std::string asset;
+    };
+
+    struct Path final {
+        static std::optional<PathDirectories> Dirs();
+        static std::optional<std::string> Join(
+            std::string_view base,
+            const std::vector<std::string>& segments
+        );
+        static std::optional<std::string> Normalize(std::string_view path);
+        static std::optional<std::string> Dirname(std::string_view path);
+        static std::optional<std::string> Basename(
+            std::string_view path,
+            std::string_view suffix = {}
+        );
+        static std::optional<std::string> Extname(std::string_view path);
+        static std::optional<bool> IsAbsolute(std::string_view path);
+    };
+
+    struct StoreGetResult {
+        bool found;
+        std::string value_json;
+    };
+
+    struct Store final {
+        static std::optional<StoreGetResult> Get(std::string_view key);
+        static bool Set(std::string_view key, std::string_view value_json);
+        static std::optional<bool> Delete(std::string_view key);
+        static bool Clear();
+        static std::optional<std::vector<std::string>> Keys();
+    };
+
+    struct OperatingSystemInfo {
+        std::string platform;
+        std::string architecture;
+        std::string version;
+        std::string locale;
+        std::string timezone;
+        std::string app_version;
+    };
+
+    struct Os final {
+        static std::optional<OperatingSystemInfo> GetInfo();
+    };
+
+    enum class LogLevel {
+        Trace,
+        Debug,
+        Info,
+        Warn,
+        Error,
+    };
+
+    struct Log final {
+        static bool Write(
+            LogLevel level,
+            std::string_view message,
+            std::string_view target = {}
+        );
+    };
+
     struct App final {
         static std::optional<AppInfo> GetInfo();
         static bool Exit();

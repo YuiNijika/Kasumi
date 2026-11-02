@@ -135,16 +135,22 @@ console.log(pong.pong, capabilities.commands, appInfo.version);
 
 ## 插件与 SQL
 
-内置插件清单位于 `protocol/plugins.json`。Windows 和 Android 都默认提供 `fs`、
-`dialog`、`sql` 插件，也可以向 `KSMWebView2Host` 或 `KSMWebViewHost` 注册自定义
-`KSMPlugin`。自定义插件命令会进入 `capabilities.query`，但不会跳过参数、权限和来源校验。
+内置插件清单位于 `protocol/plugins.json`。`core` 由路由层实现，其余模块全部注册为原生
+插件。Windows 默认提供 `fs`、`dialog`、`clipboard`、`notification`、`window`、`http`、
+`shell`、`sql`、`path`、`store`、`os` 和 `log`；Android 额外提供 `device`。也可以向
+`KSMWebView2Host` 或
+`KSMWebViewHost` 注册自定义 `KSMPlugin`。自定义插件命令会进入 `capabilities.query`，
+但不会跳过参数、权限和来源校验。
 
 插件元数据同时记录 npm 前端入口、平台矩阵、默认权限和命令所有权。`codegen` 会生成
 `KSM_PLUGIN_METADATA`，Windows 和 Android 也会得到同一份清单。文件系统、对话框和 SQL
-各自提供独立前端包，调用方式与 Tauri 2 的插件包一致：
+均可使用独立前端包，调用方式与 Tauri 2 的插件包一致：
 
 ```bash
 pnpm add kasumi-bridge kasumi-plugin-fs kasumi-plugin-dialog kasumi-plugin-sql
+pnpm add kasumi-plugin-clipboard kasumi-plugin-notification kasumi-plugin-window
+pnpm add kasumi-plugin-http kasumi-plugin-shell kasumi-plugin-device
+pnpm add kasumi-plugin-path kasumi-plugin-store kasumi-plugin-os kasumi-plugin-log
 ```
 
 ```ts
@@ -158,9 +164,10 @@ const answer = await confirm({
 });
 ```
 
-`KSM.fs`、`KSM.dialog` 和 `KSM.sql` 继续作为兼容入口。当前 `fs`、`dialog`、`sql`
-已经由原生插件注册表派发；其余模块仍由核心路由器承载，但已经拥有同一份插件清单、
-命令归属、默认权限和前端包元数据。
+`KSM.fs`、`KSM.dialog`、`KSM.sql`、`KSM.path`、`KSM.store`、`KSM.os` 和 `KSM.log`
+等根入口继续作为兼容 API。所有非 `core` 插件都由
+Windows / Android 原生插件注册表派发；除 `core` 外的生成插件 ID 都允许同 ID 自定义
+插件替换，但替换实现必须完整声明该插件的全部生成命令。
 
 ```ts
 const drivers = await KSM.sql.drivers();
@@ -181,6 +188,30 @@ SQLite 在两端内置。Windows 还会自动发现系统 MySQL / MariaDB 和 Po
 驱动，只有检测成功的驱动才会出现在 `sql.drivers`。MongoDB 和 Android 远程数据库通过
 `KSMSqlDriver` SPI 注册宿主驱动；前端应先查询可用驱动，不能假设远程数据库客户端
 已经随应用打包。
+
+`path`、`store`、`os` 和 `log` 是与数据库同级的独立插件。路径操作只处理虚拟根，
+存储使用 `app://data/.kasumi/store.json`，系统信息不采集持久设备标识，日志写入平台
+调试通道且不会自动持久化：
+
+```ts
+const roots = await KSM.path.dirs();
+const notePath = await KSM.path.join({
+  base: roots.data,
+  segments: ["notes", "entry.txt"],
+});
+
+await KSM.store.set({
+  key: "profile",
+  value: { theme: "light" },
+});
+const profile = await KSM.store.get({ key: "profile" });
+
+const system = await KSM.os.getInfo();
+await KSM.log.write({
+  level: "info",
+  message: `opened ${notePath.path} on ${system.platform}`,
+});
+```
 
 页面只通过宿主提供的消息通道通信。来源校验、命令 allowlist、权限、虚拟文件路径和平台限制
 仍由 Windows 或 Android 宿主执行。生产模式只接受 `https://app.local`；开发 origin
@@ -208,9 +239,9 @@ SQLite 在两端内置。Windows 还会自动发现系统 MySQL / MariaDB 和 Po
 | `pnpm version:check` | 检查版本元数据与派生文件是否一致 |
 | `pnpm validate:protocol` | 校验协议事实源 |
 | `pnpm codegen` | 生成三端契约 |
-| `pnpm test:packages` | 测试六个发布包 |
+| `pnpm test:packages` | 测试 CLI、初始化器、桥接和全部插件包 |
 | `pnpm test:tarballs` | 安装真实 npm tarball 并构建五套模板 |
-| `pnpm pack:packages` | 生成六个 npm tarball |
+| `pnpm pack:packages` | 生成 CLI、初始化器、桥接和全部插件 npm tarball |
 
 ## 平台要求
 
@@ -261,7 +292,17 @@ Windows 默认将 `frontend/dist/` 嵌入 EXE。Android 将同一份前端产物
 | `kasumi-bridge` | 前端 `KSM` API、事件总线与生成契约 |
 | `kasumi-plugin-fs` | 文件系统插件前端入口 |
 | `kasumi-plugin-dialog` | 对话框插件前端入口 |
+| `kasumi-plugin-clipboard` | 剪贴板插件前端入口 |
+| `kasumi-plugin-notification` | 通知插件前端入口 |
+| `kasumi-plugin-window` | 窗口插件前端入口 |
+| `kasumi-plugin-http` | HTTPS 下载插件前端入口 |
+| `kasumi-plugin-shell` | 外部链接插件前端入口 |
+| `kasumi-plugin-device` | Android 设备信息插件前端入口 |
 | `kasumi-plugin-sql` | SQL 插件前端入口 |
+| `kasumi-plugin-path` | 虚拟路径插件前端入口 |
+| `kasumi-plugin-store` | JSON 键值存储插件前端入口 |
+| `kasumi-plugin-os` | 系统信息插件前端入口 |
+| `kasumi-plugin-log` | 平台日志插件前端入口 |
 
 Windows 发布 ZIP 默认包含 EXE、内嵌 Web 资源和运行说明；显式传入
 `--external-web` 时附带 `web/`，传入 `--with-webview2-loader` 时附带
@@ -283,9 +324,8 @@ GitHub Release 从 `.ksm/release/kasumi/<version>/` 上传框架附件，并从
 `.ksm/release/app/<version>/` 上传示例附件。Windows SDK ZIP、Android Maven ZIP 和
 `kasumi-release.json` 是初始化器的必需资产。
 初始化器会校验 manifest 中的版本、文件大小和 SHA-256。
-标签发布流程先完成 GitHub Release 资产和签名，再按 `kasumi-bridge`、
-`kasumi-plugin-fs`、`kasumi-plugin-dialog`、`kasumi-plugin-sql`、`kasumi-cli`、
-`create-kasumi` 的顺序发布 npm 包。普通 CI 不要求签名证书。
+标签发布流程先完成 GitHub Release 资产和签名，再发布 `kasumi-bridge`、全部
+`kasumi-plugin-*`、`kasumi-cli` 和 `create-kasumi`。普通 CI 不要求签名证书。
 
 ## 排查
 
@@ -309,4 +349,14 @@ Kasumi 使用 MIT License，版权署名为 `YuiNijika`。
 - 前端桥接：[`packages/kasumi-bridge/README.md`](packages/kasumi-bridge/README.md)
 - 文件系统插件：[`packages/kasumi-plugin-fs/README.md`](packages/kasumi-plugin-fs/README.md)
 - 对话框插件：[`packages/kasumi-plugin-dialog/README.md`](packages/kasumi-plugin-dialog/README.md)
+- 剪贴板插件：[`packages/kasumi-plugin-clipboard/README.md`](packages/kasumi-plugin-clipboard/README.md)
+- 通知插件：[`packages/kasumi-plugin-notification/README.md`](packages/kasumi-plugin-notification/README.md)
+- 窗口插件：[`packages/kasumi-plugin-window/README.md`](packages/kasumi-plugin-window/README.md)
+- HTTP 插件：[`packages/kasumi-plugin-http/README.md`](packages/kasumi-plugin-http/README.md)
+- Shell 插件：[`packages/kasumi-plugin-shell/README.md`](packages/kasumi-plugin-shell/README.md)
+- Device 插件：[`packages/kasumi-plugin-device/README.md`](packages/kasumi-plugin-device/README.md)
 - SQL 插件：[`packages/kasumi-plugin-sql/README.md`](packages/kasumi-plugin-sql/README.md)
+- Path 插件：[`packages/kasumi-plugin-path/README.md`](packages/kasumi-plugin-path/README.md)
+- Store 插件：[`packages/kasumi-plugin-store/README.md`](packages/kasumi-plugin-store/README.md)
+- OS 插件：[`packages/kasumi-plugin-os/README.md`](packages/kasumi-plugin-os/README.md)
+- Log 插件：[`packages/kasumi-plugin-log/README.md`](packages/kasumi-plugin-log/README.md)

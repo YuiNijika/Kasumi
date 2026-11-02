@@ -2,9 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 const plugins = [
+  ['clipboard', ['readText', 'writeText']],
+  ['device', ['getInfo']],
   ['dialog', ['confirm', 'message', 'openFile', 'saveFile']],
   ['fs', ['exists', 'mkdir', 'readDir', 'readText', 'remove', 'stat', 'writeText']],
-  ['sql', ['close', 'drivers', 'execute', 'open', 'query']]
+  ['http', ['download']],
+  ['notification', ['show']],
+  ['shell', ['openExternal']],
+  ['window', ['close', 'maximize', 'minimize', 'setSize', 'setTitle']],
+  ['sql', ['close', 'drivers', 'execute', 'open', 'query']],
+  ['path', ['basename', 'dirname', 'dirs', 'extname', 'isAbsolute', 'join', 'normalize']],
+  ['store', ['clear', 'get', 'keys', 'remove', 'set']],
+  ['os', ['getInfo']],
+  ['log', ['write']]
 ];
 
 for (const [id, exports] of plugins) {

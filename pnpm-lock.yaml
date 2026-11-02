@@ -21,6 +21,18 @@ importers:
 
   packages/kasumi-cli: {}
 
+  packages/kasumi-plugin-clipboard:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-device:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
   packages/kasumi-plugin-dialog:
     dependencies:
       kasumi-bridge:
@@ -33,7 +45,55 @@ importers:
         specifier: workspace:^
         version: link:../kasumi-bridge
 
+  packages/kasumi-plugin-http:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-log:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-notification:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-os:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-path:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-shell:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
   packages/kasumi-plugin-sql:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-store:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-window:
     dependencies:
       kasumi-bridge:
         specifier: workspace:^

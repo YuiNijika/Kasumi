@@ -3,6 +3,14 @@ package dev.kasumi.app.bridge
 import dev.kasumi.app.internal.KSMVersionMetadata
 import java.util.Locale
 
+data class KSMOperatingSystemInfo(
+    val platform: String,
+    val architecture: String,
+    val version: String,
+    val locale: String,
+    val timezone: String
+)
+
 interface KSMHostServices {
     fun appVersion(): String = KSMVersionMetadata.VERSION
     fun language(): String = Locale.getDefault().toLanguageTag()
@@ -35,6 +43,8 @@ interface KSMHostServices {
     fun isExternalUrlAllowed(url: String): Boolean = false
     fun openExternal(url: String): Boolean = false
     fun deviceInfo(): KSMDeviceInfo? = null
+    fun operatingSystemInfo(): KSMOperatingSystemInfo? = null
+    fun writeLog(level: String, target: String, message: String): Boolean = false
     fun registerSqlDriver(driver: KSMSqlDriver) {
         throw UnsupportedOperationException(
             "This host does not support SQL driver registration."

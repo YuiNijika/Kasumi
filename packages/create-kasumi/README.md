@@ -22,10 +22,14 @@ C++ 和 Kotlin 源码不会进入用户项目。
 
 ```bash
 pnpm add kasumi-plugin-fs kasumi-plugin-dialog kasumi-plugin-sql
+pnpm add kasumi-plugin-clipboard kasumi-plugin-notification kasumi-plugin-window
+pnpm add kasumi-plugin-http kasumi-plugin-shell kasumi-plugin-device
+pnpm add kasumi-plugin-path kasumi-plugin-store kasumi-plugin-os kasumi-plugin-log
 ```
 
-模板默认继续提供 `KSM.fs`、`KSM.dialog` 和 `KSM.sql` 兼容入口，因此不安装插件包也能
-运行。插件包与 `kasumi-bridge` 使用同一前端消息通道和宿主权限检查。
+模板默认继续提供 `KSM.fs`、`KSM.dialog`、`KSM.sql`、`KSM.path`、`KSM.store`、
+`KSM.os` 和 `KSM.log` 等兼容入口，因此不安装插件包也能运行。插件包与 `kasumi-bridge`
+使用同一前端消息通道和宿主权限检查。
 
 ## 模板
 

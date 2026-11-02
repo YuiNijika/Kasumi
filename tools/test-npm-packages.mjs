@@ -19,7 +19,17 @@ const packages = [
   'kasumi-bridge',
   'kasumi-plugin-fs',
   'kasumi-plugin-dialog',
+  'kasumi-plugin-clipboard',
+  'kasumi-plugin-notification',
+  'kasumi-plugin-window',
+  'kasumi-plugin-http',
+  'kasumi-plugin-shell',
+  'kasumi-plugin-device',
   'kasumi-plugin-sql',
+  'kasumi-plugin-path',
+  'kasumi-plugin-store',
+  'kasumi-plugin-os',
+  'kasumi-plugin-log',
   'kasumi-cli',
   'create-kasumi'
 ];
@@ -103,7 +113,21 @@ try {
     ],
     { cwd: installRoot }
   );
-  for (const plugin of ['fs', 'dialog', 'sql']) {
+  for (const plugin of [
+    'fs',
+    'dialog',
+    'clipboard',
+    'notification',
+    'window',
+    'http',
+    'shell',
+    'device',
+    'sql',
+    'path',
+    'store',
+    'os',
+    'log'
+  ]) {
     await run(
       'node',
       [

@@ -222,6 +222,17 @@
         deviceBadge: document.querySelector('#device-badge'),
         deviceButton: document.querySelector('#device-button'),
         deviceDetails: document.querySelector('#device-details'),
+        toolkitModule: document.querySelector('#toolkit-module'),
+        toolkitBadge: document.querySelector('#toolkit-badge'),
+        storeKey: document.querySelector('#store-key'),
+        storeNote: document.querySelector('#store-note'),
+        storeSave: document.querySelector('#store-save-button'),
+        storeRead: document.querySelector('#store-read-button'),
+        storeClear: document.querySelector('#store-clear-button'),
+        pathCheck: document.querySelector('#path-check-button'),
+        osInfo: document.querySelector('#os-info-button'),
+        logWrite: document.querySelector('#log-write-button'),
+        toolkitResult: document.querySelector('#toolkit-result'),
         resizeValue: document.querySelector('#resize-value'),
         reloadValue: document.querySelector('#reload-value'),
         reload: document.querySelector('#reload-button')
@@ -346,6 +357,23 @@
         elements.sqlBadge.textContent = sqlSupported ? 'SQLite' : '未启用';
         elements.sqlRun.disabled = !sqlSupported;
         elements.sqlRun.title = sqlSupported ? '' : '当前应用没有启用 SQL 插件';
+
+        const toolkitCommands = [
+            'path.dirs',
+            'store.get',
+            'store.set',
+            'store.clear',
+            'os.getInfo',
+            'log.write'
+        ];
+        const toolkitSupported = toolkitCommands.filter(isSupported).length;
+        elements.toolkitModule.dataset.disabled = String(toolkitSupported === 0);
+        elements.toolkitBadge.textContent = toolkitSupported === toolkitCommands.length
+            ? '4个插件'
+            : `${toolkitSupported}/${toolkitCommands.length}项`;
+        elements.toolkitBadge.title = toolkitSupported === toolkitCommands.length
+            ? ''
+            : '当前应用只启用了部分基础插件';
     }
 
     function updateRuntimeInfo() {
@@ -730,6 +758,132 @@
         addActivity('设备运行环境信息已读取。');
     }
 
+    function readStoreInput() {
+        const key = elements.storeKey.value.trim();
+        const note = elements.storeNote.value.trim();
+        if (!key) {
+            throw new BridgeError('INVALID_ARGS', '先输入设置键。');
+        }
+        if (!note) {
+            throw new BridgeError('INVALID_ARGS', '先输入设置内容。');
+        }
+        return { key, note };
+    }
+
+    async function saveStoredSetting() {
+        const { key, note } = readStoreInput();
+        const value = {
+            note,
+            savedAt: new Date().toISOString(),
+            platform: capabilities?.platform ?? 'unknown'
+        };
+        const result = await requireBridge().invoke('store.set', { key, value });
+        setResult(elements.toolkitResult, {
+            operation: 'store.set',
+            key,
+            value,
+            updated: result.updated
+        });
+        addActivity(`设置 ${key}已写入应用存储。`);
+    }
+
+    async function readStoredSetting() {
+        const key = elements.storeKey.value.trim();
+        if (!key) {
+            throw new BridgeError('INVALID_ARGS', '先输入设置键。');
+        }
+        const bus = requireBridge();
+        const [result, listed] = await Promise.all([
+            bus.invoke('store.get', { key }),
+            bus.invoke('store.keys', {})
+        ]);
+        setResult(elements.toolkitResult, {
+            operation: 'store.get',
+            key,
+            found: result.found,
+            value: result.value,
+            keys: listed.keys
+        });
+        addActivity(
+            result.found
+                ? `设置 ${key}已读取，应用存储中有 ${listed.keys.length}个键。`
+                : `设置 ${key}还没有保存。`
+        );
+    }
+
+    async function clearStoredSettings() {
+        const confirmed = await requireBridge().invoke('dialog.confirm', {
+            title: '清空应用设置',
+            message: '这会删除 store 插件保存的全部键值，操作无法撤销。'
+        });
+        if (!confirmed.confirmed) {
+            addActivity('清空应用设置已取消。');
+            return;
+        }
+        const result = await requireBridge().invoke('store.clear', {});
+        setResult(elements.toolkitResult, {
+            operation: 'store.clear',
+            cleared: result.cleared
+        });
+        addActivity('应用存储已清空。');
+    }
+
+    async function checkVirtualPaths() {
+        const bus = requireBridge();
+        const directories = await bus.invoke('path.dirs', {});
+        const joined = await bus.invoke('path.join', {
+            base: directories.data,
+            segments: ['showcase', 'settings.json']
+        });
+        const normalized = await bus.invoke('path.normalize', {
+            path: `${joined.path.replace(/\/+$/, '')}/`
+        });
+        const parent = await bus.invoke('path.dirname', { path: normalized.path });
+        const name = await bus.invoke('path.basename', {
+            path: normalized.path,
+            suffix: '.json'
+        });
+        const extension = await bus.invoke('path.extname', { path: normalized.path });
+        const absolute = await bus.invoke('path.isAbsolute', { path: normalized.path });
+        setResult(elements.toolkitResult, {
+            operation: 'path',
+            directories,
+            joined: joined.path,
+            normalized: normalized.path,
+            parent: parent.path,
+            basename: name.name,
+            extension: extension.extension,
+            absolute: absolute.absolute
+        });
+        addActivity(`虚拟路径检查完成：${normalized.path}。`);
+    }
+
+    async function loadOperatingSystemInfo() {
+        const info = await requireBridge().invoke('os.getInfo', {});
+        setResult(elements.toolkitResult, {
+            operation: 'os.getInfo',
+            info
+        });
+        addActivity(`系统环境已读取：${info.platform} ${info.version}。`);
+    }
+
+    async function writeDiagnosticLog() {
+        const message = `Showcase diagnostic check at ${new Date().toISOString()}`;
+        const result = await requireBridge().invoke('log.write', {
+            level: 'info',
+            target: 'showcase',
+            message
+        });
+        setResult(elements.toolkitResult, {
+            operation: 'log.write',
+            level: 'info',
+            target: 'showcase',
+            message,
+            logged: result.logged
+        });
+        addActivity('诊断日志已写入平台日志出口。');
+    }
+
     async function reloadPage() {
         await requireBridge().invoke('event.unsubscribe', { event: 'window.resized' });
         await requireBridge().invoke('event.unsubscribe', { event: 'webview.reloaded' });
@@ -776,6 +930,12 @@
     bind(elements.download, downloadExample);
     bind(elements.external, openExternal);
     bind(elements.deviceButton, loadDeviceInfo);
+    bind(elements.storeSave, saveStoredSetting);
+    bind(elements.storeRead, readStoredSetting);
+    bind(elements.storeClear, clearStoredSettings);
+    bind(elements.pathCheck, checkVirtualPaths);
+    bind(elements.osInfo, loadOperatingSystemInfo);
+    bind(elements.logWrite, writeDiagnosticLog);
     bind(elements.reload, reloadPage);
 
     elements.clearActivity.addEventListener('click', () => {
@@ -787,7 +947,8 @@
 
     async function runSmokeTest() {
         try {
-            const result = await requireBridge().invoke('ping', {});
+            const bus = requireBridge();
+            const result = await bus.invoke('ping', {});
             if (result.pong !== true) {
                 throw new Error('Ping returned an unexpected result.');
             }
@@ -795,7 +956,35 @@
             if (sql.rows[0]?.body !== 'smoke') {
                 throw new Error('The SQLite roundtrip returned an unexpected row.');
             }
-            await requireBridge().invoke('app.exit', {});
+            const roots = await bus.invoke('path.dirs', {});
+            const smokePath = await bus.invoke('path.join', {
+                base: roots.data,
+                segments: ['showcase-smoke', 'marker.json']
+            });
+            if (smokePath.path !== 'app://data/showcase-smoke/marker.json') {
+                throw new Error('The path plugin returned an unexpected path.');
+            }
+            await bus.invoke('store.set', {
+                key: 'showcase.smoke',
+                value: { ready: true }
+            });
+            const stored = await bus.invoke('store.get', {
+                key: 'showcase.smoke'
+            });
+            if (!stored.found || stored.value?.ready !== true) {
+                throw new Error('The store plugin did not return the smoke value.');
+            }
+            await bus.invoke('store.clear', {});
+            const system = await bus.invoke('os.getInfo', {});
+            if (system.platform !== 'windows' && system.platform !== 'android') {
+                throw new Error('The os plugin returned an unknown platform.');
+            }
+            await bus.invoke('log.write', {
+                level: 'info',
+                target: 'showcase-smoke',
+                message: 'showcase smoke passed'
+            });
+            await bus.invoke('app.exit', {});
         } catch (error) {
             document.title = 'KSM_SMOKE_FAIL';
             console.error(errorText(error));
