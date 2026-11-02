@@ -33,7 +33,7 @@ cd examples/android-host
 直接运行 Wrapper 时 APK 位于
 `examples/android-host/app/build/outputs/apk/debug/app-debug.apk`。从仓库根目录执行
 `pnpm ksm build --android --target example` 时，CLI 会把 APK 复制到
-`release/app/26.11.2-alpha/kasumi-android-example-26.11.2-alpha.apk`。
+`.ksm/release/app/26.11.2-alpha/kasumi-android-example-26.11.2-alpha.apk`。
 连接设备或启动模拟器后，可在仓库根目录运行 `pnpm ksm dev --android`。该命令会启动
 `http://localhost:5173` 静态服务器，通过 `adb reverse` 把端口转发到设备，并安装、启动
 示例应用。

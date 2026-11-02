@@ -25,6 +25,10 @@ import {
 } from '../src/frontend.mjs';
 import { createZipArchive } from '../src/archive.mjs';
 import { collectDoctorChecks } from '../src/main.mjs';
+import {
+  applicationOutputDirectory,
+  packageOutputDirectory
+} from '../src/output.mjs';
 import { commandInvocation } from '../src/process.mjs';
 import {
   createVcpkgEnvironment,
@@ -59,6 +63,22 @@ test('wraps Windows batch commands through the system shell', () => {
   }
   assert.equal(invocation.command, 'gradlew.bat');
   assert.deepEqual(invocation.args, ['--version']);
+});
+
+test('keeps application outputs under .ksm', () => {
+  const projectRoot = path.join('C:\\project');
+  assert.equal(
+    applicationOutputDirectory(projectRoot, 'windows'),
+    path.join(projectRoot, '.ksm', 'dist', 'windows')
+  );
+  assert.equal(
+    applicationOutputDirectory(projectRoot, 'android'),
+    path.join(projectRoot, '.ksm', 'dist', 'android')
+  );
+  assert.equal(
+    packageOutputDirectory(projectRoot),
+    path.join(projectRoot, '.ksm', 'dist', 'packages')
+  );
 });
 
 test('discovers the bundled Visual Studio vcpkg toolchain', async () => {
@@ -335,6 +355,16 @@ test('Windows packages contain the executable and optional runtime assets', asyn
         bundleWebview2Loader: true,
         externalWeb: true
       }
+    );
+    assert.equal(
+      output,
+      path.join(
+        temporaryRoot,
+        '.ksm',
+        'dist',
+        'packages',
+        'sample-app-0.1.0-windows.zip'
+      )
     );
     assert.deepEqual(
       zipEntryNames(await readFile(output)),

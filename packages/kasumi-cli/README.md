@@ -65,12 +65,13 @@ debug 构建。
 
 ## 发布包
 
-`ksm build` 输出可直接运行或调试的产物，`ksm package` 输出可分发包：
+`ksm build` 输出可直接运行或调试的产物，`ksm package` 输出可分发包。两者都位于项目
+`.ksm/dist/` 下：
 
 | 命令 | 产物 |
 | --- | --- |
-| `ksm package --windows` | `dist/packages/<packageName>-<version>-windows.zip` |
-| `ksm package --android` | `dist/packages/<packageName>-<version>-android.apk` |
+| `ksm package --windows` | `.ksm/dist/packages/<packageName>-<version>-windows.zip` |
+| `ksm package --android` | `.ksm/dist/packages/<packageName>-<version>-android.apk` |
 | `ksm package --all` | 同时生成两个平台产物 |
 
 Windows ZIP 默认包含 EXE 和 `README.txt`。传入 `--external-web` 会把
@@ -88,7 +89,7 @@ KASUMI_ANDROID_KEY_PASSWORD
 
 缺少任一项会在 Gradle 启动前失败。CLI 优先使用 `APKSIGNER`，否则从
 `ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 的 `build-tools` 中选择数值版本最高的
-`apksigner`。只有 `apksigner verify` 通过后，APK 才会复制到 `dist/packages/`。
+`apksigner`。只有 `apksigner verify` 通过后，APK 才会复制到 `.ksm/dist/packages/`。
 
 ## 开发服务器与来源
 

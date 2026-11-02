@@ -34,8 +34,8 @@ pnpm ksm dev --android
 ## 构建产物
 
 ```text
-dist/windows/__WINDOWS_PACKAGE_NAME__.exe
-dist/android/__ANDROID_PACKAGE_NAME__-__KASUMI_VERSION__.apk
+.ksm/dist/windows/__WINDOWS_PACKAGE_NAME__.exe
+.ksm/dist/android/__ANDROID_PACKAGE_NAME__-__KASUMI_VERSION__.apk
 ```
 
 Windows 需要 CMake、Visual Studio C++ 工具链、vcpkg 和 Evergreen WebView2 Runtime。

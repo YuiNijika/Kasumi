@@ -1,6 +1,10 @@
 import { copyFile, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import {
+  applicationOutputDirectory,
+  packageOutputDirectory
+} from './output.mjs';
 import { exists, findCommand, run } from './process.mjs';
 
 export async function buildAndroid(projectRoot, config) {
@@ -38,7 +42,7 @@ export async function buildAndroid(projectRoot, config) {
   if (!(await exists(source))) {
     throw new Error('Android APK was not produced.');
   }
-  const outputDirectory = path.join(projectRoot, 'dist', 'android');
+  const outputDirectory = applicationOutputDirectory(projectRoot, 'android');
   await mkdir(outputDirectory, { recursive: true });
   const output = path.join(
     outputDirectory,
@@ -83,7 +87,7 @@ export async function packageAndroid(projectRoot, config) {
   if (!(await exists(source))) {
     throw new Error('Android release APK was not produced. Check the release signing configuration.');
   }
-  const outputDirectory = path.join(projectRoot, 'dist', 'packages');
+  const outputDirectory = packageOutputDirectory(projectRoot);
   await mkdir(outputDirectory, { recursive: true });
   const output = path.join(
     outputDirectory,

@@ -8,6 +8,10 @@ import {
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { createZipArchive } from './archive.mjs';
+import {
+  applicationOutputDirectory,
+  packageOutputDirectory
+} from './output.mjs';
 import { exists, findCommand, run } from './process.mjs';
 
 export async function buildWindows(projectRoot, config, options = {}) {
@@ -73,7 +77,7 @@ export async function buildWindows(projectRoot, config, options = {}) {
   );
 
   const executable = await findWindowsExecutable(buildDirectory);
-  const outputDirectory = path.join(projectRoot, 'dist', 'windows');
+  const outputDirectory = applicationOutputDirectory(projectRoot, 'windows');
   await mkdir(outputDirectory, { recursive: true });
   const output = path.join(outputDirectory, `${config.packageName}.exe`);
   await copyFile(executable, output);
@@ -114,7 +118,7 @@ export async function createWindowsPackage(
   options = {}
 ) {
   const staging = path.join(projectRoot, '.ksm', 'package', 'windows');
-  const outputDirectory = path.join(projectRoot, 'dist', 'packages');
+  const outputDirectory = packageOutputDirectory(projectRoot);
   const output = path.join(
     outputDirectory,
     `${config.packageName}-${config.version}-windows.zip`

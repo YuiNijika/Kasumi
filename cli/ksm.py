@@ -33,7 +33,7 @@ WINDOWS_EXAMPLE_DIR = ROOT / "windows" / "examples" / "win32-host"
 ANDROID_LOCAL_REPO = ROOT / "android" / "kasumi" / "build" / "repo"
 ANDROID_SDK_PACKAGE_DIR = ROOT / "android" / "build" / "packages"
 ANDROID_EXAMPLE_PACKAGE_DIR = ROOT / "examples" / "android-host" / "build" / "packages"
-RELEASE_ROOT = ROOT / "release"
+RELEASE_ROOT = ROOT / ".ksm" / "release"
 WINDOWS_VCPKG_STATIC_TRIPLET = "x64-windows-static-md"
 WINDOWS_VCPKG_SHARED_TRIPLET = "x64-windows"
 

@@ -169,27 +169,28 @@ pnpm ksm build --windows --with-webview2-loader
 ## 构建产物
 
 ```text
-dist/windows/<windows.packageName>.exe
-dist/android/<android.packageName>-<android.version>.apk
-dist/packages/<windows.packageName>-<version>-windows.zip
-dist/packages/<android.packageName>-<version>-android.apk
-release/kasumi/<version>/kasumi-release.json
-release/kasumi/<version>/kasumi-windows-sdk-<version>.zip
-release/kasumi/<version>/kasumi-android-sdk-<version>.aar
-release/kasumi/<version>/kasumi-android-maven-<version>.zip
-release/app/<version>/kasumi_win32_example.exe
-release/app/<version>/kasumi-win32-example-<version>.zip
-release/app/<version>/kasumi-android-example-<version>.apk
+.ksm/dist/windows/<windows.packageName>.exe
+.ksm/dist/android/<android.packageName>-<android.version>.apk
+.ksm/dist/packages/<windows.packageName>-<version>-windows.zip
+.ksm/dist/packages/<android.packageName>-<version>-android.apk
+.ksm/release/kasumi/<version>/kasumi-release.json
+.ksm/release/kasumi/<version>/kasumi-windows-sdk-<version>.zip
+.ksm/release/kasumi/<version>/kasumi-android-sdk-<version>.aar
+.ksm/release/kasumi/<version>/kasumi-android-maven-<version>.zip
+.ksm/release/app/<version>/kasumi_win32_example.exe
+.ksm/release/app/<version>/kasumi-win32-example-<version>.zip
+.ksm/release/app/<version>/kasumi-android-example-<version>.apk
 ```
 
 Windows 默认将 `frontend/dist/` 嵌入 EXE。Android 将同一份前端产物打包进 APK 的
 `assets/`。两种模式都不依赖运行时外部 Web 目录。
 
-`dist/` 用于用户项目自身的应用产物。框架维护者在 `release/kasumi/<version>/` 汇总 SDK
-和 manifest，在 `release/app/<version>/` 汇总示例应用产物。执行 `pnpm release:prepare`
+`.ksm/dist/` 用于用户项目自身的应用产物。框架维护者在 `.ksm/release/kasumi/<version>/`
+汇总 SDK 和 manifest，在 `.ksm/release/app/<version>/` 汇总示例应用产物。执行
+`pnpm release:prepare`
 会在一次构建结束后统一生成两侧目录，避免手动从多个构建目录收集文件。
 `pnpm ksm build --all --target example` 会把示例可执行文件和 APK 直接写入
-`release/app/<version>/`；`pnpm release:prepare` 再补充可分发的示例 ZIP。
+`.ksm/release/app/<version>/`；`pnpm release:prepare` 再补充可分发的示例 ZIP。
 
 ## 发布包
 
@@ -213,10 +214,10 @@ KASUMI_ANDROID_KEY_PASSWORD
 ```
 
 缺少任一项时 `ksm package --android` 会在构建前失败。APK 生成后会执行
-`apksigner verify`，未通过校验的产物不会复制到 `dist/packages/`。
+`apksigner verify`，未通过校验的产物不会复制到 `.ksm/dist/packages/`。
 
-GitHub Release 从 `release/kasumi/<version>/` 上传框架附件，并从
-`release/app/<version>/` 上传示例附件。Windows SDK ZIP、Android Maven ZIP 和
+GitHub Release 从 `.ksm/release/kasumi/<version>/` 上传框架附件，并从
+`.ksm/release/app/<version>/` 上传示例附件。Windows SDK ZIP、Android Maven ZIP 和
 `kasumi-release.json` 是初始化器的必需资产。
 初始化器会校验 manifest 中的版本、文件大小和 SHA-256。
 标签发布流程先完成 GitHub Release 资产和签名，再按 `kasumi-bridge`、`kasumi-cli`、
