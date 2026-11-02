@@ -324,8 +324,11 @@ GitHub Release 从 `.ksm/release/kasumi/<version>/` 上传框架附件，并从
 `.ksm/release/app/<version>/` 上传示例附件。Windows SDK ZIP、Android Maven ZIP 和
 `kasumi-release.json` 是初始化器的必需资产。
 初始化器会校验 manifest 中的版本、文件大小和 SHA-256。
-标签发布流程先完成 GitHub Release 资产和签名，再发布 `kasumi-bridge`、全部
-`kasumi-plugin-*`、`kasumi-cli` 和 `create-kasumi`。普通 CI 不要求签名证书。
+标签发布流程先完成 GitHub Release 资产，再发布 `kasumi-bridge`、全部
+`kasumi-plugin-*`、`kasumi-cli` 和 `create-kasumi`。Windows Authenticode 证书是可选配置：
+同时提供 `WINDOWS_CERTIFICATE_BASE64` 和 `WINDOWS_CERTIFICATE_PASSWORD` 时签名示例
+ZIP，未配置时发布未签名产物。`NPM_TOKEN` 未配置时 npm 发布任务会跳过，维护者可在
+GitHub Release 校验完成后手动发布同一提交的 npm 包。
 
 ## 排查
 

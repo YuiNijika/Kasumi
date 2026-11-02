@@ -623,7 +623,10 @@ KASUMI_ANDROID_KEY_PASSWORD
 `kasumi-plugin-*`、`kasumi-cli` 和 `create-kasumi`，并使用 `NPM_TOKEN` 与 npm
 provenance。Release 资产包含
 Windows SDK、Android Maven 仓库、AAR、示例 ZIP、APK 和 `kasumi-release.json`。
-正式标签发布要求 Windows Authenticode 与 Android APK 签名；普通 CI 不要求证书。
+Android APK 签名始终要求四个 Android 凭据。Windows Authenticode 证书是可选项：
+两个 Windows 证书 secret 同时存在时签名并校验示例 ZIP，都缺失时发布未签名产物，
+只配置其中一个时 preflight 失败。缺少 `NPM_TOKEN` 时自动 npm 发布任务跳过，维护者
+可在 GitHub Release 与 manifest 校验完成后手动发布同一提交的 npm 包。
 Release 标签必须与 `version.json` 一致，即 `v<version>`。带预发布后缀的标签
 会创建 GitHub prerelease，并将所有 npm 包发布到 `alpha` dist-tag，不覆盖 `latest`。
 
