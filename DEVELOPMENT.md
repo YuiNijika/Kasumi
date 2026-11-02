@@ -169,22 +169,31 @@ allowlist。JSON Schema 位于 `protocol/kasumi.config.schema.json`。
 
 ## 插件系统
 
-插件清单位于 `protocol/plugins.json`，每个协议命令必须且只能归属一个插件。`codegen`
-生成 `KSM_PLUGINS`、`KSM_PLUGIN_COMMANDS` 和 `KSM_COMMAND_PLUGINS`；运行时插件注册表
-只接受唯一 ID 和唯一命令，并把插件权限合并到能力缓存。
+插件清单位于 `protocol/plugins.json`，每个协议命令必须且只能归属一个插件。清单同时
+记录 `frontendPackage`、平台矩阵、权限、默认权限和命令所有权。`codegen` 生成
+`KSM_PLUGINS`、`KSM_PLUGIN_METADATA`、`KSM_PLUGIN_COMMANDS`、
+`KSM_COMMAND_PLUGINS` 以及 C++、Kotlin 的同源元数据；运行时插件注册表只接受唯一 ID
+和唯一命令，并把插件权限合并到能力缓存。
 
 | 层级 | 前端 | Windows | Android |
 | --- | --- | --- | --- |
 | 清单 | `KSM_PLUGINS` | `KSMGeneratedContract::Plugins()` | `KSMGeneratedContract.plugins` |
+| 元数据 | `KSM_PLUGIN_METADATA` | `KSMGeneratedContract::PluginMetadata()` | `KSMGeneratedContract.pluginMetadata` |
 | 命令入口 | `KSM.invoke` | `KSMPlugin::Handle` | `KSMPlugin.handle` |
 | 参数校验 | 生成的 schema | `KSMPlugin::ValidateArgs` | `KSMPlugin.validateArgs` |
 | 宿主上下文 | 无 | `KSMPluginContext` | `KSMPluginContext` |
 
-默认插件包括 `fs`、`dialog` 和 `sql`。自定义插件通过
+`fs`、`dialog` 和 `sql` 默认由原生插件运行时注册，并分别发布为
+`kasumi-plugin-fs`、`kasumi-plugin-dialog`、`kasumi-plugin-sql` 前端包。插件包只
+重新导出 `kasumi-bridge` 的模块入口，不复制原生实现。自定义插件通过
 `KSMWebView2Host` / `KSMWebViewHost` 的 `plugins` 参数注册；`fs`、`dialog` 和 `sql`
 允许用同 ID 插件显式替换内置实现，但必须完整声明该 ID 的全部生成命令。其他已生成插件
 ID 仍为保留值，自定义插件也不得抢占任何生成命令。自定义插件命令不在 `commands.json`
 时，必须由插件自己校验参数并返回协议错误码。
+
+`clipboard`、`notification`、`window`、`http`、`shell`、`device` 和 `core` 已进入
+同一插件清单，但原生命令仍由核心路由器派发。后续迁移时保持命令名、权限和返回结构不变，
+只把处理函数移入各自的 `KSMPlugin` 实现，避免前端和用户配置同时发生破坏性变化。
 
 Windows 插件实现入口为 `windows/src/plugins/ksm_plugin.h`；Android 入口为
 `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMPlugin.kt`。插件不得直接读取
@@ -509,11 +518,14 @@ Kasumi 依赖和命令通过包管理器写入，不在初始化器源码中维�
 Windows SDK ZIP 使用扁平布局，解压后直接得到 `include/`、`lib/` 和 `README.md`。
 初始化器仍兼容旧版带单个顶层目录的 ZIP，避免历史 Release 无法安装。
 
-用户项目安装三个 npm 包：
+用户项目默认安装桥接包；使用独立插件入口时再安装对应插件包：
 
 | npm 包 | 作用 |
 | --- | --- |
 | `kasumi-bridge` | 前端 `KSM` API 与事件总线 |
+| `kasumi-plugin-fs` | 文件系统插件前端入口 |
+| `kasumi-plugin-dialog` | 对话框插件前端入口 |
+| `kasumi-plugin-sql` | SQL 插件前端入口 |
 | `kasumi-cli` | `ksm dev/build/package/test/doctor` |
 | `create-kasumi` | 仅用于 `pnpm create kasumi`，不进入应用运行时 |
 
@@ -529,9 +541,13 @@ Nuxt 后将各自输出目录同步为统一的 `frontend/dist/`。
 pnpm test:packages
 pnpm test:tarballs
 pnpm build:bridge
+pnpm build:plugins
 pnpm --filter kasumi-cli pack
 pnpm --filter kasumi-bridge pack
 pnpm --filter create-kasumi pack
+pnpm --filter kasumi-plugin-fs pack
+pnpm --filter kasumi-plugin-dialog pack
+pnpm --filter kasumi-plugin-sql pack
 ```
 
 用户项目执行 `pnpm ksm package --windows` 或 `pnpm ksm package --android` 时，产物写入
@@ -545,12 +561,13 @@ KASUMI_ANDROID_KEY_ALIAS
 KASUMI_ANDROID_KEY_PASSWORD
 ```
 
-标签发布工作流先生成并上传 GitHub Release 资产，再按 `kasumi-bridge`、`kasumi-cli`、
+标签发布工作流先生成并上传 GitHub Release 资产，再按 `kasumi-bridge`、
+`kasumi-plugin-fs`、`kasumi-plugin-dialog`、`kasumi-plugin-sql`、`kasumi-cli`、
 `create-kasumi` 的顺序使用 `NPM_TOKEN` 和 npm provenance 发布。Release 资产包含
 Windows SDK、Android Maven 仓库、AAR、示例 ZIP、APK 和 `kasumi-release.json`。
 正式标签发布要求 Windows Authenticode 与 Android APK 签名；普通 CI 不要求证书。
 Release 标签必须与 `version.json` 一致，即 `v<version>`。带预发布后缀的标签
-会创建 GitHub prerelease，并将三个 npm 包发布到 `alpha` dist-tag，不覆盖 `latest`。
+会创建 GitHub prerelease，并将六个 npm 包发布到 `alpha` dist-tag，不覆盖 `latest`。
 
 CI 使用 `pnpm install --frozen-lockfile`。根锁文件必须只包含根工程和 `packages/*`，
 生成契约后执行 `git diff --exit-code`，避免临时项目依赖或未同步契约进入发布。

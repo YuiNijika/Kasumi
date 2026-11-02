@@ -139,6 +139,29 @@ console.log(pong.pong, capabilities.commands, appInfo.version);
 `dialog`、`sql` 插件，也可以向 `KSMWebView2Host` 或 `KSMWebViewHost` 注册自定义
 `KSMPlugin`。自定义插件命令会进入 `capabilities.query`，但不会跳过参数、权限和来源校验。
 
+插件元数据同时记录 npm 前端入口、平台矩阵、默认权限和命令所有权。`codegen` 会生成
+`KSM_PLUGIN_METADATA`，Windows 和 Android 也会得到同一份清单。文件系统、对话框和 SQL
+各自提供独立前端包，调用方式与 Tauri 2 的插件包一致：
+
+```bash
+pnpm add kasumi-bridge kasumi-plugin-fs kasumi-plugin-dialog kasumi-plugin-sql
+```
+
+```ts
+import { readText } from "kasumi-plugin-fs";
+import { confirm } from "kasumi-plugin-dialog";
+
+const text = await readText({ path: "app://data/notes.txt" });
+const answer = await confirm({
+  title: "继续",
+  message: `读取 ${text.length} 个字符？`,
+});
+```
+
+`KSM.fs`、`KSM.dialog` 和 `KSM.sql` 继续作为兼容入口。当前 `fs`、`dialog`、`sql`
+已经由原生插件注册表派发；其余模块仍由核心路由器承载，但已经拥有同一份插件清单、
+命令归属、默认权限和前端包元数据。
+
 ```ts
 const drivers = await KSM.sql.drivers();
 const connection = await KSM.sql.open({
@@ -185,9 +208,9 @@ SQLite 在两端内置。Windows 还会自动发现系统 MySQL / MariaDB 和 Po
 | `pnpm version:check` | 检查版本元数据与派生文件是否一致 |
 | `pnpm validate:protocol` | 校验协议事实源 |
 | `pnpm codegen` | 生成三端契约 |
-| `pnpm test:packages` | 测试三个发布包 |
+| `pnpm test:packages` | 测试六个发布包 |
 | `pnpm test:tarballs` | 安装真实 npm tarball 并构建五套模板 |
-| `pnpm pack:packages` | 生成三个 npm tarball |
+| `pnpm pack:packages` | 生成六个 npm tarball |
 
 ## 平台要求
 
@@ -236,6 +259,9 @@ Windows 默认将 `frontend/dist/` 嵌入 EXE。Android 将同一份前端产物
 | `create-kasumi` | `pnpm create kasumi` 的项目初始化入口 |
 | `kasumi-cli` | 用户项目的 `ksm dev/build/package/test/doctor` |
 | `kasumi-bridge` | 前端 `KSM` API、事件总线与生成契约 |
+| `kasumi-plugin-fs` | 文件系统插件前端入口 |
+| `kasumi-plugin-dialog` | 对话框插件前端入口 |
+| `kasumi-plugin-sql` | SQL 插件前端入口 |
 
 Windows 发布 ZIP 默认包含 EXE、内嵌 Web 资源和运行说明；显式传入
 `--external-web` 时附带 `web/`，传入 `--with-webview2-loader` 时附带
@@ -257,7 +283,8 @@ GitHub Release 从 `.ksm/release/kasumi/<version>/` 上传框架附件，并从
 `.ksm/release/app/<version>/` 上传示例附件。Windows SDK ZIP、Android Maven ZIP 和
 `kasumi-release.json` 是初始化器的必需资产。
 初始化器会校验 manifest 中的版本、文件大小和 SHA-256。
-标签发布流程先完成 GitHub Release 资产和签名，再按 `kasumi-bridge`、`kasumi-cli`、
+标签发布流程先完成 GitHub Release 资产和签名，再按 `kasumi-bridge`、
+`kasumi-plugin-fs`、`kasumi-plugin-dialog`、`kasumi-plugin-sql`、`kasumi-cli`、
 `create-kasumi` 的顺序发布 npm 包。普通 CI 不要求签名证书。
 
 ## 排查
@@ -280,3 +307,6 @@ Kasumi 使用 MIT License，版权署名为 `YuiNijika`。
 - 初始化器：[`packages/create-kasumi/README.md`](packages/create-kasumi/README.md)
 - 构建 CLI：[`packages/kasumi-cli/README.md`](packages/kasumi-cli/README.md)
 - 前端桥接：[`packages/kasumi-bridge/README.md`](packages/kasumi-bridge/README.md)
+- 文件系统插件：[`packages/kasumi-plugin-fs/README.md`](packages/kasumi-plugin-fs/README.md)
+- 对话框插件：[`packages/kasumi-plugin-dialog/README.md`](packages/kasumi-plugin-dialog/README.md)
+- SQL 插件：[`packages/kasumi-plugin-sql/README.md`](packages/kasumi-plugin-sql/README.md)

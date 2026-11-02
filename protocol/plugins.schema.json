@@ -14,7 +14,16 @@
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "version", "description", "commands"],
+        "required": [
+          "name",
+          "version",
+          "description",
+          "frontendPackage",
+          "platforms",
+          "permissions",
+          "defaultPermissions",
+          "commands"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -27,6 +36,35 @@
           "description": {
             "type": "string",
             "minLength": 1
+          },
+          "frontendPackage": {
+            "type": "string",
+            "pattern": "^(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$"
+          },
+          "platforms": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": ["windows", "android"]
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "defaultPermissions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           "commands": {
             "type": "array",

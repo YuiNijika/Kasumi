@@ -9,6 +9,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./dialog": {
+      "types": "./dist/api/dialog.d.ts",
+      "import": "./dist/api/dialog.js"
+    },
+    "./fs": {
+      "types": "./dist/api/fs.d.ts",
+      "import": "./dist/api/fs.js"
+    },
+    "./sql": {
+      "types": "./dist/api/sql.d.ts",
+      "import": "./dist/api/sql.js"
     }
   },
   "files": [

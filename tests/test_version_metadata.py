@@ -39,6 +39,9 @@ class VersionMetadataTest(unittest.TestCase):
             self.assertIn("kasumi.config.json", changed)
             self.assertIn("windows/vcpkg.json", changed)
             self.assertIn("pyproject.toml", changed)
+            self.assertIn("packages/kasumi-plugin-fs/package.json", changed)
+            self.assertIn("packages/kasumi-plugin-dialog/package.json", changed)
+            self.assertIn("packages/kasumi-plugin-sql/package.json", changed)
             self.assertEqual(check_versions(root), {})
             self.assertEqual(read_version(root), "1.0.0")
 
@@ -62,6 +65,9 @@ class VersionMetadataTest(unittest.TestCase):
             root / "packages" / "kasumi-bridge" / "package.json",
             root / "packages" / "kasumi-cli" / "package.json",
             root / "packages" / "create-kasumi" / "package.json",
+            root / "packages" / "kasumi-plugin-fs" / "package.json",
+            root / "packages" / "kasumi-plugin-dialog" / "package.json",
+            root / "packages" / "kasumi-plugin-sql" / "package.json",
         ]
         for path in package_paths:
             path.parent.mkdir(parents=True, exist_ok=True)

@@ -79,6 +79,15 @@ def derived_versions(root: Path = ROOT) -> dict[str, str]:
         "packages/create-kasumi/package.json": _json_version(
             root / "packages" / "create-kasumi" / "package.json"
         ),
+        "packages/kasumi-plugin-fs/package.json": _json_version(
+            root / "packages" / "kasumi-plugin-fs" / "package.json"
+        ),
+        "packages/kasumi-plugin-dialog/package.json": _json_version(
+            root / "packages" / "kasumi-plugin-dialog" / "package.json"
+        ),
+        "packages/kasumi-plugin-sql/package.json": _json_version(
+            root / "packages" / "kasumi-plugin-sql" / "package.json"
+        ),
         "kasumi.config.json.windows": _nested_json_version(
             root / "kasumi.config.json",
             "windows",
@@ -119,6 +128,9 @@ def sync_versions(root: Path = ROOT) -> list[str]:
         root / "packages" / "kasumi-bridge" / "package.json",
         root / "packages" / "kasumi-cli" / "package.json",
         root / "packages" / "create-kasumi" / "package.json",
+        root / "packages" / "kasumi-plugin-fs" / "package.json",
+        root / "packages" / "kasumi-plugin-dialog" / "package.json",
+        root / "packages" / "kasumi-plugin-sql" / "package.json",
     ]
     for path in package_paths:
         if _set_json_value(path, ["version"], version):

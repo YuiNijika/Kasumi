@@ -103,6 +103,22 @@ def command_permissions(contract: dict[str, Any]) -> dict[str, list[str]]:
     }
 
 
+def plugin_metadata(plugins: dict[str, Any]) -> dict[str, Any]:
+    return {
+        name: {
+            "name": definition["name"],
+            "version": definition["version"],
+            "description": definition["description"],
+            "frontendPackage": definition["frontendPackage"],
+            "platforms": definition["platforms"],
+            "permissions": definition["permissions"],
+            "defaultPermissions": definition["defaultPermissions"],
+            "commands": definition["commands"],
+        }
+        for name, definition in plugins["plugins"].items()
+    }
+
+
 def arg_schemas(contract: dict[str, Any]) -> dict[str, Any]:
     return {
         name: definition["args"]
@@ -133,6 +149,7 @@ def generate_frontend(
         for command in definition["commands"]
     }
     command_permission_map = command_permissions(contract)
+    metadata = plugin_metadata(plugins)
     schemas = json_text(arg_schemas(contract))
     content = f"""export const KSM_COMMANDS = {js_array(commands)} as const;
 export const KSM_WINDOWS_COMMANDS = {js_array(windows_commands)} as const;
@@ -141,6 +158,17 @@ export const KSM_EVENTS = {js_array(events)} as const;
 export const KSM_PERMISSIONS = {js_array(permissions)} as const;
 export const KSM_ERROR_CODES = {js_array(errors)} as const;
 export const KSM_PLUGINS = {js_array(plugin_ids)} as const;
+export interface KSMPluginMetadata {{
+  name: string;
+  version: string;
+  description: string;
+  frontendPackage: string;
+  platforms: readonly ("windows" | "android")[];
+  permissions: readonly string[];
+  defaultPermissions: readonly string[];
+  commands: readonly string[];
+}}
+export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = {json_text(metadata)};
 export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = {json_text(plugin_commands)};
 export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {json_text(command_plugin)};
 export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {json_text(command_permission_map)};
@@ -282,6 +310,7 @@ def generate_windows(
         for name, definition in plugins["plugins"].items()
     }
     command_permission_map = command_permissions(contract)
+    metadata = plugin_metadata(plugins)
     schema_json = json_text(arg_schemas(contract)).replace(
         ")KSMSCHEMA",
         ")KSMSCHEMA_ESCAPED",
@@ -395,6 +424,7 @@ public:
     static const std::vector<std::string>& Events();
     static const std::vector<std::string>& Permissions();
     static const std::vector<std::string>& Plugins();
+    static const nlohmann::json& PluginMetadata();
     static const nlohmann::json& PluginCommands();
     static const nlohmann::json& CommandPermissions();
     static bool ValidateArgs(const std::string& command, const nlohmann::json& args);
@@ -440,6 +470,13 @@ inline const std::vector<std::string>& KSMGeneratedContract::Plugins() {{
         {", ".join(json.dumps(value) for value in plugin_ids)}
     }};
     return values;
+}}
+
+inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {{
+    static const nlohmann::json value = nlohmann::json::parse(
+        R"KSMMETADATA({json_text(metadata)})KSMMETADATA"
+    );
+    return value;
 }}
 
 inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {{
@@ -492,6 +529,7 @@ def generate_android(
         for name, definition in plugins["plugins"].items()
     }
     command_permission_map = command_permissions(contract)
+    metadata = plugin_metadata(plugins)
     schema_json = json_text(arg_schemas(contract))
     content = f"""package dev.kasumi.app.generated
 
@@ -510,6 +548,8 @@ object KSMGeneratedContract {{
     val permissions: List<String> = {kotlin_list(permissions)}
 
     val plugins: List<String> = {kotlin_list(plugin_ids)}
+
+    val pluginMetadata: JSONObject = JSONObject(\"\"\"{json_text(metadata)}\"\"\")
 
     val pluginCommands: Map<String, List<String>> = {kotlin_plugin_command_map(plugin_commands)}
 

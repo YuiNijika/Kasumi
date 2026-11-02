@@ -69,6 +69,18 @@ jobs:
         run: pnpm --filter kasumi-bridge publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-fs
+        run: pnpm --filter kasumi-plugin-fs publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-dialog
+        run: pnpm --filter kasumi-plugin-dialog publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-sql
+        run: pnpm --filter kasumi-plugin-sql publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish kasumi-cli
         run: pnpm --filter kasumi-cli publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
         env:
@@ -80,7 +92,7 @@ jobs:
       - name: Verify published versions
         run: |
           VERSION="${RELEASE_TAG#v}"
-          for package in kasumi-bridge kasumi-cli create-kasumi
+          for package in kasumi-bridge kasumi-plugin-fs kasumi-plugin-dialog kasumi-plugin-sql kasumi-cli create-kasumi
           do
             test "$(npm view "$package@$NPM_TAG" version)" = "$VERSION"
           done

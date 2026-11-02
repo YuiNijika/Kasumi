@@ -69,26 +69,32 @@ Windows 可额外设置 `decorations` 布尔值，默认 `true`。设为 `false`
 ## 插件清单
 
 `plugins.json` 是插件归属的唯一事实源。每个协议命令只能属于一个插件，插件名使用
-小写点分标识符，命令保持 `<domain>.<action>` 形式。当前内置插件为：
+小写点分标识符，命令保持 `<domain>.<action>` 形式。每个插件同时声明
+`frontendPackage`、`platforms`、`permissions` 和 `defaultPermissions`。校验器要求
+权限与平台字段精确等于其命令集合的并集，避免清单和协议漂移。
 
-| 插件 | 职责 | 命令数 |
-| --- | --- | ---: |
-| `core` | 应用生命周期、权限、事件和能力发现 | 7 |
-| `fs` | 沙箱虚拟文件系统 | 7 |
-| `dialog` | 系统消息框、确认框和文件选择器 | 4 |
-| `clipboard` | 系统剪贴板文本 | 2 |
-| `notification` | 系统通知 | 1 |
-| `window` | 窗口标题、尺寸和生命周期 | 5 |
-| `http` | HTTPS 下载 | 1 |
-| `shell` | 白名单外部链接 | 1 |
-| `device` | 非持久设备信息 | 1 |
-| `sql` | 数据库连接和参数化语句 | 5 |
+| 插件 | 前端包 | 职责 | 命令数 |
+| --- | --- | --- | ---: |
+| `core` | `kasumi-bridge` | 应用生命周期、权限、事件和能力发现 | 7 |
+| `fs` | `kasumi-plugin-fs` | 沙箱虚拟文件系统 | 7 |
+| `dialog` | `kasumi-plugin-dialog` | 系统消息框、确认框和文件选择器 | 4 |
+| `clipboard` | `kasumi-bridge` | 系统剪贴板文本 | 2 |
+| `notification` | `kasumi-bridge` | 系统通知 | 1 |
+| `window` | `kasumi-bridge` | 窗口标题、尺寸和生命周期 | 5 |
+| `http` | `kasumi-bridge` | HTTPS 下载 | 1 |
+| `shell` | `kasumi-bridge` | 白名单外部链接 | 1 |
+| `device` | `kasumi-bridge` | 非持久设备信息 | 1 |
+| `sql` | `kasumi-plugin-sql` | 数据库连接和参数化语句 | 5 |
 
 Windows 的 `KSMRouter` 与 Android 的 `KSMRouter` 先派发插件，再进入仍由核心路由承载
 的平台命令。宿主可以注册自定义 `KSMPlugin` 实现；`fs`、`dialog` 和 `sql` 可以用同 ID
 插件显式替换，但替换实现必须完整声明该 ID 的全部生成命令。其他生成插件 ID 仍为保留值，
 自定义插件也不得抢占任何生成命令。插件自己声明的命令会被加入 `capabilities.query`。
 插件命令若不在 `commands.json` 中，由插件自己的参数校验器负责校验，不绕过宿主权限检查。
+
+代码生成会输出 `KSM_PLUGIN_METADATA`、C++ `PluginMetadata()` 和 Kotlin
+`pluginMetadata`。前端插件包只重新导出对应模块 API，原生权限、参数和来源校验仍在
+Windows 或 Android 宿主执行。
 
 ## SQL 插件
 

@@ -6,6 +6,7 @@ export {
   KSM_EVENTS,
   KSM_PERMISSIONS,
   KSM_PLUGINS,
+  KSM_PLUGIN_METADATA,
   KSM_PLUGIN_COMMANDS,
   KSM_COMMAND_PERMISSIONS,
   KSM_COMMAND_PLUGINS,
@@ -15,6 +16,7 @@ export {
   type KSMCommandName,
   type KSMEventName,
   type KSMPermission,
+  type KSMPluginMetadata,
   type KSMPluginName
 } from './generated/contract.js';
 export * as app from './api/app.js';

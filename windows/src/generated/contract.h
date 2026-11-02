@@ -548,6 +548,7 @@ public:
     static const std::vector<std::string>& Events();
     static const std::vector<std::string>& Permissions();
     static const std::vector<std::string>& Plugins();
+    static const nlohmann::json& PluginMetadata();
     static const nlohmann::json& PluginCommands();
     static const nlohmann::json& CommandPermissions();
     static bool ValidateArgs(const std::string& command, const nlohmann::json& args);
@@ -593,6 +594,233 @@ inline const std::vector<std::string>& KSMGeneratedContract::Plugins() {
         "core", "fs", "dialog", "clipboard", "notification", "window", "http", "shell", "device", "sql"
     };
     return values;
+}
+
+inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
+    static const nlohmann::json value = nlohmann::json::parse(
+        R"KSMMETADATA({
+  "core": {
+    "name": "Core",
+    "version": "1.0.0",
+    "description": "Application lifecycle, permissions, events and capability discovery.",
+    "frontendPackage": "kasumi-bridge",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "window.control"
+    ],
+    "defaultPermissions": [
+      "window.control"
+    ],
+    "commands": [
+      "ping",
+      "capabilities.query",
+      "app.getInfo",
+      "app.exit",
+      "permission.request",
+      "event.subscribe",
+      "event.unsubscribe"
+    ]
+  },
+  "fs": {
+    "name": "Filesystem",
+    "version": "1.0.0",
+    "description": "Sandboxed virtual filesystem access.",
+    "frontendPackage": "kasumi-plugin-fs",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "fs.read",
+      "fs.write",
+      "fs.remove"
+    ],
+    "defaultPermissions": [
+      "fs.read",
+      "fs.write",
+      "fs.remove"
+    ],
+    "commands": [
+      "fs.readText",
+      "fs.writeText",
+      "fs.exists",
+      "fs.remove",
+      "fs.readDir",
+      "fs.mkdir",
+      "fs.stat"
+    ]
+  },
+  "dialog": {
+    "name": "Dialog",
+    "version": "1.0.0",
+    "description": "Native message, confirmation and file picker dialogs.",
+    "frontendPackage": "kasumi-plugin-dialog",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "dialog"
+    ],
+    "defaultPermissions": [
+      "dialog"
+    ],
+    "commands": [
+      "dialog.message",
+      "dialog.confirm",
+      "dialog.openFile",
+      "dialog.saveFile"
+    ]
+  },
+  "clipboard": {
+    "name": "Clipboard",
+    "version": "1.0.0",
+    "description": "System clipboard text access.",
+    "frontendPackage": "kasumi-bridge",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "clipboard.read",
+      "clipboard.write"
+    ],
+    "defaultPermissions": [
+      "clipboard.read",
+      "clipboard.write"
+    ],
+    "commands": [
+      "clipboard.readText",
+      "clipboard.writeText"
+    ]
+  },
+  "notification": {
+    "name": "Notification",
+    "version": "1.0.0",
+    "description": "Native system notifications.",
+    "frontendPackage": "kasumi-bridge",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "notification.show"
+    ],
+    "defaultPermissions": [
+      "notification.show"
+    ],
+    "commands": [
+      "notification.show"
+    ]
+  },
+  "window": {
+    "name": "Window",
+    "version": "1.0.0",
+    "description": "Window title, size, lifecycle and application exit controls.",
+    "frontendPackage": "kasumi-bridge",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "window.control"
+    ],
+    "defaultPermissions": [
+      "window.control"
+    ],
+    "commands": [
+      "window.setTitle",
+      "window.minimize",
+      "window.maximize",
+      "window.setSize",
+      "window.close"
+    ]
+  },
+  "http": {
+    "name": "HTTP",
+    "version": "1.0.0",
+    "description": "HTTPS downloads into the virtual filesystem.",
+    "frontendPackage": "kasumi-bridge",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "http.download"
+    ],
+    "defaultPermissions": [
+      "http.download"
+    ],
+    "commands": [
+      "http.download"
+    ]
+  },
+  "shell": {
+    "name": "Shell",
+    "version": "1.0.0",
+    "description": "Allowlisted external URL launching.",
+    "frontendPackage": "kasumi-bridge",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "shell.open"
+    ],
+    "defaultPermissions": [
+      "shell.open"
+    ],
+    "commands": [
+      "shell.openExternal"
+    ]
+  },
+  "device": {
+    "name": "Device",
+    "version": "1.0.0",
+    "description": "Non-identifying Android device information.",
+    "frontendPackage": "kasumi-bridge",
+    "platforms": [
+      "android"
+    ],
+    "permissions": [
+      "device.info"
+    ],
+    "defaultPermissions": [
+      "device.info"
+    ],
+    "commands": [
+      "device.getInfo"
+    ]
+  },
+  "sql": {
+    "name": "SQL",
+    "version": "1.2.0",
+    "description": "Database connections and parameterised SQL statements.",
+    "frontendPackage": "kasumi-plugin-sql",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "sql"
+    ],
+    "defaultPermissions": [
+      "sql"
+    ],
+    "commands": [
+      "sql.drivers",
+      "sql.open",
+      "sql.query",
+      "sql.execute",
+      "sql.close"
+    ]
+  }
+})KSMMETADATA"
+    );
+    return value;
 }
 
 inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {

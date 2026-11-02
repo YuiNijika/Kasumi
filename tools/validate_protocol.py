@@ -140,7 +140,11 @@ def validate_object_schema(schema: Any, label: str) -> None:
         raise ValueError(f"{label} must declare required fields.")
 
 
-def validate_plugins(plugins: Any, commands: dict[str, Any]) -> None:
+def validate_plugins(
+    plugins: Any,
+    commands: dict[str, Any],
+    known_permissions: set[str],
+) -> None:
     plugins = require_object(plugins, "plugins.json")
     if set(plugins) != {"plugins"}:
         raise ValueError("plugins.json must contain only plugins.")
@@ -150,9 +154,19 @@ def validate_plugins(plugins: Any, commands: dict[str, Any]) -> None:
         if not isinstance(name, str) or not NAME_PATTERN.fullmatch(name):
             raise ValueError(f"Invalid plugin name: {name}")
         definition = require_object(definition, f"plugins.{name}")
-        if set(definition) != {"name", "version", "description", "commands"}:
+        required_fields = {
+            "name",
+            "version",
+            "description",
+            "frontendPackage",
+            "platforms",
+            "permissions",
+            "defaultPermissions",
+            "commands",
+        }
+        if set(definition) != required_fields:
             raise ValueError(
-                f"Plugin {name} must declare name, version, description and commands."
+                f"Plugin {name} must declare exactly {sorted(required_fields)}."
             )
         for field in ("name", "description"):
             if not isinstance(definition[field], str) or not definition[field]:
@@ -164,6 +178,41 @@ def validate_plugins(plugins: Any, commands: dict[str, Any]) -> None:
             definition["commands"],
             f"plugins.{name}.commands",
         )
+        plugin_permissions = validate_string_list(
+            definition["permissions"],
+            f"plugins.{name}.permissions",
+            known_permissions,
+            allow_empty=True,
+        )
+        default_permissions = validate_string_list(
+            definition["defaultPermissions"],
+            f"plugins.{name}.defaultPermissions",
+            known_permissions,
+            allow_empty=True,
+        )
+        if not set(default_permissions) <= set(plugin_permissions):
+            raise ValueError(
+                f"Plugin {name}.defaultPermissions must belong to its permissions."
+            )
+        frontend_package = definition["frontendPackage"]
+        if (
+            not isinstance(frontend_package, str)
+            or re.fullmatch(
+                r"(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*",
+                frontend_package,
+            )
+            is None
+        ):
+            raise ValueError(
+                f"Plugin {name}.frontendPackage must be a valid npm package name."
+            )
+        plugin_platforms = validate_string_list(
+            definition["platforms"],
+            f"plugins.{name}.platforms",
+            ALLOWED_PLATFORMS,
+        )
+        expected_permissions: set[str] = set()
+        expected_platforms: set[str] = set()
         for command in plugin_commands:
             if command not in commands:
                 raise ValueError(f"Plugin {name} references unknown command {command}.")
@@ -173,6 +222,16 @@ def validate_plugins(plugins: Any, commands: dict[str, Any]) -> None:
                     f"Command {command} belongs to both {owner} and {name}."
                 )
             assigned[command] = name
+            expected_permissions.update(commands[command]["permissions"])
+            expected_platforms.update(commands[command]["platforms"])
+        if set(plugin_permissions) != expected_permissions:
+            raise ValueError(
+                f"Plugin {name}.permissions must match its command permissions."
+            )
+        if set(plugin_platforms) != expected_platforms:
+            raise ValueError(
+                f"Plugin {name}.platforms must match its command platforms."
+            )
     unassigned = set(commands) - set(assigned)
     if unassigned:
         raise ValueError(
@@ -265,7 +324,7 @@ def validate_contract(
         ):
             raise ValueError(f"{name}.since must use semantic versioning.")
 
-    validate_plugins(plugins, commands)
+    validate_plugins(plugins, commands, set(permission_properties))
 
     errors = require_object(errors, "errors.json")
     if set(errors) != REQUIRED_ERROR_CODES:

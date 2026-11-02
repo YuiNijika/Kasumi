@@ -1,0 +1,39 @@
+{
+  "name": "kasumi-plugin-dialog",
+  "version": "26.11.2-alpha.4",
+  "description": "Native dialog plugin API for Kasumi applications",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "kasumi-bridge": "workspace:^"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YuiNijika/Kasumi.git"
+  },
+  "homepage": "https://blog.miomoe.cn/docs/kasumi/plugins"
+}

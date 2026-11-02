@@ -21,6 +21,24 @@ importers:
 
   packages/kasumi-cli: {}
 
+  packages/kasumi-plugin-dialog:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-fs:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-sql:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
 packages:
 
   '@esbuild/aix-ppc64@0.28.2':

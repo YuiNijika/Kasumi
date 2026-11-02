@@ -17,6 +17,9 @@ const root = path.resolve(
 );
 const packages = [
   'kasumi-bridge',
+  'kasumi-plugin-fs',
+  'kasumi-plugin-dialog',
+  'kasumi-plugin-sql',
   'kasumi-cli',
   'create-kasumi'
 ];
@@ -61,6 +64,18 @@ try {
     }, null, 2),
     'utf8'
   );
+  await writeFile(
+    path.join(installRoot, 'pnpm-workspace.yaml'),
+    [
+      'overrides:',
+      `  kasumi-bridge: file:${path
+        .relative(installRoot, tarballs.get('kasumi-bridge'))
+        .split(path.sep)
+        .join('/')}`,
+      ''
+    ].join('\n'),
+    'utf8'
+  );
   await run(
     packageManager,
     [
@@ -88,6 +103,17 @@ try {
     ],
     { cwd: installRoot }
   );
+  for (const plugin of ['fs', 'dialog', 'sql']) {
+    await run(
+      'node',
+      [
+        '--input-type=module',
+        '--eval',
+        `import("kasumi-plugin-${plugin}").then((module) => { if (module.PLUGIN_ID !== "${plugin}") process.exit(1); });`
+      ],
+      { cwd: installRoot }
+    );
+  }
 
   for (const template of templates) {
     const project = path.join(temporaryRoot, `template-${template}`);

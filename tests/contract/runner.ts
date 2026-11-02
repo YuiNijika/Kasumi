@@ -3,6 +3,7 @@ import {
   KSM_ANDROID_COMMANDS,
   KSM_PERMISSIONS,
   KSM_PLUGINS,
+  KSM_PLUGIN_METADATA,
   KSM_PLUGIN_COMMANDS,
   KSM_WINDOWS_COMMANDS
 } from '../../frontend/src/generated/contract';
@@ -51,6 +52,22 @@ export async function runContractSuite(adapter: ContractAdapter): Promise<void> 
   for (const plugin of KSM_PLUGINS) {
     if (!capabilities.plugins.includes(plugin)) {
       throw new Error(`capabilities.query did not include plugin ${plugin}.`);
+    }
+    const metadata = KSM_PLUGIN_METADATA[plugin];
+    if (!metadata) {
+      throw new Error(`Generated metadata is missing plugin ${plugin}.`);
+    }
+    if (
+      metadata.commands.join('\n') !== KSM_PLUGIN_COMMANDS[plugin]?.join('\n')
+    ) {
+      throw new Error(`Plugin ${plugin} metadata commands drifted.`);
+    }
+    for (const permission of metadata.defaultPermissions) {
+      if (!metadata.permissions.includes(permission)) {
+        throw new Error(
+          `Plugin ${plugin} default permission ${permission} is undeclared.`
+        );
+      }
     }
     for (const command of KSM_PLUGIN_COMMANDS[plugin] ?? []) {
       if (
