@@ -3,6 +3,9 @@
   "private": true,
   "version": "__KASUMI_VERSION__",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "ksm dev",
     "build": "ksm build",
@@ -18,16 +21,16 @@
     "frontend:build": "vue-tsc -b frontend/tsconfig.json && vite build --config frontend/vite.config.ts"
   },
   "dependencies": {
-    "kasumi-bridge": "^__KASUMI_VERSION__",
+    "kasumi-bridge": "^__KASUMI_PACKAGE_VERSION__",
     "vue": "^3.5.44"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vue/tsconfig": "^0.9.1",
-    "kasumi-cli": "^__KASUMI_VERSION__",
-    "typescript": "~6.0.3",
+    "kasumi-cli": "^__KASUMI_PACKAGE_VERSION__",
+    "typescript": "~7.0.2",
     "vite": "^8.3.5",
-    "vue-tsc": "^3.3.13"
+    "vue-tsc": "^3.3.14"
   }
 }

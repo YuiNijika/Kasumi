@@ -3,17 +3,20 @@
   "private": true,
   "version": "__KASUMI_VERSION__",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "dependencies": {
-    "kasumi-bridge": "^__KASUMI_VERSION__",
+    "kasumi-bridge": "^__KASUMI_PACKAGE_VERSION__",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "kasumi-cli": "^__KASUMI_VERSION__",
+    "@vitejs/plugin-react": "^6.2.0",
+    "kasumi-cli": "^__KASUMI_PACKAGE_VERSION__",
     "typescript": "~7.0.2",
     "vite": "^8.3.5"
   },

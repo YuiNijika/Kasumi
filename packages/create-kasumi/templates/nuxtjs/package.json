@@ -1,6 +1,9 @@
 {
   "name": "__PROJECT_NAME__",
   "version": "__KASUMI_VERSION__",
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
+  },
   "scripts": {
     "ksm": "ksm",
     "dev": "ksm dev",
@@ -17,15 +20,15 @@
   },
   "type": "module",
   "dependencies": {
-    "kasumi-bridge": "^__KASUMI_VERSION__",
+    "kasumi-bridge": "^__KASUMI_PACKAGE_VERSION__",
     "nuxt": "^4.6.3",
     "vue": "^3.5.44",
     "vue-router": "^5.4.0"
   },
   "private": true,
   "devDependencies": {
-    "kasumi-cli": "^__KASUMI_VERSION__",
-    "typescript": "^5.9.3",
+    "kasumi-cli": "^__KASUMI_PACKAGE_VERSION__",
+    "typescript": "^7.0.2",
     "vue-tsc": "^3.3.14"
   }
 }

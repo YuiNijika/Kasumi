@@ -54,6 +54,7 @@ export async function run(argv) {
     __ANDROID_PACKAGE_NAME__: androidPackage,
     __ANDROID_PACKAGE_PATH__: androidPackage.replaceAll('.', '/'),
     __KASUMI_VERSION__: kasumiVersion,
+    __KASUMI_PACKAGE_VERSION__: packageJson.version,
     __ANDROID_COMMANDS_CSV__: platformCommands.android.join(',')
   };
 

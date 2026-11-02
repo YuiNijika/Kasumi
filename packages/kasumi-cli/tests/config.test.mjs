@@ -26,7 +26,11 @@ import {
 import { createZipArchive } from '../src/archive.mjs';
 import { collectDoctorChecks } from '../src/main.mjs';
 import { commandInvocation } from '../src/process.mjs';
-import { createWindowsPackage } from '../src/windows.mjs';
+import {
+  createVcpkgEnvironment,
+  createWindowsPackage,
+  findVcpkgToolchain
+} from '../src/windows.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
@@ -55,6 +59,89 @@ test('wraps Windows batch commands through the system shell', () => {
   }
   assert.equal(invocation.command, 'gradlew.bat');
   assert.deepEqual(invocation.args, ['--version']);
+});
+
+test('discovers the bundled Visual Studio vcpkg toolchain', async () => {
+  const environment = saveEnvironment([
+    'CMAKE_TOOLCHAIN_FILE',
+    'VCPKG_ROOT'
+  ]);
+  try {
+    delete process.env.CMAKE_TOOLCHAIN_FILE;
+    delete process.env.VCPKG_ROOT;
+    const toolchain = path.join(
+      'C:\\VisualStudio',
+      'VC',
+      'vcpkg',
+      'scripts',
+      'buildsystems',
+      'vcpkg.cmake'
+    );
+    assert.equal(
+      await findVcpkgToolchain({ vcpkgToolchain: toolchain }),
+      toolchain
+    );
+  } finally {
+    restoreEnvironment(environment);
+  }
+});
+
+test('prefers configured vcpkg toolchains over Visual Studio', async () => {
+  const environment = saveEnvironment([
+    'CMAKE_TOOLCHAIN_FILE',
+    'VCPKG_ROOT'
+  ]);
+  try {
+    const explicit = path.join('C:\\tools', 'custom', 'vcpkg.cmake');
+    process.env.CMAKE_TOOLCHAIN_FILE = explicit;
+    process.env.VCPKG_ROOT = 'C:\\ignored';
+    assert.equal(await findVcpkgToolchain(), explicit);
+
+    delete process.env.CMAKE_TOOLCHAIN_FILE;
+    process.env.VCPKG_ROOT = 'C:\\vcpkg';
+    assert.equal(
+      await findVcpkgToolchain(),
+      path.join(
+        'C:\\vcpkg',
+        'scripts',
+        'buildsystems',
+        'vcpkg.cmake'
+      )
+    );
+  } finally {
+    restoreEnvironment(environment);
+  }
+});
+
+test('keeps vcpkg caches inside the project', async () => {
+  const temporaryRoot = await mkdtemp(
+    path.join(tmpdir(), 'kasumi-vcpkg-environment-test-')
+  );
+  try {
+    const environment = await createVcpkgEnvironment(temporaryRoot);
+    const cacheRoot = path.join(temporaryRoot, '.ksm', 'vcpkg');
+    assert.equal(
+      environment.X_VCPKG_REGISTRIES_CACHE,
+      path.join(cacheRoot, 'registries')
+    );
+    assert.equal(
+      environment.VCPKG_DEFAULT_BINARY_CACHE,
+      path.join(cacheRoot, 'archives')
+    );
+    assert.equal(
+      environment.VCPKG_DOWNLOADS,
+      path.join(cacheRoot, 'downloads')
+    );
+    for (const directory of [
+      environment.X_VCPKG_REGISTRIES_CACHE,
+      environment.VCPKG_DEFAULT_BINARY_CACHE,
+      environment.VCPKG_DOWNLOADS
+    ]) {
+      assert.equal((await stat(directory)).isDirectory(), true);
+    }
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
 });
 
 test('prefers the project Gradle wrapper', async () => {

@@ -25,6 +25,12 @@ import { resolveTemplate } from '../src/template.mjs';
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
 const kasumiVersion = DEFAULT_RELEASE_VERSION;
+const kasumiPackageVersion = JSON.parse(
+  await readFile(
+    path.join(testDirectory, '..', 'package.json'),
+    'utf8'
+  )
+).version;
 
 test('parseArgs selects both platforms by default', () => {
   const options = parseArgs(['my-app']);
@@ -122,11 +128,11 @@ test('initializes framework templates through the shared base layout', async () 
       assert.equal(packageJson.private, true);
       assert.equal(
         packageJson.dependencies['kasumi-bridge'],
-        `^${kasumiVersion}`
+        `^${kasumiPackageVersion}`
       );
       assert.equal(
         packageJson.devDependencies['kasumi-cli'],
-        `^${kasumiVersion}`
+        `^${kasumiPackageVersion}`
       );
       assert.equal(
         typeof packageJson.scripts['frontend:dev'],

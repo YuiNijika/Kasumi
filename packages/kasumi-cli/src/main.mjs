@@ -18,6 +18,7 @@ import {
 import {
   buildWindows,
   findCMake,
+  findVcpkgToolchain,
   packageWindows,
   runWindowsDevelopment
 } from './windows.mjs';
@@ -159,12 +160,15 @@ export async function collectDoctorChecks(projectRoot, config) {
   );
   const adb = findCommand('adb') ?? (await findAndroidAdb());
   checks.push(check('adb', adb ?? 'not found', Boolean(adb)));
-  const toolchain =
-    process.env.CMAKE_TOOLCHAIN_FILE ??
-    (process.env.VCPKG_ROOT
-      ? path.join(process.env.VCPKG_ROOT, 'scripts', 'buildsystems', 'vcpkg.cmake')
-      : undefined);
-  checks.push(check('vcpkg toolchain', toolchain ?? 'not configured', Boolean(toolchain)));
+  const toolchain = await findVcpkgToolchain();
+  checks.push(
+    check(
+      'vcpkg toolchain',
+      toolchain ??
+        'not found; install the Visual Studio vcpkg component or set VCPKG_ROOT',
+      Boolean(toolchain)
+    )
+  );
   checks.push(check('Windows package', config.windows.packageName, true));
   checks.push(check('Android package', config.android.packageName, true));
   const signingConfigured = [

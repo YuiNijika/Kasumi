@@ -2,6 +2,9 @@
   "name": "__PROJECT_NAME__",
   "version": "__KASUMI_VERSION__",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "ksm dev",
     "build": "ksm build",
@@ -17,16 +20,16 @@
     "frontend:build": "next build frontend"
   },
   "dependencies": {
-    "kasumi-bridge": "^__KASUMI_VERSION__",
+    "kasumi-bridge": "^__KASUMI_PACKAGE_VERSION__",
     "next": "16.4.3",
-    "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "kasumi-cli": "^__KASUMI_VERSION__",
-    "typescript": "^5"
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "kasumi-cli": "^__KASUMI_PACKAGE_VERSION__",
+    "typescript": "^7.0.2"
   }
 }

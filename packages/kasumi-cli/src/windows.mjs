@@ -50,25 +50,26 @@ export async function buildWindows(projectRoot, config, options = {}) {
     args.push('-G', 'Ninja');
     args.push(`-DCMAKE_MAKE_PROGRAM=${visualStudio.ninja}`);
   }
-  const toolchain =
-    process.env.CMAKE_TOOLCHAIN_FILE ??
-    (process.env.VCPKG_ROOT
-      ? path.join(process.env.VCPKG_ROOT, 'scripts', 'buildsystems', 'vcpkg.cmake')
-      : undefined);
-  if (toolchain) {
-    args.push(`-DCMAKE_TOOLCHAIN_FILE=${toolchain}`);
-    args.push(
-      `-DVCPKG_TARGET_TRIPLET=${
-        options.bundleWebview2Loader ? 'x64-windows' : 'x64-windows-static-md'
-      }`
+  const toolchain = await findVcpkgToolchain(visualStudio);
+  if (!toolchain) {
+    throw new Error(
+      'vcpkg toolchain was not found. Install the Visual Studio vcpkg component or set VCPKG_ROOT.'
     );
   }
-  await runCMake(cmake, args, projectRoot, visualStudio);
+  const vcpkgEnvironment = await createVcpkgEnvironment(projectRoot);
+  args.push(`-DCMAKE_TOOLCHAIN_FILE=${toolchain}`);
+  args.push(
+    `-DVCPKG_TARGET_TRIPLET=${
+      options.bundleWebview2Loader ? 'x64-windows' : 'x64-windows-static-md'
+    }`
+  );
+  await runCMake(cmake, args, projectRoot, visualStudio, vcpkgEnvironment);
   await runCMake(
     cmake,
     ['--build', buildDirectory, '--config', 'Release'],
     projectRoot,
-    visualStudio
+    visualStudio,
+    vcpkgEnvironment
   );
 
   const executable = await findWindowsExecutable(buildDirectory);
@@ -169,6 +170,42 @@ export async function findCMake() {
   return findCommand('cmake') ?? (await visualStudioEnvironment())?.cmake;
 }
 
+export async function findVcpkgToolchain(visualStudio) {
+  if (process.env.CMAKE_TOOLCHAIN_FILE) {
+    return process.env.CMAKE_TOOLCHAIN_FILE;
+  }
+  if (process.env.VCPKG_ROOT) {
+    return path.join(
+      process.env.VCPKG_ROOT,
+      'scripts',
+      'buildsystems',
+      'vcpkg.cmake'
+    );
+  }
+  const environment =
+    visualStudio ?? (await visualStudioEnvironment());
+  return environment?.vcpkgToolchain;
+}
+
+export async function createVcpkgEnvironment(projectRoot) {
+  // Profile caches can be encrypted so keep vcpkg state inside the project
+  const root = path.join(projectRoot, '.ksm', 'vcpkg');
+  const registries = path.join(root, 'registries');
+  const archives = path.join(root, 'archives');
+  const downloads = path.join(root, 'downloads');
+  await Promise.all([
+    mkdir(registries, { recursive: true }),
+    mkdir(archives, { recursive: true }),
+    mkdir(downloads, { recursive: true })
+  ]);
+  return {
+    ...process.env,
+    X_VCPKG_REGISTRIES_CACHE: registries,
+    VCPKG_DEFAULT_BINARY_CACHE: archives,
+    VCPKG_DOWNLOADS: downloads
+  };
+}
+
 async function visualStudioEnvironment() {
   if (process.platform !== 'win32') {
     return undefined;
@@ -228,6 +265,14 @@ async function visualStudioEnvironment() {
     'bin',
     'cmake.exe'
   );
+  const vcpkgToolchain = path.join(
+    installation,
+    'VC',
+    'vcpkg',
+    'scripts',
+    'buildsystems',
+    'vcpkg.cmake'
+  );
   if (
     !(await exists(vcvars)) ||
     !(await exists(ninja)) ||
@@ -235,16 +280,23 @@ async function visualStudioEnvironment() {
   ) {
     return undefined;
   }
-  return { vcvars, ninja, cmake };
+  return {
+    vcvars,
+    ninja,
+    cmake,
+    vcpkgToolchain: await exists(vcpkgToolchain)
+      ? vcpkgToolchain
+      : undefined
+  };
 }
 
 async function hasCMakeCache(buildDirectory) {
   return exists(path.join(buildDirectory, 'CMakeCache.txt'));
 }
 
-async function runCMake(command, args, cwd, visualStudio) {
+async function runCMake(command, args, cwd, visualStudio, env) {
   if (!visualStudio) {
-    await run(command, args, { cwd });
+    await run(command, args, { cwd, env });
     return;
   }
   const commandLine = [
@@ -254,7 +306,7 @@ async function runCMake(command, args, cwd, visualStudio) {
   await run(
     process.env.ComSpec ?? 'cmd.exe',
     ['/d', '/s', '/c', `"${commandLine}"`],
-    { cwd, windowsVerbatimArguments: true }
+    { cwd, env, windowsVerbatimArguments: true }
   );
 }
 
