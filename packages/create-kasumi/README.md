@@ -11,6 +11,9 @@ pnpm create kasumi my-app --template react
 pnpm create kasumi my-app --template nextjs
 ```
 
+交互式创建会先询问应用目录或名称，再显示模板菜单。输入序号或模板名均可，直接回车
+使用 `basic`。传入 `--template <name>` 会跳过模板菜单。
+
 初始化器会生成前后端分离的项目结构，安装 `kasumi-cli`、`kasumi-bridge` 和所选前端
 框架依赖，并从对应 GitHub Release 拉取 Windows SDK 与 Android Maven 仓库。框架的
 C++ 和 Kotlin 源码不会进入用户项目。
@@ -52,11 +55,12 @@ Nuxt 模板把 `glob` 与 `minimatch` override 写入 `pnpm-workspace.yaml`，�
 --windows                 只启用 Windows
 --android                 只启用 Android
 --all                     同时启用 Windows 与 Android（默认）
---template <name>         basic、react、vue、nextjs、nuxtjs，默认 basic
+--template <name>         basic、react、vue、nextjs、nuxtjs；省略时交互选择
 --package-manager <name>  pnpm、npm 或 yarn
 --no-install              不执行依赖安装
 --no-sdk                  不下载平台 SDK
 --force                   允许写入非空目录
+--yes                     使用默认应用名和默认模板，不显示交互提示
 --kasumi-version <ver>    Kasumi 版本，默认与 create-kasumi 一致
 --release-base-url <url>  覆盖 Release 下载地址
 ```

@@ -13,6 +13,13 @@ import { fileURLToPath } from 'node:url';
 const sourceDirectory = path.dirname(fileURLToPath(import.meta.url));
 const templateDirectory = path.join(sourceDirectory, '..', 'templates');
 const MANIFEST_NAME = '_template.json';
+const TEMPLATE_NAMES = new Set([
+  'basic',
+  'react',
+  'vue',
+  'nextjs',
+  'nuxtjs'
+]);
 const TEMPLATE_ALIASES = new Map([
   ['next', 'nextjs'],
   ['nuxt', 'nuxtjs']
@@ -26,14 +33,20 @@ const BINARY_EXTENSIONS = new Set([
   '.woff2'
 ]);
 
-export function resolveTemplate(name) {
+export function normalizeTemplateName(name) {
   if (!/^[a-z0-9-]+$/.test(name)) {
+    return undefined;
+  }
+  const canonical = TEMPLATE_ALIASES.get(name) ?? name;
+  return TEMPLATE_NAMES.has(canonical) ? canonical : undefined;
+}
+
+export function resolveTemplate(name) {
+  const normalized = normalizeTemplateName(name);
+  if (normalized === undefined) {
     throw new Error(`Invalid template name: ${name}`);
   }
-  return path.join(
-    templateDirectory,
-    TEMPLATE_ALIASES.get(name) ?? name
-  );
+  return path.join(templateDirectory, normalized);
 }
 
 export async function renderTemplate({

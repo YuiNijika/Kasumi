@@ -28,6 +28,10 @@ pnpm create kasumi my-app --template vue
 pnpm create kasumi my-app --template nextjs
 ```
 
+交互式运行会先询问应用目录或名称，再显示 `basic`、`react`、`vue`、`nextjs`、
+`nuxtjs` 模板菜单。传入 `--template <name>` 可跳过选择；`--yes` 使用默认应用名和
+`basic` 模板。
+
 初始化器会生成前后端分离的项目、下载对应的 Windows SDK 与 Android Maven 仓库，并安装
 `kasumi-bridge`、`kasumi-cli` 和前端依赖。
 

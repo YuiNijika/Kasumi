@@ -12,6 +12,7 @@ import {
   projectTitle
 } from './naming.mjs';
 import { useSystemCertificates } from './network.mjs';
+import { promptTemplate } from './prompts.mjs';
 import { installSdk } from './sdk.mjs';
 import { renderTemplate } from './template.mjs';
 
@@ -35,6 +36,9 @@ export async function run(argv) {
 
   const requestedDirectory =
     options.directory ?? (await promptProjectName(options.yes));
+  const template = options.template ?? (await promptTemplate({
+    skipPrompt: options.yes
+  }));
   const projectName = normalizeProjectName(
     path.basename(path.resolve(requestedDirectory))
   );
@@ -61,7 +65,7 @@ export async function run(argv) {
   console.log(`Creating ${projectName} in ${destination}`);
   try {
     await renderTemplate({
-      template: options.template,
+      template,
       destination,
       replacements,
       force: options.force
@@ -168,7 +172,7 @@ function printHelp() {
   console.log(`Usage: pnpm create kasumi [directory] [options]
 
 Options:
-  --template <name>          basic, react, vue, nextjs, nuxtjs; default basic
+  --template <name>          basic, react, vue, nextjs, nuxtjs; skips the prompt
   --windows                  Enable Windows
   --android                  Enable Android
   --all                      Enable both platforms, default

@@ -362,6 +362,9 @@ pnpm create kasumi my-app --template nextjs
 pnpm create kasumi my-app --template nuxtjs
 ```
 
+交互式创建先询问应用目录或名称，再显示模板菜单。输入序号或模板名均可，默认
+`basic`；传入 `--template <name>` 会跳过模板选择，`--yes` 则完全使用默认值。
+
 `create-kasumi` 只生成应用代码和平台宿主，不会把 `windows/src/*.cpp` 或
 `android/kasumi/src/**/*.kt` 复制到用户项目。生成结构保持一份根 `package.json`：
 

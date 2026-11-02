@@ -20,7 +20,7 @@ const BOOLEAN_OPTIONS = new Set([
 export function parseArgs(argv) {
   const options = {
     directory: undefined,
-    template: 'basic',
+    template: undefined,
     packageManager: 'pnpm',
     kasumiVersion: undefined,
     releaseBaseUrl: undefined,

@@ -20,7 +20,13 @@ import {
   androidPackageName,
   normalizeProjectName
 } from '../src/naming.mjs';
-import { resolveTemplate } from '../src/template.mjs';
+import {
+  resolveTemplateChoice
+} from '../src/prompts.mjs';
+import {
+  normalizeTemplateName,
+  resolveTemplate
+} from '../src/template.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(testDirectory, '..', '..', '..');
@@ -39,6 +45,7 @@ test('parseArgs selects both platforms by default', () => {
   assert.equal(options.install, true);
   assert.equal(options.sdk, true);
   assert.equal(options.kasumiVersion, undefined);
+  assert.equal(options.template, undefined);
 });
 
 test('parseArgs supports short help and version flags', () => {
@@ -64,6 +71,18 @@ test('parseArgs supports source-only and single-platform initialization', () => 
 test('resolves framework template aliases', () => {
   assert.equal(resolveTemplate('next'), resolveTemplate('nextjs'));
   assert.equal(resolveTemplate('nuxt'), resolveTemplate('nuxtjs'));
+  assert.equal(normalizeTemplateName('next'), 'nextjs');
+  assert.equal(normalizeTemplateName('unknown'), undefined);
+});
+
+test('resolves interactive template choices', () => {
+  assert.equal(resolveTemplateChoice(''), 'basic');
+  assert.equal(resolveTemplateChoice('1'), 'basic');
+  assert.equal(resolveTemplateChoice('2'), 'react');
+  assert.equal(resolveTemplateChoice('react'), 'react');
+  assert.equal(resolveTemplateChoice('next'), 'nextjs');
+  assert.equal(resolveTemplateChoice('9'), undefined);
+  assert.equal(resolveTemplateChoice('unknown'), undefined);
 });
 
 test('naming derives valid npm and Android names', () => {
