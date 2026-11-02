@@ -1,7 +1,0 @@
-allowBuilds:
-  esbuild: true
-  sharp: false
-  unrs-resolver: false
-minimumReleaseAgeExclude:
-  - kasumi-bridge@26.11.2-alpha.3
-  - kasumi-cli@26.11.2-alpha.3
