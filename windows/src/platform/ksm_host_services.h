@@ -168,17 +168,17 @@ public:
     virtual std::optional<KSMSqlQueryResult> SqlQuery(
         const std::string& connection_id,
         const std::string& statement,
-        const std::vector<KSMSqlValue>& params
+        const std::vector<KSMSqlValue>& params,
+        const std::string& request_id = ""
     );
     virtual std::optional<KSMSqlExecuteResult> SqlExecute(
         const std::string& connection_id,
         const std::string& statement,
-        const std::vector<KSMSqlValue>& params
+        const std::vector<KSMSqlValue>& params,
+        const std::string& request_id = ""
     );
     virtual bool SqlClose(const std::string& connection_id);
-    virtual void CancelRequest(const std::string& request_id) {
-        (void)request_id;
-    }
+    virtual void CancelRequest(const std::string& request_id);
 
 private:
     std::unique_ptr<KSMSqlDriverRegistry> sql_drivers_;

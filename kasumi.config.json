@@ -2,13 +2,35 @@
   "$schema": "./protocol/kasumi.config.schema.json",
   "windows": {
     "packageName": "kasumi-win32-example",
-    "version": "26.11.3",
+    "version": "26.11.4",
     "commands": "all",
-    "decorations": true
+    "permissions": "all",
+    "decorations": true,
+    "shell": {
+      "allowedOrigins": [
+        "https://example.com"
+      ]
+    },
+    "http": {
+      "allowedOrigins": [
+        "https://example.com"
+      ]
+    }
   },
   "android": {
     "packageName": "dev.kasumi.example",
-    "version": "26.11.3",
-    "commands": "all"
+    "version": "26.11.4",
+    "commands": "all",
+    "permissions": "all",
+    "shell": {
+      "allowedOrigins": [
+        "https://example.com"
+      ]
+    },
+    "http": {
+      "allowedOrigins": [
+        "https://example.com"
+      ]
+    }
   }
 }

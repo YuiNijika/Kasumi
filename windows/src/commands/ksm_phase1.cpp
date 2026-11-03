@@ -25,6 +25,7 @@ struct RuntimeState {
     std::shared_ptr<KSMFileSystem> file_system;
     std::shared_ptr<KSMHostServices> host_services;
     std::vector<std::string> allowed_commands;
+    std::vector<std::string> allowed_permissions;
     std::unordered_map<std::string, std::shared_ptr<KSMRouter>> routers;
     std::unordered_map<
         std::uint64_t,
@@ -54,7 +55,9 @@ std::shared_ptr<KSMRouter> RequireRouter(std::string_view window_id) {
     auto router = std::make_shared<KSMRouter>(
         state.file_system,
         state.host_services,
-        state.allowed_commands
+        state.allowed_commands,
+        state.allowed_permissions,
+        std::vector<std::shared_ptr<KSMPlugin>>{}
     );
     state.routers.emplace(key, router);
     return router;
@@ -89,9 +92,6 @@ std::shared_ptr<KSMHostServices> GetHostServices() {
 bool IsCommandEnabled(std::string_view command) {
     auto& state = State();
     std::lock_guard lock(state.mutex);
-    if (state.allowed_commands.empty()) {
-        return true;
-    }
     return std::find(
         state.allowed_commands.begin(),
         state.allowed_commands.end(),
@@ -151,7 +151,7 @@ KSM::Capabilities KSM::Get() {
         .commands = KSMCommandRegistry::SupportedCommands(
             state.allowed_commands
         ),
-        .permissions = KSMGeneratedContract::Permissions()
+        .permissions = state.allowed_permissions
     };
 }
 
@@ -162,13 +162,15 @@ KSM::Capabilities KSM::Phase1::QueryCapabilities() {
 void KSM::Init(
     std::shared_ptr<KSMFileSystem> file_system,
     std::shared_ptr<KSMHostServices> host_services,
-    std::vector<std::string> allowed_commands
+    std::vector<std::string> allowed_commands,
+    std::vector<std::string> allowed_permissions
 ) {
     auto& state = State();
     std::lock_guard lock(state.mutex);
     state.file_system = std::move(file_system);
     state.host_services = std::move(host_services);
     state.allowed_commands = std::move(allowed_commands);
+    state.allowed_permissions = std::move(allowed_permissions);
     state.routers.clear();
     state.initialized = true;
     state.listeners.clear();
@@ -182,6 +184,7 @@ void KSM::Shutdown() {
     state.file_system.reset();
     state.host_services.reset();
     state.allowed_commands.clear();
+    state.allowed_permissions.clear();
     state.listeners.clear();
 }
 
@@ -542,8 +545,13 @@ std::optional<bool> KSM::Permission::Request(std::string_view permission) {
     if (!IsKnownPermission(permission_name)) {
         return std::nullopt;
     }
-    // Windows grants registered permissions through the router state.
-    return true;
+    auto& state = State();
+    std::lock_guard lock(state.mutex);
+    return std::find(
+        state.allowed_permissions.begin(),
+        state.allowed_permissions.end(),
+        permission_name
+    ) != state.allowed_permissions.end();
 }
 
 bool KSM::Window::SetTitle(std::string_view title) {

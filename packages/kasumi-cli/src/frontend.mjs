@@ -99,6 +99,11 @@ export async function buildFrontend(projectRoot) {
 
 export async function startFrontendServer(projectRoot) {
   const settings = await readFrontendSettings(projectRoot);
+  if (await canConnect(settings.devUrl)) {
+    throw new Error(
+      `Development port ${DEV_PORT} is already in use. Stop the other process and retry.`
+    );
+  }
   const child = await startFrontendProcess(projectRoot, settings);
   await waitForServer(child, settings.devUrl);
   return {

@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-log",
-  "version": "26.11.3",
+  "version": "26.11.4",
   "description": "Platform logger access for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

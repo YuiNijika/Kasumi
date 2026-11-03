@@ -14,7 +14,7 @@
 | `plugins.schema.json`     | 插件清单的 JSON Schema 校验规则             |
 | `errors.json`             | 双端共用的错误码全集                        |
 | `permissions.schema.json` | 权限声明                                    |
-| `kasumi.config.schema.json` | 应用配置、包名、版本、命令 allowlist 和 Windows 标题栏开关 |
+| `kasumi.config.schema.json` | 应用配置、包名、版本、命令与权限 allowlist、origin 白名单和 Windows 标题栏开关 |
 | `../version.json`         | 框架产品版本唯一事实源                      |
 | `kasumi.version.schema.json` | 版本元数据 JSON Schema                   |
 
@@ -22,7 +22,7 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 
 ## 当前规模
 
-`commands.json` 当前定义 **48 个命令和 2 个事件**，`plugins.json` 将全部命令
+`commands.json` 当前定义 **48 个命令和 3 个事件**，`plugins.json` 将全部命令
 归入 **14 个内置插件**。产品版本由根目录 `version.json` 管理，SQL 插件的新增命令
 使用 `since: "1.2.0"`，路径、存储、系统和日志插件使用 `since: "1.3.0"`。
 
@@ -59,13 +59,22 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 | `os.getInfo`                                                              | 支持    | 支持    | `os.info`                            |
 | `log.write`                                                               | 支持    | 支持    | `log.write`                          |
 
-`capabilities.query` 返回宿主实际实现的命令列表和当前可用权限。Android 对不支持的窗口命令
+`capabilities.query` 返回宿主实际启用的命令列表和当前可用权限。只有命令、权限和插件同时
+可用时才进入结果。Android 对不支持的窗口命令
 返回 `NOT_SUPPORTED`；Windows 对 `device.getInfo` 返回 `NOT_SUPPORTED`。
 
-应用可在根目录 `kasumi.config.json` 中按平台选择启用命令。`commands: "all"` 会按本目录的
-`commands.json` 平台矩阵展开全部命令；也可使用显式数组，此时 `ping` 与
-`capabilities.query` 必填，未知命令、重复命令和跨平台命令直接拒绝。运行时的
-`capabilities.query` 只返回配置后的命令，已知但未启用的命令返回 `NOT_SUPPORTED`。
+应用可在根目录 `kasumi.config.json` 中按平台配置 `commands` 和 `permissions`。两者都可使用
+显式 `"all"` 或数组；缺失、空集合和未列出的条目都表示拒绝，只有显式 `"all"` 才开放全部
+能力。显式命令数组中的 `ping` 与 `capabilities.query` 必填，未知命令、重复命令和跨平台
+命令直接拒绝。运行时的 `capabilities.query` 只返回配置后的能力和插件，已知但未启用的命令
+返回 `NOT_SUPPORTED`，命令启用但权限缺失返回 `PERMISSION_DENIED`。
+
+`permission.request` 只处理 `permissions` 中已经配置的权限，不会动态修改静态能力集合。
+未配置的权限直接返回 `{ "granted": false }`。
+
+网络能力默认拒绝。`shell.allowedOrigins` 只接受精确 `http` / `https` origin，
+`http.allowedOrigins` 只接受精确 `https` origin；通配符、用户名密码和非法端口在配置校验阶段
+拒绝。`http.download` 的每一跳重定向都必须重新匹配 origin。
 
 Windows 可额外设置 `decorations` 布尔值，默认 `true`。设为 `false` 时宿主隐藏原生标题栏，
 但保留窗口缩放和工作区行为；应用需自行提供标题栏控件。Android 不接受该字段。
@@ -151,8 +160,12 @@ SQL 参数只允许字符串、有限数值、布尔值和 `null`。`sql.query` 
 `app://data`、`app://cache`、`app://tmp` 可读写；`app://res` 与 `app://assets` 只读；
 `app://picked/<id>` 表示用户选择的文件。宿主不向前端暴露真实路径或 `content://` URI。
 
-`webview.reloaded` 是系统事件，页面重载后由宿主主动推送，不需要订阅；`window.resized`
-通过 `event.subscribe` 订阅，尺寸单位为物理内容区像素。
+`webview.navigated` 在成功导航后由宿主推送；`webview.reloaded` 只在真实 reload 后触发。
+两者都不需要订阅。`window.resized` 通过 `event.subscribe` 订阅，尺寸单位为物理内容区像素。
+
+所有文件系统路径操作都执行真实路径 containment 校验。Windows 使用句柄最终路径，Android
+使用 canonical path 并禁止叶节点跟随符号链接；junction、符号链接和父目录穿越不能逃逸
+虚拟根。`app://picked` 仍通过系统文件选择器的受限授权访问。
 
 ## 新增命令
 
@@ -253,6 +266,9 @@ await KSM.shell.openExternal({ url: "https://example.com/docs" });
 
 每个请求只返回一次响应。请求 ID 必须在当前文档会话内唯一，重复 ID 返回 `BUSY`。
 `timeoutMs` 是可选整数，范围为 `1..600000`，越界返回 `INVALID_ARGS`。
+SQL 查询同样使用活动请求 ID 注册；重复 SQL request ID 返回 `BUSY`。请求取消会通过
+SQLite progress handler 或 ODBC query timeout 和 `SQLCancel` 终止活动查询，并映射为
+`CANCELLED`。
 
 | 错误码 | 使用边界 |
 | --- | --- |
@@ -272,5 +288,6 @@ await KSM.shell.openExternal({ url: "https://example.com/docs" });
 4. 确认错误码属于 `errors.json`，平台不支持时返回 `NOT_SUPPORTED`。
 5. 确认前端已初始化，并用 `KSM.get()` 读取能力缓存。
 6. 确认超过 64KiB 的文本返回 `{ file }`，且句柄仍指向 `app://tmp/`。
-7. 确认 `webview.reloaded` 由宿主系统事件触发，`window.resized` 已订阅。
+7. 确认真实 reload 才触发 `webview.reloaded`，普通导航触发 `webview.navigated`，
+   `window.resized` 已订阅。
 8. 确认下载和外部链接经过 URL、路径和 origin 白名单校验。

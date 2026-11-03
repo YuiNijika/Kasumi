@@ -153,6 +153,7 @@ object KSMGeneratedContract {
     )
 
     val events: List<String> = listOf(
+        "webview.navigated",
         "webview.reloaded",
         "window.resized"
     )

@@ -10,16 +10,26 @@ val ksmPackageName = providers.gradleProperty("ksmPackageName")
 val ksmVersion = providers.gradleProperty("ksmVersion")
     .orElse(kasumiVersion)
     .get()
-val ksmCommands = providers.gradleProperty("ksmCommands")
-    .orElse("")
-    .get()
-    .split(',')
-    .filter { it.isNotBlank() }
-val ksmCommandsLiteral = ksmCommands.joinToString(
-    prefix = "{",
-    postfix = "}",
-    separator = ", "
-) { command -> "\"$command\"" }
+fun csvProperty(name: String): List<String> =
+    providers.gradleProperty(name)
+        .orElse("")
+        .get()
+        .split(',')
+        .map { value -> value.trim() }
+        .filter { value -> value.isNotEmpty() }
+
+fun stringArrayLiteral(values: List<String>): String =
+    values.joinToString(prefix = "{", postfix = "}", separator = ", ") { value ->
+        val escaped = value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+        "\"$escaped\""
+    }
+
+val ksmCommands = csvProperty("ksmCommands")
+val ksmPermissions = csvProperty("ksmPermissions")
+val ksmShellAllowedOrigins = csvProperty("ksmShellAllowedOrigins")
+val ksmHttpAllowedOrigins = csvProperty("ksmHttpAllowedOrigins")
 val releaseKeystore = System.getenv("KASUMI_ANDROID_KEYSTORE")
     ?.takeIf { it.isNotBlank() }
     ?.let { file(it) }
@@ -43,7 +53,26 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = ksmVersion
-        buildConfigField("String[]", "KSM_COMMANDS", ksmCommandsLiteral)
+        buildConfigField(
+            "String[]",
+            "KSM_COMMANDS",
+            stringArrayLiteral(ksmCommands)
+        )
+        buildConfigField(
+            "String[]",
+            "KSM_PERMISSIONS",
+            stringArrayLiteral(ksmPermissions)
+        )
+        buildConfigField(
+            "String[]",
+            "KSM_SHELL_ALLOWED_ORIGINS",
+            stringArrayLiteral(ksmShellAllowedOrigins)
+        )
+        buildConfigField(
+            "String[]",
+            "KSM_HTTP_ALLOWED_ORIGINS",
+            stringArrayLiteral(ksmHttpAllowedOrigins)
+        )
     }
 
     signingConfigs {

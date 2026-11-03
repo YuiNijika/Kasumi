@@ -144,6 +144,7 @@ export const KSM_ANDROID_COMMANDS = [
   "app.exit"
 ] as const;
 export const KSM_EVENTS = [
+  "webview.navigated",
   "webview.reloaded",
   "window.resized"
 ] as const;

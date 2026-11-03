@@ -126,7 +126,8 @@ Json Query(
     const auto result = context.host_services->SqlQuery(
         connection_id,
         statement,
-        SqlParams(args)
+        SqlParams(args),
+        context.request_id
     );
     if (!result) {
         throw KSMHostException(
@@ -159,7 +160,8 @@ Json Execute(
     const auto result = context.host_services->SqlExecute(
         connection_id,
         statement,
-        SqlParams(args)
+        SqlParams(args),
+        context.request_id
     );
     if (!result) {
         throw KSMHostException(

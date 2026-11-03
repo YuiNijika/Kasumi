@@ -6,9 +6,18 @@
 
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
+#include <deque>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <queue>
 #include <string>
+#include <thread>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -35,6 +44,181 @@ Json RequestId(const std::string& id) {
     return id.empty() ? Json(nullptr) : Json(id);
 }
 
+class WorkerPool {
+public:
+    static WorkerPool& Instance() {
+        static WorkerPool pool;
+        return pool;
+    }
+
+    bool Submit(std::function<void()> task) {
+        {
+            std::lock_guard lock(mutex_);
+            if (stopping_) {
+                return false;
+            }
+            tasks_.push_back(std::move(task));
+        }
+        ready_.notify_one();
+        return true;
+    }
+
+private:
+    WorkerPool() {
+        const std::size_t hardware = std::thread::hardware_concurrency();
+        const std::size_t count = std::clamp<std::size_t>(
+            hardware == 0 ? 2 : hardware,
+            2,
+            16
+        );
+        for (std::size_t index = 0; index < count; ++index) {
+            workers_.emplace_back([this] { Run(); });
+        }
+    }
+
+    ~WorkerPool() {
+        {
+            std::lock_guard lock(mutex_);
+            stopping_ = true;
+        }
+        ready_.notify_all();
+        for (auto& worker : workers_) {
+            if (worker.joinable()) {
+                worker.join();
+            }
+        }
+    }
+
+    void Run() {
+        while (true) {
+            std::function<void()> task;
+            {
+                std::unique_lock lock(mutex_);
+                ready_.wait(lock, [this] {
+                    return stopping_ || !tasks_.empty();
+                });
+                if (stopping_) {
+                    return;
+                }
+                task = std::move(tasks_.front());
+                tasks_.pop_front();
+            }
+            try {
+                task();
+            } catch (...) {
+            }
+        }
+    }
+
+    std::mutex mutex_;
+    std::condition_variable ready_;
+    std::deque<std::function<void()>> tasks_;
+    std::vector<std::thread> workers_;
+    bool stopping_ = false;
+};
+
+class TimerScheduler {
+public:
+    static TimerScheduler& Instance() {
+        static TimerScheduler scheduler;
+        return scheduler;
+    }
+
+    std::uint64_t Schedule(
+        std::chrono::steady_clock::time_point at,
+        std::function<void()> callback
+    ) {
+        std::lock_guard lock(mutex_);
+        const std::uint64_t id = next_id_++;
+        deadlines_.push(TimerTask{at, id, std::move(callback)});
+        ready_.notify_one();
+        return id;
+    }
+
+    void Cancel(std::uint64_t id) {
+        if (id == 0) {
+            return;
+        }
+        {
+            std::lock_guard lock(mutex_);
+            cancelled_.insert(id);
+        }
+        ready_.notify_one();
+    }
+
+private:
+    struct TimerTask {
+        std::chrono::steady_clock::time_point at;
+        std::uint64_t id;
+        std::function<void()> callback;
+    };
+
+    struct Later {
+        bool operator()(const TimerTask& left, const TimerTask& right) const {
+            return left.at > right.at;
+        }
+    };
+
+    TimerScheduler()
+        : thread_([this] { Run(); }) {
+    }
+
+    ~TimerScheduler() {
+        {
+            std::lock_guard lock(mutex_);
+            stopping_ = true;
+        }
+        ready_.notify_all();
+        if (thread_.joinable()) {
+            thread_.join();
+        }
+    }
+
+    void Run() {
+        while (true) {
+            std::function<void()> callback;
+            {
+                std::unique_lock lock(mutex_);
+                while (true) {
+                    if (stopping_) {
+                        return;
+                    }
+                    while (
+                        !deadlines_.empty() &&
+                        cancelled_.erase(deadlines_.top().id) > 0
+                    ) {
+                        deadlines_.pop();
+                    }
+                    if (deadlines_.empty()) {
+                        ready_.wait(lock);
+                        continue;
+                    }
+                    const auto now = std::chrono::steady_clock::now();
+                    if (deadlines_.top().at > now) {
+                        ready_.wait_until(lock, deadlines_.top().at);
+                        continue;
+                    }
+                    callback = std::move(deadlines_.top().callback);
+                    deadlines_.pop();
+                    break;
+                }
+            }
+            try {
+                callback();
+            } catch (...) {
+            }
+        }
+    }
+
+    std::mutex mutex_;
+    std::condition_variable ready_;
+    std::priority_queue<TimerTask, std::vector<TimerTask>, Later> deadlines_;
+    std::unordered_set<std::uint64_t> cancelled_;
+    std::uint64_t next_id_ = 1;
+    bool stopping_ = false;
+    std::thread thread_;
+};
+
 }
 
 KSMWebViewHost::KSMWebViewHost(
@@ -44,46 +228,40 @@ KSMWebViewHost::KSMWebViewHost(
     Dispatch dispatch,
     std::vector<std::string> allowed_commands,
     bool allow_development_origin,
-    std::vector<std::shared_ptr<KSMPlugin>> plugins
+    std::vector<std::shared_ptr<KSMPlugin>> plugins,
+    std::vector<std::string> allowed_permissions
 )
     : send_message_(std::move(send_message)),
       dispatch_(std::move(dispatch)),
       router_(
           std::move(file_system),
           std::move(host_services),
-          std::move(allowed_commands),
+          allowed_commands,
+          std::move(allowed_permissions),
           std::move(plugins)
       ),
-      allow_development_origin_(allow_development_origin) {
-    for (std::size_t index = 0; index < kMaxConcurrentCommands; ++index) {
-        workers_.emplace_back([this] { WorkerLoop(); });
-    }
-    timer_thread_ = std::thread([this] { TimerLoop(); });
-}
+      allow_development_origin_(allow_development_origin) {}
 
 KSMWebViewHost::~KSMWebViewHost() {
+    std::vector<std::uint64_t> timers;
     {
         std::lock_guard lock(queue_mutex_);
         for (const auto& [id, state] : active_requests_) {
             state->completed.store(true);
             router_.CancelRequest(id);
+            timers.push_back(state->timer_id);
         }
-        stopping_ = true;
+        active_requests_.clear();
     }
-    queue_ready_.notify_all();
+    for (const std::uint64_t timer : timers) {
+        TimerScheduler::Instance().Cancel(timer);
+    }
     {
-        std::lock_guard lock(timer_mutex_);
-        timer_stopping_ = true;
-    }
-    timer_ready_.notify_all();
-    for (auto& worker : workers_) {
-        if (worker.joinable()) {
-            worker.join();
-        }
-    }
-    workers_.clear();
-    if (timer_thread_.joinable()) {
-        timer_thread_.join();
+        std::unique_lock lock(runtime_state_->mutex);
+        runtime_state_->shutting_down = true;
+        runtime_state_->idle.wait(lock, [this] {
+            return runtime_state_->active_tasks == 0;
+        });
     }
 }
 
@@ -172,25 +350,38 @@ void KSMWebViewHost::OnMessageReceived(const std::string& message) {
         );
         return;
     }
-    {
-        std::lock_guard lock(queue_mutex_);
-        tasks_.push_back([this, message, state] {
-            if (!state->completed.load()) {
-                router_.HandleMessage(
-                    message,
-                    [this, state](const std::string& response) {
-                        RespondOnce(state, response);
-                    }
-                );
+    if (!StartRuntimeTask(
+            runtime_state_,
+            [this, message, state] {
+                if (!state->completed.load()) {
+                    router_.HandleMessage(
+                        message,
+                        [this, state](const std::string& response) {
+                            RespondOnce(state, response);
+                        }
+                    );
+                }
+                UnregisterRequest(state);
+                {
+                    std::lock_guard task_lock(queue_mutex_);
+                    --in_flight_;
+                }
             }
-            UnregisterRequest(state);
-            {
-                std::lock_guard task_lock(queue_mutex_);
-                --in_flight_;
+        )) {
+        UnregisterRequest(state);
+        {
+            std::lock_guard lock(queue_mutex_);
+            --in_flight_;
+        }
+        SendError(
+            RequestId(id),
+            "BUSY",
+            "The command runtime is shutting down.",
+            [this](const std::string& response) {
+                PostResponse(response);
             }
-        });
+        );
     }
-    queue_ready_.notify_one();
 }
 
 void KSMWebViewHost::PostResponse(const std::string& message) {
@@ -223,6 +414,7 @@ void KSMWebViewHost::CancelRequest(const std::string& id) {
         }
     }
     if (state) {
+        TimerScheduler::Instance().Cancel(state->timer_id);
         router_.CancelRequest(id);
         RespondOnce(
             state,
@@ -250,41 +442,64 @@ bool KSMWebViewHost::RegisterRequest(
         }
         active_requests_[state->id] = state;
     }
-    {
-        std::lock_guard lock(timer_mutex_);
-        deadlines_.push_back(Deadline{
-            std::chrono::steady_clock::now() +
-                std::chrono::milliseconds(timeout_ms),
-            state
-        });
-    }
-    timer_ready_.notify_one();
+    state->timer_id = TimerScheduler::Instance().Schedule(
+        std::chrono::steady_clock::now() +
+            std::chrono::milliseconds(timeout_ms),
+        [this, state, runtime = runtime_state_] {
+            if (state->completed.load()) {
+                return;
+            }
+            StartRuntimeTask(
+                runtime,
+                [this, state] {
+                    if (!state->completed.load()) {
+                        router_.CancelRequest(state->id);
+                        RespondOnce(
+                            state,
+                            Json{
+                                {"type", "response"},
+                                {"id", RequestId(state->id)},
+                                {"ok", false},
+                                {"error", {
+                                    {"code", "TIMEOUT"},
+                                    {"message", "The request timed out."}
+                                }}
+                            }.dump()
+                        );
+                    }
+                }
+            );
+        }
+    );
     return true;
 }
 
 void KSMWebViewHost::ResetForNavigation() {
+    std::vector<std::uint64_t> timers;
     {
         std::lock_guard lock(queue_mutex_);
         for (const auto& [id, state] : active_requests_) {
             state->completed.store(true);
             router_.CancelRequest(id);
+            timers.push_back(state->timer_id);
         }
         active_requests_.clear();
-        std::lock_guard timer_lock(timer_mutex_);
-        deadlines_.clear();
+    }
+    for (const std::uint64_t timer : timers) {
+        TimerScheduler::Instance().Cancel(timer);
     }
 }
 
 void KSMWebViewHost::UnregisterRequest(
     const std::shared_ptr<RequestState>& state
 ) {
-    if (state->id.empty()) {
-        return;
-    }
-    std::lock_guard lock(queue_mutex_);
-    const auto iterator = active_requests_.find(state->id);
-    if (iterator != active_requests_.end() && iterator->second == state) {
-        active_requests_.erase(iterator);
+    TimerScheduler::Instance().Cancel(state->timer_id);
+    if (!state->id.empty()) {
+        std::lock_guard lock(queue_mutex_);
+        const auto iterator = active_requests_.find(state->id);
+        if (iterator != active_requests_.end() && iterator->second == state) {
+            active_requests_.erase(iterator);
+        }
     }
 }
 
@@ -299,68 +514,55 @@ void KSMWebViewHost::RespondOnce(
     PostResponse(response);
 }
 
-void KSMWebViewHost::WorkerLoop() {
-    while (true) {
-        std::function<void()> task;
-        {
-            std::unique_lock lock(queue_mutex_);
-            queue_ready_.wait(lock, [this] {
-                return stopping_ || !tasks_.empty();
-            });
-            if (stopping_) {
-                return;
-            }
-            task = std::move(tasks_.front());
-            tasks_.pop_front();
+bool KSMWebViewHost::StartRuntimeTask(
+    const std::shared_ptr<RuntimeState>& runtime,
+    std::function<void()> task
+) {
+    {
+        std::lock_guard lock(runtime->mutex);
+        if (runtime->shutting_down) {
+            return false;
         }
-        task();
+        ++runtime->active_tasks;
     }
-}
-
-void KSMWebViewHost::TimerLoop() {
-    while (true) {
-        std::shared_ptr<RequestState> expired;
-        {
-            std::unique_lock lock(timer_mutex_);
-            timer_ready_.wait(lock, [this] {
-                return timer_stopping_ || !deadlines_.empty();
-            });
-            if (timer_stopping_) {
-                return;
-            }
-            const auto next = std::min_element(
-                deadlines_.begin(),
-                deadlines_.end(),
-                [](const Deadline& left, const Deadline& right) {
-                    return left.at < right.at;
+    if (!WorkerPool::Instance().Submit(
+            [runtime, task = std::move(task)] {
+                try {
+                    task();
+                } catch (...) {
                 }
-            );
-            if (next->at > std::chrono::steady_clock::now()) {
-                timer_ready_.wait_until(lock, next->at);
-                continue;
+                FinishRuntimeTask(runtime);
             }
-            expired = next->state;
-            deadlines_.erase(next);
-        }
-        if (!expired->completed.load()) {
-            router_.CancelRequest(expired->id);
-            RespondOnce(
-                expired,
-                Json{
-                    {"type", "response"},
-                    {"id", RequestId(expired->id)},
-                    {"ok", false},
-                    {"error", {
-                        {"code", "TIMEOUT"},
-                        {"message", "The request timed out."}
-                    }}
-                }.dump()
-            );
-        }
+        )) {
+        FinishRuntimeTask(runtime);
+        return false;
+    }
+    return true;
+}
+
+void KSMWebViewHost::FinishRuntimeTask(
+    const std::shared_ptr<RuntimeState>& runtime
+) {
+    std::lock_guard lock(runtime->mutex);
+    if (runtime->active_tasks > 0) {
+        --runtime->active_tasks;
+    }
+    if (runtime->active_tasks == 0) {
+        runtime->idle.notify_all();
     }
 }
 
-void KSMWebViewHost::NotifyWebViewReloaded() {
+void KSMWebViewHost::NotifyWebViewNavigated(bool is_reload) {
+    router_.EmitSystemEvent(
+        "webview.navigated",
+        "{}",
+        [this](const std::string& response) {
+            PostResponse(response);
+        }
+    );
+    if (!is_reload) {
+        return;
+    }
     router_.EmitSystemEvent(
         "webview.reloaded",
         "{}",
@@ -368,6 +570,10 @@ void KSMWebViewHost::NotifyWebViewReloaded() {
             PostResponse(response);
         }
     );
+}
+
+void KSMWebViewHost::NotifyWebViewReloaded() {
+    NotifyWebViewNavigated(true);
 }
 
 void KSMWebViewHost::NotifyWindowResized(int width, int height) {

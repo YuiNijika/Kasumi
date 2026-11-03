@@ -44,7 +44,7 @@ SDK 与示例必须分开构建。消费者只接收静态库、公共头文件�
 
 ## 当前进度
 
-当前协议基线为 **48 个命令、2 个事件、14 个内置插件**。产品版本只维护在根目录
+当前协议基线为 **48 个命令、3 个事件、14 个内置插件**。产品版本只维护在根目录
 `version.json`。SQL 插件新增命令使用 `since: "1.2.0"`，`path`、`store`、`os` 和
 `log` 使用 `since: "1.3.0"`，命令名和参数以
 `protocol/commands.json` 为准。
@@ -116,8 +116,9 @@ Windows 专属窗口方法。`KSM.sql` 在两端都可用，实际可用驱动�
 
 ## 应用配置
 
-根目录 `kasumi.config.json` 是 Windows 和 Android 共用的应用配置入口。当前只保留平台
-包名、版本、启用命令和 Windows 标题栏开关，不引入 Tauri 的图标、权限或打包扩展字段。
+根目录 `kasumi.config.json` 是 Windows 和 Android 共用的应用配置入口。两个平台都使用
+命令与权限双白名单，并分别配置外部链接和 HTTPS 下载的精确 origin。配置不引入 Tauri
+的图标、权限插件或打包扩展字段。
 
 ```json
 {
@@ -125,13 +126,27 @@ Windows 专属窗口方法。`KSM.sql` 在两端都可用，实际可用驱动�
   "windows": {
     "packageName": "kasumi-win32-example",
     "version": "0.1.0",
-    "commands": "all",
-    "decorations": true
+    "commands": ["ping", "capabilities.query", "http.download"],
+    "permissions": ["http.download"],
+    "decorations": true,
+    "shell": {
+      "allowedOrigins": ["https://example.com"]
+    },
+    "http": {
+      "allowedOrigins": ["https://example.com"]
+    }
   },
   "android": {
     "packageName": "dev.kasumi.example",
     "version": "0.1.0",
-    "commands": "all"
+    "commands": ["ping", "capabilities.query", "device.getInfo"],
+    "permissions": ["device.info"],
+    "shell": {
+      "allowedOrigins": ["https://example.com"]
+    },
+    "http": {
+      "allowedOrigins": []
+    }
   }
 }
 ```
@@ -141,15 +156,27 @@ Windows 专属窗口方法。`KSM.sql` 在两端都可用，实际可用驱动�
 | Windows | `packageName` | EXE 版本资源中的内部名称和打包目录名 |
 | Windows | `version` | EXE 文件版本、产品版本、打包文件名和 `app.getInfo.version` |
 | Windows | `commands` | 注入 `KSM::Init` 的命令 allowlist，并过滤 `capabilities.query` |
+| Windows | `permissions` | 注入路由器的权限 allowlist；缺失或空数组表示拒绝全部权限 |
 | Windows | `decorations` | 是否显示原生标题栏，默认 `true`；`false` 使用页面自定义标题栏 |
+| Windows | `shell.allowedOrigins` | `shell.openExternal` 可打开的精确 `http` / `https` origin，默认拒绝 |
+| Windows | `http.allowedOrigins` | `http.download` 可请求的精确 `https` origin，默认拒绝 |
 | Android | `packageName` | Gradle `applicationId` 与 `adb` 启动、停止、卸载目标 |
 | Android | `version` | Gradle `versionName` 与 `app.getInfo.version` |
 | Android | `commands` | 注入 `KSMRouter` 的命令 allowlist，并过滤 `capabilities.query` |
+| Android | `permissions` | 注入 `KSMRouter` 的权限 allowlist；缺失或空数组表示拒绝全部权限 |
+| Android | `shell.allowedOrigins` | `shell.openExternal` 可打开的精确 `http` / `https` origin，默认拒绝 |
+| Android | `http.allowedOrigins` | `http.download` 可请求的精确 `https` origin，默认拒绝 |
 
 CLI 默认读取仓库根目录的 `kasumi.config.json`。其他路径通过 `--config <path>` 指定。
-`commands` 可写为 `"all"`，按当前平台协议矩阵展开全部命令；也可以写非空数组，只启用
-显式列出的命令。`build`、`test`、`package` 和 `dev` 都会先校验配置。缺失字段、未知字段、
-重复命令、空数组、未知命令、跨平台命令、非法 Android 包名或非 SemVer 版本会直接失败。
+`commands` 和 `permissions` 都可写为显式 `"all"`，按当前平台协议矩阵展开；也可以写数组。
+命令必须是非空数组，权限数组可以为空。命令和权限任一缺失、为空或未列入时都按拒绝处理，
+不会回退到全开。`build`、`test`、`package` 和 `dev` 都会先校验配置。未知字段、重复项、
+未知命令、跨平台命令、未知权限、非法 origin、非法 Android 包名或非 SemVer 版本会直接失败。
+
+`permission.request` 只报告或请求已经由 `permissions` 配置的权限，不会动态扩大静态能力集合。
+Android 系统运行时权限仍由系统对话框决定；未配置的权限直接返回 `{ "granted": false }`。
+`capabilities.query` 只返回命令、权限和插件都实际启用的能力；命令已启用但权限缺失时，
+命令调用返回 `PERMISSION_DENIED`。
 数组模式仍要求包含 `ping` 与 `capabilities.query`。
 
 `windows.decorations: false` 只移除系统标题栏，不创建窗口控件。应用需要通过
@@ -335,12 +362,18 @@ await KSM.window.setSize({ width: 960, height: 720 });
 
 - `KSMWindowsHostServices` 提供 WinHTTP 下载、`ShellExecuteW` 外部链接和 Win32 窗口尺寸服务。
 - `KSMWebView2Host` 负责窗口级 WebView2 Environment、共享内嵌或外置资源响应、消息来源校验、导航与新窗口拦截。
-- `KSMWebView2View` 持有独立子 `HWND`、路由器、宿主服务、请求队列、超时计时器、尺寸、可见性和焦点。
+- `KSMWebView2View` 持有独立子 `HWND`、路由器、宿主服务、请求状态、尺寸、可见性和焦点。
+- 命令任务使用进程级有界共享线程池，超时使用单一 timer scheduler；关闭一个 View 不会遗留
+  独立 worker 或计时器线程。
 - 每个 View 分配单调递增且不复用的 `windowId`；关闭一个 View 不影响同一顶层窗口的其他 View。
 - 同一 View 的活动请求 ID 必须唯一；重复 ID 在进入队列前返回 `BUSY`。新文档开始或
   View 关闭时静默取消旧请求、清理计时器并抑制迟到响应。
 - 每个下载请求 ID 在创建 `.part` 文件前原子占用；重复下载返回 `BUSY`，取消后释放。
 - Store 的完整读改写由进程级锁串行化，避免同窗口多个 View 覆盖 `store.json`。
+- 文件系统对根目录、父目录和目标执行真实路径 containment 校验，junction 和符号链接不能
+  逃逸可写沙箱；picked 文件仍通过系统选择器授予的受限句柄访问。
+- SQLite 使用 progress handler，ODBC 使用查询超时和 `SQLCancel`；请求取消会终止活动查询，
+  重复 SQL request ID 返回 `BUSY`。
 - `Initialize()` 保留单视图兼容入口；`InitializeSession()` 加 `CreateView()` 支持标签页、分屏和浏览器式多实例布局。
 - `CreateView()` 和 `SetBounds()` 在夹取前拒绝无面积边界，避免零尺寸输入被转换成 `1×1`。
 - `--multi-view` 将 `KASUMI_EXAMPLE_MULTI_VIEW` 设为 `ON`，普通启动直接加载
@@ -372,6 +405,10 @@ await KSM.window.setSize({ width: 960, height: 720 });
 - `KSMWebViewRuntime` 在后台暂停 WebView 定时器，低内存时清理内存缓存并调用 `freeMemory`，不删除磁盘缓存。
 - 定时器暂停和恢复使用进程级租约计数，单个 WebView 的生命周期不会恢复其他窗口已暂停的
   WebView。
+- 命令任务使用 8 个专用 worker 和 32 个排队槽位的执行器；取消只终止当前 Job 和活动连接，
+  不调用共享 `Dispatchers.IO` 线程的 interrupt。
+- SQLite 使用 `CancellationSignal` 响应请求取消；文件系统对可写根和目标执行 canonical
+  containment 校验，禁止叶节点和父目录通过符号链接逃逸。
 - Android O 及以上允许系统在 WebView 不可见时 waive 渲染进程优先级，降低后台内存驻留。
 - `KSMWebViewHost` 默认全屏，移除 ActionBar 并隐藏状态栏、导航栏；Activity 使用 `Theme.Kasumi.Fullscreen`，焦点恢复后重新进入沉浸模式。
 - `onTrimMemory` 只取消当前 `windowId` 的活动下载；`onDestroy` 会移除消息监听和布局监听、
@@ -400,7 +437,13 @@ await KSM.window.setSize({ width: 960, height: 720 });
 | `pnpm ksm test --all --target sdk` | 双端契约、配置校验、allowlist、JVM 测试和示例 smoke test 通过 |
 | Android WebView 全屏与内存优化 | SDK、维护者宿主、instrumentation 测试源码和独立示例 Kotlin 编译通过，JVM 测试通过 |
 | `pnpm test` | 协议、TypeScript、契约、Python、Windows CTest 与 smoke test、Android release/JVM/instrumentation 编译全部通过 |
-| `pnpm test:packages` | 53 个包测试通过，覆盖初始化、框架模板、SDK 双平台事务安装与回滚、ZIP 打包、Doctor、Gradle Wrapper、协议命令矩阵、插件入口和 `decorations` 配置 |
+| `pnpm test:packages` | 59 个包测试通过，覆盖初始化、框架模板、SDK 双平台事务安装与回滚、ZIP 安全解压、Doctor、Gradle Wrapper、协议命令矩阵、插件入口、fail-closed 权限和 origin 规范化 |
+| `TestCapabilityPermissionFilter` 与 `capabilityPermissionFilter` | Windows 与 Android 验证命令已启用但权限未配置时 `capabilities.query` 不暴露该命令和插件，调用仍返回 `PERMISSION_DENIED`；配置权限后能力恢复 |
+| Windows 全量验证 | `pnpm ksm test --windows --target sdk` 合约测试 33 项、CTest 1 项、example 双 WebView smoke 2 项全部通过 |
+| Android 全量验证 | `pnpm ksm test --android --target sdk` 完成 Release SDK、JVM 单元测试、instrumentation 编译与示例 Debug APK 构建 |
+| 生成项目开发热启动 | 二次 `ksm dev` 跳过前端生产构建、CMake configure 和 vcpkg 安装，直接执行 Ninja 增量构建并启动宿主 |
+| 生成项目开发进程清理 | `.ksm/dev/state.json`、项目端口和 Windows 宿主路径共同识别遗留进程，避免 `5173` 占用与 EXE 文件锁 |
+| 新版模板开发构建 | 无 `frontend/dist/index.html` 仍可配置和链接；第二次配置只输出 `ninja: no work to do` |
 | `pnpm build:bridge` | `kasumi-bridge` 生成 ESM 与 TypeScript 声明 |
 | React / Vue 模板构建 | TypeScript 检查与 Vite 生产构建通过，输出到 `frontend/dist/` |
 | Next.js 模板构建 | App Router 静态导出通过，CLI 将 `frontend/out/` 同步到 `frontend/dist/` |
@@ -685,7 +728,8 @@ gradle -p android :kasumi:assembleRelease :kasumi:publishReleasePublicationToLoc
 - 文件选择器返回 `app://picked/<id>`，不向前端暴露真实路径或 `content://` URI。
 - 路径先拒绝危险输入，再做虚拟根解析；不得先规范化再放行。
 - 单条 JSON 消息限制为 64KB，单文件读写限制为 16MB。
-- 下载目标只允许可写沙箱，外部链接必须通过精确 origin 白名单。
+- 下载目标只允许可写沙箱，下载与外部链接都必须通过默认拒绝的精确 origin 白名单。
+- 命令和权限分别使用 allowlist；空集合表示拒绝，只有显式 `"all"` 才开放全部能力。
 - Android 不使用 `addJavascriptInterface`，保持 CSP、导航拦截和 `window.open` 拦截。
 - Windows 生产环境关闭 DevTools，并校验 WebView2 消息来源。
 
@@ -697,7 +741,8 @@ gradle -p android :kasumi:assembleRelease :kasumi:publishReleasePublicationToLoc
 4. 确认请求经过参数校验、权限校验和路径守卫。
 5. 确认每个请求只返回一次响应，超时和取消会中止宿主任务。
 6. 确认 WebView 回调回到 UI 线程或主线程，且销毁后不再投递迟到响应。
-7. 确认事件来源是当前窗口；`webview.reloaded` 是系统事件，`window.resized` 需要订阅。
+7. 确认事件来源是当前窗口；`webview.navigated` 在成功导航后触发，`webview.reloaded`
+   只在真实 reload 后触发，`window.resized` 需要订阅。
 8. 下载失败时检查 URL scheme、重定向、目标是否存在、`.part` 清理和宿主取消链路。
 9. 外部链接失败时检查 origin 白名单、端口、scheme 和系统是否安装浏览器处理器。
 
@@ -713,6 +758,22 @@ gradle -p android :kasumi:assembleRelease :kasumi:publishReleasePublicationToLoc
 视为生效；未在公网正文确认前只能视为草稿。`kasumi/configuration` 说明应用配置与
 框架版本元数据的边界，API 页面按模块维护。
 
-同步流程固定为：先用 `docs-rev.py pull` 拉取原文，再用本地编辑器修改，执行
-`push --dry-run` 检查 diff，确认后推送修订，最后重新拉取或读取线上原文确认内容已生效。
+Agent skill 的本地镜像位于 `docs/skill/kasumi/framework.mdx` 和
+`docs/skill/kasumi/app.mdx`。线上 `/docs/skill/kasumi/*.mdx` 仍是事实来源；本地镜像
+缺失时直接读取线上 `.mdx`。
+
+同步统一使用仓库内工具：
+
+```bash
+pnpm ksm docs list --paths
+pnpm ksm docs pull kasumi/development
+pnpm ksm docs push .tmp/kasumi-docs/kasumi/development.md --path kasumi/development --note "同步开发状态" --dry-run
+pnpm ksm docs push .tmp/kasumi-docs/kasumi/development.md --path kasumi/development --note "同步开发状态" --yes
+pnpm ksm docs status
+```
+
+工具只允许 `kasumi` 分区，拉取和提交文件必须位于 `.tmp/kasumi-docs/`，单篇上限
+4 MiB。正式提交必须提供 `--note`，提交前必须先检查 `--dry-run` 的 diff。凭据只从
+`MIOMOE_AGENT_BASE_URL`、`MIOMOE_AGENT_KEY` 或 `--env` 指定的文件读取，不得写入
+仓库。提交返回的修订需要审核；审核通过后再次 `pull`，确认公网内容已经生效。
 未确认生效的页面不得写成已上线。

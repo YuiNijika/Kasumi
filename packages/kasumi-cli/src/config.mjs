@@ -11,6 +11,7 @@ const SEMVER_PATTERN =
 const WINDOWS_PACKAGE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const ANDROID_PACKAGE_PATTERN = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
 const COMMAND_PATTERN = /^[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$/;
+const PERMISSION_PATTERN = COMMAND_PATTERN;
 
 export class ConfigError extends Error {
   constructor(message) {
@@ -46,13 +47,15 @@ export async function readConfig(projectRoot, configPath) {
       'configuration.windows',
       WINDOWS_PACKAGE_PATTERN,
       commandData.windows,
+      commandData.permissions,
       true
     ),
     android: parsePlatform(
       payload.android,
       'configuration.android',
       ANDROID_PACKAGE_PATTERN,
-      commandData.android
+      commandData.android,
+      commandData.permissions
     )
   };
 }
@@ -62,12 +65,20 @@ function parsePlatform(
   location,
   packagePattern,
   availableCommands,
+  availablePermissions,
   allowDecorations = false
 ) {
   if (!isObject(value)) {
     throw new ConfigError(`${location} must be an object.`);
   }
-  const allowedFields = new Set(['packageName', 'version', 'commands']);
+  const allowedFields = new Set([
+    'packageName',
+    'version',
+    'commands',
+    'permissions',
+    'shell',
+    'http'
+  ]);
   if (allowDecorations) {
     allowedFields.add('decorations');
   }
@@ -91,6 +102,13 @@ function parsePlatform(
     throw new ConfigError(`${location}.decorations must be a boolean.`);
   }
   const commands = parseCommands(value.commands, location, availableCommands);
+  const permissions = parseRules(
+    value.permissions,
+    `${location}.permissions`,
+    availablePermissions,
+    PERMISSION_PATTERN,
+    false
+  );
   const seen = new Set(commands);
   for (const required of ['ping', 'capabilities.query']) {
     if (!seen.has(required)) {
@@ -100,7 +118,22 @@ function parsePlatform(
   const result = {
     packageName: value.packageName,
     version: value.version,
-    commands
+    commands,
+    permissions,
+    shell: {
+      allowedOrigins: parseOrigins(
+        value.shell,
+        `${location}.shell`,
+        new Set(['http:', 'https:'])
+      )
+    },
+    http: {
+      allowedOrigins: parseOrigins(
+        value.http,
+        `${location}.http`,
+        new Set(['https:'])
+      )
+    }
   };
   if (allowDecorations) {
     result.decorations = value.decorations ?? true;
@@ -108,31 +141,85 @@ function parsePlatform(
   return result;
 }
 
-function parseCommands(value, location, availableCommands) {
+function parseRules(value, location, available, pattern, requireNonEmpty) {
   if (value === 'all') {
-    return [...availableCommands];
+    return [...available];
   }
-  if (!Array.isArray(value) || value.length === 0) {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value) || (requireNonEmpty && value.length === 0)) {
     throw new ConfigError(
-      `${location}.commands must be "all" or a non-empty array.`
+      `${location} must be "all" or ${requireNonEmpty ? 'a non-empty array' : 'an array'}.`
     );
   }
   const seen = new Set();
-  for (const [index, command] of value.entries()) {
-    if (typeof command !== 'string' || !COMMAND_PATTERN.test(command)) {
-      throw new ConfigError(`${location}.commands[${index}] has an invalid format.`);
+  for (const [index, entry] of value.entries()) {
+    if (typeof entry !== 'string' || !pattern.test(entry)) {
+      throw new ConfigError(`${location}[${index}] has an invalid format.`);
     }
-    if (seen.has(command)) {
-      throw new ConfigError(`${location}.commands contains a duplicate: ${command}.`);
+    if (seen.has(entry)) {
+      throw new ConfigError(`${location} contains a duplicate: ${entry}.`);
     }
-    if (!availableCommands.includes(command)) {
-      throw new ConfigError(
-        `${location}.commands contains a command that is not available on this platform: ${command}.`
-      );
+    if (!available.includes(entry)) {
+      throw new ConfigError(`${location} contains an unknown value: ${entry}.`);
     }
-    seen.add(command);
+    seen.add(entry);
   }
   return [...value];
+}
+
+function parseCommands(value, location, availableCommands) {
+  return parseRules(
+    value,
+    `${location}.commands`,
+    availableCommands,
+    COMMAND_PATTERN,
+    true
+  );
+}
+
+function parseOrigins(value, location, protocols) {
+  if (value === undefined) {
+    return [];
+  }
+  if (!isObject(value)) {
+    throw new ConfigError(`${location} must be an object.`);
+  }
+  rejectUnknown(value, new Set(['allowedOrigins']), location);
+  const origins = value.allowedOrigins ?? [];
+  if (!Array.isArray(origins)) {
+    throw new ConfigError(`${location}.allowedOrigins must be an array.`);
+  }
+  const normalized = [];
+  for (const [index, origin] of origins.entries()) {
+    if (typeof origin !== 'string' || origin.trim() !== origin || origin === '') {
+      throw new ConfigError(`${location}.allowedOrigins[${index}] is invalid.`);
+    }
+    let parsed;
+    try {
+      parsed = new URL(origin);
+    } catch {
+      throw new ConfigError(`${location}.allowedOrigins[${index}] is invalid.`);
+    }
+    if (
+      !protocols.has(parsed.protocol) ||
+      parsed.username ||
+      parsed.password ||
+      parsed.pathname !== '/' ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      throw new ConfigError(`${location}.allowedOrigins[${index}] is invalid.`);
+    }
+    if (normalized.includes(parsed.origin)) {
+      throw new ConfigError(
+        `${location}.allowedOrigins contains a duplicate origin: ${parsed.origin}.`
+      );
+    }
+    normalized.push(parsed.origin);
+  }
+  return normalized;
 }
 
 function rejectUnknown(value, allowed, location) {

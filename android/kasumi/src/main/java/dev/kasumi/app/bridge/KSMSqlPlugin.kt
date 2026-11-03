@@ -33,8 +33,8 @@ class KSMSqlPlugin : KSMPlugin {
             "sql.drivers" -> JSONObject()
                 .put("drivers", JSONArray(host.sqlDrivers()))
             "sql.open" -> open(host, args)
-            "sql.query" -> query(host, args)
-            "sql.execute" -> execute(host, args)
+            "sql.query" -> query(host, args, context.requestId)
+            "sql.execute" -> execute(host, args, context.requestId)
             else -> close(host, args)
         }
     }
@@ -55,14 +55,16 @@ class KSMSqlPlugin : KSMPlugin {
 
     private fun query(
         host: KSMHostServices,
-        args: JSONObject
+        args: JSONObject,
+        requestId: String?
     ): JSONObject {
         val connectionId = requiredString(args, "connectionId")
         val statement = requiredString(args, "statement")
         val result = host.sqlQuery(
             connectionId,
             statement,
-            params(args)
+            params(args),
+            requestId
         ) ?: throw KSMHostException(
             "IO_ERROR",
             "The SQL query could not be completed."
@@ -85,14 +87,16 @@ class KSMSqlPlugin : KSMPlugin {
 
     private fun execute(
         host: KSMHostServices,
-        args: JSONObject
+        args: JSONObject,
+        requestId: String?
     ): JSONObject {
         val connectionId = requiredString(args, "connectionId")
         val statement = requiredString(args, "statement")
         val result = host.sqlExecute(
             connectionId,
             statement,
-            params(args)
+            params(args),
+            requestId
         ) ?: throw KSMHostException(
             "IO_ERROR",
             "The SQL statement could not be executed."

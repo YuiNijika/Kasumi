@@ -10,7 +10,7 @@ std::vector<std::string> KSMCommandRegistry::SupportedCommands(
 ) {
     const auto& platform_commands = KSMGeneratedContract::WindowsCommands();
     if (requested.empty()) {
-        return platform_commands;
+        return {};
     }
     const std::set<std::string> allowed(requested.begin(), requested.end());
     std::vector<std::string> result;

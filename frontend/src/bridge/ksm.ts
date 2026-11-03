@@ -65,6 +65,8 @@ export class KSM {
   private static cachedCapabilities: KSMCapabilities | undefined;
   private static capabilitiesPromise: Promise<KSMCapabilities> | undefined;
   private static readonly eventListenerCounts = new Map<string, number>();
+  private static readonly subscriptionSyncs = new Map<string, Promise<void>>();
+  private static bridgeGeneration = 0;
   public static readonly app: KSMAppApi = {
     getInfo: (): Promise<KSMAppInfo> => KSM.getInfo(),
     exit: (): Promise<{ exited: boolean }> => KSM.invoke('app.exit', {})
@@ -257,18 +259,11 @@ export class KSM {
       const unsubscribe = bus.on(event, listener);
       const count = (KSM.eventListenerCounts.get(event) ?? 0) + 1;
       KSM.eventListenerCounts.set(event, count);
-      if (count === 1) {
-        void KSM.subscribe(event).catch(() => {
-          unsubscribe();
-          KSM.releaseEventListenerCount(event);
-        });
-      }
+      KSM.queueSubscriptionSync(event);
       return (): void => {
         unsubscribe();
-        const next = KSM.releaseEventListenerCount(event);
-        if (next === 0) {
-          void KSM.unsubscribe(event).catch(() => {});
-        }
+        KSM.releaseEventListenerCount(event);
+        KSM.queueSubscriptionSync(event);
       };
     }
   };
@@ -283,8 +278,10 @@ export class KSM {
 
   public static initialize(transport?: KSMTransport): void {
     const resolvedTransport = transport ?? new KSMWebMessageTransport();
-    KSM.bus?.dispose();
+    KSM.disposeBus(KSM.bus);
+    KSM.bridgeGeneration += 1;
     KSM.eventListenerCounts.clear();
+    KSM.subscriptionSyncs.clear();
     KSM.cachedCapabilities = undefined;
     KSM.capabilitiesPromise = undefined;
     KSM.bus = new KSMBus(resolvedTransport);
@@ -294,11 +291,13 @@ export class KSM {
   }
 
   public static dispose(): void {
-    KSM.bus?.dispose();
+    KSM.disposeBus(KSM.bus);
+    KSM.bridgeGeneration += 1;
     KSM.bus = undefined;
     KSM.cachedCapabilities = undefined;
     KSM.capabilitiesPromise = undefined;
     KSM.eventListenerCounts.clear();
+    KSM.subscriptionSyncs.clear();
   }
 
   public static shutdown(): void {
@@ -410,6 +409,58 @@ export class KSM {
     for (const event of subscriptions) {
       await bus.invoke('event.subscribe', { event });
     }
+  }
+
+  private static queueSubscriptionSync(event: string): void {
+    const generation = KSM.bridgeGeneration;
+    const previous = KSM.subscriptionSyncs.get(event) ?? Promise.resolve();
+    const next = previous
+      .catch(() => {})
+      .then(async () => {
+        if (generation !== KSM.bridgeGeneration) {
+          return;
+        }
+        const bus = KSM.requireBus();
+        const desired = KSM.eventListenerCounts.get(event) ?? 0;
+        const tracked = bus.trackedSubscriptions().includes(event);
+        if (desired > 0 && !tracked) {
+          await bus.invoke('event.subscribe', { event });
+          bus.trackSubscription(event);
+        } else if (desired === 0 && tracked) {
+          await bus.invoke('event.unsubscribe', { event });
+          bus.untrackSubscription(event);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error(`Kasumi could not synchronize ${event}.`, error);
+      });
+    KSM.subscriptionSyncs.set(event, next);
+    void next.finally(() => {
+      if (KSM.subscriptionSyncs.get(event) === next) {
+        KSM.subscriptionSyncs.delete(event);
+      }
+    });
+  }
+
+  private static disposeBus(bus: KSMBus | undefined): void {
+    if (!bus) {
+      return;
+    }
+    if (KSM.bus === bus) {
+      KSM.bus = undefined;
+    }
+    const subscriptions = bus.trackedSubscriptions();
+    if (subscriptions.length === 0) {
+      bus.dispose();
+      return;
+    }
+    void Promise.allSettled(
+      subscriptions.map((event) =>
+        bus.invoke('event.unsubscribe', { event })
+      )
+    ).finally(() => {
+      bus.dispose();
+    });
   }
 
   private static releaseEventListenerCount(event: string): number {

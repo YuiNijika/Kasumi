@@ -33,6 +33,7 @@ public:
 
   std::optional<std::string> ReadText(const std::string &path) const;
   bool WriteText(const std::string &path, const std::string &content) const;
+  bool WriteTextAtomic(const std::string &path, const std::string &content) const;
   bool Exists(const std::string &path) const;
   bool Remove(const std::string &path) const;
   std::optional<std::vector<KSMDirectoryEntry>>
@@ -57,6 +58,7 @@ private:
   std::optional<std::vector<KSMDirectoryEntry>>
   ReadBundledDirectory(const std::string &path) const;
   std::optional<KSMFileMetadata> StatBundled(const std::string &path) const;
+  void PruneTemporaryText(std::size_t incoming_bytes) const;
 
   std::filesystem::path data_root_;
   std::filesystem::path cache_root_;

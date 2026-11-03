@@ -16,11 +16,17 @@ import {
   startFrontendServer
 } from './frontend.mjs';
 import {
+  beginDevelopmentSession,
+  cleanupStaleDevelopment,
+  recordDevelopmentProcess
+} from './dev-runtime.mjs';
+import {
   buildWindows,
   findCMake,
   findVcpkgToolchain,
   packageWindows,
-  runWindowsDevelopment
+  runWindowsDevelopment,
+  supportsWindowsDevMode
 } from './windows.mjs';
 import {
   exists,
@@ -53,17 +59,65 @@ export async function run(argv) {
     if (options.platforms.size !== 1) {
       throw new Error('dev requires exactly one platform.');
     }
-    await buildFrontend(projectRoot);
+    await beginDevelopmentSession(projectRoot);
     const server = await startFrontendServer(projectRoot);
+    await recordDevelopmentProcess(
+      projectRoot,
+      'frontend',
+      server.child.pid
+    );
+    let isCleaned = false;
+    const cleanup = async () => {
+      if (isCleaned) {
+        return;
+      }
+      isCleaned = true;
+      server.stop();
+      await cleanupStaleDevelopment(projectRoot);
+    };
+    const cleanupOnSignal = () => {
+      void cleanup();
+    };
+    process.once('SIGINT', cleanupOnSignal);
+    process.once('SIGTERM', cleanupOnSignal);
     try {
       if (options.platforms.has('windows')) {
-        await buildWindows(projectRoot, config.windows, options);
-        await runWindowsDevelopment(projectRoot, config.windows, server);
+        const hasWindowsDevMode = await supportsWindowsDevMode(projectRoot);
+        const hasFrontendBuild = await exists(
+          path.join(projectRoot, 'frontend', 'dist', 'index.html')
+        );
+        if (!hasWindowsDevMode && !hasFrontendBuild) {
+          await buildFrontend(projectRoot);
+        }
+        await buildWindows(projectRoot, config.windows, {
+          ...options,
+          devMode: true
+        });
+        await runWindowsDevelopment(
+          projectRoot,
+          config.windows,
+          server,
+          {
+            onSpawn(child) {
+              void recordDevelopmentProcess(
+                projectRoot,
+                'app',
+                child.pid
+              ).catch((error) => {
+                console.error(
+                  `Could not track the development app: ${error.message}`
+                );
+              });
+            }
+          }
+        );
       } else {
         await runAndroidDevelopment(projectRoot, config.android, server);
       }
     } finally {
-      server.stop();
+      process.removeListener('SIGINT', cleanupOnSignal);
+      process.removeListener('SIGTERM', cleanupOnSignal);
+      await cleanup();
     }
     return;
   }

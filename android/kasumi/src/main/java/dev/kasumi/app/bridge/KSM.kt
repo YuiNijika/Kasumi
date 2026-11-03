@@ -274,8 +274,8 @@ object KSM {
     private fun capabilitiesFor(router: KSMRouter): KSMCapabilities {
         return KSMCapabilities(
             platform = KSMPlatform.ANDROID,
-            commands = router.supportedCommands,
-            permissions = KSMCommandRegistry.permissions,
+            commands = router.capabilityCommands,
+            permissions = router.grantedPermissionNames,
             plugins = router.supportedPlugins
         )
     }

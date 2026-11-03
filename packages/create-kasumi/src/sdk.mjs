@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
 import {
   lstat,
   mkdir,
   mkdtemp,
+  open,
   readFile,
   readdir,
   rename,
@@ -14,7 +15,7 @@ import {
 import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { spawnSync } from 'node:child_process';
+import { createInflateRaw } from 'node:zlib';
 
 const DEFAULT_REPOSITORY = 'YuiNijika/Kasumi';
 const MANIFEST_NAME = 'kasumi-release.json';
@@ -23,6 +24,9 @@ const MAX_ASSET_BYTES = 512 * 1024 * 1024;
 const MANIFEST_TIMEOUT_MS = 30_000;
 const ASSET_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_REDIRECTS = 5;
+const MAX_ARCHIVE_ENTRIES = 10_000;
+const MAX_EXTRACTED_BYTES = 1024 * 1024 * 1024;
+const MAX_COMPRESSION_RATIO = 500;
 
 export async function installSdk({
   projectDirectory,
@@ -385,69 +389,104 @@ function isLoopbackHost(hostname) {
 }
 
 async function extractZip(archive, destination) {
-  const entries = await inspectZipEntries(archive);
-  validateArchiveEntries(entries);
-  const commands = process.platform === 'win32'
-    ? [
-        ['tar', ['-xf', archive, '-C', destination]],
-        [
-          'powershell.exe',
-          [
-            '-NoProfile',
-            '-NonInteractive',
-            '-Command',
-            `Expand-Archive -LiteralPath '${escapePowerShell(archive)}' -DestinationPath '${escapePowerShell(destination)}' -Force`
-          ]
-        ]
-      ]
-    : [
-        ['unzip', ['-q', archive, '-d', destination]],
-        ['tar', ['-xf', archive, '-C', destination]]
-      ];
-  let lastError;
-  for (const [command, args] of commands) {
-    const result = spawnSync(command, args, { stdio: 'ignore' });
-    if (result.status === 0) {
-      return;
+  const handle = await open(archive, 'r');
+  try {
+    const entries = await inspectZipEntries(handle, archive);
+    const root = path.resolve(destination);
+    for (const entry of entries) {
+      const target = path.resolve(root, entry.name);
+      if (target !== root && !target.startsWith(`${root}${path.sep}`)) {
+        throw new Error(`Archive contains an unsafe path: ${entry.name}`);
+      }
+      if (entry.isDirectory) {
+        await mkdir(target, { recursive: true });
+        continue;
+      }
+      await mkdir(path.dirname(target), { recursive: true });
+      if (entry.compressedSize === 0 && entry.uncompressedSize === 0) {
+        const empty = await open(target, 'wx');
+        await empty.close();
+        continue;
+      }
+      const source = createReadStream(archive, {
+        start: entry.dataOffset,
+        end: entry.dataOffset + entry.compressedSize - 1
+      });
+      const guard = archiveEntryGuard(entry);
+      const output = createWriteStream(target, { flags: 'wx' });
+      if (entry.method === 0) {
+        await pipeline(source, guard, output);
+      } else if (entry.method === 8) {
+        await pipeline(source, createInflateRaw(), guard, output);
+      }
     }
-    lastError =
-      result.error ?? new Error(`${command} exited with ${result.status}`);
+  } finally {
+    await handle.close();
   }
-  throw new Error(`Unable to extract ${path.basename(archive)}: ${lastError}`);
 }
 
-async function inspectZipEntries(archive) {
-  const content = await readFile(archive);
-  const endOffset = findEndOfCentralDirectory(content);
-  if (endOffset === -1) {
+async function inspectZipEntries(handle, archive) {
+  const archiveSize = (await handle.stat()).size;
+  const tailLength = Math.min(archiveSize, 0xffff + 22);
+  const tail = Buffer.alloc(tailLength);
+  await handle.read(tail, 0, tailLength, archiveSize - tailLength);
+  const endOffset = findEndOfCentralDirectory(tail);
+  if (endOffset === -1 || tail.readUInt32LE(endOffset) !== 0x06054b50) {
     throw new Error(`Unable to inspect ${path.basename(archive)}.`);
   }
-  const entryCount = content.readUInt16LE(endOffset + 10);
-  const centralOffset = content.readUInt32LE(endOffset + 16);
-  if (entryCount === 0xffff || centralOffset === 0xffffffff) {
+  const entryCount = tail.readUInt16LE(endOffset + 10);
+  const centralSize = tail.readUInt32LE(endOffset + 12);
+  const centralOffset = tail.readUInt32LE(endOffset + 16);
+  if (
+    entryCount === 0xffff ||
+    centralOffset === 0xffffffff ||
+    centralSize === 0xffffffff
+  ) {
     throw new Error(`ZIP64 SDK archives are not supported: ${path.basename(archive)}`);
   }
+  if (entryCount > MAX_ARCHIVE_ENTRIES) {
+    throw new Error(`Archive contains too many entries: ${path.basename(archive)}`);
+  }
+  if (
+    centralOffset > archiveSize ||
+    centralSize > archiveSize ||
+    centralOffset + centralSize > archiveSize
+  ) {
+    throw new Error(`Invalid ZIP central directory in ${path.basename(archive)}.`);
+  }
+  const content = Buffer.alloc(centralSize);
+  await handle.read(content, 0, centralSize, centralOffset);
   let offset = centralOffset;
   const entries = [];
+  let extractedBytes = 0;
   for (let index = 0; index < entryCount; index += 1) {
+    const relativeOffset = offset - centralOffset;
     if (
-      offset + 46 > content.length ||
-      content.readUInt32LE(offset) !== 0x02014b50
+      relativeOffset + 46 > content.length ||
+      content.readUInt32LE(relativeOffset) !== 0x02014b50
     ) {
       throw new Error(`Invalid ZIP central directory in ${path.basename(archive)}.`);
     }
-    const flags = content.readUInt16LE(offset + 8);
-    const nameLength = content.readUInt16LE(offset + 28);
-    const extraLength = content.readUInt16LE(offset + 30);
-    const commentLength = content.readUInt16LE(offset + 32);
-    const madeBy = content.readUInt16LE(offset + 4);
-    const externalAttributes = content.readUInt32LE(offset + 38);
-    const nameStart = offset + 46;
+    const flags = content.readUInt16LE(relativeOffset + 8);
+    const method = content.readUInt16LE(relativeOffset + 10);
+    const crc = content.readUInt32LE(relativeOffset + 16);
+    const compressedSize = content.readUInt32LE(relativeOffset + 20);
+    const uncompressedSize = content.readUInt32LE(relativeOffset + 24);
+    const nameLength = content.readUInt16LE(relativeOffset + 28);
+    const extraLength = content.readUInt16LE(relativeOffset + 30);
+    const commentLength = content.readUInt16LE(relativeOffset + 32);
+    const madeBy = content.readUInt16LE(relativeOffset + 4);
+    const externalAttributes = content.readUInt32LE(relativeOffset + 38);
+    const localOffset = content.readUInt32LE(relativeOffset + 42);
+    const nameStart = relativeOffset + 46;
     const nameEnd = nameStart + nameLength;
     if (nameEnd > content.length) {
       throw new Error(`Invalid ZIP entry name in ${path.basename(archive)}.`);
     }
     const name = content.subarray(nameStart, nameEnd).toString('utf8');
+    if (!isSafeArchivePath(name)) {
+      throw new Error(`Archive contains an unsafe path: ${name}`);
+    }
     const unixMode = externalAttributes >>> 16;
     if (
       (madeBy >>> 8) === 3 &&
@@ -458,8 +497,57 @@ async function inspectZipEntries(archive) {
     if ((flags & 0x1) !== 0) {
       throw new Error(`Archive contains an encrypted entry: ${name}`);
     }
-    entries.push(name);
-    offset = nameEnd + extraLength + commentLength;
+    if (method !== 0 && method !== 8) {
+      throw new Error(`Archive entry uses unsupported compression: ${name}`);
+    }
+    if (compressedSize === 0xffffffff || uncompressedSize === 0xffffffff) {
+      throw new Error(`ZIP64 entries are not supported: ${name}`);
+    }
+    if (
+      uncompressedSize > MAX_EXTRACTED_BYTES ||
+      extractedBytes > MAX_EXTRACTED_BYTES - uncompressedSize
+    ) {
+      throw new Error(`Archive expands beyond the size limit: ${name}`);
+    }
+    if (
+      uncompressedSize > 0 &&
+      (compressedSize === 0 ||
+        uncompressedSize / compressedSize > MAX_COMPRESSION_RATIO)
+    ) {
+      throw new Error(`Archive entry exceeds the compression ratio limit: ${name}`);
+    }
+    extractedBytes += uncompressedSize;
+    const localHeader = Buffer.alloc(30);
+    if (
+      localOffset > archiveSize ||
+      localOffset + localHeader.length > archiveSize
+    ) {
+      throw new Error(`Invalid ZIP local header: ${name}`);
+    }
+    await handle.read(localHeader, 0, localHeader.length, localOffset);
+    if (localHeader.readUInt32LE(0) !== 0x04034b50) {
+      throw new Error(`Invalid ZIP local header: ${name}`);
+    }
+    const localNameLength = localHeader.readUInt16LE(26);
+    const localExtraLength = localHeader.readUInt16LE(28);
+    const dataOffset =
+      localOffset + localHeader.length + localNameLength + localExtraLength;
+    if (
+      dataOffset > archiveSize ||
+      compressedSize > archiveSize - dataOffset
+    ) {
+      throw new Error(`Invalid ZIP entry data: ${name}`);
+    }
+    entries.push({
+      name: name.replaceAll('\\', '/'),
+      isDirectory: name.endsWith('/'),
+      method,
+      crc,
+      compressedSize,
+      uncompressedSize,
+      dataOffset
+    });
+    offset = centralOffset + nameEnd + extraLength + commentLength;
   }
   return entries;
 }
@@ -474,19 +562,52 @@ function findEndOfCentralDirectory(content) {
   return -1;
 }
 
-function validateArchiveEntries(entries) {
-  for (const entry of entries) {
-    const normalized = entry.replaceAll('\\', '/');
-    const segments = normalized.split('/');
-    if (
-      normalized.startsWith('/') ||
-      /^[A-Za-z]:/.test(normalized) ||
-      segments.includes('..') ||
-      normalized.includes('\0')
-    ) {
-      throw new Error(`Archive contains an unsafe path: ${entry}`);
+function isSafeArchivePath(entry) {
+  const normalized = entry.replaceAll('\\', '/');
+  const segments = normalized.split('/');
+  return !(
+    normalized.startsWith('/') ||
+    /^[A-Za-z]:/.test(normalized) ||
+    segments.includes('..') ||
+    normalized.includes('\0')
+  );
+}
+
+function archiveEntryGuard(entry) {
+  let written = 0;
+  let crc = 0xffffffff;
+  return new Transform({
+    transform(chunk, _encoding, callback) {
+      written += chunk.length;
+      if (written > entry.uncompressedSize) {
+        callback(new Error(`Archive entry exceeds its declared size: ${entry.name}`));
+        return;
+      }
+      crc = updateCrc32(crc, chunk);
+      callback(null, chunk);
+    },
+    flush(callback) {
+      if (
+        written !== entry.uncompressedSize ||
+        (crc ^ 0xffffffff) >>> 0 !== entry.crc
+      ) {
+        callback(new Error(`Archive entry checksum mismatch: ${entry.name}`));
+        return;
+      }
+      callback();
+    }
+  });
+}
+
+function updateCrc32(crc, chunk) {
+  let value = crc;
+  for (const byte of chunk) {
+    value ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = (value >>> 1) ^ (0xedb88320 & -(value & 1));
     }
   }
+  return value >>> 0;
 }
 
 async function validateExtractedTree(root) {
@@ -574,8 +695,4 @@ async function createProjectTemporaryDirectory(projectDirectory) {
   const temporaryRoot = path.join(projectDirectory, '.tmp');
   await mkdir(temporaryRoot, { recursive: true });
   return mkdtemp(path.join(temporaryRoot, 'create-kasumi-'));
-}
-
-function escapePowerShell(value) {
-  return value.replaceAll("'", "''");
 }

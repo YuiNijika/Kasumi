@@ -90,6 +90,23 @@ bool KSMPluginRegistry::KnowsPermission(
     ) != permissions_.end();
 }
 
+std::string KSMPluginRegistry::PluginIdForCommand(
+    const std::string& command
+) const {
+    const auto entry = commands_.find(command);
+    return entry == commands_.end() ? std::string() : entry->second.plugin->Id();
+}
+
+const std::vector<std::string>& KSMPluginRegistry::PermissionsForCommand(
+    const std::string& command
+) const {
+    static const std::vector<std::string> empty;
+    const auto entry = commands_.find(command);
+    return entry == commands_.end()
+        ? empty
+        : entry->second.plugin->Permissions();
+}
+
 bool KSMPluginRegistry::ValidateArgs(
     const std::string& command,
     const nlohmann::json& args

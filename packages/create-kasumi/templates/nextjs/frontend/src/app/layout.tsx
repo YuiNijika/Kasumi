@@ -4,14 +4,14 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "__APP_TITLE__",
-  description: "A Kasumi application built with Next.js."
+  description: "使用 Next.js 与 Kasumi 构建的应用。"
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#eef1e8"
+  themeColor: "#f2ece3"
 };
 
 export default function RootLayout({

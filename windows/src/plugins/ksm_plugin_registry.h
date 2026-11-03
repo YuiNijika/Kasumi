@@ -21,6 +21,10 @@ public:
     ) const;
     bool OwnsCommand(const std::string& command) const;
     bool KnowsPermission(const std::string& permission) const;
+ std::string PluginIdForCommand(const std::string& command) const;
+ const std::vector<std::string>& PermissionsForCommand(
+ const std::string& command
+ ) const;
     bool ValidateArgs(
         const std::string& command,
         const nlohmann::json& args

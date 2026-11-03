@@ -175,7 +175,8 @@ struct KSM final {
     static void Init(
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
         std::shared_ptr<KSMHostServices> host_services = nullptr,
-        std::vector<std::string> allowed_commands = {}
+        std::vector<std::string> allowed_commands = {},
+        std::vector<std::string> allowed_permissions = {}
     );
     static void Shutdown();
     static std::string Invoke(

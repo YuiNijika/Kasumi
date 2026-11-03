@@ -311,6 +311,15 @@ bool KSMUrlPolicy::IsAllowedExternalUrl(
     return parsed && allowed_origins.find(parsed->origin) != allowed_origins.end();
 }
 
+bool KSMUrlPolicy::IsAllowedDownloadUrl(
+    const std::string& url,
+    const std::set<Origin>& allowed_origins
+) {
+    const auto parsed = ParseHttpUrl(url, true);
+    return parsed && parsed->origin.scheme == "https" &&
+        allowed_origins.find(parsed->origin) != allowed_origins.end();
+}
+
 std::optional<std::string> KSMUrlPolicy::ResolveHttpsRedirect(
     const std::string& current_url,
     const std::string& location

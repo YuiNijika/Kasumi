@@ -208,9 +208,18 @@ test('initializes a source-only project without framework source', async () => {
     assert.equal(config.windows.version, kasumiVersion);
     assert.equal(config.android.packageName, 'dev.kasumi.my_app');
     assert.equal(config.android.version, kasumiVersion);
-    assert.equal(config.windows.commands, 'all');
+    assert.deepEqual(config.windows.commands, [
+      'ping',
+      'capabilities.query',
+      'app.getInfo',
+      'event.subscribe',
+      'event.unsubscribe',
+      'app.exit'
+    ]);
+    assert.deepEqual(config.windows.permissions, []);
     assert.equal(config.windows.decorations, true);
-    assert.equal(config.android.commands, 'all');
+    assert.deepEqual(config.android.commands, config.windows.commands);
+    assert.deepEqual(config.android.permissions, []);
     const mainActivity = path.join(
       destination,
       'android',
@@ -293,6 +302,16 @@ test('initializes a source-only project without framework source', async () => {
       'sqlite3',
       'webview2'
     ]);
+    const windowsCMake = await readFile(
+      path.join(destination, 'windows', 'CMakeLists.txt'),
+      'utf8'
+    );
+    assert.match(windowsCMake, /KASUMI_DEV_MODE/);
+    const windowsMain = await readFile(
+      path.join(destination, 'windows', 'main.cpp'),
+      'utf8'
+    );
+    assert.match(windowsMain, /defined\(KASUMI_DEV_MODE\)/);
     const files = await collectFiles(destination);
     for (const file of files) {
       if (path.extname(file).toLowerCase() === '.jar') {

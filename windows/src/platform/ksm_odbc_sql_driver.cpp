@@ -24,6 +24,7 @@ namespace {
 constexpr std::size_t kMaxUrlLength = 4096;
 constexpr std::size_t kMaxResultTextBytes = 1024 * 1024;
 constexpr std::size_t kResultTextCharacters = kMaxResultTextBytes / sizeof(wchar_t);
+constexpr SQLULEN kQueryTimeoutSeconds = 120;
 constexpr int kDefaultMysqlPort = 3306;
 constexpr int kDefaultPostgresPort = 5432;
 
@@ -879,11 +880,55 @@ KSMOdbcSqlConnection::~KSMOdbcSqlConnection() {
     }
 }
 
+void KSMOdbcSqlConnection::BeginOperation() {
+    std::lock_guard lock(cancel_mutex_);
+    cancelled_.store(false);
+    active_ = true;
+}
+
+void KSMOdbcSqlConnection::EndOperation() {
+    std::lock_guard lock(cancel_mutex_);
+    active_ = false;
+    active_statement_ = nullptr;
+    cancelled_.store(false);
+}
+
+void KSMOdbcSqlConnection::ThrowIfCancelled() const {
+    if (cancelled_.load()) {
+        throw KSMHostException(
+            "CANCELLED",
+            "The SQL request was cancelled."
+        );
+    }
+}
+
+void KSMOdbcSqlConnection::SetActiveStatement(void* statement) {
+    std::lock_guard lock(cancel_mutex_);
+    active_statement_ = statement;
+}
+
+void KSMOdbcSqlConnection::ClearActiveStatement(void* statement) {
+    std::lock_guard lock(cancel_mutex_);
+    if (active_statement_ == statement) {
+        active_statement_ = nullptr;
+    }
+}
+
+void KSMOdbcSqlConnection::Cancel() {
+    std::lock_guard lock(cancel_mutex_);
+    if (!active_ || active_statement_ == nullptr) {
+        return;
+    }
+    cancelled_.store(true);
+    SQLCancel(static_cast<SQLHSTMT>(active_statement_));
+}
+
 KSMSqlQueryResult KSMOdbcSqlConnection::Query(
     const std::string& statement,
     const std::vector<KSMSqlValue>& params
 ) {
     std::lock_guard lock(mutex_);
+    BeginOperation();
     SQLHSTMT handle = SQL_NULL_HSTMT;
     if (
         SQLAllocHandle(
@@ -892,12 +937,28 @@ KSMSqlQueryResult KSMOdbcSqlConnection::Query(
             &handle
         ) != SQL_SUCCESS
     ) {
+        EndOperation();
         throw KSMHostException("IO_ERROR", "The SQL query could not be created.");
     }
+    SetActiveStatement(handle);
     try {
+        ThrowIfCancelled();
+        if (!SQL_SUCCEEDED(SQLSetStmtAttr(
+            handle,
+            SQL_ATTR_QUERY_TIMEOUT,
+            reinterpret_cast<SQLPOINTER>(kQueryTimeoutSeconds),
+            0
+        ))) {
+            ThrowDiagnostic(
+                SQL_HANDLE_STMT,
+                handle,
+                "The SQL query timeout could not be configured."
+            );
+        }
         std::vector<BoundParam> buffers;
         buffers.reserve(params.size());
         PrepareStatement(handle, statement, params, buffers);
+        ThrowIfCancelled();
 
         SQLSMALLINT column_count = 0;
         if (
@@ -942,12 +1003,15 @@ KSMSqlQueryResult KSMOdbcSqlConnection::Query(
             types.push_back(data_type);
         }
 
+        std::size_t result_bytes = 0;
         while (true) {
+            ThrowIfCancelled();
             const SQLRETURN fetch = SQLFetch(handle);
             if (fetch == SQL_NO_DATA) {
                 break;
             }
             if (!SQL_SUCCEEDED(fetch)) {
+                ThrowIfCancelled();
                 ThrowDiagnostic(SQL_HANDLE_STMT, handle, "SQL rows could not be read.");
             }
             std::vector<KSMSqlValue> row;
@@ -959,12 +1023,23 @@ KSMSqlQueryResult KSMOdbcSqlConnection::Query(
                     types[static_cast<std::size_t>(column - 1)]
                 ));
             }
-            result.rows.push_back(std::move(row));
+            KSMSqlAppendRow(result, std::move(row), result_bytes);
         }
+        ClearActiveStatement(handle);
         SQLFreeHandle(SQL_HANDLE_STMT, handle);
+        EndOperation();
         return result;
     } catch (...) {
+        const bool was_cancelled = cancelled_.load();
+        ClearActiveStatement(handle);
         SQLFreeHandle(SQL_HANDLE_STMT, handle);
+        EndOperation();
+        if (was_cancelled) {
+            throw KSMHostException(
+                "CANCELLED",
+                "The SQL request was cancelled."
+            );
+        }
         throw;
     }
 }
@@ -974,6 +1049,7 @@ KSMSqlExecuteResult KSMOdbcSqlConnection::Execute(
     const std::vector<KSMSqlValue>& params
 ) {
     std::lock_guard lock(mutex_);
+    BeginOperation();
     SQLHSTMT handle = SQL_NULL_HSTMT;
     if (
         SQLAllocHandle(
@@ -982,12 +1058,28 @@ KSMSqlExecuteResult KSMOdbcSqlConnection::Execute(
             &handle
         ) != SQL_SUCCESS
     ) {
+        EndOperation();
         throw KSMHostException("IO_ERROR", "The SQL statement could not be created.");
     }
+    SetActiveStatement(handle);
     try {
+        ThrowIfCancelled();
+        if (!SQL_SUCCEEDED(SQLSetStmtAttr(
+            handle,
+            SQL_ATTR_QUERY_TIMEOUT,
+            reinterpret_cast<SQLPOINTER>(kQueryTimeoutSeconds),
+            0
+        ))) {
+            ThrowDiagnostic(
+                SQL_HANDLE_STMT,
+                handle,
+                "The SQL query timeout could not be configured."
+            );
+        }
         std::vector<BoundParam> buffers;
         buffers.reserve(params.size());
         PrepareStatement(handle, statement, params, buffers);
+        ThrowIfCancelled();
 
         SQLSMALLINT column_count = 0;
         if (!SQL_SUCCEEDED(SQLNumResultCols(handle, &column_count))) {
@@ -1004,7 +1096,9 @@ KSMSqlExecuteResult KSMOdbcSqlConnection::Execute(
         if (!SQL_SUCCEEDED(SQLRowCount(handle, &affected))) {
             ThrowDiagnostic(SQL_HANDLE_STMT, handle, "SQL affected row count could not be read.");
         }
+        ClearActiveStatement(handle);
         SQLFreeHandle(SQL_HANDLE_STMT, handle);
+        EndOperation();
         return KSMSqlExecuteResult{
             .rows_affected = affected > 0
                 ? static_cast<std::uint64_t>(affected)
@@ -1012,7 +1106,16 @@ KSMSqlExecuteResult KSMOdbcSqlConnection::Execute(
             .last_insert_id = std::nullopt
         };
     } catch (...) {
+        const bool was_cancelled = cancelled_.load();
+        ClearActiveStatement(handle);
         SQLFreeHandle(SQL_HANDLE_STMT, handle);
+        EndOperation();
+        if (was_cancelled) {
+            throw KSMHostException(
+                "CANCELLED",
+                "The SQL request was cancelled."
+            );
+        }
         throw;
     }
 }

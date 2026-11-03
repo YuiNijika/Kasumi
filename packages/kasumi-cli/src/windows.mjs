@@ -2,6 +2,7 @@ import {
   copyFile,
   cp,
   mkdir,
+  readFile,
   rm,
   writeFile
 } from 'node:fs/promises';
@@ -26,12 +27,8 @@ export async function buildWindows(projectRoot, config, options = {}) {
   if (!cmake) {
     throw new Error('CMake is required for Windows builds.');
   }
-  const buildDirectory = path.join(
-    projectRoot,
-    '.ksm',
-    'build',
-    options.bundleWebview2Loader ? 'windows-loader' : 'windows'
-  );
+  const buildDirectory = windowsBuildDirectory(projectRoot, options);
+  const supportsDevMode = await supportsWindowsDevMode(projectRoot);
   const args = [
     '-S',
     path.join(projectRoot, 'windows'),
@@ -42,10 +39,16 @@ export async function buildWindows(projectRoot, config, options = {}) {
     `-DKASUMI_APP_PACKAGE_NAME=${config.packageName}`,
     `-DKASUMI_APP_VERSION=${config.version}`,
     `-DKASUMI_APP_COMMANDS=${config.commands.join(',')}`,
+    `-DKASUMI_APP_PERMISSIONS=${config.permissions.join(',')}`,
+    `-DKASUMI_SHELL_ALLOWED_ORIGINS=${config.shell.allowedOrigins.join(',')}`,
+    `-DKASUMI_HTTP_ALLOWED_ORIGINS=${config.http.allowedOrigins.join(',')}`,
     `-DKASUMI_WINDOW_DECORATIONS=${config.decorations === false ? 'OFF' : 'ON'}`,
     `-DKASUMI_EXTERNAL_WEB=${options.externalWeb ? 'ON' : 'OFF'}`,
     `-DKASUMI_BUNDLE_WEBVIEW2_LOADER=${options.bundleWebview2Loader ? 'ON' : 'OFF'}`
   ];
+  if (supportsDevMode) {
+    args.push(`-DKASUMI_DEV_MODE=${options.devMode ? 'ON' : 'OFF'}`);
+  }
   if (
     visualStudio &&
     !process.env.CMAKE_GENERATOR &&
@@ -62,12 +65,20 @@ export async function buildWindows(projectRoot, config, options = {}) {
   }
   const vcpkgEnvironment = await createVcpkgEnvironment(projectRoot);
   args.push(`-DCMAKE_TOOLCHAIN_FILE=${toolchain}`);
+  args.push(`-DVCPKG_INSTALLED_DIR=${vcpkgEnvironment.installed}`);
   args.push(
     `-DVCPKG_TARGET_TRIPLET=${
       options.bundleWebview2Loader ? 'x64-windows' : 'x64-windows-static-md'
     }`
   );
-  await runCMake(cmake, args, projectRoot, visualStudio, vcpkgEnvironment);
+  await configureWindows(
+    projectRoot,
+    cmake,
+    args,
+    buildDirectory,
+    visualStudio,
+    vcpkgEnvironment
+  );
   await runCMake(
     cmake,
     ['--build', buildDirectory, '--config', 'Release'],
@@ -77,6 +88,9 @@ export async function buildWindows(projectRoot, config, options = {}) {
   );
 
   const executable = await findWindowsExecutable(buildDirectory);
+  if (options.devMode) {
+    return executable;
+  }
   const outputDirectory = applicationOutputDirectory(projectRoot, 'windows');
   await mkdir(outputDirectory, { recursive: true });
   const output = path.join(outputDirectory, `${config.packageName}.exe`);
@@ -197,16 +211,20 @@ export async function createVcpkgEnvironment(projectRoot) {
   const registries = path.join(root, 'registries');
   const archives = path.join(root, 'archives');
   const downloads = path.join(root, 'downloads');
+  const installed = path.join(root, 'installed');
   await Promise.all([
     mkdir(registries, { recursive: true }),
     mkdir(archives, { recursive: true }),
-    mkdir(downloads, { recursive: true })
+    mkdir(downloads, { recursive: true }),
+    mkdir(installed, { recursive: true })
   ]);
   return {
     ...process.env,
     X_VCPKG_REGISTRIES_CACHE: registries,
     VCPKG_DEFAULT_BINARY_CACHE: archives,
-    VCPKG_DOWNLOADS: downloads
+    VCPKG_BINARY_SOURCES: `clear;files,${archives},readwrite`,
+    VCPKG_DOWNLOADS: downloads,
+    installed
   };
 }
 
@@ -303,41 +321,178 @@ async function runCMake(command, args, cwd, visualStudio, env) {
     await run(command, args, { cwd, env });
     return;
   }
-  const commandLine = [
-    `call "${visualStudio.vcvars}" >nul`,
-    `"${command}" ${args.map(quoteWindowsArgument).join(' ')}`
-  ].join(' && ');
+  const buildEnvironment = await visualStudioBuildEnvironment(
+    visualStudio.vcvars,
+    env,
+    cwd
+  );
   await run(
-    process.env.ComSpec ?? 'cmd.exe',
-    ['/d', '/s', '/c', `"${commandLine}"`],
-    { cwd, env, windowsVerbatimArguments: true }
+    command,
+    args,
+    { cwd, env: buildEnvironment }
   );
 }
 
-function quoteWindowsArgument(value) {
-  if (value.length === 0) {
-    return '""';
+const visualStudioEnvironments = new Map();
+
+async function visualStudioBuildEnvironment(vcvars, baseEnvironment, projectRoot) {
+  const cacheKey = `${vcvars}\0${baseEnvironment.PATH ?? ''}`;
+  const cached = visualStudioEnvironments.get(cacheKey);
+  if (cached) {
+    return cached;
   }
-  if (!/[\s"&|<>^()]/.test(value)) {
-    return value;
+  const cacheDirectory = path.join(
+    projectRoot,
+    '.ksm',
+    'cache'
+  );
+  await mkdir(cacheDirectory, { recursive: true });
+  const script = path.join(
+    cacheDirectory,
+    `vcvars-${process.pid}-${Date.now()}.cmd`
+  );
+  await writeFile(
+    script,
+    '@echo off\r\ncall "%KASUMI_VCVARS%" >nul || exit /b 1\r\nset\r\n',
+    'utf8'
+  );
+  try {
+    const result = spawnSync(
+      process.env.ComSpec ?? 'cmd.exe',
+      ['/d', '/s', '/c', script],
+      {
+        env: { ...baseEnvironment, KASUMI_VCVARS: vcvars },
+        encoding: 'utf8',
+        windowsHide: true
+      }
+    );
+    if (result.status !== 0) {
+      throw new Error('The Visual Studio build environment could not be loaded.');
+    }
+    const environment = { ...baseEnvironment };
+    for (const line of result.stdout.split(/\r?\n/)) {
+      const separator = line.indexOf('=');
+      if (separator <= 0) {
+        continue;
+      }
+      const key = line.slice(0, separator);
+      environment[key] = line.slice(separator + 1);
+    }
+    visualStudioEnvironments.set(cacheKey, environment);
+    return environment;
+  } finally {
+    await rm(script, { force: true });
   }
-  const escaped = value
-    .replace(/(\\*)"/g, '$1$1\\"')
-    .replace(/(\\+)$/, '$1$1');
-  return `"${escaped}"`;
 }
 
 export async function runWindowsDevelopment(
   projectRoot,
   config,
-  server
+  server,
+  options = {}
 ) {
-  const buildDirectory = path.join(projectRoot, '.ksm', 'build', 'windows');
+  const buildDirectory = windowsBuildDirectory(projectRoot, {
+    devMode: true
+  });
   const executable = await findWindowsExecutable(buildDirectory);
+  const webviewData = path.join(projectRoot, '.ksm', 'dev', 'webview2');
+  await mkdir(webviewData, { recursive: true });
   await run(
     executable,
-    ['--url', server.url, '--dev'],
-    { cwd: path.dirname(executable) }
+    [
+      '--url',
+      server.url,
+      '--dev',
+      '--user-data-folder',
+      webviewData
+    ],
+    {
+      cwd: path.dirname(executable),
+      onSpawn: options.onSpawn
+    }
+  );
+}
+
+async function configureWindows(
+  projectRoot,
+  cmake,
+  args,
+  buildDirectory,
+  visualStudio,
+  environment
+) {
+  const canReuse =
+    await cmakeCacheMatches(buildDirectory, args) &&
+    await exists(path.join(environment.installed, 'vcpkg', 'status'));
+  if (!canReuse) {
+    await runCMake(
+      cmake,
+      args,
+      projectRoot,
+      visualStudio,
+      environment
+    );
+  }
+}
+
+export async function cmakeCacheMatches(buildDirectory, args) {
+  const cache = await readText(path.join(buildDirectory, 'CMakeCache.txt'));
+  if (!cache) {
+    return false;
+  }
+  const expected = args
+    .filter((argument) => argument.startsWith('-D'))
+    .map((argument) => argument.slice(2).split(/=(.*)/s))
+    .filter(([key, value]) => key && value !== undefined);
+  if (expected.length === 0) {
+    return true;
+  }
+  const cached = new Map();
+  for (const line of cache.split(/\r?\n/)) {
+    const separator = line.indexOf(':');
+    const equals = line.indexOf('=', separator + 1);
+    if (separator === -1 || equals === -1) {
+      continue;
+    }
+    cached.set(line.slice(0, separator), line.slice(equals + 1));
+  }
+  return expected.every(
+    ([key, value]) =>
+      normalizeCMakeValue(cached.get(key)) === normalizeCMakeValue(value)
+  );
+}
+
+function normalizeCMakeValue(value) {
+  return String(value ?? '')
+    .replaceAll('\\', '/')
+    .replace(/\/+$/, '')
+    .toLowerCase();
+}
+
+async function readText(file) {
+  try {
+    return (await readFile(file, 'utf8')).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+export async function supportsWindowsDevMode(projectRoot) {
+  const cmake = await readText(
+    path.join(projectRoot, 'windows', 'CMakeLists.txt')
+  );
+  return cmake?.includes('KASUMI_DEV_MODE') === true;
+}
+
+function windowsBuildDirectory(projectRoot, options) {
+  if (options.devMode) {
+    return path.join(projectRoot, '.ksm', 'dev', 'windows');
+  }
+  return path.join(
+    projectRoot,
+    '.ksm',
+    'build',
+    options.bundleWebview2Loader ? 'windows-loader' : 'windows'
   );
 }
 

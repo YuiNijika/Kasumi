@@ -69,13 +69,16 @@ public:
     std::optional<KSMSqlQueryResult> Query(
         const std::string& connection_id,
         const std::string& statement,
-        const std::vector<KSMSqlValue>& params
+        const std::vector<KSMSqlValue>& params,
+        const std::string& request_id
     );
     std::optional<KSMSqlExecuteResult> Execute(
         const std::string& connection_id,
         const std::string& statement,
-        const std::vector<KSMSqlValue>& params
+        const std::vector<KSMSqlValue>& params,
+        const std::string& request_id
     );
+    void CancelRequest(const std::string& request_id);
     bool Close(const std::string& connection_id);
 
 private:
@@ -84,9 +87,22 @@ private:
         std::shared_ptr<KSMSqlConnection> value;
     };
 
+    void RegisterRequest(
+        const std::string& request_id,
+        const std::shared_ptr<KSMSqlConnection>& connection
+    );
+    void UnregisterRequest(
+        const std::string& request_id,
+        const std::shared_ptr<KSMSqlConnection>& connection
+    );
+
     mutable std::mutex mutex_;
     std::unordered_map<std::string, std::shared_ptr<KSMSqlDriver>> drivers_;
     std::unordered_map<std::string, Connection> connections_;
+    std::unordered_map<
+        std::string,
+        std::weak_ptr<KSMSqlConnection>
+    > active_requests_;
     std::size_t pending_connections_ = 0;
     std::uint64_t next_connection_id_ = 1;
 };
@@ -180,7 +196,8 @@ std::optional<std::string> KSMSqlDriverRegistry::Open(
 std::optional<KSMSqlQueryResult> KSMSqlDriverRegistry::Query(
     const std::string& connection_id,
     const std::string& statement,
-    const std::vector<KSMSqlValue>& params
+    const std::vector<KSMSqlValue>& params,
+    const std::string& request_id
 ) {
     std::shared_ptr<KSMSqlConnection> connection;
     {
@@ -196,15 +213,23 @@ std::optional<KSMSqlQueryResult> KSMSqlDriverRegistry::Query(
             "The SQL connection does not exist."
         );
     }
-    auto result = connection->Query(statement, params);
-    ValidateSqlResult(result);
-    return result;
+    RegisterRequest(request_id, connection);
+    try {
+        auto result = connection->Query(statement, params);
+        ValidateSqlResult(result);
+        UnregisterRequest(request_id, connection);
+        return result;
+    } catch (...) {
+        UnregisterRequest(request_id, connection);
+        throw;
+    }
 }
 
 std::optional<KSMSqlExecuteResult> KSMSqlDriverRegistry::Execute(
     const std::string& connection_id,
     const std::string& statement,
-    const std::vector<KSMSqlValue>& params
+    const std::vector<KSMSqlValue>& params,
+    const std::string& request_id
 ) {
     std::shared_ptr<KSMSqlConnection> connection;
     {
@@ -220,7 +245,67 @@ std::optional<KSMSqlExecuteResult> KSMSqlDriverRegistry::Execute(
             "The SQL connection does not exist."
         );
     }
-    return connection->Execute(statement, params);
+    RegisterRequest(request_id, connection);
+    try {
+        auto result = connection->Execute(statement, params);
+        UnregisterRequest(request_id, connection);
+        return result;
+    } catch (...) {
+        UnregisterRequest(request_id, connection);
+        throw;
+    }
+}
+
+void KSMSqlDriverRegistry::RegisterRequest(
+    const std::string& request_id,
+    const std::shared_ptr<KSMSqlConnection>& connection
+) {
+    if (request_id.empty()) {
+        return;
+    }
+    std::lock_guard lock(mutex_);
+    if (active_requests_.contains(request_id)) {
+        throw KSMHostException(
+            "BUSY",
+            "A SQL request with this ID is already in flight."
+        );
+    }
+    active_requests_[request_id] = connection;
+}
+
+void KSMSqlDriverRegistry::UnregisterRequest(
+    const std::string& request_id,
+    const std::shared_ptr<KSMSqlConnection>& connection
+) {
+    if (request_id.empty()) {
+        return;
+    }
+    std::lock_guard lock(mutex_);
+    const auto entry = active_requests_.find(request_id);
+    if (entry == active_requests_.end()) {
+        return;
+    }
+    const auto active = entry->second.lock();
+    if (active == connection) {
+        active_requests_.erase(entry);
+    }
+}
+
+void KSMSqlDriverRegistry::CancelRequest(const std::string& request_id) {
+    if (request_id.empty()) {
+        return;
+    }
+    std::shared_ptr<KSMSqlConnection> connection;
+    {
+        std::lock_guard lock(mutex_);
+        const auto entry = active_requests_.find(request_id);
+        if (entry != active_requests_.end()) {
+            connection = entry->second.lock();
+        }
+    }
+    if (connection) {
+        connection->Cancel();
+    }
 }
 
 bool KSMSqlDriverRegistry::Close(const std::string& connection_id) {
@@ -254,19 +339,35 @@ std::optional<std::string> KSMHostServices::SqlOpen(
 std::optional<KSMSqlQueryResult> KSMHostServices::SqlQuery(
     const std::string& connection_id,
     const std::string& statement,
-    const std::vector<KSMSqlValue>& params
+    const std::vector<KSMSqlValue>& params,
+    const std::string& request_id
 ) {
-    return sql_drivers_->Query(connection_id, statement, params);
+    return sql_drivers_->Query(
+        connection_id,
+        statement,
+        params,
+        request_id
+    );
 }
 
 std::optional<KSMSqlExecuteResult> KSMHostServices::SqlExecute(
     const std::string& connection_id,
     const std::string& statement,
-    const std::vector<KSMSqlValue>& params
+    const std::vector<KSMSqlValue>& params,
+    const std::string& request_id
 ) {
-    return sql_drivers_->Execute(connection_id, statement, params);
+    return sql_drivers_->Execute(
+        connection_id,
+        statement,
+        params,
+        request_id
+    );
 }
 
 bool KSMHostServices::SqlClose(const std::string& connection_id) {
     return sql_drivers_->Close(connection_id);
+}
+
+void KSMHostServices::CancelRequest(const std::string& request_id) {
+    sql_drivers_->CancelRequest(request_id);
 }

@@ -404,7 +404,10 @@ def windows_example_build_directory(bundle_webview2_loader: bool) -> Path:
     return WINDOWS_EXAMPLE_DIR / name
 
 
-def build_windows_sdk(bundle_webview2_loader: bool = False) -> None:
+def build_windows_sdk(
+    bundle_webview2_loader: bool = False,
+    enable_smoke_test: bool = False,
+) -> None:
     build_directory = windows_sdk_build_directory(bundle_webview2_loader)
     install_directory = windows_sdk_install_directory(bundle_webview2_loader)
     configure = [
@@ -416,6 +419,7 @@ def build_windows_sdk(bundle_webview2_loader: bool = False) -> None:
         "-DCMAKE_BUILD_TYPE=Release",
         f"-DCMAKE_INSTALL_PREFIX={install_directory}",
         f"-DKASUMI_BUNDLE_WEBVIEW2_LOADER={'ON' if bundle_webview2_loader else 'OFF'}",
+        f"-DKASUMI_ENABLE_SMOKE_TEST={'ON' if enable_smoke_test else 'OFF'}",
         *cmake_toolchain_arguments(
             bundle_webview2_loader,
             True,
@@ -442,8 +446,9 @@ def build_windows_example(
     bundle_webview2_loader: bool = False,
     multi_view: bool = False,
     stage_output: bool = False,
+    enable_smoke_test: bool = False,
 ) -> None:
-    build_windows_sdk(bundle_webview2_loader)
+    build_windows_sdk(bundle_webview2_loader, enable_smoke_test)
     build_directory = windows_example_build_directory(bundle_webview2_loader)
     install_directory = windows_sdk_install_directory(bundle_webview2_loader)
     configure = [
@@ -460,6 +465,11 @@ def build_windows_example(
         f"-DKASUMI_APP_PACKAGE_NAME={config.windows.package_name}",
         f"-DKASUMI_APP_VERSION={config.windows.version}",
         f"-DKASUMI_APP_COMMANDS={','.join(config.windows.commands)}",
+        f"-DKASUMI_APP_PERMISSIONS={','.join(config.windows.permissions)}",
+        f"-DKASUMI_SHELL_ALLOWED_ORIGINS="
+        f"{','.join(config.windows.shell_allowed_origins)}",
+        f"-DKASUMI_HTTP_ALLOWED_ORIGINS="
+        f"{','.join(config.windows.http_allowed_origins)}",
         f"-DKASUMI_WINDOW_DECORATIONS={'ON' if config.windows.decorations else 'OFF'}",
         *cmake_toolchain_arguments(
             bundle_webview2_loader,
@@ -505,6 +515,11 @@ def android_app_gradle_arguments(config: KasumiConfig) -> list[str]:
         f"-PksmPackageName={config.android.package_name}",
         f"-PksmVersion={config.android.version}",
         f"-PksmCommands={','.join(config.android.commands)}",
+        f"-PksmPermissions={','.join(config.android.permissions)}",
+        f"-PksmShellAllowedOrigins="
+        f"{','.join(config.android.shell_allowed_origins)}",
+        f"-PksmHttpAllowedOrigins="
+        f"{','.join(config.android.http_allowed_origins)}",
     ]
 
 
@@ -572,8 +587,14 @@ def build(
 def test_windows_example(
     config: KasumiConfig,
     bundle_webview2_loader: bool = False,
+    enable_smoke_test: bool = False,
 ) -> None:
-    build_windows_example(config, False, bundle_webview2_loader)
+    build_windows_example(
+        config,
+        False,
+        bundle_webview2_loader,
+        enable_smoke_test=enable_smoke_test,
+    )
     run(
         [
             cmake_tool("ctest"),
@@ -590,7 +611,7 @@ def test_windows(
     config: KasumiConfig,
     bundle_webview2_loader: bool = False,
 ) -> None:
-    build_windows_sdk(bundle_webview2_loader)
+    build_windows_sdk(bundle_webview2_loader, True)
     run(
         [
             cmake_tool("ctest"),
@@ -601,7 +622,7 @@ def test_windows(
             "--output-on-failure",
         ]
     )
-    test_windows_example(config, bundle_webview2_loader)
+    test_windows_example(config, bundle_webview2_loader, True)
 
 
 def test_android(config: KasumiConfig) -> None:
@@ -633,6 +654,7 @@ def test(
             "-m",
             "unittest",
             "tests.test_kasumi_config",
+            "tests.test_update_docs",
         ]
     )
     if "windows" in platforms:
@@ -1223,6 +1245,18 @@ def add_config_option(parser: argparse.ArgumentParser) -> None:
 
 
 def start() -> None:
+    cli_args = sys.argv[1:]
+    if cli_args and cli_args[0] == "docs":
+        docs_args = cli_args[1:] or ["--help"]
+        run(
+            [
+                sys.executable,
+                str(ROOT / "tools" / "update_docs.py"),
+                *docs_args,
+            ]
+        )
+        return
+
     parser = argparse.ArgumentParser(prog="ksm")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("codegen")
@@ -1268,9 +1302,24 @@ def start() -> None:
     add_webview2_option(dev_parser)
     add_multi_view_option(dev_parser)
     add_config_option(dev_parser)
+
+    docs_parser = subparsers.add_parser(
+        "docs",
+        add_help=False,
+        description="Read and update Kasumi online documentation.",
+    )
+    docs_parser.add_argument("docs_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
-    if args.command == "version":
+    if args.command == "docs":
+        run(
+            [
+                sys.executable,
+                str(ROOT / "tools" / "update_docs.py"),
+                *args.docs_args,
+            ]
+        )
+    elif args.command == "version":
         manage_version(args.action)
     elif args.command == "validate":
         validate_protocol()

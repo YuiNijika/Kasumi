@@ -1,5 +1,6 @@
 package dev.kasumi.app.bridge
 
+import dev.kasumi.app.generated.KSMGeneratedContract
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -7,9 +8,11 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class ContractTest {
     private class TestHostServices(
@@ -349,6 +352,67 @@ class ContractTest {
         }
     }
 
+    private class BlockingSqlConnection : KSMSqlConnection {
+        val started = CountDownLatch(1)
+        private val cancelled = AtomicBoolean(false)
+
+        override fun query(
+            statement: String,
+            params: List<Any?>
+        ): KSMSqlQueryResult {
+            return query(statement, params, null)
+        }
+
+        override fun query(
+            statement: String,
+            params: List<Any?>,
+            requestId: String?
+        ): KSMSqlQueryResult {
+            started.countDown()
+            while (!cancelled.get()) {
+                Thread.sleep(5)
+            }
+            throw KSMHostException(
+                "CANCELLED",
+                "The SQL request was cancelled."
+            )
+        }
+
+        override fun execute(
+            statement: String,
+            params: List<Any?>
+        ): KSMSqlExecuteResult {
+            return execute(statement, params, null)
+        }
+
+        override fun execute(
+            statement: String,
+            params: List<Any?>,
+            requestId: String?
+        ): KSMSqlExecuteResult {
+            query(statement, params, requestId)
+            return KSMSqlExecuteResult(0, null)
+        }
+
+        override fun cancel(requestId: String) {
+            cancelled.set(true)
+        }
+
+        override fun close() {
+            cancelled.set(true)
+        }
+    }
+
+    private class BlockingSqlDriver(
+        private val connection: BlockingSqlConnection
+    ) : KSMSqlDriver {
+        override val name: String = "blocking"
+
+        override fun open(url: String): KSMSqlConnection {
+            return connection
+        }
+    }
+
     private fun invoke(router: KSMRouter, command: String, args: JSONObject): JSONObject {
         val request = JSONObject()
             .put("type", "request")
@@ -372,7 +436,12 @@ class ContractTest {
             File(root, "tmp")
         )
         val hostServices = TestHostServices()
-        val router = KSMRouter(fileSystem, hostServices)
+        val router = KSMRouter(
+            fileSystem,
+            hostServices,
+            allowedCommands = KSMCommandRegistry.supportedCommands,
+            allowedPermissions = KSMGeneratedContract.permissions
+        )
         try {
             val ping = invoke(router, "ping", JSONObject())
             assertTrue(ping.getBoolean("ok"))
@@ -1030,11 +1099,21 @@ class ContractTest {
         )
         val leftRouter = KSMRouter(
             leftFileSystem,
-            TestHostServices("1.0.0", "en-US")
+            TestHostServices("1.0.0", "en-US"),
+            allowedCommands = listOf(
+                "app.getInfo",
+                "event.subscribe",
+                "event.unsubscribe"
+            )
         )
         val rightRouter = KSMRouter(
             rightFileSystem,
-            TestHostServices("2.0.0", "ja-JP")
+            TestHostServices("2.0.0", "ja-JP"),
+            allowedCommands = listOf(
+                "app.getInfo",
+                "event.subscribe",
+                "event.unsubscribe"
+            )
         )
         var leftEvent = false
         var rightEvent = false
@@ -1144,6 +1223,50 @@ class ContractTest {
     }
 
     @Test
+    fun sqlCancellationAndDuplicateRequestIds() {
+        val connection = BlockingSqlConnection()
+        val registry = KSMSqlDriverRegistry()
+        registry.register(BlockingSqlDriver(connection))
+        val connectionId = requireNotNull(
+            registry.open("blocking", ":memory:")
+        )
+        var failure: Throwable? = null
+        val query = Thread {
+            try {
+                registry.query(
+                    connectionId,
+                    "wait",
+                    emptyList(),
+                    "sql-cancel"
+                )
+            } catch (error: Throwable) {
+                failure = error
+            }
+        }
+
+        try {
+            query.start()
+            assertTrue(connection.started.await(1, TimeUnit.SECONDS))
+            val duplicate = assertThrows(KSMHostException::class.java) {
+                registry.query(
+                    connectionId,
+                    "wait",
+                    emptyList(),
+                    "sql-cancel"
+                )
+            }
+            assertEquals("BUSY", duplicate.code)
+            registry.cancel("sql-cancel")
+            query.join(TimeUnit.SECONDS.toMillis(2))
+            assertFalse(query.isAlive)
+            val error = failure as? KSMHostException
+            assertEquals("CANCELLED", error?.code)
+        } finally {
+            registry.closeAll()
+        }
+    }
+
+    @Test
     fun storeWritesAreSerializedAcrossPluginInstances() {
         val root = Files.createTempDirectory("kasumi-store-concurrency").toFile()
         val fileSystem = KSMFileSystem(
@@ -1202,8 +1325,8 @@ class ContractTest {
             rightThread.join(TimeUnit.SECONDS.toMillis(5))
             assertFalse(leftThread.isAlive)
             assertFalse(rightThread.isAlive)
-            assertTrue(leftFailure == null)
-            assertTrue(rightFailure == null)
+            assertTrue(leftFailure?.stackTraceToString(), leftFailure == null)
+            assertTrue(rightFailure?.stackTraceToString(), rightFailure == null)
             val keys = leftPlugin.handle(
                 "store.keys",
                 JSONObject(),
@@ -1212,6 +1335,42 @@ class ContractTest {
                 (result as JSONObject).getJSONArray("keys")
             }
             assertEquals(40, keys.length())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun filesystemRejectsSymlinksOutsideTheSandbox() {
+        val root = Files.createTempDirectory("kasumi-symlink").toFile()
+        val data = File(root, "data").apply { mkdirs() }
+        val fileSystem = KSMFileSystem(
+            data,
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        val outside = File(root, "outside.txt").apply {
+            writeText("secret")
+        }
+        val link = File(data, "contract-link.txt").toPath()
+        try {
+            Files.createSymbolicLink(link, outside.toPath())
+        } catch (_: IOException) {
+            root.deleteRecursively()
+            return
+        } catch (_: UnsupportedOperationException) {
+            root.deleteRecursively()
+            return
+        }
+        try {
+            assertFalse(fileSystem.exists("app://data/contract-link.txt"))
+            assertEquals(null, fileSystem.readText("app://data/contract-link.txt"))
+            assertFalse(
+                fileSystem.writeText(
+                    "app://data/contract-link.txt",
+                    "blocked"
+                )
+            )
         } finally {
             root.deleteRecursively()
         }
@@ -1229,6 +1388,8 @@ class ContractTest {
             val replacement = KSMRouter(
                 fileSystem,
                 null,
+                allowedCommands = KSMCommandRegistry.supportedCommands,
+                allowedPermissions = KSMGeneratedContract.permissions,
                 plugins = listOf(ReplacementFileSystemPlugin())
             )
             val exists = invoke(
@@ -1242,6 +1403,8 @@ class ContractTest {
             val clipboard = KSMRouter(
                 fileSystem,
                 null,
+                allowedCommands = KSMCommandRegistry.supportedCommands,
+                allowedPermissions = KSMGeneratedContract.permissions,
                 plugins = listOf(ReplacementClipboardPlugin())
             )
             val clipboardText = invoke(
@@ -1259,6 +1422,8 @@ class ContractTest {
                 KSMRouter(
                     fileSystem,
                     null,
+                    allowedCommands = KSMCommandRegistry.supportedCommands,
+                    allowedPermissions = KSMGeneratedContract.permissions,
                     plugins = listOf(GeneratedCommandHijackPlugin())
                 )
             }
@@ -1278,6 +1443,8 @@ class ContractTest {
         val router = KSMRouter(
             fileSystem,
             null,
+            allowedCommands = KSMCommandRegistry.supportedCommands + "contract.echo",
+            allowedPermissions = KSMGeneratedContract.permissions + "contract.echo",
             plugins = listOf(EchoPlugin())
         )
         try {
@@ -1359,6 +1526,74 @@ class ContractTest {
             assertFalse(KSM.fs.writeText("app://data/blocked.txt", "blocked"))
         } finally {
             KSM.shutdown()
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun capabilityPermissionFilter() {
+        val root = Files.createTempDirectory("kasumi-capability-permission").toFile()
+        val fileSystem = KSMFileSystem(
+            File(root, "data"),
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        try {
+            val denied = KSMRouter(
+                fileSystem,
+                null,
+                allowedCommands = listOf(
+                    "capabilities.query",
+                    "fs.readText"
+                )
+            )
+            val deniedCapabilities = invoke(
+                denied,
+                "capabilities.query",
+                JSONObject()
+            )
+            assertTrue(deniedCapabilities.getBoolean("ok"))
+            val deniedCommands = deniedCapabilities.getJSONObject("data")
+                .getJSONArray("commands")
+                .let { values ->
+                    List(values.length()) { index ->
+                        values.getString(index)
+                    }
+                }
+            assertFalse(deniedCommands.contains("fs.readText"))
+            assertError(
+                invoke(
+                    denied,
+                    "fs.readText",
+                    JSONObject().put("path", "app://data/contract.txt")
+                ),
+                "PERMISSION_DENIED"
+            )
+
+            val granted = KSMRouter(
+                fileSystem,
+                null,
+                allowedCommands = listOf(
+                    "capabilities.query",
+                    "fs.readText"
+                ),
+                allowedPermissions = listOf("fs.read")
+            )
+            val grantedCapabilities = invoke(
+                granted,
+                "capabilities.query",
+                JSONObject()
+            )
+            assertTrue(grantedCapabilities.getBoolean("ok"))
+            val grantedCommands = grantedCapabilities.getJSONObject("data")
+                .getJSONArray("commands")
+                .let { values ->
+                    List(values.length()) { index ->
+                        values.getString(index)
+                    }
+                }
+            assertTrue(grantedCommands.contains("fs.readText"))
+        } finally {
             root.deleteRecursively()
         }
     }

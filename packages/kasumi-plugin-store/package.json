@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-store",
-  "version": "26.11.3",
+  "version": "26.11.4",
   "description": "Persistent JSON store for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

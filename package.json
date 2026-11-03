@@ -1,6 +1,6 @@
 {
   "name": "kasumi",
-  "version": "26.11.3",
+  "version": "26.11.4",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -20,6 +20,7 @@
     "test:contract": "tsx tests/contract/run.ts",
     "test:packages": "pnpm build:bridge && pnpm build:plugins && node --test packages/create-kasumi/tests/*.test.mjs packages/kasumi-cli/tests/*.test.mjs tools/test-plugin-packages.mjs",
     "test:tarballs": "node tools/test-npm-packages.mjs",
+    "docs": "pnpm ksm docs",
     "version:show": "node cli/ksm.mjs version show",
     "version:sync": "node cli/ksm.mjs version sync",
     "version:check": "node cli/ksm.mjs version check",

@@ -1,0 +1,348 @@
+---
+title: "Kasumi Application Development Skill"
+description: "使用 Kasumi SDK 创建、配置、调试、构建和发布应用的规范与工作流。"
+---
+
+> 使用 Kasumi 创建、配置、调试、构建和发布应用时使用本指南。
+
+## 1. 适用边界
+
+适用于：
+
+- 使用 `create-kasumi` 创建 basic、React、Vue、Next.js 或 Nuxt 应用。
+- 在应用前端调用 `kasumi-bridge` 暴露的 `KSM` API 和内置插件。
+- 修改应用的 Windows 或 Android 最小宿主适配代码。
+- 配置包名、版本、命令白名单、Windows 标题栏和应用构建。
+- 诊断开发服务器、WebView、插件权限、构建和打包问题。
+
+不适用于修改 Kasumi 协议、桥接实现、CLI、原生插件或框架 SDK。此类任务使用 `kasumi-framework` skill 和 `skill/kasumi/framework` 页面。
+
+应用缺少框架本身没有的原生能力时，先在框架仓库实现插件，再升级应用依赖。不要复制或修改 `vendor/` 中的 SDK 源码。
+
+## 2. 强制上下文
+
+开始改动前依次读取：
+
+1. 应用项目根目录的 `AGENTS.md`。
+2. 当前线上 Kasumi MDX，至少读取首页、相关 API 页和相关插件页。
+3. 应用自己的 `kasumi.config.json`、`package.json` 和现有平台宿主入口。
+4. 若当前环境提供 `yuinijika` skill，写码前读取 `coding-style.md`，写文档前读取 `docs-style.md`。
+5. 涉及 UI 时遵循应用项目的 UI 规范；Kasumi 仓库内的 UI 改动还要调用 `web-design-guidelines`、`web-artifacts-builder` 和 `apple-design`。
+
+不要根据旧模板、历史聊天或本页面猜测参数、返回值、权限和平台支持。
+
+## 3. 线上文档
+
+常用入口：
+
+- 快速开始：`https://blog.miomoe.cn/docs/kasumi`
+- 初始化与开发：`https://blog.miomoe.cn/docs/kasumi/index`
+- 当前开发状态：`https://blog.miomoe.cn/docs/kasumi/development`
+- 公共 API：`https://blog.miomoe.cn/docs/kasumi/api`
+- 共享类型和错误码：`https://blog.miomoe.cn/docs/kasumi/api/types`
+- 插件概览：`https://blog.miomoe.cn/docs/kasumi/plugins`
+
+常用插件页：
+
+- `https://blog.miomoe.cn/docs/kasumi/plugins/fs`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/dialog`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/clipboard`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/notification`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/window`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/http`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/shell`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/device`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/sql`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/path`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/store`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/os`
+- `https://blog.miomoe.cn/docs/kasumi/plugins/log`
+
+在 Kasumi 框架仓库内，用统一工具读取原始 MDX：
+
+```bash
+pnpm ksm docs pull kasumi/index
+pnpm ksm docs pull kasumi/api
+pnpm ksm docs pull kasumi/plugins/sql
+```
+
+生成应用不包含 `tools/update_docs.py`，也不允许应用开发者直接提交线上文档修订。
+
+读取顺序：
+
+```text
+kasumi/index
+└─ kasumi/api
+   ├─ kasumi/api/types
+   └─ affected API page
+      └─ kasumi/plugins
+         └─ affected plugin page
+            └─ kasumi/development
+```
+
+文档没有声明的平台能力视为未确认，不要用当前设备测试结果代替平台矩阵。`development` 页说明当前已实现和待验证能力，不等同于稳定 API 承诺。
+
+## 4. 标准目录
+
+`create-kasumi` 生成的项目保持前后端与平台宿主分离：
+
+```text
+my-app/
+├─ frontend/
+│  ├─ index.html
+│  ├─ framework files
+│  └─ src/
+│     ├─ main.ts
+│     └─ application code
+├─ windows/
+│  ├─ CMakeLists.txt
+│  ├─ main.cpp
+│  ├─ cmake/
+│  └─ vcpkg.json
+├─ android/
+│  ├─ settings.gradle.kts
+│  ├─ build.gradle.kts
+│  ├─ gradle/
+│  └─ app/
+│     ├─ build.gradle.kts
+│     └─ src/main/
+│        ├─ AndroidManifest.xml
+│        └─ java/<package>/MainActivity.kt
+├─ vendor/
+│  ├─ windows/kasumi/
+│  └─ android/repo/
+├─ kasumi.config.json
+├─ package.json
+├─ pnpm-workspace.yaml
+└─ README.md
+```
+
+React、Vue、Next.js 和 Nuxt 只改变前端目录内容，不改变 Windows、Android、配置和构建入口的职责。
+
+| 路径 | 应用侧职责 | 不应包含 |
+|---|---|---|
+| `frontend/` | 页面、组件、状态、业务请求和 `KSM` 调用 | 框架原生源码、私有消息协议 |
+| `windows/` | Win32 窗口、WebView2 启动、资源和 Host Services 接线 | 从 SDK 复制的命令实现 |
+| `android/` | Activity、WebView 启动、资源和 Host Services 接线 | 从 SDK 复制的插件实现 |
+| `vendor/windows/kasumi/` | 已发布 Windows SDK | SDK 源码修改 |
+| `vendor/android/repo/` | 已发布 Android Maven 仓库 | 手工修改的框架 AAR |
+| `kasumi.config.json` | 两端包名、版本、命令、权限、origin 白名单和 Windows 标题栏 | 临时开发地址或密钥 |
+| `package.json` | 统一命令入口和前端依赖 | 平台专属命令的平行实现 |
+
+## 5. 应用配置
+
+```json
+{
+  "windows": {
+    "packageName": "com.example.app",
+    "version": "1.0.0",
+    "commands": ["ping", "capabilities.query", "http.download"],
+    "permissions": ["http.download"],
+    "decorations": true,
+    "shell": {
+      "allowedOrigins": ["https://example.com"]
+    },
+    "http": {
+      "allowedOrigins": ["https://cdn.example.com"]
+    }
+  },
+  "android": {
+    "packageName": "com.example.app",
+    "version": "1.0.0",
+    "commands": ["ping", "capabilities.query", "device.getInfo"],
+    "permissions": ["device.info"],
+    "shell": {
+      "allowedOrigins": ["https://example.com"]
+    },
+    "http": {
+      "allowedOrigins": []
+    }
+  }
+}
+```
+
+| 字段 | 作用 |
+|---|---|
+| `windows.packageName` | Windows 应用标识、数据目录和产物命名 |
+| `windows.version` | Windows 应用版本 |
+| `windows.commands` | `all` 或显式命令白名单 |
+| `windows.permissions` | `all` 或显式权限白名单；缺失或空数组表示拒绝 |
+| `windows.decorations` | `true` 使用系统标题栏，`false` 使用应用自绘窗口控制 |
+| `windows.shell.allowedOrigins` | `shell.openExternal` 的精确 `http` / `https` origin |
+| `windows.http.allowedOrigins` | `http.download` 的精确 `https` origin |
+| `android.packageName` | Android application ID |
+| `android.version` | Android 应用版本 |
+| `android.commands` | `all` 或显式命令白名单 |
+| `android.permissions` | `all` 或显式权限白名单；缺失或空数组表示拒绝 |
+| `android.shell.allowedOrigins` | `shell.openExternal` 的精确 `http` / `https` origin |
+| `android.http.allowedOrigins` | `http.download` 的精确 `https` origin |
+
+配置修改后运行 `pnpm ksm doctor`。不要绕过诊断直接改生成平台文件，否则下一次构建会重新生成配置并覆盖手工修改。
+
+`"commands": "all"` 和 `"permissions": "all"` 都是显式 opt-in。生产应用优先使用两个独立白名单，并保留应用实际使用的 `ping`、`capabilities.query` 及插件命令。命令已启用但权限未配置时返回 `PERMISSION_DENIED`，`permission.request` 不会修改静态能力集合。`shell` 与 `http` origin 默认拒绝，不支持通配符或用户名密码。
+
+## 6. 统一命令
+
+| 命令 | 用途 |
+|---|---|
+| `pnpm dev` | 启动默认开发平台 |
+| `pnpm dev:windows` | 启动 Windows 开发宿主 |
+| `pnpm dev:android` | 启动 Android 开发宿主 |
+| `pnpm build` | 执行默认构建 |
+| `pnpm build:windows` | 构建 Windows 应用 |
+| `pnpm build:android` | 构建 Android APK |
+| `pnpm build:all` | 构建 Windows 和 Android |
+| `pnpm package` | 生成发布包 |
+| `pnpm typecheck` | 前端 TypeScript 类型检查 |
+| `pnpm ksm doctor` | 检查 SDK、配置、工具链和项目结构 |
+
+不要假设 `build` 会隐式打包或签名。发布动作使用 `ksm package`，签名要求以线上文档为准。
+
+## 7. 前端实现
+
+1. 在应用入口导入并初始化桥接层。
+
+```ts
+import { KSM } from "kasumi-bridge";
+
+KSM.init();
+```
+
+2. 按线上文档调用 `KSM` 方法。
+3. 使用 `KSM.get()` 或应用启动流程确认平台与已启用命令。
+4. 对用户取消、权限拒绝、平台不支持和 IO 错误分别处理。
+5. 事件订阅在组件卸载、页面销毁或热更新时取消。
+
+业务状态留在应用前端。原生层只负责系统能力，不承载页面状态。
+
+不要直接调用 WebView2 `postMessage`、Android JavaScript interface 或自行发明消息格式。所有能力从 `kasumi-bridge` 的 `KSM` 根入口进入。
+
+## 8. 插件与权限
+
+插件命令仍通过 `KSM` 访问。使用前读取对应 Plugins 页，并确认：
+
+- 模块命令归属。
+- Windows 和 Android 平台支持。
+- 参数中的虚拟路径、URL、大小和超时限制。
+- 需要的权限和宿主 origin 白名单。
+- 错误码和降级方式。
+
+应用没有启用命令时，前端守卫不能代替宿主权限检查。不要通过直接调用系统 API 绕过插件边界。
+
+文件路径使用 Kasumi 虚拟路径。不要把真实磁盘路径、`content://` 或任意 URL 传给文件 API。
+
+外部链接只通过 `shell.openExternal` 打开，并受宿主精确 origin 白名单约束。WebView 导航不能绕过该白名单。`http.download` 同样要求 HTTPS，并在每一跳重定向重新匹配 `http.allowedOrigins`。
+
+生产页面来源是 `https://app.local`。开发 origin 只在显式 debug/dev 模式启用，不能固化进生产安全策略。
+
+`webview.navigated` 表示成功导航，`webview.reloaded` 只表示真实 reload；`window.resized` 仍通过事件订阅获取。
+
+SQL 每个连接上限为 32、单次结果上限为 10,000 行和 16 MiB。请求取消会传递到 SQLite 或宿主驱动并返回 `CANCELLED`，重复活动 request ID 返回 `BUSY`。
+
+## 9. 平台宿主
+
+只有应用级策略需要时修改平台入口：
+
+- 自定义窗口大小、标题栏和视觉边框。
+- 增加外部链接 origin 白名单。
+- 更换应用名称、图标、安装包信息。
+- 调整 debug 开发地址。
+- 接入 Activity 生命周期或应用级服务。
+
+不要在这里重写命令路由、文件系统、网络、SQL 或通知实现。此类改动属于框架 SDK。
+
+### Windows
+
+- 默认使用系统 Evergreen WebView2 Runtime。
+- 生产页面来源是 `https://app.local`。
+- 自定义标题栏由 `windows.decorations: false` 和前端窗口控制共同完成。
+- 标题栏拖拽区域使用 `app-region: drag`，按钮和输入控件使用 `app-region: no-drag`。
+- 外部 origin 必须精确列出 scheme、host 和端口。
+- `vendor/windows/kasumi/` 只消费，不修改。
+
+### Android
+
+- Activity 拥有 Host Services 生命周期。
+- 一个 WebView Host 关闭时，不能关闭仍被其他窗口使用的共享服务。
+- debug 模式才允许本地开发 origin，生产模式只接受 `https://app.local`。
+- 外部导航不能直接调用 `ACTION_VIEW`，必须经过 `shell.openExternal` 策略。
+- `vendor/android/repo/` 只消费，不修改。
+
+## 10. 诊断
+
+推荐顺序：
+
+1. `pnpm ksm doctor` 检查配置、SDK 和工具链。
+2. `pnpm typecheck` 检查前端类型和 API 调用。
+3. 检查 `kasumi.config.json` 是否启用目标命令。
+4. 检查 `capabilities.query` 或 `KSM.get()` 的实际平台能力。
+5. 检查 WebView 来源是否为生产 `https://app.local` 或受控开发 origin。
+6. 检查 `commands`、`permissions`、外部 origin、HTTP origin、下载路径和系统权限。
+7. 查看 CLI、Windows 调试输出或 Android Logcat。
+
+| 现象 | 优先检查 |
+|---|---|
+| 前端方法不存在 | `kasumi-bridge` 版本、线上文档、导入入口 |
+| 调用返回 `PERMISSION_DENIED` | 命令白名单、权限 allowlist、下载或外部 origin |
+| 文件路径被拒绝 | 是否使用 `app://data`、`app://cache`、`app://tmp` |
+| 外链打不开 | `shell.openExternal` 和宿主精确 origin 白名单 |
+| 页面 `ERR_NAME_NOT_RESOLVED` | 开发服务器是否启动、开发 origin 是否启用 |
+| Windows 构建找不到依赖 | SDK、CMake、vcpkg、系统 WebView2 Runtime |
+| Android 构建找不到 SDK | `vendor/android/repo/`、JDK、Android SDK |
+
+## 11. 构建与发布
+
+开发只在用户要求时启动：
+
+```bash
+pnpm dev:windows
+pnpm dev:android
+```
+
+构建：
+
+```bash
+pnpm build:windows
+pnpm build:android
+pnpm build:all
+```
+
+发布包：
+
+```bash
+pnpm ksm package --windows
+pnpm ksm package --android
+pnpm ksm package --all
+```
+
+构建与缓存目录：
+
+| 路径 | 内容 |
+|---|---|
+| `.ksm/dev/` | 开发状态、开发宿主和依赖缓存 |
+| `.ksm/dist/windows/` | Windows 开发或构建产物 |
+| `.ksm/dist/android/` | Android APK 构建产物 |
+| `.ksm/dist/packages/` | `ksm package` 生成的发布包 |
+| `.tmp/` | 一次性诊断和测试输出 |
+
+发布前读取线上文档确认签名环境变量、WebView2 打包选项、产物内容和校验要求。普通开发构建不等于已签名发布包。
+
+## 12. 需要框架改动时
+
+出现以下情况时停止修改应用 `vendor/`：
+
+- 缺少线上文档没有的新命令。
+- Android 或 Windows 插件行为不一致。
+- 宿主生命周期、请求取消、多 WebView 隔离需要框架修复。
+- 需要新增协议、权限、错误码或生成类型。
+
+切换到 `kasumi-framework` skill，在框架仓库完成协议、双端实现、测试和发布，再升级应用。
+
+## 13. 完成标准
+
+- 公共 API、插件、权限和平台差异与当前线上 MDX 一致。
+- 所有调用的命令都在应用配置中启用。
+- 应用没有复制框架源码，没有直接依赖未公开的原生消息通道。
+- Windows 和 Android 的缺失能力有明确降级或错误提示。
+- 类型检查、配置诊断和用户要求的构建通过。
+- 没有临时文件、开发缓存或 SDK 修改进入提交。

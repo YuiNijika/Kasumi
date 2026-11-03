@@ -1,15 +1,13 @@
 #pragma once
 
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
 #include <cstddef>
-#include <deque>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -30,7 +28,8 @@ public:
         Dispatch dispatch = {},
         std::vector<std::string> allowed_commands = {},
         bool allow_development_origin = false,
-        std::vector<std::shared_ptr<KSMPlugin>> plugins = {}
+        std::vector<std::shared_ptr<KSMPlugin>> plugins = {},
+        std::vector<std::string> allowed_permissions = {}
     );
     ~KSMWebViewHost();
 
@@ -40,6 +39,7 @@ public:
         const std::string& origin
     );
     void ResetForNavigation();
+    void NotifyWebViewNavigated(bool is_reload);
     void NotifyWebViewReloaded();
     void NotifyWindowResized(int width, int height);
     bool IsAllowedOrigin(const std::string& origin) const;
@@ -49,18 +49,26 @@ private:
     struct RequestState {
         std::string id;
         std::atomic<bool> completed{false};
+        std::uint64_t timer_id = 0;
     };
 
-    struct Deadline {
-        std::chrono::steady_clock::time_point at;
-        std::shared_ptr<RequestState> state;
+    struct RuntimeState {
+        std::mutex mutex;
+        std::condition_variable idle;
+        std::size_t active_tasks = 0;
+        bool shutting_down = false;
     };
 
     static constexpr std::size_t kMaxConcurrentCommands = 8;
     static constexpr std::size_t kMaxQueuedCommands = 32;
 
-    void WorkerLoop();
-    void TimerLoop();
+    static bool StartRuntimeTask(
+        const std::shared_ptr<RuntimeState>& runtime,
+        std::function<void()> task
+    );
+    static void FinishRuntimeTask(
+        const std::shared_ptr<RuntimeState>& runtime
+    );
     void PostResponse(const std::string& message);
     void CancelRequest(const std::string& id);
     bool RegisterRequest(
@@ -77,17 +85,9 @@ private:
     Dispatch dispatch_;
     KSMRouter router_;
     bool allow_development_origin_ = false;
+    std::shared_ptr<RuntimeState> runtime_state_ =
+        std::make_shared<RuntimeState>();
     std::mutex queue_mutex_;
-    std::condition_variable queue_ready_;
-    std::deque<std::function<void()>> tasks_;
     std::unordered_map<std::string, std::shared_ptr<RequestState>> active_requests_;
     std::size_t in_flight_ = 0;
-    bool stopping_ = false;
-    std::vector<std::thread> workers_;
-
-    std::mutex timer_mutex_;
-    std::condition_variable timer_ready_;
-    std::deque<Deadline> deadlines_;
-    bool timer_stopping_ = false;
-    std::thread timer_thread_;
 };

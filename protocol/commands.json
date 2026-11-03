@@ -1094,6 +1094,16 @@
     }
   },
   "events": {
+    "webview.navigated": {
+      "payload": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": ["windows", "android"],
+      "since": "1.2.0"
+    },
     "webview.reloaded": {
       "payload": {
         "type": "object",

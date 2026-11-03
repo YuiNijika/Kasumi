@@ -1,4 +1,21 @@
 {
+  "permissions": [
+    "fs.read",
+    "fs.write",
+    "fs.remove",
+    "dialog",
+    "clipboard.read",
+    "clipboard.write",
+    "notification.show",
+    "window.control",
+    "http.download",
+    "shell.open",
+    "device.info",
+    "sql",
+    "store",
+    "os.info",
+    "log.write"
+  ],
   "windows": [
     "ping",
     "capabilities.query",

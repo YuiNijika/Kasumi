@@ -69,6 +69,14 @@ class KSMPluginRegistry(
         return permission in permissions
     }
 
+    fun pluginIdForCommand(command: String): String? {
+        return handlers[command]?.id
+    }
+
+    fun permissionsForCommand(command: String): Set<String> {
+        return handlers[command]?.permissions.orEmpty()
+    }
+
     fun validateArgs(command: String, args: JSONObject): Boolean {
         val plugin = handlers[command] ?: return false
         return plugin.validateArgs(command, args)

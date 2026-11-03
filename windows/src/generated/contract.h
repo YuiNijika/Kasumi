@@ -780,7 +780,7 @@ inline const std::vector<std::string>& KSMGeneratedContract::AndroidCommands() {
 
 inline const std::vector<std::string>& KSMGeneratedContract::Events() {
     static const std::vector<std::string> values = {
-        "webview.reloaded", "window.resized"
+        "webview.navigated", "webview.reloaded", "window.resized"
     };
     return values;
 }

@@ -1,6 +1,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -21,6 +22,7 @@
 #include "../src/bridge/ksm_router.h"
 #include "../src/commands/ksm_filesystem.h"
 #include "../src/commands/ksm_phase1.h"
+#include "../src/generated/contract.h"
 #include "../src/platform/ksm_host_services.h"
 #include "../src/platform/ksm_sql_driver.h"
 #include "../src/platform/ksm_sqlite_driver.h"
@@ -37,6 +39,14 @@
 namespace {
 
 using Json = nlohmann::json;
+
+const std::vector<std::string>& AllWindowsCommands() {
+    return KSMGeneratedContract::WindowsCommands();
+}
+
+const std::vector<std::string>& AllPermissions() {
+    return KSMGeneratedContract::Permissions();
+}
 
 Json Invoke(KSMRouter& router, const std::string& command, const Json& args) {
     const Json request{
@@ -476,6 +486,68 @@ public:
     }
 };
 
+class BlockingSqlConnection final : public KSMSqlConnection {
+public:
+    KSMSqlQueryResult Query(
+        const std::string&,
+        const std::vector<KSMSqlValue>&
+    ) override {
+        std::unique_lock lock(mutex_);
+        query_started_ = true;
+        ready_.notify_all();
+        idle_.wait(lock, [this] {
+            return cancelled_.load();
+        });
+        throw KSMHostException(
+            "CANCELLED",
+            "The SQL request was cancelled."
+        );
+    }
+
+    KSMSqlExecuteResult Execute(
+        const std::string&,
+        const std::vector<KSMSqlValue>&
+    ) override {
+        (void)Query("", {});
+        return KSMSqlExecuteResult{0, std::nullopt};
+    }
+
+    void Cancel() override {
+        {
+            std::lock_guard lock(mutex_);
+            cancelled_.store(true);
+        }
+        idle_.notify_all();
+    }
+
+    void WaitUntilRunning() {
+        std::unique_lock lock(mutex_);
+        ready_.wait(lock, [this] {
+            return query_started_;
+        });
+    }
+
+private:
+    std::mutex mutex_;
+    std::condition_variable ready_;
+    std::condition_variable idle_;
+    std::atomic<bool> cancelled_{false};
+    bool query_started_ = false;
+};
+
+class BlockingSqlDriver final : public KSMSqlDriver {
+public:
+    std::string Name() const override {
+        return "blocking";
+    }
+
+    std::unique_ptr<KSMSqlConnection> Open(
+        const std::string&
+    ) override {
+        return std::make_unique<BlockingSqlConnection>();
+    }
+};
+
 bool IsResponse(const Json& response, const std::string& id) {
     return response.value("type", "") == "response" &&
         response.value("id", "") == id;
@@ -491,7 +563,12 @@ void TestHostTimeoutAndCancel(
             responses.Push(response);
         },
         file_system,
-        services
+        services,
+        {},
+        AllWindowsCommands(),
+        false,
+        {},
+        AllPermissions()
     );
 
     host.OnMessageReceived(Json{
@@ -596,6 +673,20 @@ void TestHostTimeoutAndCancel(
     }
     ExpectError(*cancelled, "CANCELLED");
 
+    host.NotifyWebViewNavigated(false);
+    const auto navigated = responses.WaitFor(
+        [](const Json& response) {
+            return response.value("type", "") == "event" &&
+                response.value("event", "") == "webview.navigated";
+        },
+        std::chrono::seconds(1)
+    );
+    if (!navigated || !responses.Empty()) {
+        throw std::runtime_error(
+            "A normal navigation emitted the reload event."
+        );
+    }
+
     host.NotifyWebViewReloaded();
     const auto reloaded = responses.WaitFor(
         [](const Json& response) {
@@ -620,7 +711,12 @@ void TestHostShutdownDropsResponses(
                 responses.Push(response);
             },
             file_system,
-            services
+            services,
+            {},
+            AllWindowsCommands(),
+            false,
+            {},
+            AllPermissions()
         );
         host.OnMessageReceived(Json{
             {"type", "request"},
@@ -642,7 +738,7 @@ void TestKsmRoot(
     const std::shared_ptr<KSMFileSystem>& file_system
 ) {
     auto services = std::make_shared<BlockingHostServices>();
-    KSM::Init(file_system, services);
+    KSM::Init(file_system, services, AllWindowsCommands(), AllPermissions());
 
     const auto ping = Json::parse(KSM::Invoke("window-1", "ping", "{}"));
     ExpectOk(ping);
@@ -881,7 +977,13 @@ void TestNewCommands(
     const std::shared_ptr<KSMFileSystem>& file_system
 ) {
     auto services = std::make_shared<BlockingHostServices>();
-    KSMRouter router(file_system, services);
+    KSMRouter router(
+        file_system,
+        services,
+        AllWindowsCommands(),
+        AllPermissions(),
+        {}
+    );
 
     const auto download = Invoke(
         router,
@@ -986,7 +1088,13 @@ void TestUtilityPlugins(
     const std::shared_ptr<KSMFileSystem>& file_system
 ) {
     auto services = std::make_shared<BlockingHostServices>();
-    KSMRouter router(file_system, services);
+    KSMRouter router(
+        file_system,
+        services,
+        AllWindowsCommands(),
+        AllPermissions(),
+        {}
+    );
 
     const auto directories = Invoke(router, "path.dirs", Json::object());
     ExpectOk(directories);
@@ -1167,7 +1275,7 @@ void TestUtilityPlugins(
         }
     }
 
-    KSM::Init(file_system, services);
+    KSM::Init(file_system, services, AllWindowsCommands(), AllPermissions());
     const auto typed_directories = KSM::Path::Dirs();
     const auto typed_joined = KSM::Path::Join(
         "app://data",
@@ -1235,7 +1343,13 @@ void TestSqlPlugin(
     services->RegisterSqlDriver(
         std::make_shared<KSMSqliteDriver>(file_system)
     );
-    KSMRouter router(file_system, services);
+    KSMRouter router(
+        file_system,
+        services,
+        AllWindowsCommands(),
+        AllPermissions(),
+        {}
+    );
 
     const auto drivers = Invoke(router, "sql.drivers", Json::object());
     ExpectOk(drivers);
@@ -1349,7 +1463,13 @@ void TestSqlResourceLimits(
 ) {
     auto services = std::make_shared<BlockingHostServices>();
     services->RegisterSqlDriver(std::make_shared<LimitSqlDriver>());
-    KSMRouter router(file_system, services);
+    KSMRouter router(
+        file_system,
+        services,
+        AllWindowsCommands(),
+        AllPermissions(),
+        {}
+    );
 
     std::string first_connection;
     for (std::size_t index = 0; index < 32; ++index) {
@@ -1407,13 +1527,72 @@ void TestSqlResourceLimits(
     ));
 }
 
+void TestSqlCancellation() {
+    BlockingHostServices services;
+    services.RegisterSqlDriver(std::make_shared<BlockingSqlDriver>());
+    const auto connection = services.SqlOpen("blocking", ":memory:");
+    if (!connection) {
+        throw std::runtime_error("The blocking SQL driver did not open.");
+    }
+
+    std::exception_ptr query_error;
+    std::thread query([&services, connection, &query_error] {
+        try {
+            (void)services.SqlQuery(
+                *connection,
+                "wait",
+                {},
+                "sql-cancel"
+            );
+        } catch (...) {
+            query_error = std::current_exception();
+        }
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    bool duplicate_rejected = false;
+    try {
+        (void)services.SqlQuery(
+            *connection,
+            "wait",
+            {},
+            "sql-cancel"
+        );
+    } catch (const KSMHostException& error) {
+        duplicate_rejected = error.code() == "BUSY";
+    }
+    services.CancelRequest("sql-cancel");
+    query.join();
+
+    if (!duplicate_rejected) {
+        throw std::runtime_error(
+            "The SQL registry did not reject a duplicate request ID."
+        );
+    }
+    if (!query_error) {
+        throw std::runtime_error(
+            "The SQL request did not observe cancellation."
+        );
+    }
+    try {
+        std::rethrow_exception(query_error);
+    } catch (const KSMHostException& error) {
+        if (error.code() != "CANCELLED") {
+            throw std::runtime_error(
+                "The SQL request returned the wrong cancellation code."
+            );
+        }
+    }
+}
+
 void TestCustomPlugin(
     const std::shared_ptr<KSMFileSystem>& file_system
 ) {
     KSMRouter router(
         file_system,
         nullptr,
-        {},
+        {"capabilities.query", "contract.echo"},
+        {"contract.echo"},
         {std::make_shared<ContractEchoPlugin>()}
     );
     const auto echoed = Invoke(
@@ -1450,7 +1629,8 @@ void TestPluginRules(
     KSMRouter replacement(
         file_system,
         nullptr,
-        {},
+        {"fs.exists"},
+        {"fs.read"},
         {std::make_shared<ReplacementFileSystemPlugin>()}
     );
     const auto exists = Invoke(
@@ -1468,7 +1648,8 @@ void TestPluginRules(
         KSMRouter invalid(
             file_system,
             nullptr,
-            {},
+            {"fs.exists"},
+            {"fs.read"},
             {std::make_shared<GeneratedCommandHijackPlugin>()}
         );
         (void)invalid;
@@ -1484,7 +1665,8 @@ void TestPluginRules(
     KSMRouter clipboard(
         file_system,
         nullptr,
-        {},
+        {"clipboard.readText"},
+        {"clipboard.read"},
         {std::make_shared<ReplacementClipboardPlugin>()}
     );
     const auto clipboard_text = Invoke(
@@ -1569,26 +1751,60 @@ void TestWindowsHostVersion() {
 void TestDuplicateDownloadRequest(
     const std::shared_ptr<KSMFileSystem>& file_system
 ) {
-    KSMWindowsHostServices services(nullptr, {}, file_system);
-    std::exception_ptr first_error;
-    std::thread download([&services, &first_error] {
+    KSMWindowsHostServices services(
+        nullptr,
+        {},
+        {"https://example.com"},
+        file_system
+    );
+    std::mutex gate_mutex;
+    std::condition_variable gate_cv;
+    bool download_started = false;
+    bool release_download = false;
+    services.SetDownloadTestGate([&] {
+        std::unique_lock lock(gate_mutex);
+        download_started = true;
+        gate_cv.notify_all();
+        gate_cv.wait(lock, [&] {
+            return release_download;
+        });
+        throw KSMHostException("CANCELLED", "The test released the download.");
+    });
+
+    bool download_cancelled = false;
+    std::thread download([&] {
         try {
             (void)services.Download(
-                "https://203.0.113.1/kasumi.bin",
+                "https://example.com/kasumi.bin",
                 "app://data/duplicate-download.bin",
                 false,
                 "duplicate-download"
             );
+        } catch (const KSMHostException& error) {
+            download_cancelled = error.code() == "CANCELLED";
         } catch (...) {
-            first_error = std::current_exception();
         }
     });
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    {
+        std::unique_lock lock(gate_mutex);
+        if (!gate_cv.wait_for(lock, std::chrono::seconds(2), [&] {
+                return download_started;
+            })) {
+            release_download = true;
+            gate_cv.notify_all();
+            lock.unlock();
+            download.join();
+            throw std::runtime_error(
+                "The test download did not reach the reservation gate."
+            );
+        }
+    }
+
     bool duplicate_rejected = false;
     try {
         (void)services.Download(
-            "https://203.0.113.1/kasumi.bin",
+            "https://example.com/kasumi.bin",
             "app://data/duplicate-download.bin",
             false,
             "duplicate-download"
@@ -1596,14 +1812,17 @@ void TestDuplicateDownloadRequest(
     } catch (const KSMHostException& error) {
         duplicate_rejected = error.code() == "BUSY";
     }
-    services.CancelRequest("duplicate-download");
+    {
+        std::lock_guard lock(gate_mutex);
+        release_download = true;
+    }
+    gate_cv.notify_all();
     download.join();
-    if (!duplicate_rejected) {
+    if (!duplicate_rejected || !download_cancelled) {
         throw std::runtime_error(
-            "The Windows host did not reject a duplicate download ID."
+            "The Windows host did not reserve or release a duplicate download ID."
         );
     }
-    (void)first_error;
 }
 
 void TestConcurrentStoreWrites(
@@ -1672,6 +1891,119 @@ void TestConcurrentStoreWrites(
     }
 }
 
+void TestFileSystemSymlinkContainment(
+    const std::filesystem::path& root,
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    const auto outside = root / "outside";
+    std::filesystem::create_directories(outside);
+    {
+        std::ofstream secret(outside / "secret.txt", std::ios::binary);
+        secret << "secret";
+    }
+
+    std::error_code error;
+    const auto file_link = root / "data" / "contract-link.txt";
+    std::filesystem::create_symlink(
+        outside / "secret.txt",
+        file_link,
+        error
+    );
+    if (error) {
+        return;
+    }
+    if (
+        file_system->Exists("app://data/contract-link.txt") ||
+        file_system->ReadText("app://data/contract-link.txt") ||
+        file_system->WriteText("app://data/contract-link.txt", "blocked")
+    ) {
+        throw std::runtime_error(
+            "The filesystem followed a symlinked file outside the sandbox."
+        );
+    }
+
+    error.clear();
+    const auto directory_link = root / "data" / "contract-link-dir";
+    std::filesystem::create_directory_symlink(outside, directory_link, error);
+    if (error) {
+        return;
+    }
+    const auto listing = file_system->ReadDir("app://data/contract-link-dir");
+    if (
+        file_system->ReadText("app://data/contract-link-dir/secret.txt") ||
+        (listing && !listing->empty())
+    ) {
+        throw std::runtime_error(
+            "The filesystem followed a symlinked directory outside the sandbox."
+        );
+    }
+}
+
+void TestCapabilityPermissionFilter(
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    KSMRouter denied(
+        file_system,
+        nullptr,
+        {"capabilities.query", "fs.readText"},
+        {},
+        {}
+    );
+    const auto denied_capabilities = Invoke(
+        denied,
+        "capabilities.query",
+        Json::object()
+    );
+    ExpectOk(denied_capabilities);
+    const auto& denied_commands = denied_capabilities.at("data").at("commands");
+    if (
+        std::find(
+            denied_commands.begin(),
+            denied_commands.end(),
+            "fs.readText"
+        ) != denied_commands.end()
+    ) {
+        throw std::runtime_error(
+            "capabilities.query advertised a command without permission."
+        );
+    }
+    ExpectError(
+        Invoke(
+            denied,
+            "fs.readText",
+            Json{{"path", "app://data/contract.txt"}}
+        ),
+        "PERMISSION_DENIED"
+    );
+
+    KSMRouter granted(
+        file_system,
+        nullptr,
+        {"capabilities.query", "fs.readText"},
+        {"fs.read"},
+        {}
+    );
+    const auto granted_capabilities = Invoke(
+        granted,
+        "capabilities.query",
+        Json::object()
+    );
+    ExpectOk(granted_capabilities);
+    const auto& granted_commands =
+        granted_capabilities.at("data").at("commands");
+    if (
+        std::find(
+            granted_commands.begin(),
+            granted_commands.end(),
+            "fs.readText"
+        ) == granted_commands.end()
+    ) {
+        throw std::runtime_error(
+            "capabilities.query omitted a permissioned command."
+        );
+    }
+}
+
 }
 
 int main() {
@@ -1696,7 +2028,13 @@ int main() {
         resource_root,
         asset_root
     );
-    KSMRouter router(file_system);
+    KSMRouter router(
+        file_system,
+        nullptr,
+        AllWindowsCommands(),
+        AllPermissions(),
+        {}
+    );
 
     try {
         const auto ping = Invoke(router, "ping", Json::object());
@@ -1994,11 +2332,14 @@ int main() {
         TestNewCommands(file_system);
         TestUtilityPlugins(file_system);
         TestConcurrentStoreWrites(file_system);
+        TestFileSystemSymlinkContainment(root, file_system);
         TestSqlPlugin(file_system);
         TestSqlResourceLimits(file_system);
+        TestSqlCancellation();
         TestCustomPlugin(file_system);
         TestPluginRules(file_system);
         TestCommandAllowlist(file_system);
+        TestCapabilityPermissionFilter(file_system);
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         std::error_code ignored;

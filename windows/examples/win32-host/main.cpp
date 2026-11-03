@@ -176,23 +176,38 @@ bool HasCommandLineFlag(const wchar_t *flag) {
   return found;
 }
 
-std::vector<std::string> ConfiguredCommands() {
-  const std::string configured = KASUMI_APP_COMMANDS;
-  std::vector<std::string> commands;
+std::vector<std::string> ConfiguredValues(const std::string &configured) {
+  std::vector<std::string> values;
   std::size_t start = 0;
   while (start < configured.size()) {
     const std::size_t separator = configured.find(',', start);
     const std::size_t end =
         separator == std::string::npos ? configured.size() : separator;
     if (end > start) {
-      commands.push_back(configured.substr(start, end - start));
+      values.push_back(configured.substr(start, end - start));
     }
     if (separator == std::string::npos) {
       break;
     }
     start = separator + 1;
   }
-  return commands;
+  return values;
+}
+
+std::vector<std::string> ConfiguredCommands() {
+  return ConfiguredValues(KASUMI_APP_COMMANDS);
+}
+
+std::vector<std::string> ConfiguredPermissions() {
+  return ConfiguredValues(KASUMI_APP_PERMISSIONS);
+}
+
+std::vector<std::string> ConfiguredShellOrigins() {
+  return ConfiguredValues(KASUMI_SHELL_ALLOWED_ORIGINS);
+}
+
+std::vector<std::string> ConfiguredHttpOrigins() {
+  return ConfiguredValues(KASUMI_HTTP_ALLOWED_ORIGINS);
 }
 
 void ShowRuntimePrompt(HWND owner) {
@@ -459,10 +474,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   ShowWindow(window, smoke_test ? SW_SHOWNOACTIVATE : show_command);
   UpdateWindow(window);
 
-  auto host = std::make_unique<KSMWebView2Host>(
-      window, file_system, std::vector<std::string>{"https://example.com"},
-      web_root, webview_data, smoke_test, web_resources, start_url, dev_mode,
-      KASUMI_APP_VERSION, ConfiguredCommands(), kWindowDecorations);
+ auto host = std::unique_ptr<KSMWebView2Host>(new KSMWebView2Host(
+ window, file_system, ConfiguredShellOrigins(),
+ web_root, webview_data, smoke_test, web_resources, start_url, dev_mode,
+ KASUMI_APP_VERSION, ConfiguredCommands(), kWindowDecorations,
+ std::vector<std::shared_ptr<KSMPlugin>>{},
+ ConfiguredPermissions(), ConfiguredHttpOrigins()));
 
   MultiViewSmokeContext multi_view_context;
   multi_view_context.host = host.get();
@@ -646,6 +663,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
           first_options.fill_parent = false;
           first_options.append_smoke_query = false;
           first_options.allowed_commands = ConfiguredCommands();
+          first_options.allowed_permissions = ConfiguredPermissions();
           multi_view_context.first =
               host->CreateView(first_options, view_ready);
 

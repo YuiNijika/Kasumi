@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-shell",
-  "version": "26.11.3",
+  "version": "26.11.4",
   "description": "External URL plugin API for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

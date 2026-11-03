@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -47,9 +48,20 @@ public:
         const std::string& statement,
         const std::vector<KSMSqlValue>& params
     ) override;
+    void Cancel() override;
 
 private:
+    void BeginOperation();
+    void EndOperation();
+    void ThrowIfCancelled() const;
+    void SetActiveStatement(void* statement);
+    void ClearActiveStatement(void* statement);
+
     void* environment_;
     void* connection_;
+    std::mutex cancel_mutex_;
+    void* active_statement_ = nullptr;
+    std::atomic<bool> cancelled_{false};
+    bool active_ = false;
     std::mutex mutex_;
 };

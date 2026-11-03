@@ -24,6 +24,11 @@ import {
   readFrontendSettings
 } from '../src/frontend.mjs';
 import { createZipArchive } from '../src/archive.mjs';
+import {
+  clearDevelopmentProcess,
+  hasDevelopmentState,
+  recordDevelopmentProcess
+} from '../src/dev-runtime.mjs';
 import { collectDoctorChecks } from '../src/main.mjs';
 import {
   applicationOutputDirectory,
@@ -31,9 +36,11 @@ import {
 } from '../src/output.mjs';
 import { commandInvocation } from '../src/process.mjs';
 import {
+  cmakeCacheMatches,
   createVcpkgEnvironment,
   createWindowsPackage,
-  findVcpkgToolchain
+  findVcpkgToolchain,
+  supportsWindowsDevMode
 } from '../src/windows.mjs';
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -152,13 +159,108 @@ test('keeps vcpkg caches inside the project', async () => {
       environment.VCPKG_DOWNLOADS,
       path.join(cacheRoot, 'downloads')
     );
+    assert.equal(
+      environment.installed,
+      path.join(cacheRoot, 'installed')
+    );
+    assert.match(
+      environment.VCPKG_BINARY_SOURCES,
+      /readwrite$/
+    );
     for (const directory of [
       environment.X_VCPKG_REGISTRIES_CACHE,
       environment.VCPKG_DEFAULT_BINARY_CACHE,
-      environment.VCPKG_DOWNLOADS
+      environment.VCPKG_DOWNLOADS,
+      environment.installed
     ]) {
       assert.equal((await stat(directory)).isDirectory(), true);
     }
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('tracks and clears development process state', async () => {
+  const temporaryRoot = await mkdtemp(
+    path.join(tmpdir(), 'kasumi-dev-state-test-')
+  );
+  try {
+    await recordDevelopmentProcess(temporaryRoot, 'frontend', 1234);
+    assert.equal(await hasDevelopmentState(temporaryRoot), true);
+    await clearDevelopmentProcess(temporaryRoot, 'frontend', 9999);
+    assert.equal(await hasDevelopmentState(temporaryRoot), true);
+    await clearDevelopmentProcess(temporaryRoot, 'frontend', 1234);
+    assert.equal(await hasDevelopmentState(temporaryRoot), false);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('reuses CMake caches across Windows path separators', async () => {
+  const temporaryRoot = await mkdtemp(
+    path.join(tmpdir(), 'kasumi-cmake-cache-test-')
+  );
+  try {
+    await writeFile(
+      path.join(temporaryRoot, 'CMakeCache.txt'),
+      [
+        'CMAKE_BUILD_TYPE:STRING=Release',
+        'VCPKG_INSTALLED_DIR:PATH=D:/project/.ksm/vcpkg/installed',
+        ''
+      ].join('\n'),
+      'utf8'
+    );
+    assert.equal(
+      await cmakeCacheMatches(temporaryRoot, [
+        '-DCMAKE_BUILD_TYPE=Release',
+        '-DVCPKG_INSTALLED_DIR=D:\\project\\.ksm\\vcpkg\\installed'
+      ]),
+      true
+    );
+    assert.equal(
+      await cmakeCacheMatches(temporaryRoot, [
+        '-DCMAKE_BUILD_TYPE=Debug'
+      ]),
+      false
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('template development builds do not require production web assets', async () => {
+  const cmake = await readFile(
+    path.join(
+      repositoryRoot,
+      'packages',
+      'create-kasumi',
+      'templates',
+      'basic',
+      'windows',
+      'CMakeLists.txt'
+    ),
+    'utf8'
+  );
+  assert.match(cmake, /option\(\s+KASUMI_DEV_MODE/);
+  assert.match(cmake, /if\(KASUMI_DEV_MODE\)/);
+});
+
+test('detects whether a generated Windows host supports dev mode', async () => {
+  const temporaryRoot = await mkdtemp(
+    path.join(tmpdir(), 'kasumi-windows-dev-mode-test-')
+  );
+  try {
+    const windowsDirectory = path.join(temporaryRoot, 'windows');
+    await mkdir(windowsDirectory, { recursive: true });
+    const cmakePath = path.join(windowsDirectory, 'CMakeLists.txt');
+    await writeFile(cmakePath, 'project(kasumi_app)\n', 'utf8');
+    assert.equal(await supportsWindowsDevMode(temporaryRoot), false);
+    await writeFile(
+      cmakePath,
+      'option(KASUMI_DEV_MODE "development" OFF)\n',
+      'utf8'
+    );
+    assert.equal(await supportsWindowsDevMode(temporaryRoot), true);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
@@ -487,6 +589,90 @@ test('accepts hidden Windows decorations', async () => {
     assert.equal(config.windows.decorations, false);
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('permissions fail closed and origins are normalized exactly', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          shell: {
+            allowedOrigins: ['HTTPS://Example.COM:443']
+          },
+          http: {
+            allowedOrigins: ['https://api.example.com']
+          }
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          permissions: 'all'
+        }
+      }),
+      'utf8'
+    );
+    const config = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.deepEqual(config.windows.permissions, []);
+    assert.deepEqual(
+      config.windows.shell.allowedOrigins,
+      ['https://example.com']
+    );
+    assert.deepEqual(
+      config.windows.http.allowedOrigins,
+      ['https://api.example.com']
+    );
+    assert.ok(config.android.permissions.length > 0);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('rejects unsafe origin allowlist entries', async () => {
+  for (const origin of [
+    'https://user@example.com',
+    'https://example.com/path',
+    'https://example.com?token=1',
+    'https://example.com#fragment'
+  ]) {
+    const temporaryRoot = await mkdtemp(
+      path.join(tmpdir(), 'kasumi-cli-origin-test-')
+    );
+    try {
+      const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          windows: {
+            packageName: 'sample-app',
+            version: '0.1.0',
+            commands: ['ping', 'capabilities.query'],
+            shell: {
+              allowedOrigins: [origin]
+            }
+          },
+          android: {
+            packageName: 'dev.kasumi.sample',
+            version: '0.1.0',
+            commands: ['ping', 'capabilities.query']
+          }
+        }),
+        'utf8'
+      );
+      await assert.rejects(
+        readConfig(temporaryRoot, 'kasumi.config.json'),
+        /allowedOrigins/
+      );
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
   }
 });
 

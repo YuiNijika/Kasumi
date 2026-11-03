@@ -119,7 +119,7 @@ void KSMStorePlugin::Save(
     if (content.size() > kMaxStoreBytes) {
         throw KSMHostException("IO_ERROR", "The store exceeds 16 MiB.");
     }
-    if (!file_system->WriteText(kStorePath, content)) {
+    if (!file_system->WriteTextAtomic(kStorePath, content)) {
         throw KSMHostException("IO_ERROR", "The store could not be written.");
     }
 }

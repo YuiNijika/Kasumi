@@ -30,6 +30,11 @@ option(
     "Bundle WebView2Loader.dll instead of statically linking the loader"
     OFF
 )
+option(
+    KASUMI_ENABLE_SMOKE_TEST
+    "Allow smoke-test builds to disable the Chromium sandbox in CI"
+    OFF
+)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -95,6 +100,7 @@ if (WIN32)
         PUBLIC
             UNICODE
             _UNICODE
+            KASUMI_ENABLE_SMOKE_TEST=$<BOOL:${KASUMI_ENABLE_SMOKE_TEST}>
     )
 
     find_package(unofficial-webview2 CONFIG REQUIRED)
@@ -132,15 +138,26 @@ if (WIN32)
             shlwapi
             user32
             winhttp
+            dnsapi
             unofficial::webview2::webview2
     )
 endif()
 
 include(CTest)
 if (BUILD_TESTING)
+    target_compile_definitions(
+        kasumi_windows_bridge
+        PRIVATE
+            KASUMI_ENABLE_TEST_HOOKS=1
+    )
     add_executable(
         kasumi_contract_runner
         tests/contract_runner.cpp
+    )
+    target_compile_definitions(
+        kasumi_contract_runner
+        PRIVATE
+            KASUMI_ENABLE_TEST_HOOKS=1
     )
     target_link_libraries(
         kasumi_contract_runner

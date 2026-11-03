@@ -112,7 +112,7 @@ class KSMStorePlugin : KSMPlugin {
         if (text.toByteArray(Charsets.UTF_8).size > MAX_STORE_BYTES) {
             throw KSMHostException("IO_ERROR", "The store exceeds 16 MiB.")
         }
-        if (!requireFileSystem(context).writeText(STORE_PATH, text)) {
+        if (!requireFileSystem(context).writeTextAtomic(STORE_PATH, text)) {
             throw KSMHostException("IO_ERROR", "The store could not be written.")
         }
     }

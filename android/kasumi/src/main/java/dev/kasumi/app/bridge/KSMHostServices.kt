@@ -55,12 +55,14 @@ interface KSMHostServices {
     fun sqlQuery(
         connectionId: String,
         statement: String,
-        params: List<Any?>
+        params: List<Any?>,
+        requestId: String? = null
     ): KSMSqlQueryResult? = null
     fun sqlExecute(
         connectionId: String,
         statement: String,
-        params: List<Any?>
+        params: List<Any?>,
+        requestId: String? = null
     ): KSMSqlExecuteResult? = null
     fun sqlClose(connectionId: String): Boolean = false
     fun cancelRequest(requestId: String) {}

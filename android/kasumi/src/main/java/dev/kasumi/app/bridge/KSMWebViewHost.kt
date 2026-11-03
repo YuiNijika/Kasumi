@@ -14,7 +14,13 @@ import androidx.webkit.WebViewCompat
 import dev.kasumi.app.KSMAndroidHostServices
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,10 +29,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class KSMWebViewHost(
     private val activity: Activity,
@@ -35,6 +43,7 @@ class KSMWebViewHost(
     private val entryUrl: String,
     assetRoot: String = "",
     allowedCommands: Collection<String> = emptyList(),
+    allowedPermissions: Collection<String> = emptyList(),
     private val debug: Boolean = false,
     private val onNativeEvent: ((String) -> Unit)? = null,
     private val fullscreen: Boolean = true,
@@ -48,15 +57,10 @@ class KSMWebViewHost(
         @Volatile
         private var job: Job? = null
 
-        @Volatile
-        private var thread: Thread? = null
-
-        fun bind(job: Job, thread: Thread) {
+        fun bind(job: Job) {
             this.job = job
-            this.thread = thread
             if (cancelled.get()) {
                 job.cancel()
-                thread.interrupt()
             }
         }
 
@@ -66,7 +70,6 @@ class KSMWebViewHost(
             }
             cancelled.set(true)
             job?.cancel()
-            thread?.interrupt()
         }
 
         fun isCancelled(): Boolean {
@@ -84,6 +87,7 @@ class KSMWebViewHost(
         fileSystem,
         hostServices,
         allowedCommands = allowedCommands,
+        allowedPermissions = allowedPermissions,
         eventSender = { event ->
             dispatchNativeEvent(event)
             dispatchWebEvent(event)
@@ -92,6 +96,19 @@ class KSMWebViewHost(
         requestScope = windowId
     )
     private val commandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val commandExecutor = ThreadPoolExecutor(
+        MAX_CONCURRENT_COMMANDS,
+        MAX_CONCURRENT_COMMANDS,
+        0L,
+        TimeUnit.MILLISECONDS,
+        LinkedBlockingQueue<Runnable>(MAX_QUEUED_COMMANDS),
+        ThreadFactory { task ->
+            Thread(task, "kasumi-command-${workerIdSequence.getAndIncrement()}").apply {
+                isDaemon = true
+            }
+        },
+        ThreadPoolExecutor.AbortPolicy()
+    )
     private val activeRequests = ConcurrentHashMap<String, ActiveCommand>()
     private val commandSlots = Semaphore(MAX_CONCURRENT_COMMANDS)
     private val layoutListener = object : View.OnLayoutChangeListener {
@@ -136,6 +153,8 @@ class KSMWebViewHost(
 
     @Volatile
     private var timersPaused = false
+
+    private val pendingReload = AtomicBoolean(false)
 
     init {
         val entryUri = Uri.parse(entryUrl)
@@ -222,6 +241,7 @@ class KSMWebViewHost(
         closed = true
         commandScope.cancel()
         resetSession(silent = true)
+        commandExecutor.shutdownNow()
         if (timersPaused) {
             timersPaused = false
             KSMWebViewRuntime.resume(webView)
@@ -245,7 +265,10 @@ class KSMWebViewHost(
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 if (!closed && isAllowedUrl(url)) {
-                    router.emitSystemEvent("webview.reloaded", JSONObject())
+                    router.emitSystemEvent("webview.navigated", JSONObject())
+                    if (pendingReload.getAndSet(false)) {
+                        router.emitSystemEvent("webview.reloaded", JSONObject())
+                    }
                 }
             }
 
@@ -258,6 +281,15 @@ class KSMWebViewHost(
                 if (!closed) {
                     resetSession(silent = true)
                 }
+            }
+
+            override fun doUpdateVisitedHistory(
+                view: WebView,
+                url: String?,
+                isReload: Boolean
+            ) {
+                super.doUpdateVisitedHistory(view, url, isReload)
+                pendingReload.set(isReload)
             }
 
             override fun shouldOverrideUrlLoading(
@@ -337,7 +369,7 @@ class KSMWebViewHost(
         commandScope.launch {
             val job = coroutineContext[Job]
             if (job != null && active != null) {
-                active.bind(job, Thread.currentThread())
+                active.bind(job)
             }
             try {
                 val response = executeRequest(payload, id, timeoutMs, active)
@@ -364,9 +396,7 @@ class KSMWebViewHost(
         }
         return try {
             withTimeout(timeoutMs) {
-                runInterruptible {
-                    router.handleMessage(payload)
-                }
+                executeOnCommandThread(payload)
             }
         } catch (_: TimeoutCancellationException) {
             if (id != null) {
@@ -379,6 +409,27 @@ class KSMWebViewHost(
             }
             hostServices.cancelRequest(scopedRequestId(id))
             if (active?.shouldSuppressResponse() == true) "" else cancelledResponse(id)
+        }
+    }
+
+    private suspend fun executeOnCommandThread(payload: String): String {
+        return suspendCancellableCoroutine { continuation ->
+            try {
+                commandExecutor.execute {
+                    try {
+                        continuation.resume(router.handleMessage(payload))
+                    } catch (error: Throwable) {
+                        continuation.resumeWithException(error)
+                    }
+                }
+            } catch (_: RejectedExecutionException) {
+                continuation.resumeWithException(
+                    KSMHostException(
+                        "BUSY",
+                        "Too many concurrent commands."
+                    )
+                )
+            }
         }
     }
 
@@ -541,10 +592,12 @@ class KSMWebViewHost(
 
     companion object {
         private const val MAX_CONCURRENT_COMMANDS = 8
+        private const val MAX_QUEUED_COMMANDS = 32
         private const val DEFAULT_TIMEOUT_MS = 10000L
         private const val MAX_TIMEOUT_MS = 600000L
         private const val MESSAGE_CHANNEL = "ksm"
-        private val windowIdSequence = java.util.concurrent.atomic.AtomicLong(1)
+        private val windowIdSequence = AtomicLong(1)
+        private val workerIdSequence = AtomicLong(1)
 
         private fun nextWindowId(): String {
             return "window-${windowIdSequence.getAndIncrement()}"

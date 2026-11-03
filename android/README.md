@@ -41,7 +41,8 @@ Android 当前实现 **44/44 个适用命令**。Windows 专属的窗口标题�
 ## 应用配置
 
 Android 示例从仓库根目录 `kasumi.config.json` 读取 `android.packageName`、
-`android.version` 和 `android.commands`：
+`android.version`、`android.commands`、`android.permissions`，以及可选的
+`android.shell.allowedOrigins` 和 `android.http.allowedOrigins`：
 
 ```json
 {
@@ -52,9 +53,15 @@ Android 示例从仓库根目录 `kasumi.config.json` 读取 `android.packageNam
       "ping",
       "capabilities.query",
       "app.getInfo",
-      "device.getInfo",
-      "fs.readText"
-    ]
+      "http.download"
+    ],
+    "permissions": ["http.download"],
+    "shell": {
+      "allowedOrigins": ["https://example.com"]
+    },
+    "http": {
+      "allowedOrigins": ["https://cdn.example.com"]
+    }
   }
 }
 ```
@@ -63,9 +70,14 @@ Android 示例从仓库根目录 `kasumi.config.json` 读取 `android.packageNam
 启动、停止和卸载目标；`version` 注入 `versionName`，示例再把
 `BuildConfig.VERSION_NAME` 传给 `KSMAndroidHostServices`，因此 `app.getInfo.version`
 与配置一致。`commands` 生成 `BuildConfig.KSM_COMMANDS` 并传入 `KSMRouter`，
-`ping` 与 `capabilities.query` 必须保留；未列入的命令返回 `NOT_SUPPORTED`，Android
-原生 `KSM` 子模块同样不能绕过配置。Gradle `namespace` 仍固定为源码包
+`permissions` 生成 `BuildConfig.KSM_PERMISSIONS` 并传入路由器，缺失或空数组表示拒绝全部
+权限。`ping` 与 `capabilities.query` 必须保留；未列入的命令返回 `NOT_SUPPORTED`，命令已
+启用但权限未配置时返回 `PERMISSION_DENIED`，Android 原生 `KSM` 子模块同样不能绕过配置。
+`permission.request` 不会动态扩大静态集合。Gradle `namespace` 仍固定为源码包
 `dev.kasumi.example`，避免仅修改应用 ID 时破坏 Kotlin 源码目录。
+
+`shell.allowedOrigins` 接受精确 `http` / `https` origin；`http.allowedOrigins` 只接受
+精确 `https` origin。两者默认拒绝，不支持通配符或用户名密码，每一跳下载重定向都要重新匹配。
 
 CLI 默认读取 `kasumi.config.json`，也可用 `--config <path>` 指定其他文件。直接运行
 Gradle 时可用 `-PksmPackageName`、`-PksmVersion` 和逗号分隔的 `-PksmCommands`
@@ -207,10 +219,14 @@ hostServices.registerSqlDriver(MyRemoteDriver())
 超限返回 `RESOURCE_LIMIT`，不会截断结果。Store 插件使用进程级共享锁包裹完整读改写流程，
 多个 WebView 的插件实例不会互相覆盖 `store.json`。
 
-`KSMWebViewHost` 封装 `WebViewCompat.addWebMessageListener`，接收消息后放入 IO 协程，
-最多同时执行 8 条命令。超过上限返回 `BUSY`，超时返回 `TIMEOUT`，取消消息会中断任务并
-返回 `CANCELLED`。每个活动请求只保留一个可取消句柄，请求结束后立即移除，不维护无界
-取消 ID 集合。`timeoutMs` 必须是 `1..600000` 范围内的整数。
+SQL 活动请求 ID 必须唯一，重复 ID 返回 `BUSY`。SQLite 查询使用 `CancellationSignal`；
+取消或超时后活动查询被中断并返回 `CANCELLED` 或 `TIMEOUT`。
+
+`KSMWebViewHost` 封装 `WebViewCompat.addWebMessageListener`，接收消息后放入专用
+`ThreadPoolExecutor`，最多同时执行 8 条命令，排队上限为 32。超过上限返回 `BUSY`，超时
+返回 `TIMEOUT`，取消消息只终止当前 Job 和活动连接并返回 `CANCELLED`，不会 interrupt
+共享 `Dispatchers.IO` 线程。每个活动请求只保留一个可取消句柄，请求结束后立即移除，不维护
+无界取消 ID 集合。`timeoutMs` 必须是 `1..600000` 范围内的整数。
 
 每个 `KSMWebViewHost` 生成稳定且不复用的 `windowId`，并注册到 `KSM` 的窗口表。
 `KSM.invoke(windowId, ...)` 和 `KSM.on(windowId, ...)` 只访问目标窗口；无窗口参数 API
@@ -229,13 +245,16 @@ Activity 必须把 `onResume`、`onPause`、`onTrimMemory`、`onLowMemory` 和 `
 `assets/res/`，`app://assets` 映射到 `assets/web/`，两者只读。`app://picked/<id>`
 通过宿主保存的 `content://` 映射读写，真实 URI 不离开宿主层。
 
+所有路径操作都对可写根和目标执行 canonical containment 校验，并禁止叶节点跟随符号链接。
+父目录穿越、符号链接逃逸和越界目录枚举返回 `PERMISSION_DENIED`；合法 picked 授权不受影响。
+
 `fs.readDir` 返回按名称排序的目录项；`fs.mkdir` 只允许可写沙箱；`fs.stat` 支持可写
 沙箱、只读资源和有效 picked 句柄。目录 `size` 为 `0`，`modifiedAt` 为 Unix 毫秒或
 `null`。超过 64 KiB 的读取结果写入 `app://tmp/read-<id>.txt`，再次读取同一句柄返回
 同一路径。
 
-`webview.reloaded` 由 `onPageFinished` 作为系统事件发送；`window.resized` 由布局变化
-发送，需要订阅，尺寸单位是物理内容区像素。
+`webview.navigated` 在成功导航后发送；`webview.reloaded` 只在 `doUpdateVisitedHistory`
+标记为 reload 时发送。`window.resized` 由布局变化发送，需要订阅，尺寸单位是物理内容区像素。
 
 ## HTTP、Shell 与 Device
 
@@ -252,6 +271,8 @@ val result = KSM.http.download(
 `KSMAndroidHostServices.download` 使用 `HttpsURLConnection`：
 
 - 只接受 HTTPS，关闭自动重定向并逐跳校验。
+- 每一跳都必须匹配 `android.http.allowedOrigins` 的精确 origin，并拒绝私网、回环、
+  链路本地和云元数据地址。
 - 最多 5 次重定向，总超时 120 秒，最大 100 MiB。
 - 目标必须是 `app://data`、`app://cache` 或 `app://tmp` 下的文件。
 - 目标已存在且未允许覆盖时返回 `IO_ERROR`。
@@ -290,7 +311,8 @@ val info = KSM.device.getInfo()
 WebView 内存缓存并释放可回收页面内存，保留磁盘缓存以避免反复重新下载资源。
 
 文件选择器、通知权限和 Activity Result 都通过宿主服务等待结果；超时后清理 pending
-状态。取消和超时竞态由协程、活动请求句柄和下载会话共同处理。访问文件选择器后产生的
+状态。已有选择器未完成时，新的选择请求返回 `BUSY`，不会返回 `null` 或覆盖待处理状态。
+取消和超时竞态由 Job、活动请求句柄和下载会话共同处理。访问文件选择器后产生的
 `app://picked/<id>` 映射在宿主关闭时释放，不会跨 Activity 生命周期继续持有 URI。
 
 Android O 及以上把 WebView 渲染进程设置为绑定当前应用，并允许系统在 WebView 不可见时
@@ -359,7 +381,7 @@ gradle -p android :kasumi:testDebugUnitTest :app:testDebugUnitTest :app:assemble
 
 | 测试 | 覆盖内容 |
 | --- | --- |
-| `ContractTest` | 根入口子模块、文件、picked、权限、新 API、双窗口路由、窗口级事件、SQL 限额、Store 并发、关闭后不可用 |
+| `ContractTest` | 根入口子模块、fail-closed 权限、symlink containment、picked、picker `BUSY`、双窗口路由、导航与 reload 事件、SQL 限额与取消、Store 并发、关闭后不可用 |
 | `KSMHttpPolicyTest` | HTTPS、凭据、origin、端口、重定向和长度边界 |
 | `NavigationPolicyTest` | WebView 来源和外部导航白名单 |
 | `BridgeInstrumentedTest` | 路径守卫、大文本、事件、picked/bundled 资源、通知权限 |
@@ -396,7 +418,7 @@ python cli/ksm.py package --platform android --target example
 
 1. 依赖解析失败：确认本地 Maven 仓库存在 `dev/kasumi/kasumi/<version>/`。
 2. 页面空白：检查 `assets/web/index.html`、CSP 和 `KSMWebAssetLoader` 的资源根。
-3. 请求一直超时：检查 `withTimeout`、`runInterruptible`、主线程回投和
+3. 请求一直超时：检查 `withTimeout`、专用执行器的取消链路、主线程回投和
    `timeoutMs` 是否在 `1..600000`。
 4. 文件被拒绝：检查虚拟根、picked 句柄和真实 URI 是否越界。
 5. 下载失败：检查 HTTPS、重定向、目标覆盖策略、网络权限和 `.part` 清理。
@@ -405,3 +427,5 @@ python cli/ksm.py package --platform android --target example
 8. Activity 旋转后异常：检查旧请求是否被取消，迟到响应是否被抑制。
 9. 多 WebView 请求走错窗口：检查是否显式传入 `KSMWebViewHost.windowId`，不要把默认窗口
    上下文用于多窗口路由。
+10. SQL 一直等待：确认 SQL request ID 未重复、取消令牌已透传，并检查
+    `CancellationSignal` 是否触发。

@@ -3,12 +3,28 @@
   "windows": {
     "packageName": "__WINDOWS_PACKAGE_NAME__",
     "version": "__KASUMI_VERSION__",
-    "commands": "all",
+    "commands": [
+      "ping",
+      "capabilities.query",
+      "app.getInfo",
+      "event.subscribe",
+      "event.unsubscribe",
+      "app.exit"
+    ],
+    "permissions": [],
     "decorations": true
   },
   "android": {
     "packageName": "__ANDROID_PACKAGE_NAME__",
     "version": "__KASUMI_VERSION__",
-    "commands": "all"
+    "commands": [
+      "ping",
+      "capabilities.query",
+      "app.getInfo",
+      "event.subscribe",
+      "event.unsubscribe",
+      "app.exit"
+    ],
+    "permissions": []
   }
 }

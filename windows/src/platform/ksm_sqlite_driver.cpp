@@ -18,6 +18,11 @@
 
 namespace {
 
+int SqliteProgressHandler(void* data) {
+    const auto* cancelled = static_cast<const std::atomic<bool>*>(data);
+    return cancelled != nullptr && cancelled->load() ? 1 : 0;
+}
+
 std::string_view LeadingStatement(std::string_view statement) {
     while (!statement.empty()) {
         while (!statement.empty() &&
@@ -291,25 +296,64 @@ KSMSqliteConnection::~KSMSqliteConnection() {
     sqlite3_close_v2(database_);
 }
 
+void KSMSqliteConnection::BeginOperation() {
+    std::lock_guard lock(cancel_mutex_);
+    cancelled_.store(false);
+    active_ = true;
+}
+
+void KSMSqliteConnection::EndOperation() {
+    std::lock_guard lock(cancel_mutex_);
+    active_ = false;
+    cancelled_.store(false);
+}
+
+void KSMSqliteConnection::Cancel() {
+    std::lock_guard lock(cancel_mutex_);
+    if (!active_) {
+        return;
+    }
+    cancelled_.store(true);
+    sqlite3_interrupt(database_);
+}
+
+void KSMSqliteConnection::ThrowIfCancelled() const {
+    if (cancelled_.load()) {
+        throw KSMHostException(
+            "CANCELLED",
+            "The SQL request was cancelled."
+        );
+    }
+}
+
 KSMSqlQueryResult KSMSqliteConnection::Query(
     const std::string& statement,
     const std::vector<KSMSqlValue>& params
 ) {
     std::lock_guard lock(mutex_);
+    BeginOperation();
+    sqlite3_progress_handler(
+        database_,
+        1000,
+        SqliteProgressHandler,
+        &cancelled_
+    );
     sqlite3_stmt* prepared = nullptr;
-    if (
-        sqlite3_prepare_v2(
-            database_,
-            statement.c_str(),
-            static_cast<int>(statement.size()),
-            &prepared,
-            nullptr
-        ) != SQLITE_OK
-    ) {
-        throw KSMHostException("INVALID_ARGS", sqlite3_errmsg(database_));
-    }
-
     try {
+        ThrowIfCancelled();
+        if (
+            sqlite3_prepare_v2(
+                database_,
+                statement.c_str(),
+                static_cast<int>(statement.size()),
+                &prepared,
+                nullptr
+            ) != SQLITE_OK
+        ) {
+            ThrowIfCancelled();
+            throw KSMHostException("INVALID_ARGS", sqlite3_errmsg(database_));
+        }
+        ThrowIfCancelled();
         BindParams(prepared, params);
         KSMSqlQueryResult result;
         const int column_count = sqlite3_column_count(prepared);
@@ -317,10 +361,17 @@ KSMSqlQueryResult KSMSqliteConnection::Query(
             const char* name = sqlite3_column_name(prepared, column);
             result.columns.emplace_back(name != nullptr ? name : "");
         }
+        std::size_t result_bytes = 0;
         while (true) {
             const int step = sqlite3_step(prepared);
             if (step == SQLITE_DONE) {
                 break;
+            }
+            if (step == SQLITE_INTERRUPT) {
+                throw KSMHostException(
+                    "CANCELLED",
+                    "The SQL request was cancelled."
+                );
             }
             if (step != SQLITE_ROW) {
                 throw KSMHostException(
@@ -333,12 +384,19 @@ KSMSqlQueryResult KSMSqliteConnection::Query(
             for (int column = 0; column < column_count; ++column) {
                 row.push_back(ReadSqlColumn(prepared, column));
             }
-            result.rows.push_back(std::move(row));
+            KSMSqlAppendRow(result, std::move(row), result_bytes);
         }
         sqlite3_finalize(prepared);
+        prepared = nullptr;
+        sqlite3_progress_handler(database_, 0, nullptr, nullptr);
+        EndOperation();
         return result;
     } catch (...) {
-        sqlite3_finalize(prepared);
+        if (prepared != nullptr) {
+            sqlite3_finalize(prepared);
+        }
+        sqlite3_progress_handler(database_, 0, nullptr, nullptr);
+        EndOperation();
         throw;
     }
 }
@@ -348,26 +406,41 @@ KSMSqlExecuteResult KSMSqliteConnection::Execute(
     const std::vector<KSMSqlValue>& params
 ) {
     std::lock_guard lock(mutex_);
+    BeginOperation();
+    sqlite3_progress_handler(
+        database_,
+        1000,
+        SqliteProgressHandler,
+        &cancelled_
+    );
     sqlite3_stmt* prepared = nullptr;
-    if (
-        sqlite3_prepare_v2(
-            database_,
-            statement.c_str(),
-            static_cast<int>(statement.size()),
-            &prepared,
-            nullptr
-        ) != SQLITE_OK
-    ) {
-        throw KSMHostException("INVALID_ARGS", sqlite3_errmsg(database_));
-    }
-
     try {
+        ThrowIfCancelled();
+        if (
+            sqlite3_prepare_v2(
+                database_,
+                statement.c_str(),
+                static_cast<int>(statement.size()),
+                &prepared,
+                nullptr
+            ) != SQLITE_OK
+        ) {
+            ThrowIfCancelled();
+            throw KSMHostException("INVALID_ARGS", sqlite3_errmsg(database_));
+        }
+        ThrowIfCancelled();
         BindParams(prepared, params);
         const int step = sqlite3_step(prepared);
         if (step == SQLITE_ROW) {
             throw KSMHostException(
                 "INVALID_ARGS",
                 "The statement returns rows. Use sql.query instead."
+            );
+        }
+        if (step == SQLITE_INTERRUPT) {
+            throw KSMHostException(
+                "CANCELLED",
+                "The SQL request was cancelled."
             );
         }
         if (step != SQLITE_DONE) {
@@ -388,12 +461,19 @@ KSMSqlExecuteResult KSMSqliteConnection::Execute(
             last_insert_id = sqlite3_last_insert_rowid(database_);
         }
         sqlite3_finalize(prepared);
+        prepared = nullptr;
+        sqlite3_progress_handler(database_, 0, nullptr, nullptr);
+        EndOperation();
         return KSMSqlExecuteResult{
             .rows_affected = mutates_rows ? rows_affected : 0,
             .last_insert_id = last_insert_id
         };
     } catch (...) {
-        sqlite3_finalize(prepared);
+        if (prepared != nullptr) {
+            sqlite3_finalize(prepared);
+        }
+        sqlite3_progress_handler(database_, 0, nullptr, nullptr);
+        EndOperation();
         throw;
     }
 }

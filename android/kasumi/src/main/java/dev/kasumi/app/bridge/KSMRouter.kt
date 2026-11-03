@@ -12,6 +12,7 @@ class KSMRouter(
     private val fileSystem: KSMFileSystem? = null,
     private val hostServices: KSMHostServices? = null,
     allowedCommands: Collection<String> = emptyList(),
+    allowedPermissions: Collection<String> = emptyList(),
     private val eventSender: (String) -> Unit = {},
     plugins: Collection<KSMPlugin> = emptyList(),
     private val requestScope: String = ""
@@ -60,28 +61,37 @@ class KSMRouter(
     }
 
     private val subscribedEvents = ConcurrentHashMap.newKeySet<String>()
-    private val grantedPermissions = ConcurrentHashMap.newKeySet<String>().apply {
-        addAll(KSMCommandRegistry.permissions)
-        addAll(pluginRegistry.permissions)
-    }
     private val allowedCommandNames = allowedCommands.toSet()
-    private val generatedCommands: List<String> = if (allowedCommandNames.isEmpty()) {
-        KSMCommandRegistry.supportedCommands
-    } else {
+    private val generatedCommands: List<String> =
         KSMCommandRegistry.supportedCommands.filter {
             it in allowedCommandNames
         }
+    private val knownPermissions = (
+        KSMCommandRegistry.permissions + pluginRegistry.permissions
+    ).toSet()
+    private val grantedPermissions = ConcurrentHashMap.newKeySet<String>().apply {
+        addAll(allowedPermissions.filter { it in knownPermissions })
     }
     private val unsupportedGeneratedCommands =
         KSMGeneratedContract.commands.toSet() -
             KSMCommandRegistry.supportedCommands.toSet()
     private val pluginCommands = pluginRegistry.commands.filter {
         it !in unsupportedGeneratedCommands &&
-            (allowedCommandNames.isEmpty() || it in allowedCommandNames)
+            it in allowedCommandNames
     }
     val supportedCommands: List<String> = (
         generatedCommands + pluginCommands
     ).distinct()
+    val grantedPermissionNames: List<String> = grantedPermissions.sorted()
+    internal val capabilityCommands: List<String> =
+        supportedCommands.filter { command ->
+            val required = if (KSMGeneratedContract.isKnownCommand(command)) {
+                KSMGeneratedContract.commandPermissions[command].orEmpty()
+            } else {
+                pluginRegistry.permissionsForCommand(command)
+            }
+            required.all { permission -> permission in grantedPermissions }
+        }
     val supportedPlugins: List<String> = capabilityPlugins()
 
     fun emitEvent(event: String, payload: JSONObject) {
@@ -188,7 +198,7 @@ class KSMRouter(
                         id,
                         JSONObject()
                             .put("platform", "android")
-                            .put("commands", supportedCommands)
+                            .put("commands", capabilityCommands)
                             .put("permissions", JSONArray(grantedPermissions.toList()))
                             .put("plugins", JSONArray(capabilityPlugins()))
                     )
@@ -226,12 +236,8 @@ class KSMRouter(
                                     "permission is not registered."
                                 )
                             }
-                            val granted = hostServices?.requestPermission(permission) ?: true
-                            if (granted) {
-                                grantedPermissions.add(permission)
-                            } else {
-                                grantedPermissions.remove(permission)
-                            }
+                            val granted = permission in grantedPermissions &&
+                                (hostServices?.requestPermission(permission) ?: true)
                             successResponse(id, JSONObject().put("granted", granted))
                         }
                     }
@@ -1073,7 +1079,9 @@ class KSMRouter(
     }
 
     private fun capabilityPlugins(): List<String> {
-        return (KSMGeneratedContract.plugins + pluginRegistry.ids).distinct()
+        return capabilityCommands.map { command ->
+            pluginRegistry.pluginIdForCommand(command) ?: "core"
+        }.distinct()
     }
 
     private fun textResponse(id: Any?, value: String, path: String): String {

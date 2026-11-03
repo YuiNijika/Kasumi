@@ -1,73 +1,129 @@
 :root {
-  --ink: #20352e;
-  --muted: #5f7069;
-  --accent: #2d6a55;
-  --accent-strong: #214f40;
-  --warm: #d69b63;
-  --line: rgba(32, 53, 46, 0.13);
-  --surface: rgba(250, 250, 246, 0.76);
-  --fact-background: rgba(250, 250, 246, 0.9);
-  --chip-background: rgba(255, 255, 255, 0.42);
-  color: var(--ink);
-  background: #eef1e8;
-  font-family:
-    "SF Pro Text",
-    "SF Pro Display",
-    "Segoe UI Variable",
-    "Segoe UI",
-    system-ui,
+  color-scheme: light;
+  --paper: #f2ece3;
+  --paper-deep: #e9e0d4;
+  --surface: #fbf7f0;
+  --ink: #231c18;
+  --muted: #756a61;
+  --line: #d6c9ba;
+  --brand-orange: #f06a24;
+  --brand-pink: #ff5f87;
+  --orange-strong: #d95012;
+  --green: #23845c;
+  --red: #bf4d3f;
+  --mark-surface: #fffdf9;
+  --font-display:
+    "Bahnschrift",
+    "Avenir Next",
+    "Segoe UI Variable Display",
+    "PingFang SC",
+    "Microsoft YaHei",
     sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --font-body:
+    "Avenir Next",
+    "Segoe UI Variable Text",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  --font-mono: "Cascadia Code", "SFMono-Regular", "Liberation Mono", monospace;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 html {
   min-width: 320px;
   min-height: 100%;
-  background:
-    radial-gradient(circle at 12% 8%, rgba(246, 216, 181, 0.88), transparent 31rem),
-    radial-gradient(circle at 88% 22%, rgba(181, 211, 197, 0.92), transparent 34rem),
-    linear-gradient(145deg, #f5f0e5 0%, #e9efe7 54%, #dfe9e2 100%);
+  background: var(--paper);
+  scroll-behavior: smooth;
 }
 
 body {
   min-width: 320px;
   min-height: 100svh;
-  overflow-x: hidden;
-  overscroll-behavior-y: none;
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 8% 0%, rgb(240 106 36 / 14%), transparent 31rem),
+    radial-gradient(circle at 92% 100%, rgb(255 95 135 / 8%), transparent 28rem),
+    linear-gradient(145deg, var(--paper), var(--paper-deep));
+  font-family: var(--font-body);
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  content: "";
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 button {
-  -webkit-tap-highlight-color: transparent;
+  font: inherit;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  body::before {
+    opacity: 0.24;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --muted: var(--ink);
+    --line: var(--ink);
+  }
+
+  body::before {
+    display: none;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ink: #edf4ee;
-    --muted: #a9b8b0;
-    --accent: #76b99f;
-    --accent-strong: #8ac8b0;
-    --warm: #e0ae79;
-    --line: rgba(237, 244, 238, 0.14);
-    --surface: rgba(28, 43, 37, 0.78);
-    --fact-background: rgba(25, 39, 33, 0.9);
-    --chip-background: rgba(255, 255, 255, 0.06);
     color-scheme: dark;
-    background: #17231e;
+    --paper: #171310;
+    --paper-deep: #201914;
+    --surface: #211a15;
+    --ink: #f5ece1;
+    --muted: #b8aaa0;
+    --line: #3b3028;
+    --brand-orange: #ff8d43;
+    --brand-pink: #ff719c;
+    --orange-strong: #ffa765;
+    --green: #62c99b;
+    --red: #ff8c7d;
+    --mark-surface: #fff9f0;
   }
 
-  html {
+  body {
     background:
-      radial-gradient(circle at 12% 8%, rgba(104, 69, 42, 0.42), transparent 31rem),
-      radial-gradient(circle at 88% 22%, rgba(48, 87, 70, 0.72), transparent 34rem),
-      linear-gradient(145deg, #1d2a24 0%, #17231e 58%, #111b17 100%);
+      radial-gradient(circle at 8% 0%, rgb(240 106 36 / 16%), transparent 31rem),
+      radial-gradient(circle at 92% 100%, rgb(255 95 135 / 8%), transparent 28rem),
+      linear-gradient(145deg, var(--paper), var(--paper-deep));
   }
 }

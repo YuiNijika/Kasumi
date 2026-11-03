@@ -22,6 +22,13 @@ public:
         std::vector<std::string> allowed_commands = {},
         std::vector<std::shared_ptr<KSMPlugin>> plugins = {}
     );
+    KSMRouter(
+        std::shared_ptr<KSMFileSystem> file_system,
+        std::shared_ptr<KSMHostServices> host_services,
+        std::vector<std::string> allowed_commands,
+        std::vector<std::string> allowed_permissions,
+        std::vector<std::shared_ptr<KSMPlugin>> plugins
+    );
     void HandleMessage(const std::string& message, const ResponseSender& send_response);
     void EmitEvent(
         const std::string& event,
@@ -42,6 +49,7 @@ private:
     std::shared_ptr<KSMFileSystem> file_system_;
     std::shared_ptr<KSMHostServices> host_services_;
     std::vector<std::string> supported_commands_;
+    std::vector<std::string> capability_commands_;
     std::vector<std::string> plugin_ids_;
     KSMPluginRegistry plugin_registry_;
     mutable std::mutex state_mutex_;

@@ -61,7 +61,8 @@ class KSMAndroidHostServices(
     private val activity: Activity,
     allowedExternalOrigins: Set<String> = emptySet(),
     private val fileSystem: KSMFileSystem? = null,
-    private val appVersion: String = KSMVersionMetadata.VERSION
+    private val appVersion: String = KSMVersionMetadata.VERSION,
+    allowedHttpOrigins: Set<String> = emptySet()
 ) : KSMHostServices {
     companion object {
         const val REQUEST_OPEN_FILE = 1001
@@ -102,6 +103,8 @@ class KSMAndroidHostServices(
     private var pendingPermission: PendingPermission? = null
     private val pickedFiles = mutableMapOf<String, Uri>()
     private val allowedOrigins = KSMHttpPolicy.normalizeOrigins(allowedExternalOrigins)
+    private val allowedHttpOrigins =
+        KSMHttpPolicy.normalizeOrigins(allowedHttpOrigins)
     private val activeDownloads = ConcurrentHashMap<String, DownloadSession>()
     private val sqlDriverRegistry = KSMSqlDriverRegistry().apply {
         register(KSMSqliteDriver(fileSystem))
@@ -153,7 +156,10 @@ class KSMAndroidHostServices(
         val pending = PendingUri(CountDownLatch(1))
         synchronized(this) {
             if (pendingOpenFile != null) {
-                return null
+                throw KSMHostException(
+                    "BUSY",
+                    "A file picker is already active."
+                )
             }
             pendingOpenFile = pending
         }
@@ -178,7 +184,10 @@ class KSMAndroidHostServices(
         val pending = PendingUri(CountDownLatch(1))
         synchronized(this) {
             if (pendingSaveFile != null) {
-                return null
+                throw KSMHostException(
+                    "BUSY",
+                    "A file picker is already active."
+                )
             }
             pendingSaveFile = pending
         }
@@ -479,6 +488,18 @@ class KSMAndroidHostServices(
         }
         var current = KSMHttpPolicy.parseHttpUrl(url, httpsOnly = true)
             ?: throw KSMHostException("INVALID_ARGS", "url must use HTTPS.")
+        if (!KSMHttpPolicy.isAllowedDownloadUrl(url, allowedHttpOrigins)) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The URL origin is not allowlisted for downloads."
+            )
+        }
+        if (!KSMHttpPolicy.isPublicHost(current.host)) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The download host is not a public network address."
+            )
+        }
         var redirects = 0
         val session = DownloadSession()
         val downloadKey = requestId ?: "anonymous-${System.nanoTime()}"
@@ -550,6 +571,18 @@ class KSMAndroidHostServices(
                                 "IO_ERROR",
                                 "The redirect did not use HTTPS."
                             )
+                        if (
+                            !KSMHttpPolicy.isAllowedDownloadUrl(
+                                current.toString(),
+                                allowedHttpOrigins
+                            ) ||
+                            !KSMHttpPolicy.isPublicHost(current.host)
+                        ) {
+                            throw KSMHostException(
+                                "PERMISSION_DENIED",
+                                "The redirect target is not allowlisted for downloads."
+                            )
+                        }
                         redirects += 1
                         continue
                     }
@@ -620,6 +653,7 @@ class KSMAndroidHostServices(
 
     override fun cancelRequest(requestId: String) {
         activeDownloads[requestId]?.let(::cancelDownload)
+        sqlDriverRegistry.cancel(requestId)
     }
 
     fun cancelAllDownloads() {
@@ -748,17 +782,29 @@ class KSMAndroidHostServices(
     override fun sqlQuery(
         connectionId: String,
         statement: String,
-        params: List<Any?>
+        params: List<Any?>,
+        requestId: String?
     ): KSMSqlQueryResult {
-        return sqlDriverRegistry.query(connectionId, statement, params)
+        return sqlDriverRegistry.query(
+            connectionId,
+            statement,
+            params,
+            requestId
+        )
     }
 
     override fun sqlExecute(
         connectionId: String,
         statement: String,
-        params: List<Any?>
+        params: List<Any?>,
+        requestId: String?
     ): KSMSqlExecuteResult {
-        return sqlDriverRegistry.execute(connectionId, statement, params)
+        return sqlDriverRegistry.execute(
+            connectionId,
+            statement,
+            params,
+            requestId
+        )
     }
 
     override fun sqlClose(connectionId: String): Boolean {

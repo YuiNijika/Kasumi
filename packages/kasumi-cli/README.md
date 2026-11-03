@@ -33,6 +33,22 @@ Next.js 与 Nuxt 的静态 HTML 包含框架生成的启动脚本。CLI 在缺�
 `style-src 'self' 'unsafe-inline'`，避免 Android WebView 出现空白页；现有 CSP 不会被
 重复覆盖。导航、命令 allowlist、来源校验和虚拟路径限制仍由宿主执行。
 
+## 开发启动
+
+`ksm dev` 只启动前端开发服务器，不再先执行一次前端生产构建。仅当旧项目模板缺少
+`KASUMI_DEV_MODE` 且没有可复用 `frontend/dist/index.html` 时执行一次兼容构建。
+Windows 开发宿主使用独立目录 `.ksm/dev/windows/`，WebView2 用户数据放在
+`.ksm/dev/webview2/`，不会覆盖 `.ksm/dist/windows/` 下的应用产物。
+
+CLI 把 CMake 配置参数与 `CMakeCache.txt` 对照，缓存一致时直接执行增量构建。vcpkg
+安装目录固定在 `.ksm/vcpkg/installed/`，下载和二进制包分别复用
+`.ksm/vcpkg/downloads/` 与 `.ksm/vcpkg/archives/`。依赖只在首次配置或清单变化时安装，
+后续启动不会重复拉取。
+
+开发进程记录在 `.ksm/dev/state.json`。下一次 `ksm dev` 会先清理本项目遗留的 Windows
+宿主和占用 `5173` 端口的项目开发服务器，避免旧进程锁住 EXE 或让新 Vite 实例误连旧
+服务。`Ctrl+C` 和正常退出都会清理记录。
+
 ## 前置条件
 
 - Node.js 20 或更高版本
@@ -108,3 +124,4 @@ Next.js 或 Nuxt 的包管理器子进程残留。Windows 使用 `taskkill /T /F
 | `apksigner was not found` | Android build-tools 不完整 | 安装 build-tools 或设置 `APKSIGNER` |
 | `External web assets were not produced` | 外置 Web 构建失败 | 检查 CMake 的 `web/` 输出后重新打包 |
 | `frontend entry` 为 missing | 项目缺少 `frontend/` | 恢复前端目录或重新初始化项目 |
+| `Development port 5173 is already in use` | 端口被非本项目进程占用 | 停止占用进程后重新运行 `ksm dev` |

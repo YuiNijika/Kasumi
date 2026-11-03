@@ -234,6 +234,21 @@ KSMRouter::KSMRouter(
     std::vector<std::string> allowed_commands,
     std::vector<std::shared_ptr<KSMPlugin>> plugins
 )
+    : KSMRouter(
+          std::move(file_system),
+          std::move(host_services),
+          std::move(allowed_commands),
+          {},
+          std::move(plugins)
+      ) {}
+
+KSMRouter::KSMRouter(
+    std::shared_ptr<KSMFileSystem> file_system,
+    std::shared_ptr<KSMHostServices> host_services,
+    std::vector<std::string> allowed_commands,
+    std::vector<std::string> allowed_permissions,
+    std::vector<std::shared_ptr<KSMPlugin>> plugins
+)
     : file_system_(std::move(file_system)),
       host_services_(std::move(host_services)),
       plugin_registry_(BuildPlugins(std::move(plugins))) {
@@ -244,12 +259,6 @@ KSMRouter::KSMRouter(
         allowed_commands.begin(),
         allowed_commands.end()
     );
-    for (const auto& plugin_id : KSMGeneratedContract::Plugins()) {
-        AppendUnique(plugin_ids_, plugin_id);
-    }
-    for (const auto& plugin_id : plugin_registry_.PluginIds()) {
-        AppendUnique(plugin_ids_, plugin_id);
-    }
     for (const auto& command : plugin_registry_.Commands()) {
         if (
             Contains(KSMGeneratedContract::Commands(), command) &&
@@ -257,17 +266,64 @@ KSMRouter::KSMRouter(
         ) {
             continue;
         }
-        if (allowed_commands.empty() || requested.contains(command)) {
+        if (requested.contains(command)) {
             AppendUnique(supported_commands_, command);
         }
     }
-    const auto& permissions = KSMGeneratedContract::Permissions();
-    granted_permissions_.insert(permissions.begin(), permissions.end());
-    const auto& plugin_permissions = plugin_registry_.Permissions();
-    granted_permissions_.insert(
-        plugin_permissions.begin(),
-        plugin_permissions.end()
+    const std::set<std::string> available_permissions(
+        KSMGeneratedContract::Permissions().begin(),
+        KSMGeneratedContract::Permissions().end()
     );
+    const auto& plugin_permissions = plugin_registry_.Permissions();
+    for (const auto& permission : allowed_permissions) {
+        if (
+            available_permissions.contains(permission) ||
+            std::find(
+                plugin_permissions.begin(),
+                plugin_permissions.end(),
+                permission
+            ) != plugin_permissions.end()
+        ) {
+            granted_permissions_.insert(permission);
+        }
+    }
+    const auto& command_permissions =
+        KSMGeneratedContract::CommandPermissions();
+    for (const auto& command : supported_commands_) {
+        const bool is_generated = Contains(
+            KSMGeneratedContract::Commands(),
+            command
+        );
+        std::vector<std::string> required_permissions;
+        if (
+            is_generated &&
+            command_permissions.contains(command) &&
+            command_permissions.at(command).is_array()
+        ) {
+            required_permissions = command_permissions.at(command)
+                .get<std::vector<std::string>>();
+        } else {
+            required_permissions =
+                plugin_registry_.PermissionsForCommand(command);
+        }
+        const bool permitted = std::all_of(
+            required_permissions.begin(),
+            required_permissions.end(),
+            [this](const std::string& permission) {
+                return granted_permissions_.contains(permission);
+            }
+        );
+        if (!permitted) {
+            continue;
+        }
+        capability_commands_.push_back(command);
+        const std::string plugin_id =
+            plugin_registry_.PluginIdForCommand(command);
+        AppendUnique(
+            plugin_ids_,
+            plugin_id.empty() ? "core" : plugin_id
+        );
+    }
 }
 
 const std::vector<std::string>& KSMRouter::SupportedCommands() const {
@@ -442,7 +498,7 @@ void KSMRouter::HandleMessage(
                 id,
                 Json{
                     {"platform", "windows"},
-                    {"commands", supported_commands_},
+                    {"commands", capability_commands_},
                     {"permissions", permissions},
                     {"plugins", plugin_ids_}
                 },
@@ -507,11 +563,11 @@ void KSMRouter::HandleMessage(
                 );
                 return;
             }
-            {
-                std::lock_guard lock(state_mutex_);
-                granted_permissions_.insert(permission);
-            }
-            SendSuccess(id, Json{{"granted", true}}, send_response);
+            SendSuccess(
+                id,
+                Json{{"granted", HasPermission(permission)}},
+                send_response
+            );
             return;
         }
 
@@ -1389,11 +1445,15 @@ void KSMRouter::HandleMessage(
             }
             const std::string statement =
                 args.at("statement").get<std::string>();
+            const std::string request_id = id.is_string()
+                ? id.get<std::string>()
+                : "";
             if (command == "sql.query") {
                 const auto result = host_services_->SqlQuery(
                     connection_id,
                     statement,
-                    params
+                    params,
+                    request_id
                 );
                 if (!result) {
                     SendError(
@@ -1430,7 +1490,8 @@ void KSMRouter::HandleMessage(
             const auto result = host_services_->SqlExecute(
                 connection_id,
                 statement,
-                params
+                params,
+                request_id
             );
             if (!result) {
                 SendError(

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 
 SEMVER_PATTERN = re.compile(
@@ -20,6 +21,12 @@ ANDROID_PACKAGE_PATTERN = re.compile(
 PROTOCOL_COMMANDS_FILE = (
     Path(__file__).resolve().parent.parent / "protocol" / "commands.json"
 )
+PROTOCOL_PERMISSIONS_FILE = (
+    Path(__file__).resolve().parent.parent / "protocol" / "permissions.schema.json"
+)
+PERMISSION_PATTERN = re.compile(
+    r"^[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$"
+)
 
 
 class ConfigError(ValueError):
@@ -31,7 +38,10 @@ class PlatformConfig:
     package_name: str
     version: str
     commands: tuple[str, ...]
+    permissions: tuple[str, ...]
     decorations: bool = True
+    shell_allowed_origins: tuple[str, ...] = ()
+    http_allowed_origins: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -72,7 +82,14 @@ def _platform_config(
 ) -> PlatformConfig:
     location = platform
     data = _expect_object(value, location)
-    allowed_fields = {"packageName", "version", "commands"}
+    allowed_fields = {
+        "packageName",
+        "version",
+        "commands",
+        "permissions",
+        "shell",
+        "http",
+    }
     if allow_decorations:
         allowed_fields.add("decorations")
     _reject_unknown_keys(
@@ -111,12 +128,27 @@ def _platform_config(
         decorations = data["decorations"]
 
     commands = _parse_commands(data["commands"], platform_name, location)
+    permissions = _parse_permissions(
+        data.get("permissions"),
+        f"{location}.permissions",
+    )
 
     return PlatformConfig(
         package_name=package_name,
         version=version,
         commands=commands,
+        permissions=permissions,
         decorations=decorations,
+        shell_allowed_origins=_parse_origins(
+            data.get("shell"),
+            f"{location}.shell",
+            {"http", "https"},
+        ),
+        http_allowed_origins=_parse_origins(
+            data.get("http"),
+            f"{location}.http",
+            {"https"},
+        ),
     )
 
 
@@ -146,6 +178,87 @@ def _parse_commands(
     return tuple(commands)
 
 
+def _parse_permissions(value: Any, location: str) -> tuple[str, ...]:
+    available = _available_permissions()
+    if value == "all":
+        return available
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ConfigError(
+            f"{location} must be \"all\" or an array."
+        )
+
+    permissions: list[str] = []
+    for index, raw_permission in enumerate(value):
+        permission = _expect_string(
+            raw_permission,
+            f"{location}[{index}]",
+        )
+        if not PERMISSION_PATTERN.fullmatch(permission):
+            raise ConfigError(f"{location}[{index}] has an invalid format.")
+        if permission in permissions:
+            raise ConfigError(
+                f"{location} contains a duplicate: {permission}."
+            )
+        if permission not in available:
+            raise ConfigError(
+                f"{location} contains an unknown permission: {permission}."
+            )
+        permissions.append(permission)
+    return tuple(permissions)
+
+
+def _parse_origins(
+    value: Any,
+    location: str,
+    protocols: set[str],
+) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    data = _expect_object(value, location)
+    _reject_unknown_keys(data, {"allowedOrigins"}, location)
+    raw_origins = data.get("allowedOrigins", [])
+    if not isinstance(raw_origins, list):
+        raise ConfigError(f"{location}.allowedOrigins must be an array.")
+
+    origins: list[str] = []
+    for index, raw_origin in enumerate(raw_origins):
+        origin_location = f"{location}.allowedOrigins[{index}]"
+        origin = _expect_string(raw_origin, origin_location)
+        if origin.strip() != origin:
+            raise ConfigError(f"{origin_location} is invalid.")
+        try:
+            parsed = urlsplit(origin)
+            port = parsed.port
+        except ValueError as error:
+            raise ConfigError(f"{origin_location} is invalid.") from error
+        if (
+            parsed.scheme not in protocols
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in ("", "/")
+            or parsed.query
+            or parsed.fragment
+            or port == 0
+        ):
+            raise ConfigError(f"{origin_location} is invalid.")
+
+        host = parsed.hostname.lower()
+        host_text = f"[{host}]" if ":" in host else host
+        default_port = 443 if parsed.scheme == "https" else 80
+        port_text = f":{port}" if port is not None and port != default_port else ""
+        normalized = f"{parsed.scheme}://{host_text}{port_text}"
+        if normalized in origins:
+            raise ConfigError(
+                f"{location}.allowedOrigins contains a duplicate origin: "
+                f"{normalized}."
+            )
+        origins.append(normalized)
+    return tuple(origins)
+
+
 @lru_cache(maxsize=2)
 def _available_commands(platform: str) -> tuple[str, ...]:
     payload = json.loads(PROTOCOL_COMMANDS_FILE.read_text(encoding="utf-8"))
@@ -159,6 +272,23 @@ def _available_commands(platform: str) -> tuple[str, ...]:
         if isinstance(name, str) and isinstance(platforms, list) and platform in platforms:
             result.append(name)
     return tuple(result)
+
+
+@lru_cache(maxsize=1)
+def _available_permissions() -> tuple[str, ...]:
+    payload = json.loads(
+        PROTOCOL_PERMISSIONS_FILE.read_text(encoding="utf-8")
+    )
+    properties = payload.get("properties")
+    if not isinstance(properties, dict):
+        raise RuntimeError(
+            "protocol/permissions.schema.json has no properties object."
+        )
+    return tuple(
+        name
+        for name in properties
+        if isinstance(name, str) and PERMISSION_PATTERN.fullmatch(name)
+    )
 
 
 def load_config(path: Path) -> KasumiConfig:

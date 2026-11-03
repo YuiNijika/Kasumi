@@ -22,6 +22,24 @@ set(
     CACHE STRING
     "Comma-separated application command allowlist"
 )
+set(
+    KASUMI_APP_PERMISSIONS
+    ""
+    CACHE STRING
+    "Comma-separated application permission allowlist"
+)
+set(
+    KASUMI_SHELL_ALLOWED_ORIGINS
+    ""
+    CACHE STRING
+    "Comma-separated exact external-link origins"
+)
+set(
+    KASUMI_HTTP_ALLOWED_ORIGINS
+    ""
+    CACHE STRING
+    "Comma-separated exact HTTPS download origins"
+)
 
 if(NOT KASUMI_APP_PACKAGE_NAME MATCHES "^[A-Za-z0-9][A-Za-z0-9._-]*$")
     message(FATAL_ERROR "KASUMI_APP_PACKAGE_NAME has an invalid format.")
@@ -146,6 +164,9 @@ target_compile_definitions(
         KASUMI_APP_PACKAGE_NAME="${KASUMI_APP_PACKAGE_NAME}"
         KASUMI_APP_VERSION="${KASUMI_APP_VERSION}"
         KASUMI_APP_COMMANDS="${KASUMI_APP_COMMANDS}"
+        KASUMI_APP_PERMISSIONS="${KASUMI_APP_PERMISSIONS}"
+        KASUMI_SHELL_ALLOWED_ORIGINS="${KASUMI_SHELL_ALLOWED_ORIGINS}"
+        KASUMI_HTTP_ALLOWED_ORIGINS="${KASUMI_HTTP_ALLOWED_ORIGINS}"
         KASUMI_WINDOW_DECORATIONS=$<BOOL:${KASUMI_WINDOW_DECORATIONS}>
         KASUMI_EXAMPLE_MULTI_VIEW=$<BOOL:${KASUMI_EXAMPLE_MULTI_VIEW}>
 )

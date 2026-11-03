@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -23,6 +24,13 @@ public:
     explicit KSMWindowsHostServices(
         HWND window,
         std::vector<std::string> allowed_external_origins = {},
+        std::shared_ptr<KSMFileSystem> file_system = nullptr,
+        std::string app_version = KASUMI_VERSION_STRING
+    );
+    KSMWindowsHostServices(
+        HWND window,
+        std::vector<std::string> allowed_external_origins,
+        std::vector<std::string> allowed_http_origins,
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
         std::string app_version = KASUMI_VERSION_STRING
     );
@@ -80,6 +88,13 @@ public:
     ) override;
     void CancelRequest(const std::string& request_id) override;
 
+#if defined(KASUMI_ENABLE_TEST_HOOKS)
+    void SetDownloadTestGate(std::function<void()> gate) {
+        std::lock_guard lock(download_test_gate_mutex_);
+        download_test_gate_ = std::move(gate);
+    }
+#endif
+
 private:
     struct DownloadState {
         std::mutex mutex;
@@ -110,9 +125,15 @@ private:
     std::shared_ptr<KSMFileSystem> file_system_;
     std::string app_version_;
     std::set<KSMUrlPolicy::Origin> allowed_external_origins_;
+    std::set<KSMUrlPolicy::Origin> allowed_http_origins_;
     mutable std::mutex picked_mutex_;
     std::unordered_map<std::string, std::filesystem::path> picked_files_;
     std::uint64_t next_picked_id_ = 1;
+    std::mutex picker_mutex_;
     mutable std::mutex download_mutex_;
     std::unordered_map<std::string, std::shared_ptr<DownloadState>> downloads_;
+#if defined(KASUMI_ENABLE_TEST_HOOKS)
+    std::mutex download_test_gate_mutex_;
+    std::function<void()> download_test_gate_;
+#endif
 };

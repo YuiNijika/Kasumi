@@ -34,6 +34,24 @@ set(
     CACHE STRING
     "Comma-separated application command allowlist"
 )
+set(
+    KASUMI_APP_PERMISSIONS
+    ""
+    CACHE STRING
+    "Comma-separated application permission allowlist"
+)
+set(
+    KASUMI_SHELL_ALLOWED_ORIGINS
+    ""
+    CACHE STRING
+    "Comma-separated exact external-link origins"
+)
+set(
+    KASUMI_HTTP_ALLOWED_ORIGINS
+    ""
+    CACHE STRING
+    "Comma-separated exact HTTPS download origins"
+)
 
 if(NOT KASUMI_APP_PACKAGE_NAME MATCHES "^[A-Za-z0-9][A-Za-z0-9._-]*$")
     message(FATAL_ERROR "KASUMI_APP_PACKAGE_NAME has an invalid format.")
@@ -54,6 +72,12 @@ option(
 option(
     KASUMI_BUNDLE_WEBVIEW2_LOADER
     "Bundle WebView2Loader.dll instead of statically linking the loader"
+    OFF
+)
+
+option(
+    KASUMI_DEV_MODE
+    "Build the native host without embedding production web assets"
     OFF
 )
 
@@ -134,70 +158,81 @@ target_compile_definitions(
         KASUMI_APP_PACKAGE_NAME="${KASUMI_APP_PACKAGE_NAME}"
         KASUMI_APP_VERSION="${KASUMI_APP_VERSION}"
         KASUMI_APP_COMMANDS="${KASUMI_APP_COMMANDS}"
+        KASUMI_APP_PERMISSIONS="${KASUMI_APP_PERMISSIONS}"
+        KASUMI_SHELL_ALLOWED_ORIGINS="${KASUMI_SHELL_ALLOWED_ORIGINS}"
+        KASUMI_HTTP_ALLOWED_ORIGINS="${KASUMI_HTTP_ALLOWED_ORIGINS}"
         KASUMI_WINDOW_DECORATIONS=$<BOOL:${KASUMI_WINDOW_DECORATIONS}>
 )
 
-set(
-    KASUMI_WEB_ROOT
-    "${CMAKE_CURRENT_SOURCE_DIR}/../frontend/dist"
-)
-if(NOT EXISTS "${KASUMI_WEB_ROOT}/index.html")
-    message(
-        FATAL_ERROR
-        "frontend/dist/index.html is missing. Run the Kasumi frontend build first."
-    )
-endif()
-
-if(KASUMI_EXTERNAL_WEB)
-    target_compile_definitions(kasumi_app PRIVATE KASUMI_EXTERNAL_WEB=1)
-    add_custom_command(
-        TARGET kasumi_app
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${KASUMI_WEB_ROOT}"
-            "$<TARGET_FILE_DIR:kasumi_app>/web"
-    )
+if(KASUMI_DEV_MODE)
+    target_compile_definitions(kasumi_app PRIVATE KASUMI_DEV_MODE=1)
 else()
-    file(
-        GLOB_RECURSE KASUMI_WEB_FILES
-        RELATIVE "${KASUMI_WEB_ROOT}"
-        CONFIGURE_DEPENDS
-        "${KASUMI_WEB_ROOT}/*"
+    set(
+        KASUMI_WEB_ROOT
+        "${CMAKE_CURRENT_SOURCE_DIR}/../frontend/dist"
     )
-    list(SORT KASUMI_WEB_FILES)
-    set(KASUMI_WEB_DEPENDS)
-    foreach(relative_path IN LISTS KASUMI_WEB_FILES)
-        list(APPEND KASUMI_WEB_DEPENDS "${KASUMI_WEB_ROOT}/${relative_path}")
-    endforeach()
+    if(NOT EXISTS "${KASUMI_WEB_ROOT}/index.html")
+        message(
+            FATAL_ERROR
+            "frontend/dist/index.html is missing. Run the Kasumi frontend build first."
+        )
+    endif()
 
-    set(KASUMI_RESOURCE_RC "${KASUMI_GENERATED_DIR}/web_resources.rc")
-    set(KASUMI_RESOURCE_HEADER "${KASUMI_GENERATED_DIR}/web_resources.h")
-    add_custom_command(
-        OUTPUT "${KASUMI_RESOURCE_RC}" "${KASUMI_RESOURCE_HEADER}"
-        COMMAND ${CMAKE_COMMAND}
-            "-DWEB_ROOT=${KASUMI_WEB_ROOT}"
-            "-DOUTPUT_RC=${KASUMI_RESOURCE_RC}"
-            "-DOUTPUT_HEADER=${KASUMI_RESOURCE_HEADER}"
-            "-DFILES=${KASUMI_WEB_FILES}"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_web.cmake"
-        DEPENDS
-            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_web.cmake"
-            ${KASUMI_WEB_DEPENDS}
-        VERBATIM
-    )
-    target_include_directories(kasumi_app PRIVATE "${KASUMI_GENERATED_DIR}")
-    target_sources(
-        kasumi_app
-        PRIVATE
-            "${KASUMI_RESOURCE_RC}"
-            "${KASUMI_RESOURCE_HEADER}"
-    )
-    add_custom_command(
-        TARGET kasumi_app
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E remove_directory
-            "$<TARGET_FILE_DIR:kasumi_app>/web"
-    )
+    if(KASUMI_EXTERNAL_WEB)
+        target_compile_definitions(kasumi_app PRIVATE KASUMI_EXTERNAL_WEB=1)
+        add_custom_command(
+            TARGET kasumi_app
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${KASUMI_WEB_ROOT}"
+                "$<TARGET_FILE_DIR:kasumi_app>/web"
+        )
+    else()
+        file(
+            GLOB_RECURSE KASUMI_WEB_FILES
+            RELATIVE "${KASUMI_WEB_ROOT}"
+            CONFIGURE_DEPENDS
+            "${KASUMI_WEB_ROOT}/*"
+        )
+        list(SORT KASUMI_WEB_FILES)
+        set(KASUMI_WEB_DEPENDS)
+        foreach(relative_path IN LISTS KASUMI_WEB_FILES)
+            list(APPEND KASUMI_WEB_DEPENDS "${KASUMI_WEB_ROOT}/${relative_path}")
+        endforeach()
+
+        set(KASUMI_RESOURCE_RC "${KASUMI_GENERATED_DIR}/web_resources.rc")
+        set(KASUMI_RESOURCE_HEADER "${KASUMI_GENERATED_DIR}/web_resources.h")
+        add_custom_command(
+            OUTPUT "${KASUMI_RESOURCE_RC}" "${KASUMI_RESOURCE_HEADER}"
+            COMMAND ${CMAKE_COMMAND}
+                "-DWEB_ROOT=${KASUMI_WEB_ROOT}"
+                "-DOUTPUT_RC=${KASUMI_RESOURCE_RC}"
+                "-DOUTPUT_HEADER=${KASUMI_RESOURCE_HEADER}"
+                "-DFILES=${KASUMI_WEB_FILES}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_web.cmake"
+            DEPENDS
+                "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_web.cmake"
+                ${KASUMI_WEB_DEPENDS}
+            VERBATIM
+        )
+        target_include_directories(
+            kasumi_app
+            PRIVATE
+                "${KASUMI_GENERATED_DIR}"
+        )
+        target_sources(
+            kasumi_app
+            PRIVATE
+                "${KASUMI_RESOURCE_RC}"
+                "${KASUMI_RESOURCE_HEADER}"
+        )
+        add_custom_command(
+            TARGET kasumi_app
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E remove_directory
+                "$<TARGET_FILE_DIR:kasumi_app>/web"
+        )
+    endif()
 endif()
 
 target_link_libraries(kasumi_app PRIVATE Kasumi::kasumi_windows_bridge)

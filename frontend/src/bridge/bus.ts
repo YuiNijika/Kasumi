@@ -175,7 +175,11 @@ export class KSMBus {
       return;
     }
     for (const listener of listeners) {
-      listener(event.payload);
+      try {
+        listener(event.payload);
+      } catch (error) {
+        console.error(`Kasumi event listener failed for ${event.event}.`, error);
+      }
     }
   }
 

@@ -140,24 +140,27 @@ struct KSMWebView2View::Impl
     : public std::enable_shared_from_this<KSMWebView2View::Impl> {
   Impl(HWND parent, std::shared_ptr<KSMFileSystem> file_system,
        std::vector<std::string> allowed_origins,
+       std::vector<std::string> allowed_http_origins,
        ComPtr<ICoreWebView2Environment> environment,
        std::filesystem::path web_root, bool smoke_test,
        std::shared_ptr<KSMWebResourceProvider> web_resources,
        std::wstring start_url, bool dev_mode, std::string app_version,
        std::vector<std::string> allowed_commands,
-       std::vector<std::shared_ptr<KSMPlugin>> plugins, bool decorations,
+       std::vector<std::shared_ptr<KSMPlugin>> plugins,
+       std::vector<std::string> allowed_permissions, bool decorations,
        KSMWebView2ViewOptions options)
       : parent(parent), window_id_value(++next_window_id),
         file_system(std::move(file_system)),
         allowed_origins(std::move(allowed_origins)),
+        allowed_http_origins(std::move(allowed_http_origins)),
         environment(std::move(environment)), web_root(std::move(web_root)),
         smoke_test(smoke_test), web_resources(std::move(web_resources)),
         start_url(std::move(start_url)), dev_mode(dev_mode),
         decorations(decorations), fill_parent(options.fill_parent),
         visible(true),
         services(std::make_shared<KSMWindowsHostServices>(
-            parent, this->allowed_origins, this->file_system,
-            std::move(app_version))),
+            parent, this->allowed_origins, this->allowed_http_origins,
+            this->file_system, std::move(app_version))),
         webview_host(
             [this](const std::string &message) {
               PostToUi([this, message] {
@@ -169,7 +172,8 @@ struct KSMWebView2View::Impl
             },
             this->file_system, services,
             [this](std::function<void()> task) { PostToUi(std::move(task)); },
-            std::move(allowed_commands), dev_mode, std::move(plugins)) {
+            std::move(allowed_commands), dev_mode, std::move(plugins),
+            std::move(allowed_permissions)) {
     desired_bounds = options.bounds;
     if (!options.start_url.empty()) {
       this->start_url = std::move(options.start_url);
@@ -299,6 +303,16 @@ struct KSMWebView2View::Impl
               CoTaskMemFree(uri);
               if (!KSMWebViewSecurity::IsAllowedNavigation(url, self->dev_mode)) {
                 args->put_Cancel(TRUE);
+                return S_OK;
+              }
+              ComPtr<ICoreWebView2NavigationStartingEventArgs3> args3;
+              self->pending_navigation_kind =
+                  COREWEBVIEW2_NAVIGATION_KIND_NEW_DOCUMENT;
+              if (
+                  SUCCEEDED(args->QueryInterface(IID_PPV_ARGS(&args3))) &&
+                  args3
+              ) {
+                args3->get_NavigationKind(&self->pending_navigation_kind);
               }
               return S_OK;
             })
@@ -354,7 +368,12 @@ struct KSMWebView2View::Impl
               }
               BOOL success = FALSE;
               if (SUCCEEDED(args->get_IsSuccess(&success)) && success) {
-                self->webview_host.NotifyWebViewReloaded();
+                const bool is_reload =
+                    self->pending_navigation_kind ==
+                    COREWEBVIEW2_NAVIGATION_KIND_RELOAD;
+                self->pending_navigation_kind =
+                    COREWEBVIEW2_NAVIGATION_KIND_NEW_DOCUMENT;
+                self->webview_host.NotifyWebViewNavigated(is_reload);
               }
               return S_OK;
             })
@@ -728,6 +747,7 @@ struct KSMWebView2View::Impl
   std::uint64_t window_id_value = 0;
   std::shared_ptr<KSMFileSystem> file_system;
   std::vector<std::string> allowed_origins;
+  std::vector<std::string> allowed_http_origins;
   ComPtr<ICoreWebView2Environment> environment;
   std::filesystem::path web_root;
   bool smoke_test = false;
@@ -751,6 +771,8 @@ struct KSMWebView2View::Impl
   EventRegistrationToken navigation_completed_token{};
   EventRegistrationToken source_changed_token{};
   EventRegistrationToken web_resource_token{};
+  COREWEBVIEW2_NAVIGATION_KIND pending_navigation_kind{
+      COREWEBVIEW2_NAVIGATION_KIND_NEW_DOCUMENT};
   std::mutex ui_mutex;
   std::deque<std::function<void()>> ui_tasks;
   InitializationCallback completion;
@@ -765,21 +787,25 @@ struct KSMWebView2Host::Impl
     : public std::enable_shared_from_this<KSMWebView2Host::Impl> {
   Impl(HWND window, std::shared_ptr<KSMFileSystem> file_system,
        std::vector<std::string> allowed_origins,
+       std::vector<std::string> allowed_http_origins,
        std::filesystem::path web_root, std::filesystem::path user_data_folder,
        bool smoke_test, std::shared_ptr<KSMWebResourceProvider> web_resources,
        std::wstring start_url, bool dev_mode, std::string app_version,
        std::vector<std::string> allowed_commands,
-       std::vector<std::shared_ptr<KSMPlugin>> plugins, bool decorations)
-      : window(window), file_system(std::move(file_system)),
-        allowed_origins(std::move(allowed_origins)),
-        web_root(std::move(web_root)),
-        user_data_folder(std::move(user_data_folder)), smoke_test(smoke_test),
-        web_resources(std::move(web_resources)),
-        start_url(std::move(start_url)), dev_mode(dev_mode),
-        app_version(std::move(app_version)),
-        allowed_commands(std::move(allowed_commands)),
-        plugins(std::move(plugins)),
-        decorations(decorations) {
+       std::vector<std::shared_ptr<KSMPlugin>> plugins,
+       std::vector<std::string> allowed_permissions, bool decorations)
+ : window(window), file_system(std::move(file_system)),
+ allowed_origins(std::move(allowed_origins)),
+ allowed_http_origins(std::move(allowed_http_origins)),
+ web_root(std::move(web_root)),
+ user_data_folder(std::move(user_data_folder)), smoke_test(smoke_test),
+ web_resources(std::move(web_resources)),
+ start_url(std::move(start_url)), dev_mode(dev_mode),
+ app_version(std::move(app_version)),
+ allowed_commands(std::move(allowed_commands)),
+ allowed_permissions(std::move(allowed_permissions)),
+ plugins(std::move(plugins)),
+ decorations(decorations) {
     SetWindowSubclass(window, &Impl::SubclassProc,
                       reinterpret_cast<UINT_PTR>(this),
                       reinterpret_cast<DWORD_PTR>(this));
@@ -832,12 +858,14 @@ struct KSMWebView2Host::Impl
             });
 
     ComPtr<CoreWebView2EnvironmentOptions> options;
+#if defined(KASUMI_ENABLE_SMOKE_TEST) && KASUMI_ENABLE_SMOKE_TEST
     if (smoke_test) {
       options = Make<CoreWebView2EnvironmentOptions>();
       // CI desktop sessions can block Chromium's sandbox before the
       // controller callback runs.
       options->put_AdditionalBrowserArguments(L"--no-sandbox");
     }
+#endif
     const std::filesystem::path resolved_user_data_folder =
         user_data_folder.empty() ? DefaultUserDataFolder() : user_data_folder;
     const std::wstring data_folder = resolved_user_data_folder.wstring();
@@ -857,11 +885,14 @@ struct KSMWebView2Host::Impl
       return nullptr;
     }
     return std::make_shared<KSMWebView2View::Impl>(
-        window, file_system, allowed_origins, environment, web_root, smoke_test,
-        web_resources, start_url, dev_mode, app_version,
+        window, file_system, allowed_origins, allowed_http_origins, environment,
+        web_root, smoke_test, web_resources, start_url, dev_mode, app_version,
         options.allowed_commands.empty() ? allowed_commands
                                          : options.allowed_commands,
-        plugins, decorations, options);
+        plugins,
+        options.allowed_permissions.empty() ? allowed_permissions
+                                            : options.allowed_permissions,
+        decorations, options);
   }
 
   std::shared_ptr<KSMWebView2View> CreateView(
@@ -896,6 +927,7 @@ struct KSMWebView2Host::Impl
     options.fill_parent = true;
     options.append_smoke_query = smoke_test;
     options.allowed_commands = allowed_commands;
+    options.allowed_permissions = allowed_permissions;
     const std::weak_ptr<Impl> weak = weak_from_this();
     auto view = CreateView(options, [weak](bool success,
                                            const std::string &message) {
@@ -994,6 +1026,7 @@ struct KSMWebView2Host::Impl
   HWND window = nullptr;
   std::shared_ptr<KSMFileSystem> file_system;
   std::vector<std::string> allowed_origins;
+  std::vector<std::string> allowed_http_origins;
   std::filesystem::path web_root;
   std::filesystem::path user_data_folder;
   bool smoke_test = false;
@@ -1002,6 +1035,7 @@ struct KSMWebView2Host::Impl
   bool dev_mode = false;
   std::string app_version;
   std::vector<std::string> allowed_commands;
+  std::vector<std::string> allowed_permissions;
   std::vector<std::shared_ptr<KSMPlugin>> plugins;
   bool decorations = true;
   bool should_create_default_view = false;
@@ -1071,13 +1105,17 @@ KSMWebView2Host::KSMWebView2Host(
     bool smoke_test, std::shared_ptr<KSMWebResourceProvider> web_resources,
     std::wstring start_url, bool dev_mode, std::string app_version,
     std::vector<std::string> allowed_commands, bool decorations,
-    std::vector<std::shared_ptr<KSMPlugin>> plugins)
+    std::vector<std::shared_ptr<KSMPlugin>> plugins,
+    std::vector<std::string> allowed_permissions,
+    std::vector<std::string> allowed_http_origins)
     : impl_(std::make_shared<Impl>(
           window, std::move(file_system), std::move(allowed_external_origins),
-          std::move(web_root), std::move(user_data_folder), smoke_test,
+          std::move(allowed_http_origins), std::move(web_root),
+          std::move(user_data_folder), smoke_test,
           std::move(web_resources), std::move(start_url), dev_mode,
           std::move(app_version), std::move(allowed_commands),
-          std::move(plugins), decorations)) {}
+          std::move(plugins), std::move(allowed_permissions),
+          decorations)) {}
 
 KSMWebView2Host::~KSMWebView2Host() = default;
 

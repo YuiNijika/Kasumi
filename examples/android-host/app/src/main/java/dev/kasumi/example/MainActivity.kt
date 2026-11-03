@@ -23,9 +23,10 @@ class MainActivity : Activity() {
         )
         hostServices = KSMAndroidHostServices(
             activity = this,
-            allowedExternalOrigins = setOf("https://example.com"),
+            allowedExternalOrigins = BuildConfig.KSM_SHELL_ALLOWED_ORIGINS.toSet(),
             fileSystem = fileSystem,
-            appVersion = BuildConfig.VERSION_NAME
+            appVersion = BuildConfig.VERSION_NAME,
+            allowedHttpOrigins = BuildConfig.KSM_HTTP_ALLOWED_ORIGINS.toSet()
         )
         webViewHost = KSMWebViewHost(
             activity = this,
@@ -33,6 +34,7 @@ class MainActivity : Activity() {
             hostServices = hostServices,
             entryUrl = entryUrl(),
             allowedCommands = BuildConfig.KSM_COMMANDS.toList(),
+            allowedPermissions = BuildConfig.KSM_PERMISSIONS.toList(),
             debug = BuildConfig.DEBUG
         )
 

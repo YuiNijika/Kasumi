@@ -30,7 +30,7 @@
 | `src/plugins/ksm_log_plugin.h` | 平台日志命令插件 |
 | `src/platform/ksm_web_resource.h` | 内嵌 Web 资源提供器接口和 URL 到资源路径解析 |
 | `src/platform/ksm_win32_resource_provider.h` | 从 Win32 `RCDATA` 读取页面、样式和脚本 |
-| `src/platform/ksm_webview_host.h` | 工作线程、超时、取消、单响应和事件投递 |
+| `src/platform/ksm_webview_host.h` | 共享命令线程池、单 timer scheduler、超时、取消、单响应和事件投递 |
 | `src/platform/ksm_window_frame.h` | 无标题栏窗口样式、缩放边框、最小尺寸和工作区处理 |
 | `src/platform/ksm_webview2_host.h` | 共享 WebView2 Environment、窗口级会话、多个独立 WebView 视图和 UI 线程回投 |
 | `tests/contract_runner.cpp` | Windows 契约、安全策略和生命周期测试 |
@@ -42,7 +42,9 @@ Windows 返回 `NOT_SUPPORTED`。
 ## 应用配置
 
 Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageName`、
-`windows.version`、`windows.commands` 和可选的 `windows.decorations`：
+`windows.version`、`windows.commands`、`windows.permissions`，以及可选的
+`windows.decorations`、`windows.shell.allowedOrigins` 和
+`windows.http.allowedOrigins`：
 
 ```json
 {
@@ -53,9 +55,16 @@ Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageNam
       "ping",
       "capabilities.query",
       "app.getInfo",
-      "fs.readText"
+      "http.download"
     ],
-    "decorations": true
+    "permissions": ["http.download"],
+    "decorations": true,
+    "shell": {
+      "allowedOrigins": ["https://example.com"]
+    },
+    "http": {
+      "allowedOrigins": ["https://cdn.example.com"]
+    }
   }
 }
 ```
@@ -63,7 +72,12 @@ Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageNam
 `packageName` 写入 EXE 版本资源并作为示例 ZIP 的目录前缀；`version` 同时用于
 `FileVersion`、`ProductVersion`、ZIP 文件名和 `app.getInfo.version`。`commands`
 注入 `KSM::Init`，同时约束前端桥接、`KSM` 原生子模块和 `capabilities.query`。
-`ping` 与 `capabilities.query` 必须保留；未列入的命令返回 `NOT_SUPPORTED`。
+`permissions` 注入路由器的权限 allowlist，缺失或空数组表示拒绝全部权限。`ping` 与
+`capabilities.query` 必须保留；未列入的命令返回 `NOT_SUPPORTED`，命令已启用但权限
+未配置时返回 `PERMISSION_DENIED`。`permission.request` 不会动态扩大该集合。
+
+`shell.allowedOrigins` 接受精确 `http` / `https` origin；`http.allowedOrigins` 只接受
+精确 `https` origin。两者默认拒绝，不支持通配符或用户名密码，每一跳下载重定向都要重新匹配。
 `pnpm ksm` 构建与打包默认读取该文件，也可用 `--config <path>` 指定其他配置。
 
 ### 隐藏系统标题栏
@@ -157,6 +171,9 @@ const std::string response = KSM::Invoke(
 | 日志 | `KSM::Log` | `Write`，使用固定的日志级别并输出到 `OutputDebugStringW` |
 | 应用 | `KSM::App` | 版本、语言和退出 |
 
+文件选择器同一时间只接受一个活动请求；已有选择器未完成时，新的 `dialog.openFile` 或
+`dialog.saveFile` 返回 `BUSY`，不会静默返回 `null` 或覆盖待处理状态。
+
 ```cpp
 const auto roots = KSM::Path::Dirs();
 if (!roots) {
@@ -248,6 +265,10 @@ SQLite 接受 `:memory:` 或可写虚拟路径，不接受 `app://picked` 和真
 每个宿主服务最多保持 32 个连接。单次查询最多返回 10,000 行和 16 MiB 结果数据；超限返回
 `RESOURCE_LIMIT`，不会截断结果。Store 的完整读改写使用进程级锁，多个 View 的插件实例
 不会覆盖彼此的 `store.json` 更新。
+
+SQL 活动请求 ID 必须唯一，重复 ID 返回 `BUSY`。请求取消或超时后，SQLite 通过 progress
+handler 响应取消，ODBC 设置 query timeout 并调用 `SQLCancel`；活动查询被终止后返回
+`CANCELLED` 或 `TIMEOUT`。关闭窗口不会等待不可取消的查询无限阻塞。
 
 ## SDK 构建
 
@@ -432,6 +453,8 @@ View。尺寸边界会夹取到父窗口客户区；创建参数和 `SetBounds()
 `KSMWindowsHostServices` 使用 WinHTTP 下载：
 
 - 只接受 HTTPS，关闭自动重定向并逐跳校验。
+- 每一跳都必须匹配 `windows.http.allowedOrigins` 的精确 origin，并拒绝私网、回环、
+  链路本地和云元数据地址。
 - 最多 5 次重定向，总超时 120 秒，最大 100 MiB。
 - 下载到同目录 `.part` 文件，成功后用 `MoveFileExW` 提交。
 - 取消或超时会关闭 WinHTTP 句柄并删除临时文件。
@@ -440,7 +463,11 @@ View。尺寸边界会夹取到父窗口客户区；创建参数和 `SetBounds()
 
 `shell.openExternal` 使用 `ShellExecuteW`，服务层再次执行精确 origin 白名单校验。
 默认空白名单，调用方必须通过 `KSMWindowsHostServices` 或 `KSMWebView2Host` 构造参数
-显式配置。
+显式配置允许的 `http` / `https` origin。
+
+文件系统对根目录、父目录和目标执行句柄最终路径 containment 校验。junction、符号链接、
+`..` 和大小写变化都不能让路径逃离可写虚拟根；`app://picked` 仍使用系统选择器授予的受限
+句柄，不把选择结果转换成任意真实路径。
 
 `window.setSize` 接受逻辑外框像素，最小 `320 × 240`。实现使用 `GetDpiForWindow`、
 `MulDiv`、`MonitorFromWindow`、`GetMonitorInfo` 和 `SetWindowPos`；最大化、最小化和
@@ -455,7 +482,7 @@ python cli/ksm.py test --platform windows --target example
 
 | 测试 | 位置 | 覆盖内容 |
 | --- | --- | --- |
-| `kasumi_contract` | SDK 构建目录 | 路由、策略、文件、权限、重复请求 ID、超时上限、取消、SQL 限额、Store 并发和根入口 |
+| `kasumi_contract` | SDK 构建目录 | 路由、fail-closed 权限、origin、symlink containment、重复请求 ID、picker `BUSY`、SQL 限额与取消、Store 并发和根入口 |
 | `kasumi_win32_example_smoke` | 示例构建目录 | 隐藏启动示例、加载页面、执行 `ping` 并退出 |
 | `kasumi_win32_example_multi_view_smoke` | 示例构建目录 | 同一窗口创建两个 View、独立身份与边界、两个页面分别完成命令写入、关闭单个 View 后其余实例继续运行 |
 
@@ -501,3 +528,5 @@ EXE/DLL 执行 `signtool verify /pa /all`。普通 CI 可以构建未签名产�
 10. 关闭一个标签后顶层窗口退出：确认调用的是 `DestroyView(windowId)`，而不是
     `KSM.window.close()` 或 `KSMWebView2Host::Close()`。
 11. SQL 返回 `RESOURCE_LIMIT`：减少结果列、行数或分页查询；连接额度需关闭旧连接后释放。
+12. SQL 一直等待：确认请求 ID 未重复、取消令牌已透传，并检查 SQLite progress handler
+    或 ODBC `SQLCancel` 是否执行。

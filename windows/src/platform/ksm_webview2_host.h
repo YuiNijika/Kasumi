@@ -27,6 +27,7 @@ struct KSMWebView2ViewOptions {
   bool fill_parent = true;
   bool append_smoke_query = true;
   std::vector<std::string> allowed_commands = {};
+  std::vector<std::string> allowed_permissions = {};
 };
 
 class KSMWebView2Host {
@@ -44,7 +45,9 @@ public:
                   std::string app_version = KASUMI_VERSION_STRING,
                   std::vector<std::string> allowed_commands = {},
                   bool decorations = true,
-                  std::vector<std::shared_ptr<KSMPlugin>> plugins = {});
+                  std::vector<std::shared_ptr<KSMPlugin>> plugins = {},
+                  std::vector<std::string> allowed_permissions = {},
+                  std::vector<std::string> allowed_http_origins = {});
   ~KSMWebView2Host();
 
   KSMWebView2Host(const KSMWebView2Host &) = delete;

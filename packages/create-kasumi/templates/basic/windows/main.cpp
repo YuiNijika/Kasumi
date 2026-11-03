@@ -17,7 +17,7 @@
 #include <kasumi/platform/ksm_webview2_host.h>
 #include <kasumi/platform/ksm_win32_resource_provider.h>
 
-#if !defined(KASUMI_EXTERNAL_WEB)
+#if !defined(KASUMI_EXTERNAL_WEB) && !defined(KASUMI_DEV_MODE)
 #include "web_resources.h"
 #endif
 
@@ -112,23 +112,38 @@ bool HasCommandLineFlag(const wchar_t *flag) {
   return found;
 }
 
-std::vector<std::string> ConfiguredCommands() {
-  const std::string configured = KASUMI_APP_COMMANDS;
-  std::vector<std::string> commands;
+std::vector<std::string> ConfiguredValues(const std::string &configured) {
+  std::vector<std::string> values;
   std::size_t start = 0;
   while (start < configured.size()) {
     const std::size_t separator = configured.find(',', start);
     const std::size_t end =
         separator == std::string::npos ? configured.size() : separator;
     if (end > start) {
-      commands.push_back(configured.substr(start, end - start));
+      values.push_back(configured.substr(start, end - start));
     }
     if (separator == std::string::npos) {
       break;
     }
     start = separator + 1;
   }
-  return commands;
+  return values;
+}
+
+std::vector<std::string> ConfiguredCommands() {
+  return ConfiguredValues(KASUMI_APP_COMMANDS);
+}
+
+std::vector<std::string> ConfiguredPermissions() {
+  return ConfiguredValues(KASUMI_APP_PERMISSIONS);
+}
+
+std::vector<std::string> ConfiguredShellOrigins() {
+  return ConfiguredValues(KASUMI_SHELL_ALLOWED_ORIGINS);
+}
+
+std::vector<std::string> ConfiguredHttpOrigins() {
+  return ConfiguredValues(KASUMI_HTTP_ALLOWED_ORIGINS);
 }
 
 void ShowRuntimePrompt(HWND owner) {
@@ -214,10 +229,13 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
     return 1;
   }
 
+#if !defined(KASUMI_DEV_MODE)
   const auto executable_dir = ExecutableDirectory();
+#endif
   std::filesystem::path web_root;
   std::vector<KSMWin32ResourceDescriptor> resource_descriptors;
   std::shared_ptr<KSMWebResourceProvider> web_resources;
+#if !defined(KASUMI_DEV_MODE)
   const auto requested_web_root = CommandLineValue(L"--web-root");
 #if defined(KASUMI_EXTERNAL_WEB)
   web_root = requested_web_root.value_or(executable_dir / L"web");
@@ -233,6 +251,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
     DestroyWindow(window);
     return 1;
   }
+#endif
 
   const auto local_data = LocalDataDirectory();
   if (!local_data) {
@@ -257,6 +276,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   file_system = std::make_shared<KSMFileSystem>(
       *local_data / L"data", *local_data / L"cache", *local_data / L"tmp",
       web_root / L"res", web_root / L"assets");
+#elif defined(KASUMI_DEV_MODE)
+  file_system = std::make_shared<KSMFileSystem>(
+      *local_data / L"data", *local_data / L"cache", *local_data / L"tmp",
+      std::filesystem::path(), std::filesystem::path());
 #else
   if (web_root.empty()) {
     resource_descriptors = kasumi_app::embedded::Resources();
@@ -291,10 +314,12 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   ShowWindow(window, smoke_test ? SW_SHOWNOACTIVATE : show_command);
   UpdateWindow(window);
 
-  auto host = std::make_unique<KSMWebView2Host>(
-      window, file_system, std::vector<std::string>{"https://example.com"},
-      web_root, webview_data, smoke_test, web_resources, start_url, dev_mode,
-      KASUMI_APP_VERSION, ConfiguredCommands(), kWindowDecorations);
+ auto host = std::unique_ptr<KSMWebView2Host>(new KSMWebView2Host(
+ window, file_system, ConfiguredShellOrigins(),
+ web_root, webview_data, smoke_test, web_resources, start_url, dev_mode,
+ KASUMI_APP_VERSION, ConfiguredCommands(), kWindowDecorations,
+ std::vector<std::shared_ptr<KSMPlugin>>{},
+ ConfiguredPermissions(), ConfiguredHttpOrigins()));
 
   if (!host->Initialize(
           [window, smoke_test](bool success, const std::string &error) {

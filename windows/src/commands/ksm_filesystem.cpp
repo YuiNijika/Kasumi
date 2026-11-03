@@ -7,6 +7,8 @@
 #include <system_error>
 #include <utility>
 
+#include <windows.h>
+
 #include "../platform/ksm_virtual_path.h"
 
 namespace {
@@ -60,8 +62,17 @@ std::string VirtualChildPath(const std::string &parent,
 
 bool IsWithin(const std::filesystem::path &candidate,
               const std::filesystem::path &root) {
-  const auto candidate_text = candidate.generic_u8string();
-  const auto root_text = root.generic_u8string();
+  const auto normalize = [](std::u8string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](char8_t ch) {
+      if (ch >= u8'A' && ch <= u8'Z') {
+        return static_cast<char8_t>(ch - u8'A' + u8'a');
+      }
+      return ch;
+    });
+    return value;
+  };
+  const auto candidate_text = normalize(candidate.lexically_normal().generic_u8string());
+  const auto root_text = normalize(root.lexically_normal().generic_u8string());
   if (candidate_text.size() < root_text.size()) {
     return false;
   }
@@ -70,6 +81,34 @@ bool IsWithin(const std::filesystem::path &candidate,
   }
   return candidate_text.size() == root_text.size() ||
          candidate_text[root_text.size()] == u8'/';
+}
+
+std::optional<std::filesystem::path> ValidateContainedTarget(
+    const std::filesystem::path &root, const std::filesystem::path &target,
+    bool require_existing) {
+  std::error_code error;
+  const auto canonical_root = std::filesystem::weakly_canonical(root, error);
+  if (error) {
+    return std::nullopt;
+  }
+  const auto link_status = std::filesystem::symlink_status(target, error);
+  if (!error && link_status.type() == std::filesystem::file_type::symlink) {
+    return std::nullopt;
+  }
+  if (require_existing) {
+    const auto canonical_target =
+        std::filesystem::canonical(target, error);
+    if (error || !IsWithin(canonical_target, canonical_root)) {
+      return std::nullopt;
+    }
+    return canonical_target;
+  }
+  const auto canonical_parent =
+      std::filesystem::weakly_canonical(target.parent_path(), error);
+  if (error || !IsWithin(canonical_parent, canonical_root)) {
+    return std::nullopt;
+  }
+  return target;
 }
 
 } // namespace
@@ -96,26 +135,85 @@ KSMFileSystem::KSMFileSystem(
 
 std::optional<std::filesystem::path>
 KSMFileSystem::ResolveReadable(const std::string &path) const {
-  return KSMVirtualPath::ResolveReadable(
+  const auto resolved = KSMVirtualPath::ResolveReadable(
       path, data_root_, cache_root_, temp_root_, resource_root_, asset_root_);
+  if (!resolved) {
+    return std::nullopt;
+  }
+  const std::filesystem::path *root = nullptr;
+  if (path.starts_with("app://data/")) {
+    root = &data_root_;
+  } else if (path.starts_with("app://cache/")) {
+    root = &cache_root_;
+  } else if (path.starts_with("app://tmp/")) {
+    root = &temp_root_;
+  } else if (path.starts_with("app://res/")) {
+    root = &resource_root_;
+  } else if (path.starts_with("app://assets/")) {
+    root = &asset_root_;
+  }
+  return root ? ValidateContainedTarget(*root, *resolved, true) : std::nullopt;
 }
 
 std::optional<std::filesystem::path>
 KSMFileSystem::ResolveWritable(const std::string &path) const {
-  return KSMVirtualPath::ResolveWritable(path, data_root_, cache_root_,
-                                         temp_root_);
+  const auto resolved =
+      KSMVirtualPath::ResolveWritable(path, data_root_, cache_root_, temp_root_);
+  if (!resolved) {
+    return std::nullopt;
+  }
+  const std::filesystem::path &root =
+      path.starts_with("app://data/")    ? data_root_
+      : path.starts_with("app://cache/") ? cache_root_
+                                         : temp_root_;
+  return ValidateContainedTarget(root, *resolved, false);
 }
 
 std::optional<std::filesystem::path>
 KSMFileSystem::ResolveReadableDirectory(const std::string &path) const {
-  return KSMVirtualPath::ResolveReadableDirectory(
+  const auto resolved = KSMVirtualPath::ResolveReadableDirectory(
       path, data_root_, cache_root_, temp_root_, resource_root_, asset_root_);
+  if (!resolved) {
+    return std::nullopt;
+  }
+  const std::filesystem::path *root = nullptr;
+  const std::string normalized = KSMVirtualPath::NormalizeDirectory(path);
+  if (normalized == "app://data" || normalized.starts_with("app://data/")) {
+    root = &data_root_;
+  } else if (
+      normalized == "app://cache" || normalized.starts_with("app://cache/")
+  ) {
+    root = &cache_root_;
+  } else if (
+      normalized == "app://tmp" || normalized.starts_with("app://tmp/")
+  ) {
+    root = &temp_root_;
+  } else if (normalized.starts_with("app://res")) {
+    root = &resource_root_;
+  } else if (normalized.starts_with("app://assets")) {
+    root = &asset_root_;
+  }
+  return root ? ValidateContainedTarget(*root, *resolved, true) : std::nullopt;
 }
 
 std::optional<std::filesystem::path>
 KSMFileSystem::ResolveWritableDirectory(const std::string &path) const {
-  return KSMVirtualPath::ResolveWritableDirectory(path, data_root_, cache_root_,
-                                                  temp_root_);
+  const auto resolved = KSMVirtualPath::ResolveWritableDirectory(
+      path, data_root_, cache_root_, temp_root_);
+  if (!resolved) {
+    return std::nullopt;
+  }
+  const std::string normalized = KSMVirtualPath::NormalizeDirectory(path);
+  const std::filesystem::path &root =
+      normalized == "app://data" || normalized.starts_with("app://data/")
+          ? data_root_
+          : (normalized == "app://cache" ||
+             normalized.starts_with("app://cache/"))
+                ? cache_root_
+                : temp_root_;
+  std::error_code error;
+  const bool exists = std::filesystem::exists(*resolved, error) && !error;
+  return ValidateContainedTarget(root, *resolved, exists);
 }
 
 std::optional<std::string>
@@ -169,6 +267,75 @@ bool KSMFileSystem::WriteText(const std::string &path,
   }
   output << content;
   return output.good();
+}
+
+bool KSMFileSystem::WriteTextAtomic(
+    const std::string &path,
+    const std::string &content
+) const {
+    if (content.size() > kMaxTextBytes) {
+        return false;
+    }
+    const auto target = ResolveWritableFile(path);
+    if (!target) {
+        return false;
+    }
+    std::error_code error;
+    std::filesystem::create_directories(target->parent_path(), error);
+    if (error) {
+        return false;
+    }
+    const std::filesystem::path temporary =
+        target->parent_path() /
+        (target->filename().wstring() + L".tmp-" +
+         std::to_wstring(next_temp_id_.fetch_add(1)));
+    const HANDLE handle = CreateFileW(
+        temporary.c_str(),
+        GENERIC_WRITE,
+        0,
+        nullptr,
+        CREATE_NEW,
+        FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_WRITE_THROUGH,
+        nullptr
+    );
+    if (handle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    std::size_t offset = 0;
+    bool written = true;
+    while (offset < content.size()) {
+        const DWORD request = static_cast<DWORD>(
+            std::min<std::size_t>(
+                content.size() - offset,
+                static_cast<std::size_t>(0x7fffffff)
+            )
+        );
+        DWORD completed = 0;
+        if (
+            !WriteFile(handle, content.data() + offset, request, &completed, nullptr) ||
+            completed == 0
+        ) {
+            written = false;
+            break;
+        }
+        offset += completed;
+    }
+    if (written) {
+        written = FlushFileBuffers(handle) != FALSE;
+    }
+    CloseHandle(handle);
+    if (
+        !written ||
+        !MoveFileExW(
+            temporary.c_str(),
+            target->c_str(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH
+        )
+    ) {
+        DeleteFileW(temporary.c_str());
+        return false;
+    }
+    return true;
 }
 
 bool KSMFileSystem::Exists(const std::string &path) const {
@@ -345,12 +512,73 @@ KSMFileSystem::StatBundled(const std::string &path) const {
 
 std::optional<std::string>
 KSMFileSystem::CreateTemporaryText(const std::string &content) const {
+  PruneTemporaryText(content.size());
   const std::string virtual_path =
       "app://tmp/read-" + std::to_string(next_temp_id_.fetch_add(1)) + ".txt";
   if (!WriteText(virtual_path, content)) {
     return std::nullopt;
   }
   return virtual_path;
+}
+
+void KSMFileSystem::PruneTemporaryText(std::size_t incoming_bytes) const {
+  constexpr auto kMaxTemporaryBytes = 64u * 1024u * 1024u;
+  constexpr auto kMaxAge = std::chrono::hours(24);
+  struct Candidate {
+    std::filesystem::path path;
+    std::filesystem::file_time_type modified;
+    std::uintmax_t size;
+  };
+  std::error_code error;
+  std::vector<Candidate> candidates;
+  std::uintmax_t total = 0;
+  const auto now = std::filesystem::file_time_type::clock::now();
+  std::filesystem::directory_iterator iterator(
+      temp_root_, std::filesystem::directory_options::skip_permission_denied,
+      error);
+  if (error) {
+    return;
+  }
+  for (const auto &entry : iterator) {
+    const std::string filename = entry.path().filename().string();
+    if (!filename.starts_with("read-") || !filename.ends_with(".txt")) {
+      continue;
+    }
+    const auto link_status = std::filesystem::symlink_status(entry.path(), error);
+    if (error || link_status.type() == std::filesystem::file_type::symlink ||
+        !std::filesystem::is_regular_file(link_status)) {
+      error.clear();
+      continue;
+    }
+    const auto size = std::filesystem::file_size(entry.path(), error);
+    const auto modified = std::filesystem::last_write_time(entry.path(), error);
+    if (error) {
+      error.clear();
+      continue;
+    }
+    if (now - modified > kMaxAge) {
+      std::filesystem::remove(entry.path(), error);
+      error.clear();
+      continue;
+    }
+    total += size;
+    candidates.push_back(Candidate{entry.path(), modified, size});
+  }
+  std::sort(
+      candidates.begin(), candidates.end(),
+      [](const Candidate &left, const Candidate &right) {
+        return left.modified < right.modified;
+      });
+  for (const auto &candidate : candidates) {
+    if (total + incoming_bytes <= kMaxTemporaryBytes) {
+      break;
+    }
+    std::filesystem::remove(candidate.path, error);
+    if (!error) {
+      total -= candidate.size;
+    }
+    error.clear();
+  }
 }
 
 std::optional<std::filesystem::path>

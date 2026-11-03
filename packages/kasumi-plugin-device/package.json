@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-device",
-  "version": "26.11.3",
+  "version": "26.11.4",
   "description": "Non-identifying device information plugin API for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

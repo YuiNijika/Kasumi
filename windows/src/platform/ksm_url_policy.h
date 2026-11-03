@@ -37,6 +37,10 @@ public:
         const std::string& url,
         const std::set<Origin>& allowed_origins
     );
+    static bool IsAllowedDownloadUrl(
+        const std::string& url,
+        const std::set<Origin>& allowed_origins
+    );
     static std::optional<std::string> ResolveHttpsRedirect(
         const std::string& current_url,
         const std::string& location

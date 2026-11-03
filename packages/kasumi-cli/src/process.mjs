@@ -60,6 +60,7 @@ export async function run(command, args, options = {}) {
       shell: false,
       windowsVerbatimArguments: options.windowsVerbatimArguments === true
     });
+    options.onSpawn?.(child);
     child.once('error', reject);
     child.once('exit', (code, signal) => {
       if (code === 0) {
@@ -84,6 +85,31 @@ export function spawnLongRunning(command, args, options = {}) {
     shell: false,
     detached: options.detached === true
   });
+}
+
+export function terminateProcessTree(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return;
+  }
+  if (process.platform === 'win32') {
+    spawnSync(
+      'taskkill',
+      ['/pid', String(pid), '/T', '/F'],
+      { stdio: 'ignore', windowsHide: true }
+    );
+    return;
+  }
+  try {
+    process.kill(-pid, 'SIGTERM');
+    return;
+  } catch {
+    // The process may not have started a process group.
+  }
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch {
+    // A process that already exited needs no cleanup.
+  }
 }
 
 function quoteWindowsArgument(value) {

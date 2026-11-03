@@ -4,6 +4,7 @@
 #include <shellapi.h>
 #include <winhttp.h>
 #include <winternl.h>
+#include <windns.h>
 
 #include <algorithm>
 #include <atomic>
@@ -59,6 +60,88 @@ std::wstring ToWide(const std::string& value) {
         size
     );
     return result;
+}
+
+bool IsPublicIpv4(const unsigned char* bytes) {
+    const unsigned int first = bytes[0];
+    const unsigned int second = bytes[1];
+    return first != 0 &&
+        first != 10 &&
+        first != 127 &&
+        !(first == 169 && second == 254) &&
+        !(first == 172 && second >= 16 && second <= 31) &&
+        !(first == 192 && second == 168) &&
+        !(first == 100 && second >= 64 && second <= 127) &&
+        first < 224;
+}
+
+bool IsPublicIpv6(const unsigned char* bytes) {
+    const bool is_ipv4_mapped =
+        std::all_of(bytes, bytes + 10, [](unsigned char byte) {
+            return byte == 0;
+        }) &&
+        bytes[10] == 0xff &&
+        bytes[11] == 0xff;
+    if (is_ipv4_mapped) {
+        return IsPublicIpv4(bytes + 12);
+    }
+    const bool is_unspecified = std::all_of(
+        bytes,
+        bytes + 16,
+        [](unsigned char byte) { return byte == 0; }
+    );
+    const bool is_loopback = std::all_of(
+        bytes,
+        bytes + 15,
+        [](unsigned char byte) { return byte == 0; }
+    ) && bytes[15] == 1;
+    return !is_unspecified &&
+        !is_loopback &&
+        (bytes[0] & 0xfe) != 0xfc &&
+        !(bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80) &&
+        (bytes[0] & 0xf0) != 0xf0;
+}
+
+bool IsPublicHost(const std::string& host) {
+    PDNS_RECORD records = nullptr;
+    const std::wstring wide_host = ToWide(host);
+    const DNS_STATUS status = DnsQuery_W(
+        wide_host.c_str(),
+        DNS_TYPE_ANY,
+        DNS_QUERY_STANDARD,
+        nullptr,
+        &records,
+        nullptr
+    );
+    if (status != ERROR_SUCCESS || !records) {
+        if (records) {
+            DnsRecordListFree(records, DnsFreeRecordList);
+        }
+        return false;
+    }
+
+    bool has_address = false;
+    bool is_public = true;
+    for (const DNS_RECORD* current = records; current && is_public;
+         current = current->pNext) {
+        if (current->wType == DNS_TYPE_A) {
+            has_address = true;
+            is_public = IsPublicIpv4(
+                reinterpret_cast<const unsigned char*>(
+                    &current->Data.A.IpAddress
+                )
+            );
+        } else if (current->wType == DNS_TYPE_AAAA) {
+            has_address = true;
+            is_public = IsPublicIpv6(
+                reinterpret_cast<const unsigned char*>(
+                    &current->Data.AAAA.Ip6Address
+                )
+            );
+        }
+    }
+    DnsRecordListFree(records, DnsFreeRecordList);
+    return has_address && is_public;
 }
 
 std::string ToUtf8(const std::wstring& value) {
@@ -196,11 +279,29 @@ KSMWindowsHostServices::KSMWindowsHostServices(
     std::shared_ptr<KSMFileSystem> file_system,
     std::string app_version
 )
+    : KSMWindowsHostServices(
+          window,
+          std::move(allowed_external_origins),
+          {},
+          std::move(file_system),
+          std::move(app_version)
+      ) {}
+
+KSMWindowsHostServices::KSMWindowsHostServices(
+    HWND window,
+    std::vector<std::string> allowed_external_origins,
+    std::vector<std::string> allowed_http_origins,
+    std::shared_ptr<KSMFileSystem> file_system,
+    std::string app_version
+)
     : window_(window),
       file_system_(std::move(file_system)),
       app_version_(std::move(app_version)),
       allowed_external_origins_(
           KSMUrlPolicy::NormalizeOrigins(allowed_external_origins)
+      ),
+      allowed_http_origins_(
+          KSMUrlPolicy::NormalizeOrigins(allowed_http_origins)
       ) {
     RegisterSqlDriver(std::make_shared<KSMSqliteDriver>(file_system_));
     for (auto& driver : KSMOdbcSqlDriver::Discover()) {
@@ -249,6 +350,13 @@ bool KSMWindowsHostServices::Confirm(
 std::optional<std::string> KSMWindowsHostServices::OpenFile(
     const std::vector<std::string>& filters
 ) {
+    std::unique_lock picker_lock(picker_mutex_, std::try_to_lock);
+    if (!picker_lock.owns_lock()) {
+        throw KSMHostException(
+            "BUSY",
+            "A file picker is already active."
+        );
+    }
     const std::wstring filter = BuildFilter(filters);
     std::vector<wchar_t> buffer(32768, L'\0');
     OPENFILENAMEW dialog{};
@@ -267,6 +375,13 @@ std::optional<std::string> KSMWindowsHostServices::OpenFile(
 std::optional<std::string> KSMWindowsHostServices::SaveFile(
     const std::string& suggested_name
 ) {
+    std::unique_lock picker_lock(picker_mutex_, std::try_to_lock);
+    if (!picker_lock.owns_lock()) {
+        throw KSMHostException(
+            "BUSY",
+            "A file picker is already active."
+        );
+    }
     std::vector<wchar_t> buffer(32768, L'\0');
     const std::wstring initial_name = ToWide(suggested_name);
     if (!initial_name.empty()) {
@@ -566,40 +681,6 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
             "The download service is not configured."
         );
     }
-    if (!KSMUrlPolicy::ParseHttpUrl(url, true)) {
-        throw KSMHostException("INVALID_ARGS", "url must use HTTPS.");
-    }
-
-    auto target = file_system_->ResolveWritableFile(path);
-    if (!target) {
-        throw KSMHostException(
-            "PERMISSION_DENIED",
-            "path is outside the writable sandbox."
-        );
-    }
-    if (IsDirectory(*target)) {
-        throw KSMHostException("INVALID_ARGS", "path must name a file.");
-    }
-    if (std::filesystem::exists(*target) && !overwrite) {
-        throw KSMHostException("IO_ERROR", "The target already exists.");
-    }
-
-    std::error_code directory_error;
-    std::filesystem::create_directories(target->parent_path(), directory_error);
-    if (directory_error) {
-        throw KSMHostException(
-            "IO_ERROR",
-            "The target directory could not be created."
-        );
-    }
-    target = file_system_->ResolveWritableFile(path);
-    if (!target) {
-        throw KSMHostException(
-            "PERMISSION_DENIED",
-            "path is outside the writable sandbox."
-        );
-    }
-
     const std::string key = request_id.empty()
         ? "anonymous-" + std::to_string(next_download_part.fetch_add(1))
         : request_id;
@@ -613,6 +694,82 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
             );
         }
         downloads_.emplace(key, state);
+    }
+    const auto release_reservation = [this, &key, &state]() {
+        std::lock_guard lock(download_mutex_);
+        const auto iterator = downloads_.find(key);
+        if (iterator != downloads_.end() && iterator->second == state) {
+            downloads_.erase(iterator);
+        }
+    };
+
+    std::optional<std::filesystem::path> target;
+    try {
+#if defined(KASUMI_ENABLE_TEST_HOOKS)
+        std::function<void()> test_gate;
+        {
+            std::lock_guard lock(download_test_gate_mutex_);
+            test_gate = download_test_gate_;
+        }
+        if (test_gate) {
+            test_gate();
+        }
+#endif
+        if (!KSMUrlPolicy::ParseHttpUrl(url, true)) {
+            throw KSMHostException("INVALID_ARGS", "url must use HTTPS.");
+        }
+        if (!KSMUrlPolicy::IsAllowedDownloadUrl(
+                url,
+                allowed_http_origins_
+            )) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The URL origin is not allowlisted for downloads."
+            );
+        }
+        const auto initial_url = KSMUrlPolicy::ParseHttpUrl(url, true);
+        if (!initial_url || !IsPublicHost(initial_url->origin.host)) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The download host is not a public network address."
+            );
+        }
+
+        target = file_system_->ResolveWritableFile(path);
+        if (!target) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "path is outside the writable sandbox."
+            );
+        }
+        if (IsDirectory(*target)) {
+            throw KSMHostException("INVALID_ARGS", "path must name a file.");
+        }
+        if (std::filesystem::exists(*target) && !overwrite) {
+            throw KSMHostException("IO_ERROR", "The target already exists.");
+        }
+
+        std::error_code directory_error;
+        std::filesystem::create_directories(
+            target->parent_path(),
+            directory_error
+        );
+        if (directory_error) {
+            throw KSMHostException(
+                "IO_ERROR",
+                "The target directory could not be created."
+            );
+        }
+        target = file_system_->ResolveWritableFile(path);
+        if (!target) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "path is outside the writable sandbox."
+            );
+        }
+    } catch (...) {
+        release_reservation();
+        throw;
     }
 
     const std::filesystem::path part = target->parent_path() /
@@ -658,6 +815,21 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
             if (!parsed) {
                 throw KSMHostException("IO_ERROR", "The redirect target is invalid.");
             }
+            if (!KSMUrlPolicy::IsAllowedDownloadUrl(
+                    current_url,
+                    allowed_http_origins_
+                )) {
+                throw KSMHostException(
+                    "PERMISSION_DENIED",
+                    "The redirect origin is not allowlisted for downloads."
+                );
+            }
+            if (!IsPublicHost(parsed->origin.host)) {
+                throw KSMHostException(
+                    "PERMISSION_DENIED",
+                    "The download host is not a public network address."
+                );
+            }
             HINTERNET session = WinHttpOpen(
                 L"Kasumi/0.1",
                 WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
@@ -671,13 +843,19 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
                     HttpErrorText("Opening the HTTP session")
                 );
             }
-            WinHttpSetTimeouts(
+            if (!WinHttpSetTimeouts(
                 session,
                 kDownloadIoTimeoutMs,
                 kDownloadIoTimeoutMs,
                 kDownloadIoTimeoutMs,
                 kDownloadIoTimeoutMs
-            );
+            )) {
+                SetDownloadHandles(state, session, nullptr, nullptr);
+                throw KSMHostException(
+                    "IO_ERROR",
+                    HttpErrorText("Configuring HTTP timeouts")
+                );
+            }
 
             const std::wstring host = ToWide(parsed->origin.host);
             HINTERNET connect = WinHttpConnect(
@@ -719,12 +897,17 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
             }
 
             DWORD disable_redirects = WINHTTP_DISABLE_REDIRECTS;
-            WinHttpSetOption(
+            if (!WinHttpSetOption(
                 request,
                 WINHTTP_OPTION_DISABLE_FEATURE,
                 &disable_redirects,
                 sizeof(disable_redirects)
-            );
+            )) {
+                throw KSMHostException(
+                    "IO_ERROR",
+                    HttpErrorText("Disabling automatic HTTP redirects")
+                );
+            }
             if (!WinHttpSendRequest(
                 request,
                 WINHTTP_NO_ADDITIONAL_HEADERS,
@@ -799,6 +982,20 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
                     throw KSMHostException(
                         "IO_ERROR",
                         "The redirect did not use HTTPS."
+                    );
+                }
+                const auto next_url = KSMUrlPolicy::ParseHttpUrl(*next, true);
+                if (
+                    !next_url ||
+                    !KSMUrlPolicy::IsAllowedDownloadUrl(
+                        *next,
+                        allowed_http_origins_
+                    ) ||
+                    !IsPublicHost(next_url->origin.host)
+                ) {
+                    throw KSMHostException(
+                        "PERMISSION_DENIED",
+                        "The redirect target is not allowlisted for downloads."
                     );
                 }
                 CloseDownloadHandles(state);
@@ -1102,6 +1299,7 @@ bool KSMWindowsHostServices::WriteLog(
 }
 
 void KSMWindowsHostServices::CancelRequest(const std::string& request_id) {
+    KSMHostServices::CancelRequest(request_id);
     std::shared_ptr<DownloadState> state;
     {
         std::lock_guard lock(download_mutex_);

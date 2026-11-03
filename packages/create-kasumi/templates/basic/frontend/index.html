@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#eef1e8">
+    <meta name="theme-color" content="#f2ece3">
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:5173 ws://127.0.0.1:5173; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
@@ -11,40 +11,108 @@
     <title>__APP_TITLE__</title>
   </head>
   <body>
-    <main class="shell">
-      <p class="eyebrow">Kasumi Application</p>
-      <h1>__APP_TITLE__</h1>
-      <p class="lede">
-        这个页面已经通过 `kasumi-bridge` 连接到原生宿主。先运行一次连接检查，再开始添加功能。
-      </p>
-      <section class="status-card" aria-labelledby="status-title">
-        <div class="status-heading">
-          <div>
-            <p class="eyebrow">Runtime</p>
-            <h2 id="status-title">连接状态</h2>
-          </div>
-          <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+    <div class="app-shell">
+      <header class="masthead">
+        <div class="brand">
+          <svg class="brand-mark" viewBox="0 0 42 42" width="30" height="30" aria-hidden="true">
+            <path
+              d="m21 2.5 4.7 13.1 13.9.6-11 8.5 3.8 13.4L21 30.2 9.6 38.1l3.8-13.4-11-8.5 13.9-.6Z"
+              fill="var(--brand-pink)"
+              stroke="currentColor"
+              stroke-linejoin="round"
+              stroke-width="2.2"
+            />
+            <circle cx="33" cy="8.5" r="3.4" fill="var(--brand-orange)" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+          <span class="brand-name" translate="no">Kasumi</span>
+          <span class="brand-tag">app</span>
         </div>
-        <dl class="facts">
-          <div>
-            <dt>平台</dt>
-            <dd id="platform">检测中</dd>
+
+        <div class="stack">
+          <span class="stack-label">Built with</span>
+          <span class="stack-logos" aria-hidden="true">
+            <span class="tech-mark">
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <rect width="24" height="24" rx="3" fill="#3178c6" />
+                <text x="12" y="16.4" text-anchor="middle" font-family="sans-serif" font-size="9.5" font-weight="700" fill="#fff">TS</text>
+              </svg>
+            </span>
+            <span class="tech-mark">
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path d="M3 2.6 12 21.5 21 2.6 12 5.4Z" fill="#ffd62e" />
+                <path d="M12 5.4 21 2.6 12 21.5Z" fill="#8f63ff" />
+              </svg>
+            </span>
+          </span>
+          <span class="stack-name">TypeScript + Vite</span>
+        </div>
+      </header>
+
+      <main id="main-content" class="content">
+        <div class="intro">
+          <section class="hero" aria-labelledby="app-title">
+            <p class="eyebrow">
+              <span>Web 界面</span>
+              <span aria-hidden="true">+</span>
+              <span>原生宿主</span>
+            </p>
+            <h1 id="app-title">__APP_TITLE__</h1>
+            <p class="lede">
+              页面已经运行在 Kasumi 的原生容器中。修改前端文件即可继续开发，需要系统能力时通过 KSM 桥接调用。
+            </p>
+            <div class="actions">
+              <button id="ping" class="button" type="button">重新检查</button>
+              <span class="command"><span aria-hidden="true">$</span> pnpm ksm dev</span>
+            </div>
+          </section>
+
+          <aside class="aside" aria-label="开发提示">
+            <p class="aside-label">Start here</p>
+            <p class="aside-copy">
+              从 <code>frontend/</code> 开始编辑。保存后页面会立即更新，原生能力由 <code>KSM</code> 统一提供。
+            </p>
+            <p class="aside-command"><span aria-hidden="true">→</span> KSM.app.getInfo()</p>
+          </aside>
+        </div>
+
+        <section class="runtime" aria-labelledby="runtime-title">
+          <div class="runtime-heading">
+            <h2 id="runtime-title">Runtime</h2>
+            <span id="status-badge" class="status-badge" data-state="pending">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span id="status-label">连接中</span>
+            </span>
           </div>
-          <div>
-            <dt>应用版本</dt>
-            <dd id="version">检测中</dd>
-          </div>
-          <div>
-            <dt>可用能力</dt>
-            <dd id="capabilities">检测中</dd>
-          </div>
-        </dl>
-        <p id="message" class="message" role="status" aria-live="polite">
-          正在连接宿主…
-        </p>
-        <button id="ping" class="button" type="button">重新检查</button>
-      </section>
-    </main>
+
+          <dl class="metrics">
+            <div>
+              <dt>Platform</dt>
+              <dd id="platform">检测中</dd>
+            </div>
+            <div>
+              <dt>App version</dt>
+              <dd id="version">检测中</dd>
+            </div>
+            <div>
+              <dt>Capabilities</dt>
+              <dd id="capabilities">检测中</dd>
+            </div>
+          </dl>
+
+          <p id="message" class="runtime-message" role="status" aria-live="polite">
+            正在连接宿主…
+          </p>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Win32 / Android</span>
+        <span>Kasumi <span class="footer-mark" aria-hidden="true">✦</span></span>
+      </footer>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

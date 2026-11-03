@@ -25,6 +25,10 @@ pnpm ksm dev --windows
 pnpm ksm build --all
 ```
 
+首次 Windows 开发会在 `.ksm/vcpkg/` 初始化依赖，之后复用安装、下载和二进制缓存。
+`ksm dev` 不会重复构建生产前端，也不会在每次启动时重新配置 CMake。若上一次开发异常
+退出，CLI 会自动清理 `.ksm/dev/state.json` 中记录的宿主与开发服务器。
+
 Android 开发前连接设备或启动模拟器，然后运行：
 
 ```bash

@@ -23,6 +23,9 @@ export async function buildAndroid(projectRoot, config) {
     `-PksmPackageName=${config.packageName}`,
     `-PksmVersion=${config.version}`,
     `-PksmCommands=${config.commands.join(',')}`,
+    `-PksmPermissions=${config.permissions.join(',')}`,
+    `-PksmShellAllowedOrigins=${config.shell.allowedOrigins.join(',')}`,
+    `-PksmHttpAllowedOrigins=${config.http.allowedOrigins.join(',')}`,
     'assembleDebug'
   ];
   await run(gradle.command, [...gradle.prefix, ...args], {
@@ -66,6 +69,9 @@ export async function packageAndroid(projectRoot, config) {
       `-PksmPackageName=${config.packageName}`,
       `-PksmVersion=${config.version}`,
       `-PksmCommands=${config.commands.join(',')}`,
+      `-PksmPermissions=${config.permissions.join(',')}`,
+      `-PksmShellAllowedOrigins=${config.shell.allowedOrigins.join(',')}`,
+      `-PksmHttpAllowedOrigins=${config.http.allowedOrigins.join(',')}`,
       'assembleRelease'
     ],
     {

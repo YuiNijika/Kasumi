@@ -3,6 +3,8 @@ package dev.kasumi.app.bridge
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
+import android.os.CancellationSignal
+import android.os.OperationCanceledException
 import android.util.Base64
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicLong
@@ -58,12 +60,31 @@ interface KSMSqlConnection : Closeable {
         statement: String,
         params: List<Any?>
     ): KSMSqlExecuteResult
+
+    fun query(
+        statement: String,
+        params: List<Any?>,
+        requestId: String?
+    ): KSMSqlQueryResult {
+        return query(statement, params)
+    }
+
+    fun execute(
+        statement: String,
+        params: List<Any?>,
+        requestId: String?
+    ): KSMSqlExecuteResult {
+        return execute(statement, params)
+    }
+
+    fun cancel(requestId: String) {}
 }
 
 class KSMSqlDriverRegistry {
     private val lock = Any()
     private val drivers = linkedMapOf<String, KSMSqlDriver>()
     private val connections = mutableMapOf<String, KSMSqlConnection>()
+    private val activeRequests = mutableMapOf<String, KSMSqlConnection>()
     private val nextConnectionId = AtomicLong(1)
     private var pendingConnections = 0
 
@@ -119,25 +140,47 @@ class KSMSqlDriverRegistry {
     fun query(
         connectionId: String,
         statement: String,
-        params: List<Any?>
+        params: List<Any?>,
+        requestId: String? = null
     ): KSMSqlQueryResult {
         val connection = requireConnection(connectionId)
-        val result = synchronized(connection) {
-            connection.query(statement, params)
+        registerRequest(requestId, connection)
+        return try {
+            val result = synchronized(connection) {
+                connection.query(statement, params, requestId)
+            }
+            validateSqlResult(result)
+            result
+        } finally {
+            unregisterRequest(requestId, connection)
         }
-        validateSqlResult(result)
-        return result
     }
 
     fun execute(
         connectionId: String,
         statement: String,
-        params: List<Any?>
+        params: List<Any?>,
+        requestId: String? = null
     ): KSMSqlExecuteResult {
         val connection = requireConnection(connectionId)
-        return synchronized(connection) {
-            connection.execute(statement, params)
+        registerRequest(requestId, connection)
+        return try {
+            synchronized(connection) {
+                connection.execute(statement, params, requestId)
+            }
+        } finally {
+            unregisterRequest(requestId, connection)
         }
+    }
+
+    fun cancel(requestId: String) {
+        if (requestId.isEmpty()) {
+            return
+        }
+        val connection = synchronized(lock) {
+            activeRequests[requestId]
+        } ?: return
+        connection.cancel(requestId)
     }
 
     fun close(connectionId: String): Boolean {
@@ -174,6 +217,37 @@ class KSMSqlDriverRegistry {
             "NOT_FOUND",
             "The SQL connection does not exist."
         )
+    }
+
+    private fun registerRequest(
+        requestId: String?,
+        connection: KSMSqlConnection
+    ) {
+        if (requestId.isNullOrEmpty()) {
+            return
+        }
+        synchronized(lock) {
+            if (activeRequests.putIfAbsent(requestId, connection) != null) {
+                throw KSMHostException(
+                    "BUSY",
+                    "A SQL request with this ID is already in flight."
+                )
+            }
+        }
+    }
+
+    private fun unregisterRequest(
+        requestId: String?,
+        connection: KSMSqlConnection
+    ) {
+        if (requestId.isNullOrEmpty()) {
+            return
+        }
+        synchronized(lock) {
+            if (activeRequests[requestId] === connection) {
+                activeRequests.remove(requestId)
+            }
+        }
     }
 }
 
@@ -219,17 +293,30 @@ class KSMSqliteDriver(
 private class KSMSqliteConnection(
     private val database: SQLiteDatabase
 ) : KSMSqlConnection {
+    private val cancellationSignals =
+        mutableMapOf<String, CancellationSignal>()
+
     override fun query(
         statement: String,
         params: List<Any?>
     ): KSMSqlQueryResult {
+        return query(statement, params, null)
+    }
+
+    override fun query(
+        statement: String,
+        params: List<Any?>,
+        requestId: String?
+    ): KSMSqlQueryResult {
         val args = params.map(::sqlArgument).toTypedArray()
+        val signal = createCancellationSignal(requestId)
         return try {
-            database.rawQuery(statement, args).use { cursor ->
+            database.rawQuery(statement, args, signal).use { cursor ->
                 val columns = cursor.columnNames.toList()
                 val rows = mutableListOf<List<Any?>>()
                 var resultBytes = 0
                 while (cursor.moveToNext()) {
+                    signal?.throwIfCanceled()
                     if (rows.size >= MAX_SQL_RESULT_ROWS) {
                         throw KSMHostException(
                             "RESOURCE_LIMIT",
@@ -250,11 +337,24 @@ private class KSMSqliteConnection(
                 }
                 KSMSqlQueryResult(columns, rows)
             }
+        } catch (_: OperationCanceledException) {
+            throw KSMHostException(
+                "CANCELLED",
+                "The SQL request was cancelled."
+            )
         } catch (error: SQLiteException) {
+            if (signal?.isCanceled == true) {
+                throw KSMHostException(
+                    "CANCELLED",
+                    "The SQL request was cancelled."
+                )
+            }
             throw KSMHostException(
                 "INVALID_ARGS",
                 error.message ?: "SQL query failed."
             )
+        } finally {
+            removeCancellationSignal(requestId, signal)
         }
     }
 
@@ -262,12 +362,24 @@ private class KSMSqliteConnection(
         statement: String,
         params: List<Any?>
     ): KSMSqlExecuteResult {
+        return execute(statement, params, null)
+    }
+
+    override fun execute(
+        statement: String,
+        params: List<Any?>,
+        requestId: String?
+    ): KSMSqlExecuteResult {
         val args = params.map(::sqlArgument).toTypedArray()
+        val signal = createCancellationSignal(requestId)
         return try {
+            signal?.throwIfCanceled()
             database.execSQL(statement, args)
+            signal?.throwIfCanceled()
             val changes = database.rawQuery(
                 "SELECT changes()",
-                null
+                null,
+                signal
             ).use { cursor ->
                 if (!cursor.moveToFirst()) {
                     return@use 0L
@@ -293,12 +405,31 @@ private class KSMSqliteConnection(
                 rowsAffected = if (mutatesRows) changes else 0L,
                 lastInsertId = lastInsertId
             )
+        } catch (_: OperationCanceledException) {
+            throw KSMHostException(
+                "CANCELLED",
+                "The SQL request was cancelled."
+            )
         } catch (error: SQLiteException) {
+            if (signal?.isCanceled == true) {
+                throw KSMHostException(
+                    "CANCELLED",
+                    "The SQL request was cancelled."
+                )
+            }
             throw KSMHostException(
                 "INVALID_ARGS",
                 error.message ?: "SQL execution failed."
             )
+        } finally {
+            removeCancellationSignal(requestId, signal)
         }
+    }
+
+    override fun cancel(requestId: String) {
+        synchronized(cancellationSignals) {
+            cancellationSignals[requestId]
+        }?.cancel()
     }
 
     override fun close() {
@@ -329,6 +460,33 @@ private class KSMSqliteConnection(
                 "INVALID_ARGS",
                 "SQL parameters must be strings, numbers, booleans or null."
             )
+        }
+    }
+
+    private fun createCancellationSignal(
+        requestId: String?
+    ): CancellationSignal? {
+        if (requestId.isNullOrEmpty()) {
+            return null
+        }
+        return CancellationSignal().also { signal ->
+            synchronized(cancellationSignals) {
+                cancellationSignals[requestId] = signal
+            }
+        }
+    }
+
+    private fun removeCancellationSignal(
+        requestId: String?,
+        signal: CancellationSignal?
+    ) {
+        if (requestId.isNullOrEmpty() || signal == null) {
+            return
+        }
+        synchronized(cancellationSignals) {
+            if (cancellationSignals[requestId] === signal) {
+                cancellationSignals.remove(requestId)
+            }
         }
     }
 }
