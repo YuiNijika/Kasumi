@@ -122,7 +122,7 @@ export const hero = {
   titleAccent: 'WebView 应用框架',
   description:
     '一套 Web 前端构建更原生、轻量、快速的应用程序。',
-  command: 'pnpm create kasumi',
+  command: 'pnpm create kasumi@latest',
   primaryAction: {
     label: '阅读文档',
     href: 'https://blog.miomoe.cn/docs/kasumi',
@@ -340,7 +340,7 @@ export const workflowSteps: WorkflowStep[] = [
     step: '01',
     title: '选择模板',
     description: 'Basic、React、Vue、Next.js 或 Nuxt，保留原来的工程习惯。',
-    command: 'pnpm create kasumi',
+    command: 'pnpm create kasumi@latest',
   },
   {
     step: '02',
