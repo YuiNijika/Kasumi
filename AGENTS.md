@@ -32,3 +32,11 @@
 - 「修复问题」每项以「修复」开头，说明问题现象 + 根因或方案
 - 内容来源：结合 git commit 历史与本地项目记忆，只写真实发生的改动，不编造
 - 发布前先查 github-update.ts / tauri.conf.json 确认版本号
+
+## 在线文档同步规范
+
+- 在线 Kasumi MDX 的读取、拉取和修订只使用 `pnpm ksm docs`，其唯一实现是 `tools/update_docs.py`
+- 拉取和提交文件只允许位于 `.tmp/kasumi-docs/`，禁止使用或创建 `.workbuddy/`
+- `kasumi-framework` 与 `kasumi-app` skill 优先读取 `docs/skill/kasumi/*.mdx` 本地镜像；缺失时直接浏览线上 `docs/skill/kasumi/*.mdx` URL
+- 提交前必须先运行 `--dry-run` 检查 diff，正式提交必须提供 `--note`
+- 审核通过后再次拉取页面，确认线上内容已经生效
