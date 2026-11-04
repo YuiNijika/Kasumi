@@ -45,6 +45,12 @@ importers:
         specifier: workspace:^
         version: link:../kasumi-bridge
 
+  packages/kasumi-plugin-global-shortcut:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
   packages/kasumi-plugin-http:
     dependencies:
       kasumi-bridge:
@@ -88,6 +94,18 @@ importers:
         version: link:../kasumi-bridge
 
   packages/kasumi-plugin-store:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-tray:
+    dependencies:
+      kasumi-bridge:
+        specifier: workspace:^
+        version: link:../kasumi-bridge
+
+  packages/kasumi-plugin-updater:
     dependencies:
       kasumi-bridge:
         specifier: workspace:^

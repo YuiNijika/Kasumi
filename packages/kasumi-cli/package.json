@@ -1,6 +1,6 @@
 {
   "name": "kasumi-cli",
-  "version": "26.11.4",
+  "version": "26.11.5",
   "description": "Build and development CLI for Kasumi applications",
   "type": "module",
   "bin": {

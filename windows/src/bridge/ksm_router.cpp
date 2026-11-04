@@ -494,13 +494,30 @@ void KSMRouter::HandleMessage(
                     permissions.push_back(permission);
                 }
             }
+            const auto& metadata = KSMGeneratedContract::PluginMetadata();
+            Json plugins = Json::array();
+            for (const auto& plugin_id : plugin_ids_) {
+                const Json meta = metadata.contains(plugin_id)
+                    ? metadata.at(plugin_id)
+                    : Json::object();
+                plugins.push_back(Json{
+                    {"id", plugin_id},
+                    {"name", meta.value("name", plugin_id)},
+                    {"version", meta.value("version", "1.0.0")},
+                    {"enabled", true}
+                });
+            }
+            const std::string app_id = host_services_
+                ? host_services_->AppId()
+                : "";
             SendSuccess(
                 id,
                 Json{
                     {"platform", "windows"},
+                    {"appId", app_id},
                     {"commands", capability_commands_},
                     {"permissions", permissions},
-                    {"plugins", plugin_ids_}
+                    {"plugins", plugins}
                 },
                 send_response
             );
@@ -595,6 +612,149 @@ void KSMRouter::HandleMessage(
                 }
                 SendSuccess(id, Json{{"unsubscribed", true}}, send_response);
             }
+            return;
+        }
+
+        if (command == "app.singleInstance.state") {
+            const bool primary = host_services_
+                ? host_services_->IsPrimaryInstance()
+                : true;
+            SendSuccess(
+                id,
+                Json{{"primary", primary}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "app.singleInstance.focus") {
+            const bool focused = host_services_
+                ? host_services_->FocusMainWindow()
+                : false;
+            SendSuccess(
+                id,
+                Json{{"focused", focused}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "tray.show") {
+            const bool shown = host_services_
+                ? host_services_->TrayShow()
+                : false;
+            SendSuccess(
+                id,
+                Json{{"shown", shown}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "tray.hide") {
+            const bool hidden = host_services_
+                ? host_services_->TrayHide()
+                : false;
+            SendSuccess(
+                id,
+                Json{{"hidden", hidden}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "globalShortcut.register") {
+            if (!IsString(args, "shortcut")) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "shortcut is required.",
+                    send_response
+                );
+                return;
+            }
+            const bool registered = host_services_
+                ? host_services_->RegisterGlobalShortcut(
+                    args.at("shortcut").get<std::string>()
+                )
+                : false;
+            SendSuccess(
+                id,
+                Json{{"registered", registered}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "globalShortcut.unregister") {
+            if (!IsString(args, "shortcut")) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "shortcut is required.",
+                    send_response
+                );
+                return;
+            }
+            const bool unregistered = host_services_
+                ? host_services_->UnregisterGlobalShortcut(
+                    args.at("shortcut").get<std::string>()
+                )
+                : false;
+            SendSuccess(
+                id,
+                Json{{"unregistered", unregistered}},
+                send_response
+            );
+            return;
+        }
+
+        if (command == "updater.check") {
+            bool available = false;
+            std::string version;
+            const bool check = host_services_
+                ? host_services_->CheckUpdate(available, version)
+                : true;
+            if (!check) {
+                SendError(
+                    id,
+                    "IO_ERROR",
+                    "The update check failed.",
+                    send_response
+                );
+                return;
+            }
+            SendSuccess(
+                id,
+                Json{
+                    {"available", available},
+                    {"version", version.empty() ? Json(nullptr) : Json(version)}
+                },
+                send_response
+            );
+            return;
+        }
+
+        if (command == "updater.download") {
+            if (!IsString(args, "version") || args.at("version").get<std::string>().empty()) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "version is required.",
+                    send_response
+                );
+                return;
+            }
+            const bool downloaded = host_services_
+                ? host_services_->DownloadUpdate(
+                    args.at("version").get<std::string>()
+                )
+                : false;
+            SendSuccess(
+                id,
+                Json{{"downloaded", downloaded}},
+                send_response
+            );
             return;
         }
 

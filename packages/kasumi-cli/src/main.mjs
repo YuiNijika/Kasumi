@@ -309,6 +309,7 @@ Options:
   --config <path>            Configuration file, default kasumi.config.json
   --external-web             Copy Windows web assets beside the executable
   --with-webview2-loader     Bundle WebView2Loader.dll
+  --installer <type>         Windows installer type: nsis or msi
   -h, --help                 Show this help
   -v, --version              Show the kasumi-cli version`);
 }

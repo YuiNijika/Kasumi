@@ -10,6 +10,11 @@ export const KSM_COMMANDS = [
   "fs.readDir",
   "fs.mkdir",
   "fs.stat",
+  "fs.appendText",
+  "fs.copy",
+  "fs.move",
+  "fs.readBytes",
+  "fs.writeBytes",
   "dialog.message",
   "dialog.confirm",
   "dialog.openFile",
@@ -26,6 +31,16 @@ export const KSM_COMMANDS = [
   "window.setSize",
   "window.close",
   "shell.openExternal",
+  "shell.openPath",
+  "shell.showInFolder",
+  "app.singleInstance.state",
+  "app.singleInstance.focus",
+  "tray.show",
+  "tray.hide",
+  "globalShortcut.register",
+  "globalShortcut.unregister",
+  "updater.check",
+  "updater.download",
   "http.download",
   "sql.drivers",
   "sql.open",
@@ -59,6 +74,11 @@ export const KSM_WINDOWS_COMMANDS = [
   "fs.readDir",
   "fs.mkdir",
   "fs.stat",
+  "fs.appendText",
+  "fs.copy",
+  "fs.move",
+  "fs.readBytes",
+  "fs.writeBytes",
   "dialog.message",
   "dialog.confirm",
   "dialog.openFile",
@@ -75,6 +95,16 @@ export const KSM_WINDOWS_COMMANDS = [
   "window.setSize",
   "window.close",
   "shell.openExternal",
+  "shell.openPath",
+  "shell.showInFolder",
+  "app.singleInstance.state",
+  "app.singleInstance.focus",
+  "tray.show",
+  "tray.hide",
+  "globalShortcut.register",
+  "globalShortcut.unregister",
+  "updater.check",
+  "updater.download",
   "http.download",
   "sql.drivers",
   "sql.open",
@@ -109,6 +139,11 @@ export const KSM_ANDROID_COMMANDS = [
   "fs.readDir",
   "fs.mkdir",
   "fs.stat",
+  "fs.appendText",
+  "fs.copy",
+  "fs.move",
+  "fs.readBytes",
+  "fs.writeBytes",
   "dialog.message",
   "dialog.confirm",
   "dialog.openFile",
@@ -121,6 +156,12 @@ export const KSM_ANDROID_COMMANDS = [
   "event.unsubscribe",
   "window.close",
   "shell.openExternal",
+  "shell.openPath",
+  "shell.showInFolder",
+  "app.singleInstance.state",
+  "app.singleInstance.focus",
+  "updater.check",
+  "updater.download",
   "http.download",
   "sql.drivers",
   "sql.open",
@@ -163,7 +204,10 @@ export const KSM_PERMISSIONS = [
   "sql",
   "store",
   "os.info",
-  "log.write"
+  "log.write",
+  "updater",
+  "globalShortcut",
+  "tray"
 ] as const;
 export const KSM_ERROR_CODES = [
   "INVALID_ARGS",
@@ -192,7 +236,11 @@ export const KSM_PLUGINS = [
   "path",
   "store",
   "os",
-  "log"
+  "log",
+  "appInstance",
+  "updater",
+  "globalShortcut",
+  "tray"
 ] as const;
 export interface KSMPluginMetadata {
   name: string;
@@ -252,6 +300,11 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "commands": [
       "fs.readText",
       "fs.writeText",
+      "fs.appendText",
+      "fs.copy",
+      "fs.move",
+      "fs.readBytes",
+      "fs.writeBytes",
       "fs.exists",
       "fs.remove",
       "fs.readDir",
@@ -366,7 +419,7 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
   },
   "shell": {
     "name": "Shell",
-    "version": "1.0.0",
+    "version": "1.4.0",
     "description": "Allowlisted external URL launching.",
     "frontendPackage": "kasumi-plugin-shell",
     "platforms": [
@@ -380,7 +433,9 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "shell.open"
     ],
     "commands": [
-      "shell.openExternal"
+      "shell.openExternal",
+      "shell.openPath",
+      "shell.showInFolder"
     ]
   },
   "device": {
@@ -505,6 +560,80 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "commands": [
       "log.write"
     ]
+  },
+  "appInstance": {
+    "name": "App Instance",
+    "version": "1.4.0",
+    "description": "Single instance state and focus coordination.",
+    "frontendPackage": "kasumi-bridge",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [],
+    "defaultPermissions": [],
+    "commands": [
+      "app.singleInstance.state",
+      "app.singleInstance.focus"
+    ]
+  },
+  "updater": {
+    "name": "Updater",
+    "version": "1.4.0",
+    "description": "Check and download application update packages.",
+    "frontendPackage": "kasumi-plugin-updater",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "updater"
+    ],
+    "defaultPermissions": [
+      "updater"
+    ],
+    "commands": [
+      "updater.check",
+      "updater.download"
+    ]
+  },
+  "globalShortcut": {
+    "name": "Global Shortcut",
+    "version": "1.4.0",
+    "description": "Register and unregister global keyboard shortcuts.",
+    "frontendPackage": "kasumi-plugin-global-shortcut",
+    "platforms": [
+      "windows"
+    ],
+    "permissions": [
+      "globalShortcut"
+    ],
+    "defaultPermissions": [
+      "globalShortcut"
+    ],
+    "commands": [
+      "globalShortcut.register",
+      "globalShortcut.unregister"
+    ]
+  },
+  "tray": {
+    "name": "Tray",
+    "version": "1.4.0",
+    "description": "Show and hide the system tray icon.",
+    "frontendPackage": "kasumi-plugin-tray",
+    "platforms": [
+      "windows"
+    ],
+    "permissions": [
+      "tray"
+    ],
+    "defaultPermissions": [
+      "tray"
+    ],
+    "commands": [
+      "tray.show",
+      "tray.hide"
+    ]
   }
 };
 export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = {
@@ -520,6 +649,11 @@ export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = 
   "fs": [
     "fs.readText",
     "fs.writeText",
+    "fs.appendText",
+    "fs.copy",
+    "fs.move",
+    "fs.readBytes",
+    "fs.writeBytes",
     "fs.exists",
     "fs.remove",
     "fs.readDir",
@@ -550,7 +684,9 @@ export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = 
     "http.download"
   ],
   "shell": [
-    "shell.openExternal"
+    "shell.openExternal",
+    "shell.openPath",
+    "shell.showInFolder"
   ],
   "device": [
     "device.getInfo"
@@ -583,6 +719,22 @@ export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = 
   ],
   "log": [
     "log.write"
+  ],
+  "appInstance": [
+    "app.singleInstance.state",
+    "app.singleInstance.focus"
+  ],
+  "updater": [
+    "updater.check",
+    "updater.download"
+  ],
+  "globalShortcut": [
+    "globalShortcut.register",
+    "globalShortcut.unregister"
+  ],
+  "tray": [
+    "tray.show",
+    "tray.hide"
   ]
 };
 export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {
@@ -595,6 +747,11 @@ export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {
   "event.unsubscribe": "core",
   "fs.readText": "fs",
   "fs.writeText": "fs",
+  "fs.appendText": "fs",
+  "fs.copy": "fs",
+  "fs.move": "fs",
+  "fs.readBytes": "fs",
+  "fs.writeBytes": "fs",
   "fs.exists": "fs",
   "fs.remove": "fs",
   "fs.readDir": "fs",
@@ -614,6 +771,8 @@ export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {
   "window.close": "window",
   "http.download": "http",
   "shell.openExternal": "shell",
+  "shell.openPath": "shell",
+  "shell.showInFolder": "shell",
   "device.getInfo": "device",
   "sql.drivers": "sql",
   "sql.open": "sql",
@@ -633,7 +792,15 @@ export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {
   "store.clear": "store",
   "store.keys": "store",
   "os.getInfo": "os",
-  "log.write": "log"
+  "log.write": "log",
+  "app.singleInstance.state": "appInstance",
+  "app.singleInstance.focus": "appInstance",
+  "updater.check": "updater",
+  "updater.download": "updater",
+  "globalShortcut.register": "globalShortcut",
+  "globalShortcut.unregister": "globalShortcut",
+  "tray.show": "tray",
+  "tray.hide": "tray"
 };
 export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
   "ping": [],
@@ -662,6 +829,22 @@ export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>
   ],
   "fs.stat": [
     "fs.read"
+  ],
+  "fs.appendText": [
+    "fs.write"
+  ],
+  "fs.copy": [
+    "fs.read",
+    "fs.write"
+  ],
+  "fs.move": [
+    "fs.write"
+  ],
+  "fs.readBytes": [
+    "fs.read"
+  ],
+  "fs.writeBytes": [
+    "fs.write"
   ],
   "dialog.message": [
     "dialog"
@@ -704,6 +887,32 @@ export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>
   ],
   "shell.openExternal": [
     "shell.open"
+  ],
+  "shell.openPath": [
+    "shell.open"
+  ],
+  "shell.showInFolder": [
+    "shell.open"
+  ],
+  "app.singleInstance.state": [],
+  "app.singleInstance.focus": [],
+  "tray.show": [
+    "tray"
+  ],
+  "tray.hide": [
+    "tray"
+  ],
+  "globalShortcut.register": [
+    "globalShortcut"
+  ],
+  "globalShortcut.unregister": [
+    "globalShortcut"
+  ],
+  "updater.check": [
+    "updater"
+  ],
+  "updater.download": [
+    "updater"
   ],
   "http.download": [
     "http.download"
@@ -897,6 +1106,91 @@ const KSM_ARG_SCHEMAS: Readonly<Record<string, KSMValueSchema>> = {
     ],
     "additionalProperties": false
   },
+  "fs.appendText": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "content": {
+        "type": "string",
+        "maxBytes": 16777216
+      }
+    },
+    "required": [
+      "path",
+      "content"
+    ],
+    "additionalProperties": false
+  },
+  "fs.copy": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "string",
+        "minLength": 1
+      },
+      "to": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "from",
+      "to"
+    ],
+    "additionalProperties": false
+  },
+  "fs.move": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "string",
+        "minLength": 1
+      },
+      "to": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "from",
+      "to"
+    ],
+    "additionalProperties": false
+  },
+  "fs.readBytes": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.writeBytes": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "base64": {
+        "type": "string",
+        "maxBytes": 33554432
+      }
+    },
+    "required": [
+      "path",
+      "base64"
+    ],
+    "additionalProperties": false
+  },
   "dialog.message": {
     "type": "object",
     "properties": {
@@ -1081,6 +1375,104 @@ const KSM_ARG_SCHEMAS: Readonly<Record<string, KSMValueSchema>> = {
     },
     "required": [
       "url"
+    ],
+    "additionalProperties": false
+  },
+  "shell.openPath": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "shell.showInFolder": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "app.singleInstance.state": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "app.singleInstance.focus": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "tray.show": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "tray.hide": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "globalShortcut.register": {
+    "type": "object",
+    "properties": {
+      "shortcut": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 256
+      }
+    },
+    "required": [
+      "shortcut"
+    ],
+    "additionalProperties": false
+  },
+  "globalShortcut.unregister": {
+    "type": "object",
+    "properties": {
+      "shortcut": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 256
+      }
+    },
+    "required": [
+      "shortcut"
+    ],
+    "additionalProperties": false
+  },
+  "updater.check": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "updater.download": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 128
+      }
+    },
+    "required": [
+      "version"
     ],
     "additionalProperties": false
   },

@@ -140,6 +140,14 @@ class KSMAndroidHostServices(
         }
     }
 
+    override fun appId(): String {
+        return try {
+            activity.packageName
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
     override fun language(): String {
         return Locale.getDefault().toLanguageTag()
     }
@@ -702,6 +710,41 @@ class KSMAndroidHostServices(
         }
     }
 
+    override fun openPath(path: String): Boolean {
+        val file = File(path)
+        val intent = if (file.isDirectory) {
+            Intent(Intent.ACTION_VIEW, Uri.fromFile(file))
+        } else {
+            Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(
+                    Uri.fromFile(file),
+                    "application/octet-stream"
+                )
+            }
+        }
+        return try {
+            activity.startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
+    }
+
+    override fun showInFolder(path: String): Boolean {
+        val file = File(path)
+        val intent = Intent(Intent.ACTION_VIEW, Uri.fromFile(file))
+        return try {
+            activity.startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
+    }
+
     override fun deviceInfo(): KSMDeviceInfo {
         val metrics = activity.resources.displayMetrics
         val bounds = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -742,7 +785,8 @@ class KSMAndroidHostServices(
             architecture = Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown",
             version = Build.VERSION.RELEASE ?: "unknown",
             locale = language(),
-            timezone = TimeZone.getDefault().id
+            timezone = TimeZone.getDefault().id,
+            devMode = true
         )
     }
 

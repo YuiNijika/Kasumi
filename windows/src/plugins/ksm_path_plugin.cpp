@@ -119,7 +119,14 @@ Json Dirs() {
         {"cache", "app://cache"},
         {"temp", "app://tmp"},
         {"resource", "app://res"},
-        {"asset", "app://assets"}
+        {"asset", "app://assets"},
+        {"home", "app://data"},
+        {"config", "app://data/config"},
+        {"log", "app://data/log"},
+        {"runtime", "app://cache"},
+        {"executable", "app://assets"},
+        {"desktop", ""},
+        {"download", ""}
     };
 }
 

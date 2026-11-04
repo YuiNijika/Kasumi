@@ -17,7 +17,10 @@
     "sql": {"type": "object", "description": "Open database connections and execute SQL statements.", "required": ["description"], "properties": {"description": {"type": "string"}}},
     "store": {"type": "object", "description": "Read and write the application JSON store.", "required": ["description"], "properties": {"description": {"type": "string"}}},
     "os.info": {"type": "object", "description": "Read non-identifying operating system information.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "log.write": {"type": "object", "description": "Write messages to the platform logger.", "required": ["description"], "properties": {"description": {"type": "string"}}}
+    "log.write": {"type": "object", "description": "Write messages to the platform logger.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "updater": {"type": "object", "description": "Check and download application update packages.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "globalShortcut": {"type": "object", "description": "Register and unregister global keyboard shortcuts.", "required": ["description"], "properties": {"description": {"type": "string"}}},
+    "tray": {"type": "object", "description": "Configure the system tray icon and menu.", "required": ["description"], "properties": {"description": {"type": "string"}}}
   },
   "additionalProperties": false
 }

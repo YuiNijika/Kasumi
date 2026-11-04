@@ -42,12 +42,23 @@ class PlatformConfig:
     decorations: bool = True
     shell_allowed_origins: tuple[str, ...] = ()
     http_allowed_origins: tuple[str, ...] = ()
+    window: dict[str, Any] | None = None
+    tray: dict[str, Any] | None = None
+    icons: dict[str, str] | None = None
+    resources: tuple[str, ...] = ()
+    signing: dict[str, str] | None = None
+    bundle: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
 class KasumiConfig:
     windows: PlatformConfig
     android: PlatformConfig
+    app_id: str | None = None
+    icons: dict[str, str] | None = None
+    resources: tuple[str, ...] = ()
+    signing: dict[str, str] | None = None
+    bundle: dict[str, Any] | None = None
 
 
 def _expect_object(value: Any, location: str) -> dict[str, Any]:
@@ -89,6 +100,12 @@ def _platform_config(
         "permissions",
         "shell",
         "http",
+        "window",
+        "tray",
+        "icons",
+        "resources",
+        "signing",
+        "bundle",
     }
     if allow_decorations:
         allowed_fields.add("decorations")
@@ -149,7 +166,194 @@ def _platform_config(
             f"{location}.http",
             {"https"},
         ),
+        window=_parse_window(
+            data.get("window"),
+            f"{location}.window",
+            allow_decorations,
+        ),
+        tray=_parse_tray(data.get("tray"), f"{location}.tray"),
+        icons=_parse_icons(data.get("icons"), f"{location}.icons"),
+        resources=_parse_string_array(
+            data.get("resources"),
+            f"{location}.resources",
+        ),
+        signing=_parse_signing(
+            data.get("signing"),
+            f"{location}.signing",
+        ),
+        bundle=_parse_bundle(data.get("bundle"), f"{location}.bundle"),
     )
+
+
+def _parse_window(
+    value: Any,
+    location: str,
+    allow_window_control: bool,
+) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    data = _expect_object(value, location)
+    _reject_unknown_keys(
+        data,
+        {
+            "title",
+            "decorations",
+            "transparent",
+            "alwaysOnTop",
+            "center",
+            "width",
+            "height",
+            "minWidth",
+            "minHeight",
+            "maxWidth",
+            "maxHeight",
+            "resizable",
+            "visible",
+        },
+        location,
+    )
+    if not allow_window_control and data:
+        raise ConfigError(f"{location} is not supported on this platform.")
+    defaults: dict[str, Any] = {
+        "title": "",
+        "decorations": True,
+        "transparent": False,
+        "alwaysOnTop": False,
+        "center": True,
+        "width": 1080,
+        "height": 720,
+        "minWidth": 320,
+        "minHeight": 240,
+        "maxWidth": 0,
+        "maxHeight": 0,
+        "resizable": True,
+        "visible": True,
+    }
+    result = {
+        key: data[key] if key in data else default
+        for key, default in defaults.items()
+    }
+    if not isinstance(result["title"], str):
+        raise ConfigError(f"{location}.title must be a string.")
+    for key in (
+        "decorations",
+        "transparent",
+        "alwaysOnTop",
+        "center",
+        "resizable",
+        "visible",
+    ):
+        if not isinstance(result[key], bool):
+            raise ConfigError(f"{location}.{key} must be a boolean.")
+    for key in (
+        "width",
+        "height",
+        "minWidth",
+        "minHeight",
+        "maxWidth",
+        "maxHeight",
+    ):
+        if (
+            not isinstance(result[key], int)
+            or isinstance(result[key], bool)
+            or result[key] < 0
+        ):
+            raise ConfigError(
+                f"{location}.{key} must be a non-negative integer."
+            )
+    return result
+
+
+def _parse_tray(value: Any, location: str) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    data = _expect_object(value, location)
+    _reject_unknown_keys(data, {"icon", "tooltip", "menu", "clickAction"}, location)
+    result: dict[str, Any] = {}
+    for key in ("icon", "tooltip", "clickAction"):
+        if key in data:
+            value_text = _expect_string(data[key], f"{location}.{key}")
+            result[key] = value_text
+    if "menu" in data:
+        if not isinstance(data["menu"], list):
+            raise ConfigError(f"{location}.menu must be an array.")
+        menu: list[dict[str, str]] = []
+        for index, item in enumerate(data["menu"]):
+            item_location = f"{location}.menu[{index}]"
+            item_data = _expect_object(item, item_location)
+            _reject_unknown_keys(item_data, {"label", "action"}, item_location)
+            if "label" not in item_data or "action" not in item_data:
+                raise ConfigError(
+                    f"{item_location} must contain label and action strings."
+                )
+            menu.append(
+                {
+                    "label": _expect_string(item_data["label"], f"{item_location}.label"),
+                    "action": _expect_string(
+                        item_data["action"], f"{item_location}.action"
+                    ),
+                }
+            )
+        result["menu"] = menu
+    return result
+
+
+def _parse_icons(value: Any, location: str) -> dict[str, str] | None:
+    if value is None:
+        return None
+    data = _expect_object(value, location)
+    _reject_unknown_keys(data, {"window", "tray", "installer"}, location)
+    result: dict[str, str] = {}
+    for key in ("window", "tray", "installer"):
+        if key in data:
+            result[key] = _expect_string(data[key], f"{location}.{key}")
+    return result
+
+
+def _parse_signing(value: Any, location: str) -> dict[str, str] | None:
+    if value is None:
+        return None
+    data = _expect_object(value, location)
+    _reject_unknown_keys(data, {"certificate", "password"}, location)
+    result: dict[str, str] = {}
+    for key in ("certificate", "password"):
+        if key in data:
+            result[key] = _expect_string(data[key], f"{location}.{key}")
+    return result
+
+
+def _parse_bundle(value: Any, location: str) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    data = _expect_object(value, location)
+    _reject_unknown_keys(data, {"windowsInstaller"}, location)
+    result: dict[str, Any] = {}
+    if "windowsInstaller" in data:
+        installer = data["windowsInstaller"]
+        if installer not in ("nsis", "msi"):
+            raise ConfigError(
+                f"{location}.windowsInstaller must be \"nsis\" or \"msi\"."
+            )
+        result["windowsInstaller"] = installer
+    return result
+
+
+def _parse_string_array(value: Any, location: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ConfigError(f"{location} must be an array.")
+    result: list[str] = []
+    for index, item in enumerate(value):
+        text = _expect_string(item, f"{location}[{index}]")
+        result.append(text)
+    return tuple(result)
+
+
+def _parse_optional_string(value: Any, location: str) -> str | None:
+    if value is None:
+        return None
+    return _expect_string(value, location)
 
 
 def _parse_commands(
@@ -303,13 +507,35 @@ def load_config(path: Path) -> KasumiConfig:
         ) from error
 
     data = _expect_object(payload, "configuration")
-    _reject_unknown_keys(data, {"$schema", "windows", "android"}, "configuration")
+    _reject_unknown_keys(
+        data,
+        {
+            "$schema",
+            "windows",
+            "android",
+            "appId",
+            "icons",
+            "resources",
+            "signing",
+            "bundle",
+        },
+        "configuration",
+    )
     if "windows" not in data:
         raise ConfigError("configuration.windows is required.")
     if "android" not in data:
         raise ConfigError("configuration.android is required.")
 
     return KasumiConfig(
+        app_id=_parse_optional_string(data.get("appId"), "configuration.appId"),
+        icons=_parse_icons(data.get("icons"), "configuration.icons"),
+        resources=_parse_string_array(
+            data.get("resources"), "configuration.resources"
+        ),
+        signing=_parse_signing(
+            data.get("signing"), "configuration.signing"
+        ),
+        bundle=_parse_bundle(data.get("bundle"), "configuration.bundle"),
         windows=_platform_config(
             data["windows"],
             "windows",

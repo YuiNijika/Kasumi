@@ -16,6 +16,49 @@ export function readText(args: { path: string }): Promise<string | { file: strin
   return KSM.invoke('fs.readText', args);
 }
 
+export function appendText(args: {
+  path: string;
+  content: string;
+}): Promise<{ written: boolean }> {
+  assertVirtualPath(args.path, true);
+  assertString(args.content, 'content');
+  return KSM.invoke('fs.appendText', args);
+}
+
+export function copy(args: {
+  from: string;
+  to: string;
+}): Promise<{ copied: boolean }> {
+  assertVirtualPath(args.from);
+  assertVirtualPath(args.to, true);
+  return KSM.invoke('fs.copy', args);
+}
+
+export function move(args: {
+  from: string;
+  to: string;
+}): Promise<{ moved: boolean }> {
+  assertVirtualPath(args.from, true);
+  assertVirtualPath(args.to, true);
+  return KSM.invoke('fs.move', args);
+}
+
+export function readBytes(args: {
+  path: string;
+}): Promise<{ base64: string }> {
+  assertVirtualPath(args.path);
+  return KSM.invoke('fs.readBytes', args);
+}
+
+export function writeBytes(args: {
+  path: string;
+  base64: string;
+}): Promise<{ written: boolean }> {
+  assertVirtualPath(args.path, true);
+  assertString(args.base64, 'base64');
+  return KSM.invoke('fs.writeBytes', args);
+}
+
 export function writeText(args: { path: string; content: string }): Promise<{ written: boolean }> {
   assertVirtualPath(args.path, true);
   assertString(args.content, 'content');

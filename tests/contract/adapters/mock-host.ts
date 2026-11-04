@@ -4,6 +4,7 @@ import {
   KSM_EVENTS,
   KSM_PERMISSIONS,
   KSM_PLUGINS,
+  KSM_PLUGIN_METADATA,
   KSM_WINDOWS_COMMANDS,
   validateKSMArgs
 } from '../../../frontend/src/generated/contract';
@@ -79,7 +80,15 @@ export class MockHost {
         platform: this.platform,
         commands,
         permissions: KSM_PERMISSIONS,
-        plugins: KSM_PLUGINS
+        plugins: KSM_PLUGINS.map((id) => {
+          const metadata = KSM_PLUGIN_METADATA[id];
+          return {
+            id,
+            name: metadata?.name ?? id,
+            version: metadata?.version ?? '1.0.0',
+            enabled: true
+          };
+        })
       }));
       return;
     }

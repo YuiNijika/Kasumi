@@ -200,7 +200,8 @@ class KSMRouter(
                             .put("platform", "android")
                             .put("commands", capabilityCommands)
                             .put("permissions", JSONArray(grantedPermissions.toList()))
-                            .put("plugins", JSONArray(capabilityPlugins()))
+                            .put("appId", hostServices?.appId() ?: "")
+                            .put("plugins", capabilityPluginObjects())
                     )
                     "app.getInfo" -> successResponse(
                         id,
@@ -241,6 +242,31 @@ class KSMRouter(
                             successResponse(id, JSONObject().put("granted", granted))
                         }
                     }
+                    "app.singleInstance.state" -> successResponse(
+                        id,
+                        JSONObject().put("primary", true)
+                    )
+                    "app.singleInstance.focus" -> successResponse(
+                        id,
+                        JSONObject().put("focused", true)
+                    )
+                    "tray.show", "tray.hide", "globalShortcut.register",
+                    "globalShortcut.unregister" -> errorResponse(
+                        id,
+                        "NOT_SUPPORTED",
+                        "The command is not supported on this platform."
+                    )
+                    "updater.check" -> successResponse(
+                        id,
+                        JSONObject()
+                            .put("available", false)
+                            .put("version", JSONObject.NULL)
+                    )
+                    "updater.download" -> errorResponse(
+                        id,
+                        "NOT_SUPPORTED",
+                        "The updater is not implemented on this host."
+                    )
                     "event.subscribe" -> {
                         val event = args.opt("event")
                         if (event !is String || event.isEmpty()) {
@@ -1082,6 +1108,22 @@ class KSMRouter(
         return capabilityCommands.map { command ->
             pluginRegistry.pluginIdForCommand(command) ?: "core"
         }.distinct()
+    }
+
+    private fun capabilityPluginObjects(): JSONArray {
+        return JSONArray().apply {
+            capabilityPlugins().forEach { id ->
+                val metadata = KSMGeneratedContract.pluginMetadata
+                    .optJSONObject(id)
+                put(
+                    JSONObject()
+                        .put("id", id)
+                        .put("name", metadata?.optString("name", id) ?: id)
+                        .put("version", metadata?.optString("version", "0.0.0") ?: "0.0.0")
+                        .put("enabled", true)
+                )
+            }
+        }
     }
 
     private fun textResponse(id: Any?, value: String, path: String): String {

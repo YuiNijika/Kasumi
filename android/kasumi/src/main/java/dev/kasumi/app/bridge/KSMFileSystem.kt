@@ -91,6 +91,84 @@ class KSMFileSystem(
         }
     }
 
+    fun appendText(path: String, content: String): Boolean {
+        if (content.toByteArray(Charsets.UTF_8).size > MAX_TEXT_BYTES) {
+            return false
+        }
+        val file = resolveWritableFile(path) ?: return false
+        if (file.parentFile?.mkdirs() == false && file.parentFile?.isDirectory != true) {
+            return false
+        }
+        val rechecked = resolveWritableFile(path) ?: return false
+        return try {
+            rechecked.appendText(content)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun copy(from: String, to: String): Boolean {
+        val source = resolve(from) ?: return false
+        val target = resolveWritableFile(to) ?: return false
+        if (target.parentFile?.mkdirs() == false && target.parentFile?.isDirectory != true) {
+            return false
+        }
+        return try {
+            Files.copy(
+                source.toPath(),
+                target.toPath(),
+                StandardCopyOption.REPLACE_EXISTING
+            )
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun move(from: String, to: String): Boolean {
+        val source = resolveWritableFile(from) ?: return false
+        val target = resolveWritableFile(to) ?: return false
+        if (target.parentFile?.mkdirs() == false && target.parentFile?.isDirectory != true) {
+            return false
+        }
+        return try {
+            Files.move(
+                source.toPath(),
+                target.toPath(),
+                StandardCopyOption.REPLACE_EXISTING
+            )
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun readBytes(path: String): ByteArray? {
+        val file = resolve(path) ?: return null
+        if (file.isFile && file.length() <= MAX_TEXT_BYTES) {
+            return file.readBytes()
+        }
+        return null
+    }
+
+    fun writeBytes(path: String, bytes: ByteArray): Boolean {
+        if (bytes.size > MAX_TEXT_BYTES) {
+            return false
+        }
+        val file = resolveWritableFile(path) ?: return false
+        if (file.parentFile?.mkdirs() == false && file.parentFile?.isDirectory != true) {
+            return false
+        }
+        val rechecked = resolveWritableFile(path) ?: return false
+        return try {
+            rechecked.writeBytes(bytes)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun replaceAtomically(source: File, target: File): Boolean {
         try {
             Os.rename(source.path, target.path)
@@ -190,6 +268,11 @@ class KSMFileSystem(
             return null
         }
         return file
+    }
+
+    fun resolveReadableFile(path: String): File? {
+        val file = resolve(path) ?: return null
+        return if (file.exists()) file else null
     }
 
     private fun resolve(path: String): File? {

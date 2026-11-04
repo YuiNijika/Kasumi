@@ -8,6 +8,11 @@ class KSMFileSystemPlugin : KSMPlugin {
     override val commands: Set<String> = setOf(
         "fs.readText",
         "fs.writeText",
+        "fs.appendText",
+        "fs.copy",
+        "fs.move",
+        "fs.readBytes",
+        "fs.writeBytes",
         "fs.exists",
         "fs.remove",
         "fs.readDir",
@@ -36,6 +41,11 @@ class KSMFileSystemPlugin : KSMPlugin {
             "fs.stat" -> stat(path, context)
             "fs.readText" -> readText(path, context)
             "fs.writeText" -> writeText(path, args, context)
+            "fs.appendText" -> appendText(path, args, context)
+            "fs.copy" -> copy(args, context)
+            "fs.move" -> move(args, context)
+            "fs.readBytes" -> readBytes(path, context)
+            "fs.writeBytes" -> writeBytes(path, args, context)
             "fs.exists" -> exists(path, context)
             else -> remove(path, context)
         }
@@ -128,6 +138,140 @@ class KSMFileSystemPlugin : KSMPlugin {
             context.fileSystem?.remove(path) == true
         }
         return JSONObject().put("removed", removed)
+    }
+
+    private fun appendText(
+        path: String,
+        args: JSONObject,
+        context: KSMPluginContext
+    ): Any {
+        requirePermission(context, "fs.write")
+        requireSafe(path)
+        if (
+            KSMVirtualPath.isReadOnly(path) ||
+            KSMVirtualPath.isPicked(path)
+        ) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The path is outside the writable sandbox."
+            )
+        }
+        val content = args.opt("content")
+        if (content !is String) {
+            throw KSMHostException("INVALID_ARGS", "content is required.")
+        }
+        if (context.fileSystem?.appendText(path, content) != true) {
+            throw KSMHostException("IO_ERROR", "The file could not be appended.")
+        }
+        return JSONObject().put("written", true)
+    }
+
+    private fun copy(args: JSONObject, context: KSMPluginContext): Any {
+        requirePermission(context, "fs.read")
+        requirePermission(context, "fs.write")
+        val from = args.opt("from")
+        val to = args.opt("to")
+        if (from !is String || to !is String) {
+            throw KSMHostException("INVALID_ARGS", "from and to are required.")
+        }
+        requireSafe(from)
+        requireSafe(to)
+        if (KSMVirtualPath.isReadOnly(to) || KSMVirtualPath.isPicked(to)) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The target path is outside the writable sandbox."
+            )
+        }
+        if (context.fileSystem?.copy(from, to) != true) {
+            throw KSMHostException("IO_ERROR", "The file could not be copied.")
+        }
+        return JSONObject().put("copied", true)
+    }
+
+    private fun move(args: JSONObject, context: KSMPluginContext): Any {
+        requirePermission(context, "fs.write")
+        val from = args.opt("from")
+        val to = args.opt("to")
+        if (from !is String || to !is String) {
+            throw KSMHostException("INVALID_ARGS", "from and to are required.")
+        }
+        requireSafe(from)
+        requireSafe(to)
+        if (
+            KSMVirtualPath.isReadOnly(from) ||
+            KSMVirtualPath.isReadOnly(to) ||
+            KSMVirtualPath.isPicked(from) ||
+            KSMVirtualPath.isPicked(to)
+        ) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The path is outside the writable sandbox."
+            )
+        }
+        if (context.fileSystem?.move(from, to) != true) {
+            throw KSMHostException("IO_ERROR", "The file could not be moved.")
+        }
+        return JSONObject().put("moved", true)
+    }
+
+    private fun readBytes(path: String, context: KSMPluginContext): Any {
+        requirePermission(context, "fs.read")
+        requireSafe(path)
+        if (KSMVirtualPath.isReadOnly(path) || KSMVirtualPath.isPicked(path)) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The path is outside the sandbox."
+            )
+        }
+        val bytes = context.fileSystem?.readBytes(path)
+            ?: throw KSMHostException("NOT_FOUND", "The file was not found.")
+        if (bytes.size > MAX_BINARY_BYTES) {
+            throw KSMHostException(
+                "RESOURCE_LIMIT",
+                "The binary result exceeds the configured limit."
+            )
+        }
+        return JSONObject().put(
+            "base64",
+            java.util.Base64.getEncoder().encodeToString(bytes)
+        )
+    }
+
+    private fun writeBytes(
+        path: String,
+        args: JSONObject,
+        context: KSMPluginContext
+    ): Any {
+        requirePermission(context, "fs.write")
+        requireSafe(path)
+        if (
+            KSMVirtualPath.isReadOnly(path) ||
+            KSMVirtualPath.isPicked(path)
+        ) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The path is outside the writable sandbox."
+            )
+        }
+        val base64 = args.opt("base64")
+        if (base64 !is String) {
+            throw KSMHostException("INVALID_ARGS", "base64 is required.")
+        }
+        val bytes = try {
+            java.util.Base64.getDecoder().decode(base64)
+        } catch (_: IllegalArgumentException) {
+            throw KSMHostException("INVALID_ARGS", "base64 is not valid.")
+        }
+        if (bytes.size > MAX_BINARY_BYTES) {
+            throw KSMHostException(
+                "RESOURCE_LIMIT",
+                "The binary payload exceeds the configured limit."
+            )
+        }
+        if (context.fileSystem?.writeBytes(path, bytes) != true) {
+            throw KSMHostException("IO_ERROR", "The file could not be written.")
+        }
+        return JSONObject().put("written", true)
     }
 
     private fun readDirectory(
@@ -305,5 +449,6 @@ class KSMFileSystemPlugin : KSMPlugin {
 
     private companion object {
         const val MAX_INLINE_TEXT_BYTES = 64 * 1024
+        const val MAX_BINARY_BYTES = 32 * 1024 * 1024
     }
 }

@@ -128,8 +128,8 @@ class KasumiConfigTest(unittest.TestCase):
 
         config = load_config(path)
 
-        self.assertEqual(len(config.windows.commands), 47)
-        self.assertEqual(len(config.android.commands), 44)
+        self.assertEqual(len(config.windows.commands), 62)
+        self.assertEqual(len(config.android.commands), 55)
         self.assertNotIn("device.getInfo", config.windows.commands)
         self.assertIn("device.getInfo", config.android.commands)
 

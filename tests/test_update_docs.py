@@ -9,7 +9,6 @@ from pathlib import Path
 from tools.update_docs import (
     DOCS_DIR,
     MAX_DOC_BYTES,
-    SKILL_DOCS_DIR,
     DocsError,
     create_page,
     default_doc_path,
@@ -106,11 +105,11 @@ class DocPathTest(unittest.TestCase):
         with self.assertRaises(DocsError):
             ensure_docs_output_path(Path("DEVELOPMENT.md"))
 
-    def test_output_accepts_repository_skill_docs(self) -> None:
-        path = ensure_docs_output_path(
-            Path("docs/skill/kasumi/framework.mdx")
-        )
-        path.relative_to(SKILL_DOCS_DIR.resolve(strict=False))
+    def test_output_rejects_repository_skill_docs(self) -> None:
+        with self.assertRaises(DocsError):
+            ensure_docs_output_path(
+                Path("docs/skill/kasumi/framework.mdx")
+            )
 
     def test_output_rejects_other_repository_docs(self) -> None:
         with self.assertRaises(DocsError):

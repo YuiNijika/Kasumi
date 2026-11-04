@@ -277,14 +277,16 @@ KSMWindowsHostServices::KSMWindowsHostServices(
     HWND window,
     std::vector<std::string> allowed_external_origins,
     std::shared_ptr<KSMFileSystem> file_system,
-    std::string app_version
+    std::string app_version,
+    std::string app_id
 )
     : KSMWindowsHostServices(
           window,
           std::move(allowed_external_origins),
           {},
           std::move(file_system),
-          std::move(app_version)
+          std::move(app_version),
+          std::move(app_id)
       ) {}
 
 KSMWindowsHostServices::KSMWindowsHostServices(
@@ -292,11 +294,13 @@ KSMWindowsHostServices::KSMWindowsHostServices(
     std::vector<std::string> allowed_external_origins,
     std::vector<std::string> allowed_http_origins,
     std::shared_ptr<KSMFileSystem> file_system,
-    std::string app_version
+    std::string app_version,
+    std::string app_id
 )
     : window_(window),
       file_system_(std::move(file_system)),
       app_version_(std::move(app_version)),
+      app_id_(std::move(app_id)),
       allowed_external_origins_(
           KSMUrlPolicy::NormalizeOrigins(allowed_external_origins)
       ),
@@ -313,6 +317,10 @@ KSMWindowsHostServices::~KSMWindowsHostServices() = default;
 
 std::string KSMWindowsHostServices::AppVersion() const {
     return app_version_;
+}
+
+std::string KSMWindowsHostServices::AppId() const {
+    return app_id_;
 }
 
 std::string KSMWindowsHostServices::Language() const {
@@ -1144,6 +1152,82 @@ bool KSMWindowsHostServices::OpenExternal(const std::string& url) {
     return reinterpret_cast<INT_PTR>(result) > 32;
 }
 
+bool KSMWindowsHostServices::OpenPath(const std::string& path) {
+    const std::wstring wide_path = ToWide(path);
+    const HINSTANCE result = ShellExecuteW(
+        window_,
+        L"open",
+        wide_path.c_str(),
+        nullptr,
+        nullptr,
+        SW_SHOWNORMAL
+    );
+    return reinterpret_cast<INT_PTR>(result) > 32;
+}
+
+bool KSMWindowsHostServices::ShowInFolder(const std::string& path) {
+    const std::wstring wide_path = ToWide(path);
+    const HINSTANCE result = ShellExecuteW(
+        window_,
+        L"open",
+        L"explorer.exe",
+        (L"/select,\"" + wide_path + L"\"").c_str(),
+        nullptr,
+        SW_SHOWNORMAL
+    );
+    return reinterpret_cast<INT_PTR>(result) > 32;
+}
+
+bool KSMWindowsHostServices::IsPrimaryInstance() const {
+    return true;
+}
+
+bool KSMWindowsHostServices::FocusMainWindow() {
+    if (!window_) {
+        return false;
+    }
+    if (IsIconic(window_)) {
+        ShowWindow(window_, SW_RESTORE);
+    }
+    return SetForegroundWindow(window_) != FALSE;
+}
+
+bool KSMWindowsHostServices::TrayShow() {
+    return window_ != nullptr;
+}
+
+bool KSMWindowsHostServices::TrayHide() {
+    return window_ != nullptr;
+}
+
+bool KSMWindowsHostServices::RegisterGlobalShortcut(
+    const std::string& shortcut
+) {
+    (void)shortcut;
+    return false;
+}
+
+bool KSMWindowsHostServices::UnregisterGlobalShortcut(
+    const std::string& shortcut
+) {
+    (void)shortcut;
+    return false;
+}
+
+bool KSMWindowsHostServices::CheckUpdate(
+    bool& available,
+    std::string& version
+) {
+    available = false;
+    version.clear();
+    return true;
+}
+
+bool KSMWindowsHostServices::DownloadUpdate(const std::string& version) {
+    (void)version;
+    return false;
+}
+
 bool KSMWindowsHostServices::SetWindowSize(const KSMWindowSize& size) {
     if (!window_) {
         return false;
@@ -1281,7 +1365,10 @@ KSMWindowsHostServices::GetOperatingSystemInfo() const {
             std::to_string(version_info.dwMinorVersion) + "." +
             std::to_string(version_info.dwBuildNumber),
         ToUtf8(locale),
-        timezone_id
+        timezone_id,
+        false,
+        std::nullopt,
+        std::nullopt
     };
 }
 

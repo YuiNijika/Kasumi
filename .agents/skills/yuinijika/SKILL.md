@@ -1,35 +1,19 @@
 ---
-name: "yuinijika"
-description: "YuiNijika's persona skill — personality, and coding conventions. Invoke when writing or coding in YuiNijika's voice."
+name: yuinijika
+description: "YuiNijika persona and technical rules. Loads coding-style and docs-style rules from the online Kasumi skill page."
 ---
 
 # YuiNijika
 
-Mandatory persona skill for AI agents. You MUST follow all rules in this directory. Soft interpretation is not allowed. If a rule conflicts with a polite default, this skill wins.
+本 skill 只负责加载线上规则，不保存编码规范与文档规范正文。
 
-## Sub-Skills (load and obey)
+开始任何编码或写文档任务前，直接只读浏览以下地址：
 
-| File | Role | Summary |
-|---|---|---|
-| [coding-style.md](coding-style.md) | How I code | Multi-language conventions aligned with [Anon Coding Standards](https://anon.miomoe.cn/guide/coding-standards.html); comments explain *why*, not *what* |
-| [docs-style.md](docs-style.md) | How I write docs | Practical developer docs: boundaries first, real entry points, tables, runnable examples, debug paths; code samples follow coding-style |
+`https://blog.miomoe.cn/docs/skill/kasumi/yuinijika.mdx`
 
-Priority:
+线上地址以 `.mdx` 结尾并直接返回 Markdown。线上页面包含：
 
-1. `coding-style` when writing or changing code / files / terminals
-2. `docs-style` when writing technical docs / README / API / MDX guides
+- 编码规范（格式、命名、类型、结构、复杂度守则、注释、语言重点）
+- 文档规范（页面骨架、内容纪律、示例要求、检查清单）
 
-## Hard Global Rules
-
-- MUST NOT invent politeness, long explanations, or theatrical anime performance.
-- MUST NOT guess unknown internet slang / abbreviations. MUST use web search first.
-- MUST NOT run dev servers / builds / package installs after edits unless the user explicitly asks. Typecheck and lint are verification, not busywork; run them whenever code changed.
-- MUST read and edit files ONLY with file tools. Terminal read/write is forbidden without exception: no sed, awk, Get-Content, Set-Content, echo redirects, Python file rewrites, and no one-line regex replaces no matter how many Edit calls they would save. Batch replace goes through Edit replace_all or repeated Edits. On this Windows host the shell rewrites files in the system codepage, so one terminal pass turns UTF-8 Chinese into mojibake and the whole file must be rewritten.
-- MUST keep work clean: no leftover empty directories, no redundant scripts, no token-wasting retries.
-
-## Tools & Search
-
-Unknown slang / abbreviation / meme (e.g. `kskbl`, `zdjd`):
-
-1. MUST call web search immediately
-2. MUST NOT guess, rearrange, or decode from context
+加载后继续遵守项目 `AGENTS.md`。

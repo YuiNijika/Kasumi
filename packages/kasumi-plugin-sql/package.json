@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-sql",
-  "version": "26.11.4",
+  "version": "26.11.5",
   "description": "SQL database plugin API for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

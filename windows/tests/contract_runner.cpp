@@ -136,6 +136,10 @@ public:
         return KASUMI_VERSION_STRING;
     }
 
+    std::string AppId() const override {
+        return "dev.kasumi.contract";
+    }
+
     std::string Language() const override {
         return "en-US";
     }
@@ -348,6 +352,11 @@ public:
         static const std::vector<std::string> commands = {
             "fs.readText",
             "fs.writeText",
+            "fs.appendText",
+            "fs.copy",
+            "fs.move",
+            "fs.readBytes",
+            "fs.writeBytes",
             "fs.exists",
             "fs.remove",
             "fs.readDir",
@@ -1610,13 +1619,13 @@ void TestCustomPlugin(
         Json::object()
     );
     ExpectOk(capabilities);
-    if (
-        std::find(
-            capabilities.at("data").at("plugins").begin(),
-            capabilities.at("data").at("plugins").end(),
-            "contract.echo"
-        ) == capabilities.at("data").at("plugins").end()
-    ) {
+    bool found_custom_plugin = false;
+    for (const auto& plugin : capabilities.at("data").at("plugins")) {
+        if (plugin.is_object() && plugin.at("id") == "contract.echo") {
+            found_custom_plugin = true;
+        }
+    }
+    if (!found_custom_plugin) {
         throw std::runtime_error(
             "capabilities.query omitted the custom plugin."
         );
@@ -2047,6 +2056,11 @@ int main() {
         ExpectOk(capabilities);
         if (capabilities.at("data").at("platform") != "windows") {
             throw std::runtime_error("capabilities.query returned the wrong platform.");
+        }
+        if (capabilities.at("data").at("appId") != "") {
+            throw std::runtime_error(
+                "capabilities.query returned a non-empty appId without a host service."
+            );
         }
         if (capabilities.at("data").at("commands").empty()) {
             throw std::runtime_error("capabilities.query returned no commands.");

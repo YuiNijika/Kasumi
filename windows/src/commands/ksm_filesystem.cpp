@@ -338,6 +338,106 @@ bool KSMFileSystem::WriteTextAtomic(
     return true;
 }
 
+bool KSMFileSystem::AppendText(const std::string &path,
+                                const std::string &content) const {
+  if (content.size() > kMaxTextBytes) {
+    return false;
+  }
+  const auto resolved = ResolveWritableFile(path);
+  if (!resolved) {
+    return false;
+  }
+  std::filesystem::create_directories(resolved->parent_path());
+  std::ofstream output(*resolved, std::ios::binary | std::ios::app);
+  if (!output) {
+    return false;
+  }
+  output << content;
+  return output.good();
+}
+
+bool KSMFileSystem::Copy(const std::string &from_path,
+                         const std::string &to_path) const {
+  const auto source = ResolveReadable(from_path);
+  const auto target = ResolveWritableFile(to_path);
+  if (!source || !target) {
+    return false;
+  }
+  std::error_code error;
+  std::filesystem::create_directories(target->parent_path(), error);
+  if (error) {
+    return false;
+  }
+  std::filesystem::copy_file(
+      *source,
+      *target,
+      std::filesystem::copy_options::overwrite_existing,
+      error
+  );
+  return !error;
+}
+
+bool KSMFileSystem::Move(const std::string &from_path,
+                         const std::string &to_path) const {
+  const auto source = ResolveWritable(from_path);
+  const auto target = ResolveWritableFile(to_path);
+  if (!source || !target) {
+    return false;
+  }
+  std::error_code error;
+  std::filesystem::create_directories(target->parent_path(), error);
+  if (error) {
+    return false;
+  }
+  std::filesystem::rename(*source, *target, error);
+  return !error;
+}
+
+std::optional<std::vector<std::uint8_t>>
+KSMFileSystem::ReadBytes(const std::string &path) const {
+  const auto resolved = ResolveReadable(path);
+  if (!resolved || !std::filesystem::is_regular_file(*resolved)) {
+    return std::nullopt;
+  }
+  const std::uintmax_t size = std::filesystem::file_size(*resolved);
+  if (size > static_cast<std::uintmax_t>(kMaxTextBytes)) {
+    return std::nullopt;
+  }
+  std::ifstream input(*resolved, std::ios::binary);
+  if (!input) {
+    return std::nullopt;
+  }
+  std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
+  if (size > 0 && !input.read(
+      reinterpret_cast<char *>(bytes.data()),
+      static_cast<std::streamsize>(size)
+  )) {
+    return std::nullopt;
+  }
+  return bytes;
+}
+
+bool KSMFileSystem::WriteBytes(const std::string &path,
+                               const std::vector<std::uint8_t> &bytes) const {
+  if (bytes.size() > kMaxTextBytes) {
+    return false;
+  }
+  const auto target = ResolveWritableFile(path);
+  if (!target) {
+    return false;
+  }
+  std::filesystem::create_directories(target->parent_path());
+  std::ofstream output(*target, std::ios::binary | std::ios::trunc);
+  if (!output) {
+    return false;
+  }
+  output.write(
+      reinterpret_cast<const char *>(bytes.data()),
+      static_cast<std::streamsize>(bytes.size())
+  );
+  return output.good();
+}
+
 bool KSMFileSystem::Exists(const std::string &path) const {
   const auto resolved = ResolveReadable(path);
   if (resolved && std::filesystem::exists(*resolved)) {
@@ -611,4 +711,13 @@ KSMFileSystem::ResolveWritableFile(const std::string &path) const {
     return std::nullopt;
   }
   return resolved;
+}
+
+std::optional<std::filesystem::path>
+KSMFileSystem::ResolveReadableFile(const std::string &path) const {
+  const auto resolved = ResolveReadable(path);
+  if (resolved && std::filesystem::exists(*resolved)) {
+    return resolved;
+  }
+  return std::nullopt;
 }

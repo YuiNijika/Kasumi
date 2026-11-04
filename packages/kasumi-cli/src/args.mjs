@@ -1,4 +1,4 @@
-const VALUE_OPTIONS = new Set(['config', 'platform']);
+const VALUE_OPTIONS = new Set(['config', 'platform', 'installer']);
 const BOOLEAN_OPTIONS = new Set([
   'windows',
   'android',
@@ -22,6 +22,7 @@ export function parseArgs(argv) {
     config: 'kasumi.config.json',
     externalWeb: false,
     bundleWebview2Loader: false,
+    installer: undefined,
     help: command === 'help',
     version: false
   };
@@ -70,6 +71,13 @@ function shortFlagName(argument) {
 function applyValueOption(options, name, value) {
   if (name === 'config') {
     options.config = value;
+    return;
+  }
+  if (name === 'installer') {
+    if (value !== 'nsis' && value !== 'msi') {
+      throw new Error(`Invalid installer: ${value}`);
+    }
+    options.installer = value;
     return;
   }
   if (name !== 'platform') {

@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-clipboard",
-  "version": "26.11.4",
+  "version": "26.11.5",
   "description": "System clipboard plugin API for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

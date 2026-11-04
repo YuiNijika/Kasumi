@@ -61,6 +61,7 @@ nlohmann::json KSMOperatingSystemPlugin::Handle(
         {"version", info->version},
         {"locale", info->locale},
         {"timezone", info->timezone},
-        {"appVersion", context.host_services->AppVersion()}
+        {"appVersion", context.host_services->AppVersion()},
+        {"devMode", info->dev_mode}
     };
 }

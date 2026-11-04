@@ -26,6 +26,7 @@ import {
 import type {
   KSMAppInfo,
   KSMAppApi,
+  KSMAppInstanceApi,
   KSMClipboardApi,
   KSMDeviceApi,
   KSMDeviceInfo,
@@ -34,6 +35,7 @@ import type {
   KSMDialogApi,
   KSMFileMetadata,
   KSMFsApi,
+  KSMGlobalShortcutApi,
   KSMHttpApi,
   KSMHttpDownloadResult,
   KSMLogApi,
@@ -49,6 +51,9 @@ import type {
   KSMSqlValue,
   KSMStoreApi,
   KSMStoreGetResult,
+  KSMTrayApi,
+  KSMUpdaterApi,
+  KSMUpdaterCheckResult,
   KSMTransport,
   KSMWindowApi,
   KSMWindowSize
@@ -75,6 +80,30 @@ export class KSM {
     readText: (args): Promise<string | { file: string }> => {
       assertVirtualPath(args.path);
       return KSM.invoke('fs.readText', args);
+    },
+    appendText: (args): Promise<{ written: boolean }> => {
+      assertVirtualPath(args.path, true);
+      assertString(args.content, 'content');
+      return KSM.invoke('fs.appendText', args);
+    },
+    copy: (args): Promise<{ copied: boolean }> => {
+      assertVirtualPath(args.from);
+      assertVirtualPath(args.to, true);
+      return KSM.invoke('fs.copy', args);
+    },
+    move: (args): Promise<{ moved: boolean }> => {
+      assertVirtualPath(args.from, true);
+      assertVirtualPath(args.to, true);
+      return KSM.invoke('fs.move', args);
+    },
+    readBytes: (args): Promise<{ base64: string }> => {
+      assertVirtualPath(args.path);
+      return KSM.invoke('fs.readBytes', args);
+    },
+    writeBytes: (args): Promise<{ written: boolean }> => {
+      assertVirtualPath(args.path, true);
+      assertString(args.base64, 'base64');
+      return KSM.invoke('fs.writeBytes', args);
     },
     writeText: (args): Promise<{ written: boolean }> => {
       assertVirtualPath(args.path, true);
@@ -135,7 +164,43 @@ export class KSM {
     openExternal: (args): Promise<{ opened: boolean }> => {
       assertHttpUrl(args.url, 'url');
       return KSM.invoke('shell.openExternal', args);
+    },
+    openPath: (args): Promise<{ opened: boolean }> => {
+      assertVirtualStatPath(args.path);
+      return KSM.invoke('shell.openPath', args);
+    },
+    showInFolder: (args): Promise<{ shown: boolean }> => {
+      assertVirtualStatPath(args.path);
+      return KSM.invoke('shell.showInFolder', args);
     }
+  };
+  public static readonly appInstance: KSMAppInstanceApi = {
+    state: (): Promise<{ primary: boolean }> =>
+      KSM.invoke('app.singleInstance.state', {}),
+    focus: (): Promise<{ focused: boolean }> =>
+      KSM.invoke('app.singleInstance.focus', {})
+  };
+  public static readonly updater: KSMUpdaterApi = {
+    check: (): Promise<KSMUpdaterCheckResult> =>
+      KSM.invoke('updater.check', {}),
+    download: (args): Promise<{ downloaded: boolean }> => {
+      assertBoundedString(args.version, 'version', 128);
+      return KSM.invoke('updater.download', args);
+    }
+  };
+  public static readonly globalShortcut: KSMGlobalShortcutApi = {
+    register: (args): Promise<{ registered: boolean }> => {
+      assertBoundedString(args.shortcut, 'shortcut', 256);
+      return KSM.invoke('globalShortcut.register', args);
+    },
+    unregister: (args): Promise<{ unregistered: boolean }> => {
+      assertBoundedString(args.shortcut, 'shortcut', 256);
+      return KSM.invoke('globalShortcut.unregister', args);
+    }
+  };
+  public static readonly tray: KSMTrayApi = {
+    show: (): Promise<{ shown: boolean }> => KSM.invoke('tray.show', {}),
+    hide: (): Promise<{ hidden: boolean }> => KSM.invoke('tray.hide', {})
   };
   public static readonly device: KSMDeviceApi = {
     getInfo: (): Promise<KSMDeviceInfo> => KSM.invoke('device.getInfo', {})

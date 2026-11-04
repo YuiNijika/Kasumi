@@ -75,6 +75,11 @@ export interface KSMTransport {
 export interface KSMFsApi {
   readText(args: { path: string }): Promise<string | KSMFileHandle>;
   writeText(args: { path: string; content: string }): Promise<{ written: boolean }>;
+  appendText(args: { path: string; content: string }): Promise<{ written: boolean }>;
+  copy(args: { from: string; to: string }): Promise<{ copied: boolean }>;
+  move(args: { from: string; to: string }): Promise<{ moved: boolean }>;
+  readBytes(args: { path: string }): Promise<{ base64: string }>;
+  writeBytes(args: { path: string; base64: string }): Promise<{ written: boolean }>;
   exists(args: { path: string }): Promise<{ exists: boolean }>;
   remove(args: { path: string }): Promise<{ removed: boolean }>;
   readDir(args: { path: string }): Promise<{ entries: KSMDirectoryEntry[] }>;
@@ -139,6 +144,8 @@ export interface KSMShellOpenResult {
 
 export interface KSMShellApi {
   openExternal(args: { url: string }): Promise<KSMShellOpenResult>;
+  openPath(args: { path: string }): Promise<{ opened: boolean }>;
+  showInFolder(args: { path: string }): Promise<{ shown: boolean }>;
 }
 
 export type KSMJsonValue =
@@ -168,6 +175,13 @@ export interface KSMPathDirectories {
   temp: string;
   resource: string;
   asset: string;
+  home: string;
+  config: string;
+  log: string;
+  runtime: string;
+  executable: string;
+  desktop: string;
+  download: string;
 }
 
 export interface KSMPathApi {
@@ -190,6 +204,9 @@ export interface KSMOperatingSystemInfo {
   locale: string;
   timezone: string;
   appVersion: string;
+  devMode: boolean;
+  hostname?: string;
+  username?: string;
 }
 
 export interface KSMOperatingSystemApi {
@@ -223,6 +240,31 @@ export interface KSMDeviceInfo {
 
 export interface KSMDeviceApi {
   getInfo(): Promise<KSMDeviceInfo>;
+}
+
+export interface KSMAppInstanceApi {
+  state(): Promise<{ primary: boolean }>;
+  focus(): Promise<{ focused: boolean }>;
+}
+
+export interface KSMUpdaterCheckResult {
+  available: boolean;
+  version: string | null;
+}
+
+export interface KSMUpdaterApi {
+  check(): Promise<KSMUpdaterCheckResult>;
+  download(args: { version: string }): Promise<{ downloaded: boolean }>;
+}
+
+export interface KSMGlobalShortcutApi {
+  register(args: { shortcut: string }): Promise<{ registered: boolean }>;
+  unregister(args: { shortcut: string }): Promise<{ unregistered: boolean }>;
+}
+
+export interface KSMTrayApi {
+  show(): Promise<{ shown: boolean }>;
+  hide(): Promise<{ hidden: boolean }>;
 }
 
 export type KSMSqlDriver = 'sqlite' | 'mysql' | 'postgres' | 'mongodb';
@@ -265,9 +307,15 @@ export interface KSMSqlApi {
 
 export interface KSMCapabilities {
   platform: KSMPlatform;
+  appId?: string;
   commands: string[];
   permissions: string[];
-  plugins: string[];
+  plugins: Array<{
+    id: string;
+    name: string;
+    version: string;
+    enabled: boolean;
+  }>;
 }
 
 export interface KSMAppInfo {

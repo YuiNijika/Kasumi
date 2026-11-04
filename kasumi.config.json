@@ -2,7 +2,7 @@
   "$schema": "./protocol/kasumi.config.schema.json",
   "windows": {
     "packageName": "kasumi-win32-example",
-    "version": "26.11.4",
+    "version": "26.11.5",
     "commands": "all",
     "permissions": "all",
     "decorations": true,
@@ -19,7 +19,7 @@
   },
   "android": {
     "packageName": "dev.kasumi.example",
-    "version": "26.11.4",
+    "version": "26.11.5",
     "commands": "all",
     "permissions": "all",
     "shell": {

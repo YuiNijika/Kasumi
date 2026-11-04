@@ -46,6 +46,9 @@ struct KSMOperatingSystemInfo {
     std::string version;
     std::string locale;
     std::string timezone;
+    bool dev_mode = false;
+    std::optional<std::string> hostname;
+    std::optional<std::string> username;
 };
 
 using KSMSqlValue = std::variant<
@@ -86,6 +89,9 @@ public:
     virtual ~KSMHostServices();
 
     virtual std::string AppVersion() const = 0;
+    virtual std::string AppId() const {
+        return {};
+    }
     virtual std::string Language() const = 0;
     virtual bool ShowMessage(const std::string& title, const std::string& message) = 0;
     virtual bool Confirm(const std::string& title, const std::string& message) = 0;
@@ -136,6 +142,46 @@ public:
     }
     virtual bool OpenExternal(const std::string& url) {
         (void)url;
+        return false;
+    }
+    virtual bool OpenPath(const std::string& path) {
+        (void)path;
+        return false;
+    }
+    virtual bool ShowInFolder(const std::string& path) {
+        (void)path;
+        return false;
+    }
+    virtual bool IsPrimaryInstance() const {
+        return true;
+    }
+    virtual bool FocusMainWindow() {
+        return false;
+    }
+    virtual bool TrayShow() {
+        return false;
+    }
+    virtual bool TrayHide() {
+        return false;
+    }
+    virtual bool RegisterGlobalShortcut(const std::string& shortcut) {
+        (void)shortcut;
+        return false;
+    }
+    virtual bool UnregisterGlobalShortcut(const std::string& shortcut) {
+        (void)shortcut;
+        return false;
+    }
+    virtual bool CheckUpdate(
+        bool& available,
+        std::string& version
+    ) {
+        (void)version;
+        available = false;
+        return true;
+    }
+    virtual bool DownloadUpdate(const std::string& version) {
+        (void)version;
         return false;
     }
     virtual bool SetWindowSize(const KSMWindowSize& size) {

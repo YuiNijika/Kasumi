@@ -30,6 +30,9 @@ const packages = [
   'kasumi-plugin-store',
   'kasumi-plugin-os',
   'kasumi-plugin-log',
+  'kasumi-plugin-updater',
+  'kasumi-plugin-global-shortcut',
+  'kasumi-plugin-tray',
   'kasumi-cli',
   'create-kasumi'
 ];
@@ -126,7 +129,10 @@ try {
     'path',
     'store',
     'os',
-    'log'
+    'log',
+    'updater',
+    'global-shortcut',
+    'tray'
   ]) {
     await run(
       'node',

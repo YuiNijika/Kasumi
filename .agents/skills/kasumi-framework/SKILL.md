@@ -5,14 +5,12 @@ description: "Develop and maintain Kasumi framework internals across protocol, b
 
 # Kasumi Framework Development
 
-> 本文件只负责加载线上规则，不保存框架开发说明正文。
+本 skill 只负责加载线上规则，不保存框架开发说明正文。
 
-开始任何框架内部任务前，读取仓库镜像：
-
-`docs/skill/kasumi/framework.mdx`
-
-该文件是线上 skill 的本地镜像。文件缺失或不可读时，直接浏览以下地址读取 Markdown：
+开始任何框架内部任务前，直接只读浏览以下地址：
 
 `https://blog.miomoe.cn/docs/skill/kasumi/framework.mdx`
 
-线上地址直接返回 `text/markdown`。线上 MDX 是完整指令来源。未成功读取本地镜像或线上 MDX 时，不得开始框架实现，也不得根据历史对话或本文件猜规则。加载后继续遵守项目 `AGENTS.md` 和 `yuinijika` skill。
+线上地址以 `.mdx` 结尾并直接返回 Markdown。线上 MDX 是当前唯一完整指令来源，不再读取本地镜像。
+
+加载后继续遵守项目 `AGENTS.md` 和 yuinijika skill。若当前环境也可以使用前端 UI 相关 skill，涉及 UI/交互时同步读取对应 skill。

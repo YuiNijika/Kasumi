@@ -60,6 +60,15 @@ test('parseArgs supports short help and version flags', () => {
   assert.equal(parseArgs(['-v']).version, true);
 });
 
+test('parseArgs accepts a Windows installer type', () => {
+  assert.equal(parseArgs(['package', '--installer', 'nsis']).installer, 'nsis');
+  assert.equal(parseArgs(['package', '--installer=msi']).installer, 'msi');
+  assert.throws(
+    () => parseArgs(['package', '--installer', 'deb']),
+    /Invalid installer/
+  );
+});
+
 test('wraps Windows batch commands through the system shell', () => {
   const invocation = commandInvocation('gradlew.bat', ['--version']);
   if (process.platform === 'win32') {
@@ -757,8 +766,8 @@ test('expands all to the platform command matrix', async () => {
       'utf8'
     );
     const config = await readConfig(temporaryRoot, 'kasumi.config.json');
-    assert.equal(config.windows.commands.length, 47);
-    assert.equal(config.android.commands.length, 44);
+    assert.equal(config.windows.commands.length, 62);
+    assert.equal(config.android.commands.length, 55);
     assert.equal(config.windows.commands.includes('device.getInfo'), false);
     assert.equal(config.android.commands.includes('device.getInfo'), true);
   } finally {

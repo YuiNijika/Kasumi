@@ -23,9 +23,15 @@ export async function runContractSuite(adapter: ContractAdapter): Promise<void> 
 
   const capabilities = await adapter.invoke<{
     platform: string;
+    appId?: string;
     commands: string[];
     permissions: string[];
-    plugins: string[];
+    plugins: Array<{
+      id: string;
+      name: string;
+      version: string;
+      enabled: boolean;
+    }>;
   }>(
     'capabilities.query',
     {}
@@ -50,7 +56,7 @@ export async function runContractSuite(adapter: ContractAdapter): Promise<void> 
     }
   }
   for (const plugin of KSM_PLUGINS) {
-    if (!capabilities.plugins.includes(plugin)) {
+    if (!capabilities.plugins.some((item) => item.id === plugin)) {
       throw new Error(`capabilities.query did not include plugin ${plugin}.`);
     }
     const metadata = KSM_PLUGIN_METADATA[plugin];
@@ -61,6 +67,15 @@ export async function runContractSuite(adapter: ContractAdapter): Promise<void> 
       metadata.commands.join('\n') !== KSM_PLUGIN_COMMANDS[plugin]?.join('\n')
     ) {
       throw new Error(`Plugin ${plugin} metadata commands drifted.`);
+    }
+    const entry = capabilities.plugins.find((item) => item.id === plugin);
+    if (
+      !entry ||
+      entry.name !== metadata.name ||
+      entry.version !== metadata.version ||
+      entry.enabled !== true
+    ) {
+      throw new Error(`Plugin ${plugin} capability entry is invalid.`);
     }
     for (const permission of metadata.defaultPermissions) {
       if (!metadata.permissions.includes(permission)) {

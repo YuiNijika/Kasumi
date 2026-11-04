@@ -16,6 +16,11 @@ object KSMGeneratedContract {
         "fs.readDir",
         "fs.mkdir",
         "fs.stat",
+        "fs.appendText",
+        "fs.copy",
+        "fs.move",
+        "fs.readBytes",
+        "fs.writeBytes",
         "dialog.message",
         "dialog.confirm",
         "dialog.openFile",
@@ -32,6 +37,16 @@ object KSMGeneratedContract {
         "window.setSize",
         "window.close",
         "shell.openExternal",
+        "shell.openPath",
+        "shell.showInFolder",
+        "app.singleInstance.state",
+        "app.singleInstance.focus",
+        "tray.show",
+        "tray.hide",
+        "globalShortcut.register",
+        "globalShortcut.unregister",
+        "updater.check",
+        "updater.download",
         "http.download",
         "sql.drivers",
         "sql.open",
@@ -66,6 +81,11 @@ object KSMGeneratedContract {
         "fs.readDir",
         "fs.mkdir",
         "fs.stat",
+        "fs.appendText",
+        "fs.copy",
+        "fs.move",
+        "fs.readBytes",
+        "fs.writeBytes",
         "dialog.message",
         "dialog.confirm",
         "dialog.openFile",
@@ -82,6 +102,16 @@ object KSMGeneratedContract {
         "window.setSize",
         "window.close",
         "shell.openExternal",
+        "shell.openPath",
+        "shell.showInFolder",
+        "app.singleInstance.state",
+        "app.singleInstance.focus",
+        "tray.show",
+        "tray.hide",
+        "globalShortcut.register",
+        "globalShortcut.unregister",
+        "updater.check",
+        "updater.download",
         "http.download",
         "sql.drivers",
         "sql.open",
@@ -117,6 +147,11 @@ object KSMGeneratedContract {
         "fs.readDir",
         "fs.mkdir",
         "fs.stat",
+        "fs.appendText",
+        "fs.copy",
+        "fs.move",
+        "fs.readBytes",
+        "fs.writeBytes",
         "dialog.message",
         "dialog.confirm",
         "dialog.openFile",
@@ -129,6 +164,12 @@ object KSMGeneratedContract {
         "event.unsubscribe",
         "window.close",
         "shell.openExternal",
+        "shell.openPath",
+        "shell.showInFolder",
+        "app.singleInstance.state",
+        "app.singleInstance.focus",
+        "updater.check",
+        "updater.download",
         "http.download",
         "sql.drivers",
         "sql.open",
@@ -173,7 +214,10 @@ object KSMGeneratedContract {
         "sql",
         "store",
         "os.info",
-        "log.write"
+        "log.write",
+        "updater",
+        "globalShortcut",
+        "tray"
     )
 
     val plugins: List<String> = listOf(
@@ -190,7 +234,11 @@ object KSMGeneratedContract {
         "path",
         "store",
         "os",
-        "log"
+        "log",
+        "appInstance",
+        "updater",
+        "globalShortcut",
+        "tray"
     )
 
     val pluginMetadata: JSONObject = JSONObject("""{
@@ -241,6 +289,11 @@ object KSMGeneratedContract {
     "commands": [
       "fs.readText",
       "fs.writeText",
+      "fs.appendText",
+      "fs.copy",
+      "fs.move",
+      "fs.readBytes",
+      "fs.writeBytes",
       "fs.exists",
       "fs.remove",
       "fs.readDir",
@@ -355,7 +408,7 @@ object KSMGeneratedContract {
   },
   "shell": {
     "name": "Shell",
-    "version": "1.0.0",
+    "version": "1.4.0",
     "description": "Allowlisted external URL launching.",
     "frontendPackage": "kasumi-plugin-shell",
     "platforms": [
@@ -369,7 +422,9 @@ object KSMGeneratedContract {
       "shell.open"
     ],
     "commands": [
-      "shell.openExternal"
+      "shell.openExternal",
+      "shell.openPath",
+      "shell.showInFolder"
     ]
   },
   "device": {
@@ -494,6 +549,80 @@ object KSMGeneratedContract {
     "commands": [
       "log.write"
     ]
+  },
+  "appInstance": {
+    "name": "App Instance",
+    "version": "1.4.0",
+    "description": "Single instance state and focus coordination.",
+    "frontendPackage": "kasumi-bridge",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [],
+    "defaultPermissions": [],
+    "commands": [
+      "app.singleInstance.state",
+      "app.singleInstance.focus"
+    ]
+  },
+  "updater": {
+    "name": "Updater",
+    "version": "1.4.0",
+    "description": "Check and download application update packages.",
+    "frontendPackage": "kasumi-plugin-updater",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "updater"
+    ],
+    "defaultPermissions": [
+      "updater"
+    ],
+    "commands": [
+      "updater.check",
+      "updater.download"
+    ]
+  },
+  "globalShortcut": {
+    "name": "Global Shortcut",
+    "version": "1.4.0",
+    "description": "Register and unregister global keyboard shortcuts.",
+    "frontendPackage": "kasumi-plugin-global-shortcut",
+    "platforms": [
+      "windows"
+    ],
+    "permissions": [
+      "globalShortcut"
+    ],
+    "defaultPermissions": [
+      "globalShortcut"
+    ],
+    "commands": [
+      "globalShortcut.register",
+      "globalShortcut.unregister"
+    ]
+  },
+  "tray": {
+    "name": "Tray",
+    "version": "1.4.0",
+    "description": "Show and hide the system tray icon.",
+    "frontendPackage": "kasumi-plugin-tray",
+    "platforms": [
+      "windows"
+    ],
+    "permissions": [
+      "tray"
+    ],
+    "defaultPermissions": [
+      "tray"
+    ],
+    "commands": [
+      "tray.show",
+      "tray.hide"
+    ]
   }
 }""")
 
@@ -510,6 +639,11 @@ object KSMGeneratedContract {
         "fs" to listOf(
             "fs.readText",
             "fs.writeText",
+            "fs.appendText",
+            "fs.copy",
+            "fs.move",
+            "fs.readBytes",
+            "fs.writeBytes",
             "fs.exists",
             "fs.remove",
             "fs.readDir",
@@ -540,7 +674,9 @@ object KSMGeneratedContract {
             "http.download"
         ),
         "shell" to listOf(
-            "shell.openExternal"
+            "shell.openExternal",
+            "shell.openPath",
+            "shell.showInFolder"
         ),
         "device" to listOf(
             "device.getInfo"
@@ -573,6 +709,22 @@ object KSMGeneratedContract {
         ),
         "log" to listOf(
             "log.write"
+        ),
+        "appInstance" to listOf(
+            "app.singleInstance.state",
+            "app.singleInstance.focus"
+        ),
+        "updater" to listOf(
+            "updater.check",
+            "updater.download"
+        ),
+        "globalShortcut" to listOf(
+            "globalShortcut.register",
+            "globalShortcut.unregister"
+        ),
+        "tray" to listOf(
+            "tray.show",
+            "tray.hide"
         )
     )
 
@@ -603,6 +755,22 @@ object KSMGeneratedContract {
         ),
         "fs.stat" to listOf(
             "fs.read"
+        ),
+        "fs.appendText" to listOf(
+            "fs.write"
+        ),
+        "fs.copy" to listOf(
+            "fs.read",
+            "fs.write"
+        ),
+        "fs.move" to listOf(
+            "fs.write"
+        ),
+        "fs.readBytes" to listOf(
+            "fs.read"
+        ),
+        "fs.writeBytes" to listOf(
+            "fs.write"
         ),
         "dialog.message" to listOf(
             "dialog"
@@ -645,6 +813,32 @@ object KSMGeneratedContract {
         ),
         "shell.openExternal" to listOf(
             "shell.open"
+        ),
+        "shell.openPath" to listOf(
+            "shell.open"
+        ),
+        "shell.showInFolder" to listOf(
+            "shell.open"
+        ),
+        "app.singleInstance.state" to emptyList(),
+        "app.singleInstance.focus" to emptyList(),
+        "tray.show" to listOf(
+            "tray"
+        ),
+        "tray.hide" to listOf(
+            "tray"
+        ),
+        "globalShortcut.register" to listOf(
+            "globalShortcut"
+        ),
+        "globalShortcut.unregister" to listOf(
+            "globalShortcut"
+        ),
+        "updater.check" to listOf(
+            "updater"
+        ),
+        "updater.download" to listOf(
+            "updater"
         ),
         "http.download" to listOf(
             "http.download"
@@ -818,6 +1012,91 @@ object KSMGeneratedContract {
     },
     "required": [
       "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.appendText": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "content": {
+        "type": "string",
+        "maxBytes": 16777216
+      }
+    },
+    "required": [
+      "path",
+      "content"
+    ],
+    "additionalProperties": false
+  },
+  "fs.copy": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "string",
+        "minLength": 1
+      },
+      "to": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "from",
+      "to"
+    ],
+    "additionalProperties": false
+  },
+  "fs.move": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "string",
+        "minLength": 1
+      },
+      "to": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "from",
+      "to"
+    ],
+    "additionalProperties": false
+  },
+  "fs.readBytes": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.writeBytes": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "base64": {
+        "type": "string",
+        "maxBytes": 33554432
+      }
+    },
+    "required": [
+      "path",
+      "base64"
     ],
     "additionalProperties": false
   },
@@ -1005,6 +1284,104 @@ object KSMGeneratedContract {
     },
     "required": [
       "url"
+    ],
+    "additionalProperties": false
+  },
+  "shell.openPath": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "shell.showInFolder": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "app.singleInstance.state": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "app.singleInstance.focus": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "tray.show": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "tray.hide": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "globalShortcut.register": {
+    "type": "object",
+    "properties": {
+      "shortcut": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 256
+      }
+    },
+    "required": [
+      "shortcut"
+    ],
+    "additionalProperties": false
+  },
+  "globalShortcut.unregister": {
+    "type": "object",
+    "properties": {
+      "shortcut": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 256
+      }
+    },
+    "required": [
+      "shortcut"
+    ],
+    "additionalProperties": false
+  },
+  "updater.check": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "updater.download": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 128
+      }
+    },
+    "required": [
+      "version"
     ],
     "additionalProperties": false
   },

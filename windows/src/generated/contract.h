@@ -134,6 +134,91 @@ inline const Json& ArgSchemas() {
     ],
     "additionalProperties": false
   },
+  "fs.appendText": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "content": {
+        "type": "string",
+        "maxBytes": 16777216
+      }
+    },
+    "required": [
+      "path",
+      "content"
+    ],
+    "additionalProperties": false
+  },
+  "fs.copy": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "string",
+        "minLength": 1
+      },
+      "to": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "from",
+      "to"
+    ],
+    "additionalProperties": false
+  },
+  "fs.move": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "string",
+        "minLength": 1
+      },
+      "to": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "from",
+      "to"
+    ],
+    "additionalProperties": false
+  },
+  "fs.readBytes": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.writeBytes": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      },
+      "base64": {
+        "type": "string",
+        "maxBytes": 33554432
+      }
+    },
+    "required": [
+      "path",
+      "base64"
+    ],
+    "additionalProperties": false
+  },
   "dialog.message": {
     "type": "object",
     "properties": {
@@ -318,6 +403,104 @@ inline const Json& ArgSchemas() {
     },
     "required": [
       "url"
+    ],
+    "additionalProperties": false
+  },
+  "shell.openPath": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "shell.showInFolder": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "app.singleInstance.state": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "app.singleInstance.focus": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "tray.show": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "tray.hide": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "globalShortcut.register": {
+    "type": "object",
+    "properties": {
+      "shortcut": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 256
+      }
+    },
+    "required": [
+      "shortcut"
+    ],
+    "additionalProperties": false
+  },
+  "globalShortcut.unregister": {
+    "type": "object",
+    "properties": {
+      "shortcut": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 256
+      }
+    },
+    "required": [
+      "shortcut"
+    ],
+    "additionalProperties": false
+  },
+  "updater.check": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "updater.download": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "string",
+        "minLength": 1,
+        "maxBytes": 128
+      }
+    },
+    "required": [
+      "version"
     ],
     "additionalProperties": false
   },
@@ -759,21 +942,21 @@ public:
 
 inline const std::vector<std::string>& KSMGeneratedContract::Commands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "tray.show", "tray.hide", "globalShortcut.register", "globalShortcut.unregister", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::WindowsCommands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "tray.show", "tray.hide", "globalShortcut.register", "globalShortcut.unregister", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::AndroidCommands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.close", "shell.openExternal", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit"
     };
     return values;
 }
@@ -787,14 +970,14 @@ inline const std::vector<std::string>& KSMGeneratedContract::Events() {
 
 inline const std::vector<std::string>& KSMGeneratedContract::Permissions() {
     static const std::vector<std::string> values = {
-        "fs.read", "fs.write", "fs.remove", "dialog", "clipboard.read", "clipboard.write", "notification.show", "window.control", "http.download", "shell.open", "device.info", "sql", "store", "os.info", "log.write"
+        "fs.read", "fs.write", "fs.remove", "dialog", "clipboard.read", "clipboard.write", "notification.show", "window.control", "http.download", "shell.open", "device.info", "sql", "store", "os.info", "log.write", "updater", "globalShortcut", "tray"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::Plugins() {
     static const std::vector<std::string> values = {
-        "core", "fs", "dialog", "clipboard", "notification", "window", "http", "shell", "device", "sql", "path", "store", "os", "log"
+        "core", "fs", "dialog", "clipboard", "notification", "window", "http", "shell", "device", "sql", "path", "store", "os", "log", "appInstance", "updater", "globalShortcut", "tray"
     };
     return values;
 }
@@ -849,6 +1032,11 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
     "commands": [
       "fs.readText",
       "fs.writeText",
+      "fs.appendText",
+      "fs.copy",
+      "fs.move",
+      "fs.readBytes",
+      "fs.writeBytes",
       "fs.exists",
       "fs.remove",
       "fs.readDir",
@@ -963,7 +1151,7 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
   },
   "shell": {
     "name": "Shell",
-    "version": "1.0.0",
+    "version": "1.4.0",
     "description": "Allowlisted external URL launching.",
     "frontendPackage": "kasumi-plugin-shell",
     "platforms": [
@@ -977,7 +1165,9 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
       "shell.open"
     ],
     "commands": [
-      "shell.openExternal"
+      "shell.openExternal",
+      "shell.openPath",
+      "shell.showInFolder"
     ]
   },
   "device": {
@@ -1102,6 +1292,80 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
     "commands": [
       "log.write"
     ]
+  },
+  "appInstance": {
+    "name": "App Instance",
+    "version": "1.4.0",
+    "description": "Single instance state and focus coordination.",
+    "frontendPackage": "kasumi-bridge",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [],
+    "defaultPermissions": [],
+    "commands": [
+      "app.singleInstance.state",
+      "app.singleInstance.focus"
+    ]
+  },
+  "updater": {
+    "name": "Updater",
+    "version": "1.4.0",
+    "description": "Check and download application update packages.",
+    "frontendPackage": "kasumi-plugin-updater",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "updater"
+    ],
+    "defaultPermissions": [
+      "updater"
+    ],
+    "commands": [
+      "updater.check",
+      "updater.download"
+    ]
+  },
+  "globalShortcut": {
+    "name": "Global Shortcut",
+    "version": "1.4.0",
+    "description": "Register and unregister global keyboard shortcuts.",
+    "frontendPackage": "kasumi-plugin-global-shortcut",
+    "platforms": [
+      "windows"
+    ],
+    "permissions": [
+      "globalShortcut"
+    ],
+    "defaultPermissions": [
+      "globalShortcut"
+    ],
+    "commands": [
+      "globalShortcut.register",
+      "globalShortcut.unregister"
+    ]
+  },
+  "tray": {
+    "name": "Tray",
+    "version": "1.4.0",
+    "description": "Show and hide the system tray icon.",
+    "frontendPackage": "kasumi-plugin-tray",
+    "platforms": [
+      "windows"
+    ],
+    "permissions": [
+      "tray"
+    ],
+    "defaultPermissions": [
+      "tray"
+    ],
+    "commands": [
+      "tray.show",
+      "tray.hide"
+    ]
   }
 })KSMMETADATA"
     );
@@ -1123,6 +1387,11 @@ inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {
   "fs": [
     "fs.readText",
     "fs.writeText",
+    "fs.appendText",
+    "fs.copy",
+    "fs.move",
+    "fs.readBytes",
+    "fs.writeBytes",
     "fs.exists",
     "fs.remove",
     "fs.readDir",
@@ -1153,7 +1422,9 @@ inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {
     "http.download"
   ],
   "shell": [
-    "shell.openExternal"
+    "shell.openExternal",
+    "shell.openPath",
+    "shell.showInFolder"
   ],
   "device": [
     "device.getInfo"
@@ -1186,6 +1457,22 @@ inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {
   ],
   "log": [
     "log.write"
+  ],
+  "appInstance": [
+    "app.singleInstance.state",
+    "app.singleInstance.focus"
+  ],
+  "updater": [
+    "updater.check",
+    "updater.download"
+  ],
+  "globalShortcut": [
+    "globalShortcut.register",
+    "globalShortcut.unregister"
+  ],
+  "tray": [
+    "tray.show",
+    "tray.hide"
   ]
 })KSMPLUGINS"
     );
@@ -1221,6 +1508,22 @@ inline const nlohmann::json& KSMGeneratedContract::CommandPermissions() {
   ],
   "fs.stat": [
     "fs.read"
+  ],
+  "fs.appendText": [
+    "fs.write"
+  ],
+  "fs.copy": [
+    "fs.read",
+    "fs.write"
+  ],
+  "fs.move": [
+    "fs.write"
+  ],
+  "fs.readBytes": [
+    "fs.read"
+  ],
+  "fs.writeBytes": [
+    "fs.write"
   ],
   "dialog.message": [
     "dialog"
@@ -1263,6 +1566,32 @@ inline const nlohmann::json& KSMGeneratedContract::CommandPermissions() {
   ],
   "shell.openExternal": [
     "shell.open"
+  ],
+  "shell.openPath": [
+    "shell.open"
+  ],
+  "shell.showInFolder": [
+    "shell.open"
+  ],
+  "app.singleInstance.state": [],
+  "app.singleInstance.focus": [],
+  "tray.show": [
+    "tray"
+  ],
+  "tray.hide": [
+    "tray"
+  ],
+  "globalShortcut.register": [
+    "globalShortcut"
+  ],
+  "globalShortcut.unregister": [
+    "globalShortcut"
+  ],
+  "updater.check": [
+    "updater"
+  ],
+  "updater.download": [
+    "updater"
   ],
   "http.download": [
     "http.download"

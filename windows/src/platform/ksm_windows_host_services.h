@@ -25,18 +25,21 @@ public:
         HWND window,
         std::vector<std::string> allowed_external_origins = {},
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
-        std::string app_version = KASUMI_VERSION_STRING
+        std::string app_version = KASUMI_VERSION_STRING,
+        std::string app_id = {}
     );
     KSMWindowsHostServices(
         HWND window,
         std::vector<std::string> allowed_external_origins,
         std::vector<std::string> allowed_http_origins,
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
-        std::string app_version = KASUMI_VERSION_STRING
+        std::string app_version = KASUMI_VERSION_STRING,
+        std::string app_id = {}
     );
     ~KSMWindowsHostServices() override;
 
     std::string AppVersion() const override;
+    std::string AppId() const override;
     std::string Language() const override;
     bool ShowMessage(const std::string& title, const std::string& message) override;
     bool Confirm(const std::string& title, const std::string& message) override;
@@ -77,6 +80,19 @@ public:
     ) override;
     bool IsExternalUrlAllowed(const std::string& url) const override;
     bool OpenExternal(const std::string& url) override;
+    bool OpenPath(const std::string& path) override;
+    bool ShowInFolder(const std::string& path) override;
+    bool IsPrimaryInstance() const override;
+    bool FocusMainWindow() override;
+    bool TrayShow() override;
+    bool TrayHide() override;
+    bool RegisterGlobalShortcut(const std::string& shortcut) override;
+    bool UnregisterGlobalShortcut(const std::string& shortcut) override;
+    bool CheckUpdate(
+        bool& available,
+        std::string& version
+    ) override;
+    bool DownloadUpdate(const std::string& version) override;
     bool SetWindowSize(const KSMWindowSize& size) override;
     std::optional<KSMDeviceInfo> GetDeviceInfo() const override;
     std::optional<KSMOperatingSystemInfo>
@@ -124,6 +140,7 @@ private:
     HWND window_;
     std::shared_ptr<KSMFileSystem> file_system_;
     std::string app_version_;
+    std::string app_id_;
     std::set<KSMUrlPolicy::Origin> allowed_external_origins_;
     std::set<KSMUrlPolicy::Origin> allowed_http_origins_;
     mutable std::mutex picked_mutex_;

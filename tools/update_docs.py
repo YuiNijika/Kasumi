@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Kasumi 在线文档读写工具。
 
-凭据只从环境变量或显式指定的 env 文件读取。拉取和普通提交被限制在
-.tmp/kasumi-docs；Agent skill 规范源文件额外允许 docs/skill/kasumi，
-避免把任意仓库文件提交到在线文档修订队列。
+凭据只从环境变量或显式指定的 env 文件读取。拉取、普通提交和 draft
+编辑都限制在 .tmp/kasumi-docs，不再使用 docs/skill/kasumi 本地镜像。
 """
 
 from __future__ import annotations
@@ -25,7 +24,6 @@ from typing import Any, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS_DIR = ROOT / ".tmp" / "kasumi-docs"
-SKILL_DOCS_DIR = ROOT / "docs" / "skill" / "kasumi"
 DOC_PATH_PATTERN = re.compile(r"^kasumi(?:/[a-z0-9][a-z0-9-]*)*$")
 SKILL_DOC_PATH_PATTERN = re.compile(
     r"^skill/kasumi(?:/[a-z0-9][a-z0-9-]*)*$"
@@ -89,17 +87,13 @@ def validate_doc_path(path: str) -> str:
 def ensure_docs_output_path(path: Path) -> Path:
     candidate = path if path.is_absolute() else ROOT / path
     resolved = candidate.resolve(strict=False)
-    allowed_roots = (
-        DOCS_DIR.resolve(strict=False),
-        SKILL_DOCS_DIR.resolve(strict=False),
-    )
+    allowed_roots = (DOCS_DIR.resolve(strict=False),)
     if not any(
         _is_relative_to(resolved, allowed_root)
         for allowed_root in allowed_roots
     ):
         raise DocsError(
-            "文档读写只允许位于 .tmp/kasumi-docs 或 "
-            "docs/skill/kasumi 内"
+            "文档读写只允许位于 .tmp/kasumi-docs 内"
         )
     if resolved.suffix.lower() not in {".md", ".mdx"}:
         raise DocsError("文档文件必须使用 .md 或 .mdx 扩展名")

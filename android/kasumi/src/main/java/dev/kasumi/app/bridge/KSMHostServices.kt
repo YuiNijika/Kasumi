@@ -8,11 +8,15 @@ data class KSMOperatingSystemInfo(
     val architecture: String,
     val version: String,
     val locale: String,
-    val timezone: String
+    val timezone: String,
+    val devMode: Boolean = false,
+    val hostname: String? = null,
+    val username: String? = null
 )
 
 interface KSMHostServices {
     fun appVersion(): String = KSMVersionMetadata.VERSION
+    fun appId(): String = ""
     fun language(): String = Locale.getDefault().toLanguageTag()
     fun showMessage(title: String, message: String): Boolean
     fun confirm(title: String, message: String): Boolean
@@ -42,6 +46,8 @@ interface KSMHostServices {
     ): KSMHttpDownloadResult? = null
     fun isExternalUrlAllowed(url: String): Boolean = false
     fun openExternal(url: String): Boolean = false
+    fun openPath(path: String): Boolean = false
+    fun showInFolder(path: String): Boolean = false
     fun deviceInfo(): KSMDeviceInfo? = null
     fun operatingSystemInfo(): KSMOperatingSystemInfo? = null
     fun writeLog(level: String, target: String, message: String): Boolean = false

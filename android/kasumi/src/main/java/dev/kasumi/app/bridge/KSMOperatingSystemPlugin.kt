@@ -35,5 +35,10 @@ class KSMOperatingSystemPlugin : KSMPlugin {
             .put("locale", info.locale)
             .put("timezone", info.timezone)
             .put("appVersion", host.appVersion())
+            .put("devMode", info.devMode)
+            .apply {
+                info.hostname?.let { put("hostname", it) }
+                info.username?.let { put("username", it) }
+            }
     }
 }

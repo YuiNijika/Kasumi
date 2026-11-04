@@ -1468,10 +1468,10 @@ class ContractTest {
                 .getJSONArray("plugins")
                 .let { values ->
                     List(values.length()) { index ->
-                        values.getString(index)
+                        values.getJSONObject(index)
                     }
                 }
-            assertTrue(plugins.contains("contract.echo"))
+            assertTrue(plugins.any { it.getString("id") == "contract.echo" })
         } finally {
             root.deleteRecursively()
         }

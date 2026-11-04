@@ -34,6 +34,14 @@ public:
   std::optional<std::string> ReadText(const std::string &path) const;
   bool WriteText(const std::string &path, const std::string &content) const;
   bool WriteTextAtomic(const std::string &path, const std::string &content) const;
+  bool AppendText(const std::string &path, const std::string &content) const;
+  bool Copy(const std::string &from_path,
+            const std::string &to_path) const;
+  bool Move(const std::string &from_path, const std::string &to_path) const;
+  std::optional<std::vector<std::uint8_t>>
+  ReadBytes(const std::string &path) const;
+  bool WriteBytes(const std::string &path,
+                  const std::vector<std::uint8_t> &bytes) const;
   bool Exists(const std::string &path) const;
   bool Remove(const std::string &path) const;
   std::optional<std::vector<KSMDirectoryEntry>>
@@ -45,6 +53,8 @@ public:
   CreateTemporaryText(const std::string &content) const;
   std::optional<std::filesystem::path>
   ResolveWritableFile(const std::string &path) const;
+  std::optional<std::filesystem::path>
+  ResolveReadableFile(const std::string &path) const;
 
 private:
   std::optional<std::filesystem::path>

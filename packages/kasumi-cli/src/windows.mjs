@@ -122,7 +122,20 @@ export async function buildWindows(projectRoot, config, options = {}) {
 
 export async function packageWindows(projectRoot, config, options = {}) {
   const executable = await buildWindows(projectRoot, config, options);
-  return createWindowsPackage(projectRoot, config, executable, options);
+  const outputs = [await createWindowsPackage(projectRoot, config, executable, options)];
+  const installer = options.installer ?? config.bundle?.windowsInstaller;
+  if (installer) {
+    outputs.push(
+      await createWindowsInstaller(
+        projectRoot,
+        config,
+        executable,
+        installer,
+        options
+      )
+    );
+  }
+  return outputs;
 }
 
 export async function createWindowsPackage(
@@ -186,6 +199,127 @@ export async function createWindowsPackage(
 
 export async function findCMake() {
   return findCommand('cmake') ?? (await visualStudioEnvironment())?.cmake;
+}
+
+export async function createWindowsInstaller(
+  projectRoot,
+  config,
+  executable,
+  installerType,
+  options = {}
+) {
+  const staging = path.join(
+    projectRoot,
+    '.ksm',
+    'package',
+    'installer'
+  );
+  const outputDirectory = packageOutputDirectory(projectRoot);
+  await mkdir(staging, { recursive: true });
+  await mkdir(outputDirectory, { recursive: true });
+  const sourceDirectory = path.dirname(executable);
+
+  if (installerType === 'nsis') {
+    const makensis = findCommand('makensis');
+    if (!makensis) {
+      throw new Error(
+        'NSIS is not installed. Install NSIS and add makensis to PATH.'
+      );
+    }
+    const appName = config.packageName;
+    const version = config.version;
+    const output = path.join(
+      outputDirectory,
+      `${appName}-${version}-setup.exe`
+    );
+    const appExe = path.basename(executable);
+    const nsi = path.join(staging, `install-${Date.now()}.nsi`);
+    await writeFile(
+      nsi,
+      [
+        'Unicode true',
+        `!define APP_NAME ${JSON.stringify(appName)}`,
+        `!define APP_VERSION ${JSON.stringify(version)}`,
+        `!define APP_EXE ${JSON.stringify(appExe)}`,
+        `OutFile ${JSON.stringify(output)}`,
+        'InstallDir "$PROGRAMFILES64\\Kasumi\\' + appName + '"',
+        'RequestExecutionLevel admin',
+        '',
+        'Section "Main"',
+        '  SetOutPath "$INSTDIR"',
+        `  File ${JSON.stringify(executable)}`,
+        '  WriteUninstaller "$INSTDIR\\Uninstall.exe"',
+        '  CreateShortcut "$DESKTOP\\' + appName + '.lnk" "$INSTDIR\\' + appExe + '"',
+        `  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${appName}" "DisplayName" "${appName}"`,
+        `  WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${appName}" "DisplayVersion" "${version}"`,
+        'SectionEnd',
+        '',
+        'Section "Uninstall"',
+        '  RMDir /r "$INSTDIR"',
+        `  Delete "$DESKTOP\\${appName}.lnk"`,
+        'SectionEnd',
+        ''
+      ].join('\r\n'),
+      'utf8'
+    );
+    await run(makensis, [nsi], { cwd: projectRoot });
+    await rm(nsi, { force: true });
+    return output;
+  }
+
+  if (installerType === 'msi') {
+    const candle = findCommand('candle');
+    const light = findCommand('light');
+    if (!candle || !light) {
+      throw new Error(
+        'MSI packaging requires the WiX Toolset (candle and light).'
+      );
+    }
+    const appName = config.packageName;
+    const output = path.join(
+      outputDirectory,
+      `${appName}-${config.version}-setup.msi`
+    );
+    const wxs = path.join(staging, `install-${Date.now()}.wxs`);
+    const wixobj = path.join(staging, `install-${Date.now()}.wixobj`);
+    await writeFile(
+      wxs,
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">',
+        '  <Product Id="*" Name="' + appName + '" Language="1033"',
+        '           Version="' + config.version + '" Manufacturer="Kasumi"',
+        '           UpgradeCode="00000000-0000-0000-0000-000000000000">',
+        '    <Package InstallerVersion="200" Compressed="yes" />',
+        '    <Directory Id="TARGETDIR" Name="SourceDir">',
+        '      <Directory Id="ProgramFiles64Folder" Name="PFiles">',
+        '        <Directory Id="INSTALLFOLDER" Name="Kasumi">',
+        '          <Directory Id="APPLICATIONFOLDER" Name="' + appName + '" />',
+        '        </Directory>',
+        '      </Directory>',
+        '    </Directory>',
+        '    <ComponentGroup Id="ProductComponents" Directory="APPLICATIONFOLDER">',
+        '      <Component Id="MainExecutable" Guid="*">',
+        '        <File Id="MainExe" Source="' + executable + '" />',
+        '      </Component>',
+        '    </ComponentGroup>',
+        '    <Feature Id="MainFeature" Title="Main Feature" Level="1">',
+        '      <ComponentGroupRef Id="ProductComponents" />',
+        '    </Feature>',
+        '  </Product>',
+        '</Wix>',
+        ''
+      ].join('\r\n'),
+      'utf8'
+    );
+    await run(candle, [wxs, '-o', wixobj], { cwd: projectRoot });
+    await run(light, [wixobj, '-out', output], { cwd: projectRoot });
+    await rm(wxs, { force: true });
+    await rm(wixobj, { force: true });
+    return output;
+  }
+
+  throw new Error(`Unsupported Windows installer type: ${installerType}`);
 }
 
 export async function findVcpkgToolchain(visualStudio) {

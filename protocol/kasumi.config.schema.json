@@ -12,6 +12,61 @@
     "$schema": {
       "type": "string"
     },
+    "appId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reverse-domain application identifier shared across platforms."
+    },
+    "icons": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "window": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tray": {
+          "type": "string",
+          "minLength": 1
+        },
+        "installer": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "certificate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "password": {
+          "type": "string"
+        }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "windowsInstaller": {
+          "enum": [
+            "nsis",
+            "msi"
+          ]
+        }
+      }
+    },
     "windows": {
       "type": "object",
       "additionalProperties": false,
@@ -92,6 +147,91 @@
                 "type": "string",
                 "pattern": "^https://(?:\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)(?::[0-9]{1,5})?$"
               }
+            }
+          }
+        },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "decorations": {
+              "type": "boolean"
+            },
+            "transparent": {
+              "type": "boolean"
+            },
+            "alwaysOnTop": {
+              "type": "boolean"
+            },
+            "center": {
+              "type": "boolean"
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minWidth": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "minHeight": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxWidth": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxHeight": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "resizable": {
+              "type": "boolean"
+            },
+            "visible": {
+              "type": "boolean"
+            }
+          }
+        },
+        "tray": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "icon": {
+              "type": "string"
+            },
+            "tooltip": {
+              "type": "string"
+            },
+            "menu": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "label",
+                  "action"
+                ],
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "action": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "clickAction": {
+              "type": "string"
             }
           }
         }

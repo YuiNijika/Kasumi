@@ -121,6 +121,18 @@ jobs:
         run: pnpm --filter kasumi-plugin-log publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-updater
+        run: pnpm --filter kasumi-plugin-updater publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-global-shortcut
+        run: pnpm --filter kasumi-plugin-global-shortcut publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-tray
+        run: pnpm --filter kasumi-plugin-tray publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish kasumi-cli
         run: pnpm --filter kasumi-cli publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
         env:
@@ -132,7 +144,7 @@ jobs:
       - name: Verify published versions
         run: |
           VERSION="${RELEASE_TAG#v}"
-          for package in kasumi-bridge kasumi-plugin-fs kasumi-plugin-dialog kasumi-plugin-clipboard kasumi-plugin-notification kasumi-plugin-window kasumi-plugin-http kasumi-plugin-shell kasumi-plugin-device kasumi-plugin-sql kasumi-plugin-path kasumi-plugin-store kasumi-plugin-os kasumi-plugin-log kasumi-cli create-kasumi
+          for package in kasumi-bridge kasumi-plugin-fs kasumi-plugin-dialog kasumi-plugin-clipboard kasumi-plugin-notification kasumi-plugin-window kasumi-plugin-http kasumi-plugin-shell kasumi-plugin-device kasumi-plugin-sql kasumi-plugin-path kasumi-plugin-store kasumi-plugin-os kasumi-plugin-log kasumi-plugin-updater kasumi-plugin-global-shortcut kasumi-plugin-tray kasumi-cli create-kasumi
           do
             test "$(npm view "$package@$NPM_TAG" version)" = "$VERSION"
           done

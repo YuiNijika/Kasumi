@@ -29,6 +29,11 @@
       "commands": [
         "fs.readText",
         "fs.writeText",
+        "fs.appendText",
+        "fs.copy",
+        "fs.move",
+        "fs.readBytes",
+        "fs.writeBytes",
         "fs.exists",
         "fs.remove",
         "fs.readDir",
@@ -106,14 +111,16 @@
     },
     "shell": {
       "name": "Shell",
-      "version": "1.0.0",
+      "version": "1.4.0",
       "description": "Allowlisted external URL launching.",
       "frontendPackage": "kasumi-plugin-shell",
       "platforms": ["windows", "android"],
       "permissions": ["shell.open"],
       "defaultPermissions": ["shell.open"],
       "commands": [
-        "shell.openExternal"
+        "shell.openExternal",
+        "shell.openPath",
+        "shell.showInFolder"
       ]
     },
     "device": {
@@ -200,6 +207,58 @@
       "defaultPermissions": ["log.write"],
       "commands": [
         "log.write"
+      ]
+    },
+    "appInstance": {
+      "name": "App Instance",
+      "version": "1.4.0",
+      "description": "Single instance state and focus coordination.",
+      "frontendPackage": "kasumi-bridge",
+      "platforms": ["windows", "android"],
+      "permissions": [],
+      "defaultPermissions": [],
+      "commands": [
+        "app.singleInstance.state",
+        "app.singleInstance.focus"
+      ]
+    },
+    "updater": {
+      "name": "Updater",
+      "version": "1.4.0",
+      "description": "Check and download application update packages.",
+      "frontendPackage": "kasumi-plugin-updater",
+      "platforms": ["windows", "android"],
+      "permissions": ["updater"],
+      "defaultPermissions": ["updater"],
+      "commands": [
+        "updater.check",
+        "updater.download"
+      ]
+    },
+    "globalShortcut": {
+      "name": "Global Shortcut",
+      "version": "1.4.0",
+      "description": "Register and unregister global keyboard shortcuts.",
+      "frontendPackage": "kasumi-plugin-global-shortcut",
+      "platforms": ["windows"],
+      "permissions": ["globalShortcut"],
+      "defaultPermissions": ["globalShortcut"],
+      "commands": [
+        "globalShortcut.register",
+        "globalShortcut.unregister"
+      ]
+    },
+    "tray": {
+      "name": "Tray",
+      "version": "1.4.0",
+      "description": "Show and hide the system tray icon.",
+      "frontendPackage": "kasumi-plugin-tray",
+      "platforms": ["windows"],
+      "permissions": ["tray"],
+      "defaultPermissions": ["tray"],
+      "commands": [
+        "tray.show",
+        "tray.hide"
       ]
     }
   }
