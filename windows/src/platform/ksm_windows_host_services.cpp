@@ -55,6 +55,12 @@ constexpr wchar_t kAudioAlias[] = L"kasumi_audio";
 
 std::atomic<std::uint64_t> next_download_part{1};
 
+std::string ToUtf8(const std::wstring& value);
+std::optional<std::wstring> QueryRequestHeader(
+    HINTERNET request,
+    DWORD header
+);
+
 std::wstring ToWide(const std::string& value) {
     if (value.empty()) {
         return {};
@@ -206,7 +212,7 @@ std::optional<std::string> ExtractSetCookie(
     DWORD size = 0;
     WinHttpQueryHeaders(
         request,
-        WINHTTP_HEADER_SET_COOKIE,
+        WINHTTP_QUERY_SET_COOKIE,
         WINHTTP_HEADER_NAME_BY_INDEX,
         nullptr,
         &size,
@@ -218,7 +224,7 @@ std::optional<std::string> ExtractSetCookie(
     std::wstring buffer(size / sizeof(wchar_t) + 1, L'\0');
     if (!WinHttpQueryHeaders(
             request,
-            WINHTTP_HEADER_SET_COOKIE,
+            WINHTTP_QUERY_SET_COOKIE,
             WINHTTP_HEADER_NAME_BY_INDEX,
             buffer.data(),
             &size,
@@ -2801,7 +2807,7 @@ bool KSMWindowsHostServices::ClearMediaSession() {
     return MciCommand(L"pause kasumi_audio");
 }
 
-std::optional<std::string> KSMWindowsHostServices::CreateWindow(
+std::optional<std::string> KSMWindowsHostServices::CreateWindowInstance(
     const std::string& route,
     const KSMWindowState& state
 ) {

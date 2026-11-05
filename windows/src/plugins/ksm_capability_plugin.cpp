@@ -894,7 +894,7 @@ Json WindowCommand(
 ) {
     RequireHost(context);
     if (command == "window.create") {
-        const auto window_id = context.host_services->CreateWindow(
+        const auto window_id = context.host_services->CreateWindowInstance(
             OptionalString(args, "route"),
             WindowState(args)
         );

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -504,7 +505,7 @@ public:
     virtual bool ClearMediaSession() {
         return false;
     }
-    virtual std::optional<std::string> CreateWindow(
+    virtual std::optional<std::string> CreateWindowInstance(
         const std::string& route,
         const KSMWindowState& state
     ) {

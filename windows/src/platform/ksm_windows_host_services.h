@@ -176,7 +176,7 @@ public:
         const KSMMediaSessionMetadata& metadata
     ) override;
     bool ClearMediaSession() override;
-    std::optional<std::string> CreateWindow(
+    std::optional<std::string> CreateWindowInstance(
         const std::string& route,
         const KSMWindowState& state
     ) override;
