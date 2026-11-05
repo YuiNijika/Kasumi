@@ -95,9 +95,9 @@ class KSMRouter(
         }
     val supportedPlugins: List<String> = capabilityPlugins()
 
-    fun emitEvent(event: String, payload: JSONObject) {
+    fun emitEvent(event: String, payload: JSONObject): Boolean {
         if (event !in subscribedEvents) {
-            return
+            return false
         }
         eventSender(
             JSONObject()
@@ -106,6 +106,7 @@ class KSMRouter(
                 .put("payload", payload)
                 .toString()
         )
+        return true
     }
 
     fun emitSystemEvent(event: String, payload: JSONObject) {
