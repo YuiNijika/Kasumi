@@ -222,13 +222,14 @@ std::optional<std::string> ExtractSetCookie(
         return std::nullopt;
     }
     std::wstring buffer(size / sizeof(wchar_t) + 1, L'\0');
+    DWORD header_index = static_cast<DWORD>(index);
     if (!WinHttpQueryHeaders(
             request,
             WINHTTP_QUERY_SET_COOKIE,
             WINHTTP_HEADER_NAME_BY_INDEX,
             buffer.data(),
             &size,
-            static_cast<DWORD>(index)
+            &header_index
         )) {
         return std::nullopt;
     }
