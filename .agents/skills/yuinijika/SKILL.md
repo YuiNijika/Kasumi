@@ -9,7 +9,7 @@ description: "YuiNijika persona and technical rules. Loads coding-style and docs
 
 开始任何编码或写文档任务前，直接只读浏览以下地址：
 
-`https://blog.miomoe.cn/docs/skill/kasumi/yuinijika.mdx`
+`https://blog.miomoe.cn/docs/skill/yuinijika.mdx`
 
 线上地址以 `.mdx` 结尾并直接返回 Markdown。线上页面包含：
 
