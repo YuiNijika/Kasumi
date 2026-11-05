@@ -12,6 +12,8 @@ PERMISSIONS = ROOT / "protocol" / "permissions.schema.json"
 ERRORS = ROOT / "protocol" / "errors.json"
 FRONTEND = ROOT / "frontend" / "src" / "generated"
 WINDOWS = ROOT / "windows" / "src" / "generated"
+CLI_DATA = ROOT / "packages" / "kasumi-cli" / "data" / "commands.json"
+CREATE_DATA = ROOT / "packages" / "create-kasumi" / "data" / "commands.json"
 ANDROID = (
     ROOT
     / "android"
@@ -663,6 +665,21 @@ object KSMGeneratedContract {{
     (ANDROID / "KSMErrorCode.kt").write_text(error_content, encoding="utf-8")
 
 
+def generate_cli_data(
+    contract: dict[str, Any],
+    permission_schema: dict[str, Any],
+) -> None:
+    payload = {
+        "permissions": permissions_for(permission_schema),
+        "windows": commands_for(contract, "windows"),
+        "android": commands_for(contract, "android"),
+    }
+    content = json_text(payload) + "\n"
+    for target in (CLI_DATA, CREATE_DATA):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+
+
 def main() -> None:
     contract = load_json(PROTOCOL)
     plugins = load_json(PLUGINS)
@@ -671,6 +688,7 @@ def main() -> None:
     generate_frontend(contract, plugins, permission_schema, errors)
     generate_windows(contract, plugins, permission_schema, errors)
     generate_android(contract, plugins, permission_schema, errors)
+    generate_cli_data(contract, permission_schema)
 
 
 if __name__ == "__main__":

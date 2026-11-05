@@ -1,3 +1,3 @@
-export { show, hide } from 'kasumi-bridge/tray';
-export type { KSMTrayApi } from 'kasumi-bridge';
+export { show, hide, configure, onAction, onClick } from 'kasumi-bridge/tray';
+export type { KSMTrayActionPayload, KSMTrayApi, KSMTrayMenuConfig } from 'kasumi-bridge';
 export declare const PLUGIN_ID: "tray";

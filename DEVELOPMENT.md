@@ -504,6 +504,23 @@ API 34 模拟器已完成 3 项 connected tests，并验证示例页面实际加
 1. Android 下载取消、通知权限、文件选择器、旋转、前后台定时器和 `onTrimMemory` 的真实设备验证。
 2. Windows Evergreen Runtime 缺失提示和标签签名流程。
 
+## 原生能力补全验证
+
+以下检查用于后续能力补全发布；当前只记录矩阵，不表示目标能力已经实现：
+
+| 阶段 | 检查 | 通过条件 |
+| --- | --- | --- |
+| 协议 | `pnpm validate:protocol` | 命令、事件、权限、插件和平台矩阵一致 |
+| 生成 | `pnpm codegen` | 三端生成契约无漂移，且不手写生成物 |
+| 前端 | `pnpm typecheck` | 前端与测试工程类型检查通过 |
+| 契约 | `pnpm test:contract` | 超时、取消、重载、事件和权限边界通过 |
+| 包 | `pnpm test:packages` | 包入口、插件包装与 CLI 配置校验通过 |
+| 模板 | `pnpm test:tarballs` | 干净目录初始化与发布包安装通过 |
+| Windows | Windows CTest | 多窗口、取消、资源清理与桌面宿主边界通过 |
+| Android | JVM 与 instrumentation 测试 | 媒体会话、后台租约、SAF、深链和生命周期边界通过 |
+| 收尾 | `git diff --check` | 无空白错误，临时文件不进入工作树 |
+| 发布 | `pnpm version:check`、GitHub Release、npm | `version.json` 是唯一版本来源；发布版本高于当前版本；不移动已发布标签，不覆盖或重复发布 npm 版本 |
+
 ## pnpm 命令入口
 
 根目录 `package.json` 是应用项目的 JavaScript/TypeScript 依赖和命令入口。`frontend/`
@@ -607,6 +624,8 @@ Windows SDK ZIP 使用扁平布局，解压后直接得到 `include/`、`lib/` �
 | `kasumi-plugin-fs` | 文件系统插件前端入口 |
 | `kasumi-plugin-dialog` | 对话框插件前端入口 |
 | `kasumi-plugin-clipboard` | 剪贴板插件前端入口 |
+| `kasumi-plugin-audio` | 音频播放与设备插件前端入口 |
+| `kasumi-plugin-media-session` | 系统媒体会话插件前端入口 |
 | `kasumi-plugin-notification` | 通知插件前端入口 |
 | `kasumi-plugin-window` | 窗口插件前端入口 |
 | `kasumi-plugin-http` | HTTPS 下载插件前端入口 |
@@ -639,6 +658,8 @@ pnpm --filter create-kasumi pack
 pnpm --filter kasumi-plugin-fs pack
 pnpm --filter kasumi-plugin-dialog pack
 pnpm --filter kasumi-plugin-clipboard pack
+pnpm --filter kasumi-plugin-audio pack
+pnpm --filter kasumi-plugin-media-session pack
 pnpm --filter kasumi-plugin-notification pack
 pnpm --filter kasumi-plugin-window pack
 pnpm --filter kasumi-plugin-http pack

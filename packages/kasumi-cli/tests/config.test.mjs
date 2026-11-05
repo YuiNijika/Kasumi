@@ -544,6 +544,110 @@ test('selects the newest Android build-tools by numeric version', async () => {
   }
 });
 
+test('loads an extension manifest into the command allowlist', async () => {
+ const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+ try {
+ const manifestPath = path.join(temporaryRoot, 'library.extension.json');
+ await writeFile(
+ manifestPath,
+ JSON.stringify({
+ id: 'library',
+ commands: [
+ {
+ name: 'app.library.scan.start',
+ platforms: ['windows', 'android'],
+ permissions: ['fs.read'],
+ args: { type: 'object', properties: {}, required: [] },
+ result: { type: 'object', properties: {}, required: [] }
+ }
+ ],
+ events: [
+ {
+ name: 'app.library.scan.progress',
+ platforms: ['windows', 'android'],
+ payload: { type: 'object', properties: {}, required: [] }
+ }
+ ]
+ }),
+ 'utf8'
+ );
+ await writeFile(
+ path.join(temporaryRoot, 'kasumi.config.json'),
+ JSON.stringify({
+ extensions: [
+ { id: 'library', manifest: 'library.extension.json', platforms: ['windows', 'android'] }
+ ],
+ windows: {
+ packageName: 'sample-app',
+ version: '0.1.0',
+ commands: ['ping', 'capabilities.query', 'app.library.scan.start']
+ },
+ android: {
+ packageName: 'dev.kasumi.sample',
+ version: '0.1.0',
+ commands: ['ping', 'capabilities.query', 'app.library.scan.start']
+ }
+ }),
+ 'utf8'
+ );
+ const config = await readConfig(temporaryRoot, 'kasumi.config.json');
+ assert.deepEqual(config.windows.commands, [
+ 'ping',
+ 'capabilities.query',
+ 'app.library.scan.start'
+ ]);
+ assert.equal(config.extensions[0].events[0].name, 'app.library.scan.progress');
+ } finally {
+ await rm(temporaryRoot, { recursive: true, force: true });
+ }
+});
+
+test('rejects an extension command that exceeds its declared platforms', async () => {
+ const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+ try {
+ await writeFile(
+ path.join(temporaryRoot, 'library.extension.json'),
+ JSON.stringify({
+ id: 'library',
+ commands: [
+ {
+ name: 'app.library.scan.start',
+ platforms: ['windows', 'android'],
+ permissions: ['fs.read']
+ }
+ ],
+ events: []
+ }),
+ 'utf8'
+ );
+ await writeFile(
+ path.join(temporaryRoot, 'kasumi.config.json'),
+ JSON.stringify({
+ extensions: [
+ { id: 'library', manifest: 'library.extension.json', platforms: ['windows'] }
+ ],
+ windows: {
+ packageName: 'sample-app',
+ version: '0.1.0',
+ commands: ['ping', 'capabilities.query']
+ },
+ android: {
+ packageName: 'dev.kasumi.sample',
+ version: '0.1.0',
+ commands: ['ping', 'capabilities.query']
+ }
+ }),
+ 'utf8'
+ );
+ await assert.rejects(
+ readConfig(temporaryRoot, 'kasumi.config.json'),
+ /platforms exceeds the extension platform list/
+ );
+ } finally {
+ await rm(temporaryRoot, { recursive: true, force: true });
+ }
+});
+
 test('loads a valid application configuration', async () => {
   const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
   try {
@@ -766,8 +870,14 @@ test('expands all to the platform command matrix', async () => {
       'utf8'
     );
     const config = await readConfig(temporaryRoot, 'kasumi.config.json');
-    assert.equal(config.windows.commands.length, 62);
-    assert.equal(config.android.commands.length, 55);
+ const commandData = JSON.parse(
+ await readFile(
+ path.join(repositoryRoot, 'packages', 'kasumi-cli', 'data', 'commands.json'),
+ 'utf8'
+ )
+ );
+ assert.equal(config.windows.commands.length, commandData.windows.length);
+ assert.equal(config.android.commands.length, commandData.android.length);
     assert.equal(config.windows.commands.includes('device.getInfo'), false);
     assert.equal(config.android.commands.includes('device.getInfo'), true);
   } finally {

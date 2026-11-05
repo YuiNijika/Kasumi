@@ -1,3 +1,3 @@
 export * from 'kasumi-bridge/http';
-export type { KSMHttpApi, KSMHttpDownloadResult } from 'kasumi-bridge';
+export type { KSMHttpApi, KSMHttpCookie, KSMHttpDownloadResult, KSMHttpRequestArgs, KSMHttpResponse, KSMHttpTransferProgressPayload } from 'kasumi-bridge';
 export declare const PLUGIN_ID: "http";

@@ -20,6 +20,7 @@
 #include "../platform/ksm_url_policy.h"
 #include "../platform/ksm_virtual_path.h"
 #include "../plugins/ksm_dialog_plugin.h"
+#include "../plugins/ksm_capability_plugin.h"
 #include "../plugins/ksm_filesystem_plugin.h"
 #include "../plugins/ksm_sql_plugin.h"
 #include "ksm_version.h"
@@ -208,6 +209,9 @@ std::vector<std::shared_ptr<KSMPlugin>> BuildPlugins(
     }
 
     auto plugins = KSMDefaultPlugins();
+    plugins.push_back(
+        std::make_shared<KSMCapabilityPlugin>(KSMCapabilityCommands())
+    );
     plugins.erase(
         std::remove_if(
             plugins.begin(),
@@ -247,10 +251,12 @@ KSMRouter::KSMRouter(
     std::shared_ptr<KSMHostServices> host_services,
     std::vector<std::string> allowed_commands,
     std::vector<std::string> allowed_permissions,
-    std::vector<std::shared_ptr<KSMPlugin>> plugins
+    std::vector<std::shared_ptr<KSMPlugin>> plugins,
+    std::string window_id
 )
     : file_system_(std::move(file_system)),
       host_services_(std::move(host_services)),
+      window_id_(std::move(window_id)),
       plugin_registry_(BuildPlugins(std::move(plugins))) {
     supported_commands_ = KSMCommandRegistry::SupportedCommands(
         allowed_commands
@@ -270,6 +276,7 @@ KSMRouter::KSMRouter(
             AppendUnique(supported_commands_, command);
         }
     }
+    capability_events_ = KSMCapabilityEvents();
     const std::set<std::string> available_permissions(
         KSMGeneratedContract::Permissions().begin(),
         KSMGeneratedContract::Permissions().end()
@@ -290,13 +297,13 @@ KSMRouter::KSMRouter(
     const auto& command_permissions =
         KSMGeneratedContract::CommandPermissions();
     for (const auto& command : supported_commands_) {
-        const bool is_generated = Contains(
+        const bool generated_command = Contains(
             KSMGeneratedContract::Commands(),
             command
         );
         std::vector<std::string> required_permissions;
         if (
-            is_generated &&
+            generated_command &&
             command_permissions.contains(command) &&
             command_permissions.at(command).is_array()
         ) {
@@ -332,7 +339,7 @@ const std::vector<std::string>& KSMRouter::SupportedCommands() const {
 
 void KSMRouter::CancelRequest(const std::string& request_id) {
     if (host_services_) {
-        host_services_->CancelRequest(request_id);
+        host_services_->CancelRequestWithScope(request_id);
     }
 }
 
@@ -361,6 +368,25 @@ void KSMRouter::EmitEvent(
         {"event", event},
         {"payload", payload}
     }.dump());
+}
+
+bool KSMRouter::EmitPluginEvent(
+    const std::string& event,
+    const Json& payload,
+    const ResponseSender& send_response
+) const {
+    {
+        std::lock_guard lock(state_mutex_);
+        if (subscribed_events_.find(event) == subscribed_events_.end()) {
+            return false;
+        }
+    }
+    send_response(Json{
+        {"type", "event"},
+        {"event", event},
+        {"payload", payload}
+    }.dump());
+    return true;
 }
 
 void KSMRouter::EmitSystemEvent(
@@ -437,8 +463,10 @@ void KSMRouter::HandleMessage(
 
         const auto& known_commands = KSMGeneratedContract::Commands();
         const bool generated_command = Contains(known_commands, command);
+        const bool capability_command = KSMIsCapabilityCommand(command);
         if (
             !generated_command &&
+            !capability_command &&
             !plugin_registry_.OwnsCommand(command)
         ) {
             SendError(
@@ -595,7 +623,13 @@ void KSMRouter::HandleMessage(
             }
             const std::string event = args.at("event").get<std::string>();
             const auto& known_events = KSMGeneratedContract::Events();
-            if (std::find(known_events.begin(), known_events.end(), event) == known_events.end()) {
+            const bool known = std::find(
+                known_events.begin(),
+                known_events.end(),
+                event
+            ) != known_events.end() ||
+                Contains(capability_events_, event);
+            if (!known) {
                 SendError(id, "INVALID_ARGS", "event is not registered.", send_response);
                 return;
             }
@@ -758,7 +792,7 @@ void KSMRouter::HandleMessage(
             return;
         }
 
-        if (plugin_registry_.OwnsCommand(command)) {
+        if (capability_command) {
             const auto data = plugin_registry_.Handle(
                 command,
                 args,
@@ -770,13 +804,27 @@ void KSMRouter::HandleMessage(
                     },
                     .request_id = id.is_string()
                         ? id.get<std::string>()
-                        : std::string()
+                        : std::string(),
+                    .window_id = window_id_.empty() ? "default" : window_id_,
+                    .emit_event = [this, &send_response](
+                        const std::string& event,
+                        const Json& payload
+                    ) {
+                        return EmitPluginEvent(event, payload, send_response);
+                    }
                 }
             );
             if (data) {
                 SendSuccess(id, *data, send_response);
                 return;
             }
+            SendError(
+                id,
+                "NOT_SUPPORTED",
+                "The command is not implemented on this host.",
+                send_response
+            );
+            return;
         }
 
         if (command == "fs.readDir" ||

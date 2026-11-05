@@ -1,0 +1,150 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://kasumi.dev/schema/extension.schema.json",
+ "title": "Kasumi application extension manifest",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["id", "commands", "events"],
+ "properties": {
+ "id": {
+ "type": "string",
+ "pattern": "^[a-z0-9][a-z0-9-]*$"
+ },
+ "commands": {
+ "type": "array",
+ "items": {
+ "$ref": "#/$defs/command"
+ }
+ },
+ "events": {
+ "type": "array",
+ "items": {
+ "$ref": "#/$defs/event"
+ }
+ }
+ },
+ "$defs": {
+ "platforms": {
+ "type": "array",
+ "minItems":1,
+ "uniqueItems": true,
+ "items": {
+ "enum": ["windows", "android"]
+ }
+ },
+ "schema": {
+ "type": "object",
+ "properties": {
+ "type": {
+ "oneOf": [
+ {
+ "enum": [
+ "object",
+ "array",
+ "string",
+ "number",
+ "integer",
+ "boolean",
+ "null"
+ ]
+ },
+ {
+ "type": "array",
+ "minItems":1,
+ "uniqueItems": true,
+ "items": {
+ "enum": [
+ "object",
+ "array",
+ "string",
+ "number",
+ "integer",
+ "boolean",
+ "null"
+ ]
+ }
+ }
+ ]
+ },
+ "properties": {
+ "type": "object",
+ "additionalProperties": {
+ "$ref": "#/$defs/schema"
+ }
+ },
+ "required": {
+ "type": "array",
+ "uniqueItems": true,
+ "items": {
+ "type": "string"
+ }
+ },
+ "additionalProperties": {
+ "type": "boolean"
+ },
+ "items": {
+ "$ref": "#/$defs/schema"
+ },
+ "enum": {
+ "type": "array",
+ "minItems":1
+ },
+ "const": {},
+ "minLength": {
+ "type": "integer",
+ "minimum":0
+ },
+ "maxBytes": {
+ "type": "integer",
+ "minimum":1
+ }
+ },
+ "additionalProperties": false
+ },
+ "command": {
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["name", "platforms"],
+ "properties": {
+ "name": {
+ "type": "string",
+ "pattern": "^app\\.[a-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*)+$"
+ },
+ "platforms": {
+ "$ref": "#/$defs/platforms"
+ },
+ "permissions": {
+ "type": "array",
+ "uniqueItems": true,
+ "items": {
+ "type": "string",
+ "minLength":1
+ }
+ },
+ "args": {
+ "$ref": "#/$defs/schema"
+ },
+ "result": {
+ "$ref": "#/$defs/schema"
+ }
+ }
+ },
+ "event": {
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["name", "platforms"],
+ "properties": {
+ "name": {
+ "type": "string",
+ "pattern": "^app\\.[a-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*)+$"
+ },
+ "platforms": {
+ "$ref": "#/$defs/platforms"
+ },
+ "payload": {
+ "$ref": "#/$defs/schema"
+ }
+ }
+ }
+ }
+}

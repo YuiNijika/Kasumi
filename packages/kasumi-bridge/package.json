@@ -1,6 +1,6 @@
 {
   "name": "kasumi-bridge",
-  "version": "26.11.5",
+  "version": "26.11.6",
   "description": "TypeScript frontend bridge for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -65,6 +65,26 @@
     "./appInstance": {
       "types": "./dist/api/appInstance.d.ts",
       "import": "./dist/api/appInstance.js"
+    },
+    "./audio": {
+      "types": "./dist/api/audio.d.ts",
+      "import": "./dist/api/audio.js"
+    },
+    "./deepLinks": {
+      "types": "./dist/api/deepLinks.d.ts",
+      "import": "./dist/api/deepLinks.js"
+    },
+    "./devtools": {
+      "types": "./dist/api/devtools.d.ts",
+      "import": "./dist/api/devtools.js"
+    },
+    "./media": {
+      "types": "./dist/api/media.d.ts",
+      "import": "./dist/api/media.js"
+    },
+    "./mediaSession": {
+      "types": "./dist/api/mediaSession.d.ts",
+      "import": "./dist/api/mediaSession.js"
     },
     "./updater": {
       "types": "./dist/api/updater.d.ts",

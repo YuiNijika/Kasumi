@@ -1,5 +1,30 @@
 import { KSM } from '../bridge/ksm.js';
-import { assertString } from './guards.js';
+import { assertBoolean, assertString, assertStringArray } from './guards.js';
+import type {
+  KSMDirectoryFilter,
+  KSMOpenFilesArgs,
+  KSMOpenFilesResult,
+  KSMOpenFolderArgs,
+  KSMOpenFolderResult
+} from '../bridge/types.js';
+
+function assertFilters(
+  value: KSMDirectoryFilter | undefined,
+  field: string
+): void {
+  if (value === undefined) {
+    return;
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError(`${field} must be an object.`);
+  }
+  if (value.extensions !== undefined) {
+    assertStringArray(value.extensions, `${field}.extensions`, 128);
+  }
+  if (value.mimeTypes !== undefined) {
+    assertStringArray(value.mimeTypes, `${field}.mimeTypes`, 128);
+  }
+}
 
 export function message(args: { title: string; message: string }): Promise<{ confirmed: boolean }> {
   assertString(args.title, 'title');
@@ -27,4 +52,23 @@ export function saveFile(args: { suggestedName?: string } = {}): Promise<{ file:
     assertString(args.suggestedName, 'suggestedName');
   }
   return KSM.invoke('dialog.saveFile', args);
+}
+
+export function openFolder(
+  args: KSMOpenFolderArgs = {}
+): Promise<KSMOpenFolderResult> {
+  if (args.persist !== undefined) {
+    assertBoolean(args.persist, 'persist');
+  }
+  assertFilters(args.filters, 'filters');
+  return KSM.invoke('dialog.openFolder', args, 60000);
+}
+
+export function openFiles(
+  args: KSMOpenFilesArgs = {}
+): Promise<KSMOpenFilesResult> {
+  if (args.filters !== undefined) {
+    assertStringArray(args.filters, 'filters', 128);
+  }
+  return KSM.invoke('dialog.openFiles', args, 60000);
 }

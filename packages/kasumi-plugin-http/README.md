@@ -26,3 +26,7 @@ console.log(result.bytes);
 
 下载只接受 HTTPS 和可写虚拟路径。`overwrite` 默认关闭，取消和超时继续复用请求链路。
 `KSM.http` 继续作为兼容入口。
+
+通用请求、可取消传输和隔离 CookieJar 使用 `request`、`startTransfer` 和
+`cookies`。`onTransferProgress`、`onTransferCompleted` 与
+`onTransferFailed` 订阅传输事件。

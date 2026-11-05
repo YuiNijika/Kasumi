@@ -21,3 +21,6 @@ await hide();
 ```
 
 当前仅在 Windows 宿主提供支持。
+
+`configure` 设置图标、提示和菜单项；`onAction` 与 `onClick` 订阅托盘交互。
+宿主必须返回真实状态，不能用占位成功代替未实现行为。

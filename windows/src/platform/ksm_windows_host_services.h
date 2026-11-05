@@ -5,6 +5,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <deque>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -78,21 +79,129 @@ public:
         bool overwrite,
         const std::string& request_id
     ) override;
+    bool IsHttpRequestUrlAllowed(const std::string& url) const override;
+    std::optional<KSMHttpResponse> HttpRequest(
+        const KSMHttpRequestSpec& request,
+        const std::string& request_id
+    ) override;
+    std::optional<KSMHttpTransferStart> StartHttpTransfer(
+        const KSMHttpTransferSpec& request,
+        const std::string& request_id
+    ) override;
+    bool CancelHttpTransfer(const std::string& transfer_id) override;
+    std::optional<std::vector<KSMCookie>> GetCookies(
+        const std::string& jar_id,
+        const std::string& url
+    ) override;
+    bool SetCookies(
+        const std::string& jar_id,
+        const std::string& url,
+        const std::vector<KSMCookie>& cookies
+    ) override;
+    bool ClearCookies(
+        const std::string& jar_id,
+        const std::string& url
+    ) override;
+    std::optional<KSMFileScope> OpenFolder(
+        const std::vector<std::string>& filters
+    ) override;
+    std::optional<KSMFileScope> OpenFiles(
+        const std::vector<std::string>& filters
+    ) override;
+    std::optional<std::vector<KSMWalkEntry>> Walk(
+        const std::string& path,
+        const std::string& request_id
+    ) override;
+    bool ReleaseScope(const std::string& id) override;
+    std::optional<KSMMediaProbe> ProbeMedia(
+        const std::string& path
+    ) override;
+    std::optional<KSMExternalTool> DetectExternalTool(
+        const std::string& name
+    ) override;
+    std::optional<KSMExternalTool> ValidateExternalTool(
+        const std::string& path
+    ) override;
+    bool SetExternalToolPath(
+        const std::string& name,
+        const std::string& path
+    ) override;
+    std::optional<std::string> PickExternalTool(
+        const std::string& name
+    ) override;
     bool IsExternalUrlAllowed(const std::string& url) const override;
     bool OpenExternal(const std::string& url) override;
     bool OpenPath(const std::string& path) override;
     bool ShowInFolder(const std::string& path) override;
     bool IsPrimaryInstance() const override;
     bool FocusMainWindow() override;
+    bool ConfigureTray(const KSMTrayConfig& config) override;
     bool TrayShow() override;
     bool TrayHide() override;
     bool RegisterGlobalShortcut(const std::string& shortcut) override;
     bool UnregisterGlobalShortcut(const std::string& shortcut) override;
+    bool InstallUpdate(
+        const std::string& package_path,
+        const std::string& expected_hash,
+        const std::string& signature,
+        const std::string& request_id
+    ) override;
+    std::optional<std::string> TakePendingDeepLink() override;
+    bool OpenDevtools(bool enabled) override;
+    bool DispatchSystemMessage(
+        unsigned int message,
+        std::uintptr_t wparam
+    ) override;
+    void SetEventDispatcher(
+        std::function<void(const std::string&, const std::string&)> dispatcher
+    ) override;
+    void PushDeepLink(const std::string& url) override;
     bool CheckUpdate(
         bool& available,
         std::string& version
     ) override;
     bool DownloadUpdate(const std::string& version) override;
+    std::optional<std::vector<KSMAudioDevice>> AudioDevices() const override;
+    bool SetAudioDevice(const std::string& id) override;
+    bool SetExclusiveAudioOutput(bool exclusive) override;
+    bool SetAudioEqualizer(const std::vector<double>& gains) override;
+    bool SetAudioSpeed(double speed) override;
+    bool SetAudioVolume(double volume) override;
+    std::optional<KSMAudioProbe> ProbeAudio(const std::string& path) override;
+    bool LoadAudio(const std::string& path) override;
+    bool SetAudioPlayback(bool playing) override;
+    bool SeekAudio(std::int64_t position_ms) override;
+    std::optional<KSMAudioState> GetAudioState() const override;
+    bool UpdateMediaSession(
+        const KSMMediaSessionMetadata& metadata
+    ) override;
+    bool ClearMediaSession() override;
+    std::optional<std::string> CreateWindow(
+        const std::string& route,
+        const KSMWindowState& state
+    ) override;
+    bool ShowWindowById(const std::string& window_id, bool visible) override;
+    bool SetWindowPosition(
+        const std::string& window_id,
+        int x,
+        int y
+    ) override;
+    bool SetWindowAlwaysOnTop(
+        const std::string& window_id,
+        bool enabled
+    ) override;
+    bool SetWindowTransparent(
+        const std::string& window_id,
+        bool enabled
+    ) override;
+    std::optional<KSMWindowState> GetWindowState(
+        const std::string& window_id
+    ) const override;
+    bool EmitWindowEvent(
+        const std::string& window_id,
+        const std::string& event,
+        const std::string& payload
+    ) override;
     bool SetWindowSize(const KSMWindowSize& size) override;
     std::optional<KSMDeviceInfo> GetDeviceInfo() const override;
     std::optional<KSMOperatingSystemInfo>
@@ -103,6 +212,7 @@ public:
         const std::string& message
     ) override;
     void CancelRequest(const std::string& request_id) override;
+    void CancelRequestWithScope(const std::string& request_id) override;
 
 #if defined(KASUMI_ENABLE_TEST_HOOKS)
     void SetDownloadTestGate(std::function<void()> gate) {
@@ -118,6 +228,20 @@ private:
         HINTERNET connect = nullptr;
         HINTERNET request = nullptr;
         std::atomic<bool> cancelled{false};
+    };
+
+    struct FileScopeState {
+        std::filesystem::path root;
+        std::vector<std::filesystem::path> files;
+    };
+
+    struct TransferState {
+        std::mutex mutex;
+        HINTERNET session = nullptr;
+        HINTERNET connect = nullptr;
+        HINTERNET request = nullptr;
+        std::atomic<bool> cancelled{false};
+        std::string request_id;
     };
 
     std::optional<std::string> RegisterPicked(
@@ -136,6 +260,19 @@ private:
     bool IsDownloadCancelled(
         const std::shared_ptr<DownloadState>& state
     ) const;
+    std::optional<FileScopeState> ResolveScope(
+        const std::string& path
+    ) const;
+    std::optional<std::filesystem::path> ResolveScopeFile(
+        const std::string& path
+    ) const;
+    void CloseTransferHandles(
+        const std::shared_ptr<TransferState>& state
+    );
+    void DispatchCapabilityEvent(
+        const std::string& event,
+        const std::string& payload
+    );
 
     HWND window_;
     std::shared_ptr<KSMFileSystem> file_system_;
@@ -149,6 +286,27 @@ private:
     std::mutex picker_mutex_;
     mutable std::mutex download_mutex_;
     std::unordered_map<std::string, std::shared_ptr<DownloadState>> downloads_;
+    mutable std::mutex capability_mutex_;
+    std::unordered_map<std::string, FileScopeState> scopes_;
+    std::unordered_map<std::string, std::vector<KSMCookie>> cookie_jars_;
+    std::unordered_map<std::string, std::shared_ptr<TransferState>> transfers_;
+    std::unordered_map<std::string, std::string> external_tools_;
+    std::deque<std::string> pending_deep_links_;
+    std::set<std::string> hotkeys_;
+    std::unordered_map<int, std::string> hotkey_ids_;
+    std::vector<KSMTrayMenuItem> tray_items_;
+    mutable std::mutex audio_mutex_;
+    std::string audio_source_;
+    std::optional<std::int64_t> audio_duration_ms_;
+    double audio_volume_ = 1.0;
+    double audio_speed_ = 1.0;
+    bool audio_loaded_ = false;
+    bool audio_playing_ = false;
+    bool tray_visible_ = false;
+    bool devtools_open_ = false;
+    void* single_instance_mutex_ = nullptr;
+    std::function<void(const std::string&, const std::string&)> event_dispatcher_;
+    std::uint64_t next_capability_id_ = 1;
 #if defined(KASUMI_ENABLE_TEST_HOOKS)
     std::mutex download_test_gate_mutex_;
     std::function<void()> download_test_gate_;

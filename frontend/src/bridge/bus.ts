@@ -155,6 +155,10 @@ export class KSMBus {
     return [...this.subscribedEvents];
   }
 
+  public eventListenerCount(event: string): number {
+    return this.eventListeners.get(event)?.size ?? 0;
+  }
+
   private resolveResponse(response: KSMResponse<unknown>): void {
     const pending = this.pending.get(response.id);
     if (!pending) {

@@ -229,7 +229,8 @@ KSMWebViewHost::KSMWebViewHost(
     std::vector<std::string> allowed_commands,
     bool allow_development_origin,
     std::vector<std::shared_ptr<KSMPlugin>> plugins,
-    std::vector<std::string> allowed_permissions
+    std::vector<std::string> allowed_permissions,
+    std::string window_id
 )
     : send_message_(std::move(send_message)),
       dispatch_(std::move(dispatch)),
@@ -238,8 +239,10 @@ KSMWebViewHost::KSMWebViewHost(
           std::move(host_services),
           allowed_commands,
           std::move(allowed_permissions),
-          std::move(plugins)
+          std::move(plugins),
+          window_id
       ),
+      window_id_(std::move(window_id)),
       allow_development_origin_(allow_development_origin) {}
 
 KSMWebViewHost::~KSMWebViewHost() {

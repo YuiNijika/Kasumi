@@ -27,7 +27,8 @@ public:
         std::shared_ptr<KSMHostServices> host_services,
         std::vector<std::string> allowed_commands,
         std::vector<std::string> allowed_permissions,
-        std::vector<std::shared_ptr<KSMPlugin>> plugins
+        std::vector<std::shared_ptr<KSMPlugin>> plugins,
+        std::string window_id = {}
     );
     void HandleMessage(const std::string& message, const ResponseSender& send_response);
     void EmitEvent(
@@ -45,13 +46,20 @@ public:
 
 private:
     bool HasPermission(const std::string& permission) const;
+    bool EmitPluginEvent(
+        const std::string& event,
+        const nlohmann::json& payload,
+        const ResponseSender& send_response
+    ) const;
 
     std::shared_ptr<KSMFileSystem> file_system_;
     std::shared_ptr<KSMHostServices> host_services_;
     std::vector<std::string> supported_commands_;
     std::vector<std::string> capability_commands_;
     std::vector<std::string> plugin_ids_;
+    std::vector<std::string> capability_events_;
     KSMPluginRegistry plugin_registry_;
+    std::string window_id_;
     mutable std::mutex state_mutex_;
     std::set<std::string> granted_permissions_;
     std::set<std::string> subscribed_events_;

@@ -96,6 +96,7 @@ public:
 
   HWND window() const noexcept;
   RECT bounds() const noexcept;
+  void DispatchSystemMessage(unsigned int message, std::uintptr_t wparam);
   bool is_initialized() const noexcept;
   bool is_visible() const noexcept;
   bool fills_parent() const noexcept;

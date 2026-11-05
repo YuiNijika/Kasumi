@@ -29,7 +29,8 @@ public:
         std::vector<std::string> allowed_commands = {},
         bool allow_development_origin = false,
         std::vector<std::shared_ptr<KSMPlugin>> plugins = {},
-        std::vector<std::string> allowed_permissions = {}
+        std::vector<std::string> allowed_permissions = {},
+        std::string window_id = {}
     );
     ~KSMWebViewHost();
 
@@ -84,6 +85,7 @@ private:
     SendMessage send_message_;
     Dispatch dispatch_;
     KSMRouter router_;
+    std::string window_id_;
     bool allow_development_origin_ = false;
     std::shared_ptr<RuntimeState> runtime_state_ =
         std::make_shared<RuntimeState>();

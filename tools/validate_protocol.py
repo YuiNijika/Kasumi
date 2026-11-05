@@ -328,8 +328,10 @@ def validate_contract(
     validate_plugins(plugins, commands, set(permission_properties))
 
     errors = require_object(errors, "errors.json")
-    if set(errors) != REQUIRED_ERROR_CODES:
-        raise ValueError("errors.json must contain the complete standard error set.")
+    if not REQUIRED_ERROR_CODES.issubset(errors):
+     raise ValueError(
+     "errors.json must contain the complete standard error set."
+     )
     if any(not isinstance(message, str) or not message for message in errors.values()):
         raise ValueError("errors.json messages must be non-empty strings.")
 

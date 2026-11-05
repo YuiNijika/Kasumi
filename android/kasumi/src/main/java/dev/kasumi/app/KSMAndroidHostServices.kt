@@ -12,9 +12,14 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.media.MediaMetadataRetriever
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.provider.Settings
@@ -23,8 +28,32 @@ import android.system.Os
 import android.system.OsConstants
 import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.documentfile.provider.DocumentFile
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
 import dev.kasumi.app.bridge.KSMDirectoryEntry
+import dev.kasumi.app.bridge.KSMCookie
 import dev.kasumi.app.bridge.KSMDeviceInfo
+import dev.kasumi.app.bridge.KSMAudioDevice
+import dev.kasumi.app.bridge.KSMAudioProbe
+import dev.kasumi.app.bridge.KSMAudioState
+import dev.kasumi.app.bridge.KSMFileScope
+import dev.kasumi.app.bridge.KSMHttpHeader
+import dev.kasumi.app.bridge.KSMHttpRequestSpec
+import dev.kasumi.app.bridge.KSMHttpResponse
+import dev.kasumi.app.bridge.KSMHttpTransferSpec
+import dev.kasumi.app.bridge.KSMMediaProbe
+import dev.kasumi.app.bridge.KSMMediaSessionMetadata
+import dev.kasumi.app.bridge.KSMTrayConfig
+import dev.kasumi.app.bridge.KSMWindowState
+import dev.kasumi.app.bridge.KSMWalkEntry
+import dev.kasumi.app.bridge.KSMExternalTool
 import dev.kasumi.app.bridge.KSMFileKind
 import dev.kasumi.app.bridge.KSMFileMetadata
 import dev.kasumi.app.bridge.KSMFileSystem
@@ -40,7 +69,10 @@ import dev.kasumi.app.bridge.KSMSqlQueryResult
 import dev.kasumi.app.bridge.KSMSqliteDriver
 import dev.kasumi.app.bridge.KSMVirtualPath
 import dev.kasumi.app.internal.KSMVersionMetadata
+import dev.kasumi.app.media.KSMMediaSessionRegistry
+import dev.kasumi.app.media.KSMMediaSessionService
 import java.io.ByteArrayOutputStream
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -49,6 +81,7 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -68,6 +101,8 @@ class KSMAndroidHostServices(
         const val REQUEST_OPEN_FILE = 1001
         const val REQUEST_SAVE_FILE = 1002
         const val REQUEST_NOTIFICATION_PERMISSION = 1003
+        const val REQUEST_OPEN_FOLDER = 1004
+        const val REQUEST_OPEN_FILES = 1005
 
         private const val CHANNEL_ID = "kasumi"
         private const val DIALOG_TIMEOUT_SECONDS = 60L
@@ -76,6 +111,8 @@ class KSMAndroidHostServices(
         private const val DOWNLOAD_TOTAL_TIMEOUT_MS = 120000L
         private const val MAX_DOWNLOAD_BYTES = 100L * 1024L * 1024L
         private const val MAX_REDIRECTS = 5
+        private const val MAX_INLINE_RESPONSE_BYTES = 60 * 1024
+        private const val MAX_HTTP_RESPONSE_BYTES = 100L * 1024L * 1024L
         private val nextNotificationId = AtomicInteger(1)
         private val nextPickedId = AtomicInteger(1)
     }
@@ -93,6 +130,21 @@ class KSMAndroidHostServices(
         val result: AtomicReference<String?> = AtomicReference(null)
     )
 
+    private data class PendingUris(
+        val latch: CountDownLatch,
+        val result: AtomicReference<List<String>> = AtomicReference(emptyList())
+    )
+
+    private data class FileScopeState(
+        val root: Uri,
+        val files: List<Uri>
+    )
+
+    private data class TransferState(
+        val cancelled: AtomicBoolean = AtomicBoolean(false),
+        val connection: AtomicReference<HttpsURLConnection?> = AtomicReference()
+    )
+
     private data class PendingPermission(
         val latch: CountDownLatch,
         val result: AtomicBoolean = AtomicBoolean(false)
@@ -100,12 +152,26 @@ class KSMAndroidHostServices(
 
     private var pendingOpenFile: PendingUri? = null
     private var pendingSaveFile: PendingUri? = null
+    private var pendingOpenFolder: PendingUri? = null
+    private var pendingOpenFiles: PendingUris? = null
     private var pendingPermission: PendingPermission? = null
     private val pickedFiles = mutableMapOf<String, Uri>()
     private val allowedOrigins = KSMHttpPolicy.normalizeOrigins(allowedExternalOrigins)
     private val allowedHttpOrigins =
         KSMHttpPolicy.normalizeOrigins(allowedHttpOrigins)
     private val activeDownloads = ConcurrentHashMap<String, DownloadSession>()
+    private val cookieJars = ConcurrentHashMap<String, MutableList<KSMCookie>>()
+    private val fileScopes = ConcurrentHashMap<String, FileScopeState>()
+    private val activeTransfers = ConcurrentHashMap<String, TransferState>()
+    private val externalTools = ConcurrentHashMap<String, String>()
+    private val pendingDeepLinks = ArrayDeque<String>()
+    private val cancelledRequests = ConcurrentHashMap.newKeySet<String>()
+    private val capabilityExecutor: ExecutorService =
+        Executors.newCachedThreadPool { task ->
+            Thread(task, "kasumi-capability").apply { isDaemon = true }
+        }
+    private var eventDispatcher: (String, String) -> Unit = { _, _ -> }
+    private var nextCapabilityId = AtomicInteger(1)
     private val sqlDriverRegistry = KSMSqlDriverRegistry().apply {
         register(KSMSqliteDriver(fileSystem))
     }
@@ -113,6 +179,60 @@ class KSMAndroidHostServices(
         Thread(task, "kasumi-download-watchdog").apply {
             isDaemon = true
         }
+    }
+    private val audioPlayer: ExoPlayer = ExoPlayer.Builder(activity)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .build(),
+            true
+        )
+        .build()
+    private val audioSession = MediaSession.Builder(activity, audioPlayer).build()
+    private val audioHandler = Handler(Looper.getMainLooper())
+    private var audioSource: String? = null
+    private var audioVolume = 1.0
+    private var audioSpeed = 1.0
+    private var audioTickTask: ScheduledFuture<*>? = null
+
+    init {
+        KSMMediaSessionRegistry.player = audioPlayer
+        KSMMediaSessionRegistry.session = audioSession
+        audioPlayer.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                dispatchAudioState()
+                if (isPlaying) {
+                    startAudioTicks()
+                } else {
+                    stopAudioTicks()
+                }
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    eventDispatcher(
+                        "audio.ended",
+                        org.json.JSONObject()
+                            .put("source", audioSource ?: org.json.JSONObject.NULL)
+                            .toString()
+                    )
+                    dispatchAudioState()
+                    stopAudioTicks()
+                }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                eventDispatcher(
+                    "audio.error",
+                    org.json.JSONObject()
+                        .put("code", "MEDIA_UNSUPPORTED")
+                        .put("message", error.message ?: "Audio playback failed.")
+                        .put("source", audioSource ?: org.json.JSONObject.NULL)
+                        .toString()
+                )
+            }
+        })
     }
 
     override fun appVersion(): String {
@@ -661,7 +781,19 @@ class KSMAndroidHostServices(
 
     override fun cancelRequest(requestId: String) {
         activeDownloads[requestId]?.let(::cancelDownload)
+        activeTransfers.entries.filter {
+            it.key == requestId || it.key.endsWith(":$requestId")
+        }.forEach { (_, state) -> cancelTransfer(state) }
         sqlDriverRegistry.cancel(requestId)
+    }
+
+    override fun cancelRequestWithScope(requestId: String) {
+        cancelledRequests.add(requestId)
+        cancelRequest(requestId)
+    }
+
+    override fun isRequestCancelled(requestId: String): Boolean {
+        return cancelledRequests.contains(requestId)
     }
 
     fun cancelAllDownloads() {
@@ -677,7 +809,23 @@ class KSMAndroidHostServices(
 
     fun shutdown() {
         cancelAllDownloads()
+        activeTransfers.values.forEach(::cancelTransfer)
         activeDownloads.clear()
+        activeTransfers.clear()
+        cancelledRequests.clear()
+        stopAudioTicks()
+        stopMediaSessionService()
+        runOnAudioThread {
+            if (KSMMediaSessionRegistry.session === audioSession) {
+                KSMMediaSessionRegistry.session = null
+            }
+            if (KSMMediaSessionRegistry.player === audioPlayer) {
+                KSMMediaSessionRegistry.player = null
+            }
+            audioSession.release()
+            audioPlayer.release()
+        }
+        capabilityExecutor.shutdownNow()
         downloadWatchdog.shutdownNow()
         sqlDriverRegistry.closeAll()
         synchronized(this) {
@@ -688,7 +836,783 @@ class KSMAndroidHostServices(
             pendingSaveFile = null
             pendingPermission = null
             pickedFiles.clear()
+            pendingDeepLinks.clear()
         }
+    }
+
+    override fun setEventDispatcher(
+        dispatcher: (event: String, payload: String) -> Unit
+    ) {
+        eventDispatcher = dispatcher
+    }
+
+    override fun pushDeepLink(url: String) {
+        synchronized(this) {
+            pendingDeepLinks.addLast(url)
+        }
+        eventDispatcher(
+            "app.deepLink.received",
+            org.json.JSONObject().put("url", url).toString()
+        )
+    }
+
+    override fun isHttpRequestUrlAllowed(url: String): Boolean {
+        return KSMHttpPolicy.isAllowedDownloadUrl(url, allowedHttpOrigins)
+    }
+
+    override fun httpRequest(
+        request: KSMHttpRequestSpec,
+        requestId: String?
+    ): KSMHttpResponse? {
+        val initial = KSMHttpPolicy.parseHttpUrl(request.url, httpsOnly = true)
+            ?: throw KSMHostException("INVALID_ARGS", "url must use HTTPS.")
+        if (
+            request.method != "GET" && request.method != "POST" ||
+            request.body.toByteArray(Charsets.UTF_8).size > MAX_INLINE_RESPONSE_BYTES
+        ) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The request is not allowed."
+            )
+        }
+        val jarId = request.jarId
+        var current = initial
+        var redirects = 0
+        val deadline = System.nanoTime() +
+            TimeUnit.MILLISECONDS.toNanos(DOWNLOAD_TOTAL_TIMEOUT_MS)
+        while (true) {
+            if (System.nanoTime() >= deadline) {
+                throw KSMHostException("TIMEOUT", "The request timed out.")
+            }
+            if (requestId?.let(::isRequestCancelled) == true) {
+                throw KSMHostException("CANCELLED", "The request was cancelled.")
+            }
+            if (
+                !KSMHttpPolicy.isAllowedDownloadUrl(
+                    current.toString(),
+                    allowedHttpOrigins
+                ) ||
+                !KSMHttpPolicy.isPublicHost(current.host)
+            ) {
+                throw KSMHostException(
+                    "PERMISSION_DENIED",
+                    "The request origin is not allowlisted."
+                )
+            }
+            val connection = current.openConnection() as? HttpsURLConnection
+                ?: throw KSMHostException(
+                    "IO_ERROR",
+                    "The HTTPS connection failed."
+                )
+            connection.instanceFollowRedirects = false
+            connection.connectTimeout = DOWNLOAD_IO_TIMEOUT_MS
+            connection.readTimeout = DOWNLOAD_IO_TIMEOUT_MS
+            connection.requestMethod = request.method
+            connection.doInput = true
+            if (request.method == "POST") {
+                connection.doOutput = true
+            }
+            request.userAgent?.let {
+                connection.setRequestProperty("User-Agent", it)
+            }
+            request.referer?.let {
+                connection.setRequestProperty("Referer", it)
+            }
+            request.headers.forEach {
+                connection.setRequestProperty(it.name, it.value)
+            }
+            val jar = jarId?.let {
+                cookieJars.getOrPut(it) { mutableListOf() }
+            }
+            jar?.let {
+                synchronized(jar) {
+                    val cookie = jar.joinToString("; ") { cookie ->
+                        "${cookie.name}=${cookie.value}"
+                    }
+                    if (cookie.isNotEmpty()) {
+                        connection.setRequestProperty("Cookie", cookie)
+                    }
+                }
+            }
+            try {
+                if (request.method == "POST") {
+                    BufferedOutputStream(connection.outputStream).use { output ->
+                        output.write(request.body.toByteArray(Charsets.UTF_8))
+                    }
+                }
+                val status = connection.responseCode
+                if (status in 300..399) {
+                    if (redirects >= MAX_REDIRECTS) {
+                        throw KSMHostException(
+                            "IO_ERROR",
+                            "The request exceeded the redirect limit."
+                        )
+                    }
+                    val location = connection.getHeaderField("Location")
+                        ?: throw KSMHostException(
+                            "IO_ERROR",
+                            "The redirect did not include a location."
+                        )
+                    current = KSMHttpPolicy.resolveHttpsRedirect(current, location)
+                        ?: throw KSMHostException(
+                            "IO_ERROR",
+                            "The redirect did not use HTTPS."
+                        )
+                    redirects += 1
+                    continue
+                }
+                if (jar != null) {
+                    connection.headerFields.forEach { (name, values) ->
+                        if (name?.lowercase(Locale.ROOT) == "set-cookie") {
+                            values.forEach { value ->
+                                val pair = value.substringBefore(';')
+                                val separator = pair.indexOf('=')
+                                if (separator > 0) {
+                                    val cookie = KSMCookie(
+                                        pair.substring(0, separator),
+                                        pair.substring(separator + 1),
+                                        current.host,
+                                        current.path.ifEmpty { "/" },
+                                        value.contains(
+                                            "secure",
+                                            ignoreCase = true
+                                        ),
+                                        value.contains(
+                                            "httponly",
+                                            ignoreCase = true
+                                        )
+                                    )
+                                    synchronized(jar) {
+                                        jar.removeAll {
+                                            it.name == cookie.name &&
+                                                it.domain == cookie.domain
+                                        }
+                                        jar.add(cookie)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                val contentType = connection.contentType.orEmpty()
+                val headers = listOf(KSMHttpHeader("content-type", contentType))
+                val stagedPath = "app://tmp/http-${System.nanoTime()}.bin"
+                val target = fileSystem?.resolveWritableFile(stagedPath)
+                val body = ByteArrayOutputStream()
+                var total = 0L
+                val buffer = ByteArray(8192)
+                val input = if (status in 200..299) {
+                    connection.inputStream
+                } else {
+                    connection.errorStream
+                }
+                input?.use { source ->
+                    target?.outputStream()?.use { output ->
+                        while (true) {
+                            if (
+                                requestId?.let(::isRequestCancelled) == true ||
+                                System.nanoTime() >= deadline
+                            ) {
+                                throw KSMHostException(
+                                    "CANCELLED",
+                                    "The request was cancelled."
+                                )
+                            }
+                            val read = source.read(buffer)
+                            if (read < 0) {
+                                break
+                            }
+                            total += read
+                            if (total > MAX_HTTP_RESPONSE_BYTES) {
+                                throw KSMHostException(
+                                    "RESOURCE_LIMIT",
+                                    "The response exceeds the maximum size."
+                                )
+                            }
+                            if (
+                                body.size() + read <=
+                                MAX_INLINE_RESPONSE_BYTES
+                            ) {
+                                body.write(buffer, 0, read)
+                            }
+                            output.write(buffer, 0, read)
+                        }
+                    }
+                }
+                val staged = if (
+                    total > MAX_INLINE_RESPONSE_BYTES &&
+                    target != null
+                ) {
+                    stagedPath
+                } else {
+                    null
+                }
+                return KSMHttpResponse(
+                    status,
+                    headers,
+                    if (total <= MAX_INLINE_RESPONSE_BYTES) {
+                        body.toString(Charsets.UTF_8.name())
+                    } else {
+                        ""
+                    },
+                    staged,
+                    total
+                )
+            } catch (error: IOException) {
+                if (requestId?.let(::isRequestCancelled) == true) {
+                    throw KSMHostException(
+                        "CANCELLED",
+                        "The request was cancelled."
+                    )
+                }
+                throw KSMHostException(
+                    "IO_ERROR",
+                    error.message ?: "The request failed."
+                )
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
+
+    override fun startHttpTransfer(
+        request: KSMHttpTransferSpec,
+        requestId: String?
+    ): String? {
+        val transferId = "transfer-${nextCapabilityId.getAndIncrement()}"
+        val state = TransferState()
+        activeTransfers[transferId] = state
+        capabilityExecutor.execute {
+            try {
+                val response = httpRequest(
+                    KSMHttpRequestSpec(
+                        request.url,
+                        request.method,
+                        request.headers,
+                        request.body,
+                        request.jarId,
+                        request.userAgent,
+                        request.referer
+                    ),
+                    requestId
+                ) ?: throw KSMHostException(
+                    "NOT_SUPPORTED",
+                    "The transfer is not implemented on this host."
+                )
+                if (state.cancelled.get()) {
+                    throw KSMHostException(
+                        "CANCELLED",
+                        "The transfer was cancelled."
+                    )
+                }
+                eventDispatcher(
+                    "http.transfer.completed",
+                    org.json.JSONObject()
+                        .put("transferId", transferId)
+                        .put("status", response.status)
+                        .put("bytes", response.bytes)
+                        .put("file", response.file.orEmpty())
+                        .toString()
+                )
+            } catch (error: Exception) {
+                eventDispatcher(
+                    "http.transfer.failed",
+                    org.json.JSONObject()
+                        .put("transferId", transferId)
+                        .put("message", error.message.orEmpty())
+                        .toString()
+                )
+            } finally {
+                activeTransfers.remove(transferId, state)
+            }
+        }
+        return transferId
+    }
+
+    override fun cancelHttpTransfer(transferId: String): Boolean {
+        val state = activeTransfers[transferId] ?: return false
+        cancelTransfer(state)
+        return true
+    }
+
+    override fun getCookies(
+        jarId: String,
+        url: String
+    ): List<KSMCookie>? {
+        if (!isHttpRequestUrlAllowed(url) || jarId.isEmpty()) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The URL origin is not allowlisted."
+            )
+        }
+        val jar = cookieJars[jarId] ?: return emptyList()
+        return synchronized(jar) { jar.toList() }
+    }
+
+    override fun setCookies(
+        jarId: String,
+        url: String,
+        cookies: List<KSMCookie>
+    ): Boolean {
+        if (!isHttpRequestUrlAllowed(url) || jarId.isEmpty()) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The URL origin is not allowlisted."
+            )
+        }
+        val jar = cookieJars.getOrPut(jarId) { mutableListOf() }
+        synchronized(jar) {
+            jar.clear()
+            jar.addAll(cookies)
+        }
+        return true
+    }
+
+    override fun clearCookies(jarId: String, url: String): Boolean {
+        if (!isHttpRequestUrlAllowed(url) || jarId.isEmpty()) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The URL origin is not allowlisted."
+            )
+        }
+        cookieJars.remove(jarId)
+        return true
+    }
+
+    override fun openFolder(filters: List<String>): KSMFileScope? {
+        val pending = PendingUri(CountDownLatch(1))
+        synchronized(this) {
+            if (pendingOpenFolder != null) {
+                throw KSMHostException("BUSY", "A folder picker is already active.")
+            }
+            pendingOpenFolder = pending
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            if (filters.isNotEmpty()) {
+                putExtra(Intent.EXTRA_MIME_TYPES, filters.toTypedArray())
+            }
+        }
+        activity.runOnUiThread {
+            try {
+                activity.startActivityForResult(intent, REQUEST_OPEN_FOLDER)
+            } catch (_: RuntimeException) {
+                pending.latch.countDown()
+            }
+        }
+        val uri = awaitUris(listOf(pending))?.firstOrNull()
+            ?.let(Uri::parse) ?: return null
+        takePersistablePermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        val id = "scope-${nextCapabilityId.getAndIncrement()}"
+        fileScopes[id] = FileScopeState(uri, emptyList())
+        return KSMFileScope(id, "app://scope/$id", emptyList())
+    }
+
+    override fun openFiles(filters: List<String>): KSMFileScope? {
+        val pending = PendingUris(CountDownLatch(1))
+        synchronized(this) {
+            if (pendingOpenFiles != null) {
+                throw KSMHostException("BUSY", "A file picker is already active.")
+            }
+            pendingOpenFiles = pending
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            if (filters.isNotEmpty()) {
+                putExtra(Intent.EXTRA_MIME_TYPES, filters.toTypedArray())
+            }
+        }
+        activity.runOnUiThread {
+            try {
+                activity.startActivityForResult(intent, REQUEST_OPEN_FILES)
+            } catch (_: RuntimeException) {
+                pending.latch.countDown()
+            }
+        }
+        val completed = try {
+            pending.latch.await(URI_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            false
+        }
+        synchronized(this) { pendingOpenFiles = null }
+        val uris = if (completed) {
+            pending.result.get().map(Uri::parse)
+        } else {
+            emptyList()
+        }
+        if (uris.isEmpty()) {
+            return null
+        }
+        uris.forEach {
+            takePersistablePermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val id = "scope-${nextCapabilityId.getAndIncrement()}"
+        fileScopes[id] = FileScopeState(uris.first(), uris)
+        val root = "app://scope/$id"
+        return KSMFileScope(
+            id,
+            root,
+            uris.indices.map { "$root/file-$it" }
+        )
+    }
+
+    override fun walk(
+        path: String,
+        requestId: String?
+    ): List<KSMWalkEntry>? {
+        if (
+            !path.startsWith("app://scope/") ||
+            requestId?.let(::isRequestCancelled) == true
+        ) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The path is outside an active file scope."
+            )
+        }
+        val id = path.removePrefix("app://scope/").substringBefore('/')
+        val scope = fileScopes[id] ?: return null
+        if (scope.files.isNotEmpty()) {
+            return scope.files.mapIndexed { index, uri ->
+                KSMWalkEntry(
+                    "app://scope/$id/file-$index",
+                    documentName(uri),
+                    false,
+                    documentSize(uri),
+                    null
+                )
+            }
+        }
+        val root = DocumentFile.fromTreeUri(activity, scope.root) ?: return null
+        val entries = mutableListOf<KSMWalkEntry>()
+        walkDocument(root, "app://scope/$id", entries, requestId)
+        return entries
+    }
+
+    override fun releaseScope(id: String): Boolean {
+        return fileScopes.remove(id) != null
+    }
+
+    override fun probeMedia(path: String): KSMMediaProbe? {
+        val uri = resolveAudioUri(path) ?: return null
+        val retriever = MediaMetadataRetriever()
+        return try {
+            if (uri.scheme == "content") {
+                retriever.setDataSource(activity, uri)
+            } else {
+                retriever.setDataSource(uri.toString(), emptyMap())
+            }
+            KSMMediaProbe(
+                title = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_TITLE
+                ),
+                artist = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_ARTIST
+                ),
+                album = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_ALBUM
+                ),
+                durationMs = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_DURATION
+                )?.toIntOrNull(),
+                format = uri.lastPathSegment
+                    ?.substringAfterLast('.', "")
+                    ?.takeIf { it.isNotEmpty() }
+            )
+        } catch (_: RuntimeException) {
+            null
+        } finally {
+            retriever.release()
+        }
+    }
+
+    override fun detectExternalTool(name: String): KSMExternalTool? {
+        return if (name != "ffmpeg") {
+            KSMExternalTool("", "", false)
+        } else {
+            null
+        }
+    }
+
+    override fun validateExternalTool(path: String): KSMExternalTool? = null
+
+    override fun setExternalToolPath(name: String, path: String): Boolean {
+        if (name.isEmpty() || path.isEmpty()) {
+            return false
+        }
+        externalTools[name] = path
+        return true
+    }
+
+    override fun pickExternalTool(name: String): String? = null
+
+    override fun configureTray(config: KSMTrayConfig): Boolean = false
+
+    override fun installUpdate(
+        packagePath: String,
+        expectedHash: String,
+        signature: String,
+        requestId: String?
+    ): Boolean = false
+
+    override fun takePendingDeepLink(): String? {
+        return synchronized(this) {
+            pendingDeepLinks.removeFirstOrNull()
+        }
+    }
+
+    override fun openDevtools(enabled: Boolean): Boolean = false
+
+    override fun audioDevices(): List<KSMAudioDevice>? {
+        val manager = activity.getSystemService(AudioManager::class.java)
+            ?: return null
+        val devices = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        return devices.map { device ->
+            KSMAudioDevice(
+                id = device.id.toString(),
+                name = device.productName?.toString()
+                    ?.takeIf { it.isNotBlank() }
+                    ?: device.type.toString(),
+                defaultDevice = device.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+            )
+        }
+    }
+
+    override fun setAudioDevice(id: String): Boolean {
+        val available = audioDevices()?.any { it.id == id } == true
+        if (!available) {
+            return false
+        }
+        return false
+    }
+    override fun setExclusiveAudioOutput(exclusive: Boolean): Boolean = false
+    override fun setAudioEqualizer(gains: List<Double>): Boolean = false
+    override fun setAudioSpeed(speed: Double): Boolean {
+        if (!speed.isFinite() || speed < 0.25 || speed > 4.0) {
+            throw KSMHostException(
+                "INVALID_ARGS",
+                "speed must be between 0.25 and 4."
+            )
+        }
+        audioSpeed = speed
+        runOnAudioThread {
+            audioPlayer.setPlaybackSpeed(speed.toFloat())
+        }
+        dispatchAudioState()
+        return true
+    }
+
+    override fun setAudioVolume(volume: Double): Boolean {
+        if (!volume.isFinite() || volume < 0.0 || volume > 1.0) {
+            throw KSMHostException(
+                "INVALID_ARGS",
+                "volume must be between 0 and 1."
+            )
+        }
+        audioVolume = volume
+        runOnAudioThread {
+            audioPlayer.volume = volume.toFloat()
+        }
+        dispatchAudioState()
+        return true
+    }
+
+    override fun probeAudio(path: String): KSMAudioProbe? {
+        val probe = probeMedia(path) ?: return null
+        return KSMAudioProbe(
+            durationMs = probe.durationMs?.toLong(),
+            sampleRate = null,
+            channels = null,
+            codec = probe.format
+        )
+    }
+
+    override fun loadAudio(path: String): Boolean {
+        val uri = resolveAudioUri(path)
+            ?: throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The audio source is outside the allowed scope."
+            )
+        runOnAudioThread {
+            audioSource = path
+            audioPlayer.setMediaItem(MediaItem.fromUri(uri))
+            audioPlayer.setPlaybackSpeed(audioSpeed.toFloat())
+            audioPlayer.volume = audioVolume.toFloat()
+            audioPlayer.prepare()
+        }
+        dispatchAudioState()
+        return true
+    }
+
+    override fun setAudioPlayback(playing: Boolean): Boolean {
+        val hasSource = runOnAudioThread {
+            audioPlayer.currentMediaItem != null
+        }
+        if (!hasSource) {
+            return false
+        }
+        runOnAudioThread {
+            audioPlayer.playWhenReady = playing
+            if (playing) {
+                audioPlayer.play()
+            } else {
+                audioPlayer.pause()
+            }
+        }
+        if (playing) {
+            startMediaSessionService()
+        } else {
+            stopMediaSessionService()
+        }
+        dispatchAudioState()
+        return true
+    }
+
+    override fun seekAudio(positionMs: Long): Boolean {
+        if (positionMs < 0L) {
+            throw KSMHostException("INVALID_ARGS", "positionMs must be non-negative.")
+        }
+        val hasSource = runOnAudioThread {
+            audioPlayer.currentMediaItem != null
+        }
+        if (!hasSource) {
+            return false
+        }
+        runOnAudioThread { audioPlayer.seekTo(positionMs) }
+        dispatchAudioState()
+        return true
+    }
+
+    override fun audioState(): KSMAudioState {
+        return runOnAudioThread {
+            val playback = when {
+                audioPlayer.currentMediaItem == null -> "idle"
+                audioPlayer.playbackState == Player.STATE_BUFFERING -> "loading"
+                audioPlayer.playbackState == Player.STATE_ENDED -> "stopped"
+                audioPlayer.isPlaying -> "playing"
+                else -> "paused"
+            }
+            KSMAudioState(
+                playing = audioPlayer.isPlaying,
+                positionMs = audioPlayer.currentPosition.coerceAtLeast(0L),
+                durationMs = audioPlayer.duration.takeIf { it >= 0L },
+                volume = audioVolume,
+                speed = audioSpeed,
+                playback = playback,
+                source = audioSource
+            )
+        }
+    }
+    override fun updateMediaSession(
+        metadata: KSMMediaSessionMetadata
+    ): Boolean {
+        val current = runOnAudioThread { audioPlayer.currentMediaItem }
+        if (current == null) {
+            return false
+        }
+        val mediaMetadata = MediaMetadata.Builder()
+            .setTitle(metadata.title)
+            .setArtist(metadata.artist)
+            .setAlbumTitle(metadata.album)
+            .apply {
+                val artwork = metadata.artwork
+                    ?.let(::resolveAudioUri)
+                if (artwork != null) {
+                    setArtworkUri(artwork)
+                }
+            }
+            .build()
+        runOnAudioThread {
+            audioPlayer.replaceMediaItem(
+                audioPlayer.currentMediaItemIndex,
+                current.buildUpon().setMediaMetadata(mediaMetadata).build()
+            )
+            metadata.positionMs?.let { audioPlayer.seekTo(it.coerceAtLeast(0L)) }
+            when (metadata.state) {
+                "playing" -> audioPlayer.play()
+                "paused" -> audioPlayer.pause()
+                "stopped" -> {
+                    audioPlayer.pause()
+                    audioPlayer.seekTo(0L)
+                }
+            }
+        }
+        return true
+    }
+
+    override fun clearMediaSession(): Boolean {
+        val current = runOnAudioThread { audioPlayer.currentMediaItem }
+        if (current == null) {
+            stopMediaSessionService()
+            return true
+        }
+        runOnAudioThread {
+            audioPlayer.replaceMediaItem(
+                audioPlayer.currentMediaItemIndex,
+                current.buildUpon()
+                    .setMediaMetadata(MediaMetadata.Builder().build())
+                    .build()
+            )
+        }
+        stopMediaSessionService()
+        return true
+    }
+
+    private fun startMediaSessionService() {
+        try {
+            ContextCompat.startForegroundService(
+                activity,
+                Intent(activity, KSMMediaSessionService::class.java)
+            )
+        } catch (_: SecurityException) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "Media playback notification permission is required."
+            )
+        } catch (_: RuntimeException) {
+            throw KSMHostException(
+                "IO_ERROR",
+                "The media session service could not be started."
+            )
+        }
+    }
+
+    private fun stopMediaSessionService() {
+        activity.stopService(
+            Intent(activity, KSMMediaSessionService::class.java)
+        )
+    }
+    override fun createWindow(
+        route: String,
+        state: KSMWindowState
+    ): String? = null
+    override fun showWindowById(windowId: String, visible: Boolean): Boolean = false
+    override fun setWindowPosition(
+        windowId: String,
+        x: Int,
+        y: Int
+    ): Boolean = false
+    override fun setWindowAlwaysOnTop(
+        windowId: String,
+        enabled: Boolean
+    ): Boolean = false
+    override fun setWindowTransparent(
+        windowId: String,
+        enabled: Boolean
+    ): Boolean = false
+    override fun windowState(windowId: String): KSMWindowState? = null
+    override fun emitWindowEvent(
+        windowId: String?,
+        event: String,
+        payload: String
+    ): Boolean {
+        eventDispatcher(event, payload)
+        return false
     }
 
     override fun isExternalUrlAllowed(url: String): Boolean {
@@ -866,7 +1790,27 @@ class KSMAndroidHostServices(
                 REQUEST_SAVE_FILE -> pendingSaveFile
                 else -> null
             }
-        } ?: return false
+        }
+        if (requestCode == REQUEST_OPEN_FOLDER) {
+            val folder = synchronized(this) { pendingOpenFolder }
+                ?: return false
+            if (resultCode == Activity.RESULT_OK) {
+                data?.data?.let { uri ->
+                    takePersistablePermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                    folder.result.set(uri.toString())
+                }
+            }
+            folder.latch.countDown()
+            synchronized(this) { pendingOpenFolder = null }
+            return true
+        }
+        if (pending == null) {
+            return false
+        }
 
         if (resultCode == Activity.RESULT_OK) {
             data?.data?.let { uri ->
@@ -883,6 +1827,36 @@ class KSMAndroidHostServices(
                 }
                 pending.result.set(uri.toString())
             }
+        }
+        pending.latch.countDown()
+        return true
+    }
+
+    fun handleMultiSelectActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?
+    ): Boolean {
+        if (requestCode != REQUEST_OPEN_FILES) {
+            return false
+        }
+        val pending = synchronized(this) { pendingOpenFiles } ?: return false
+        if (resultCode == Activity.RESULT_OK && data != null) {
+            val uris = mutableListOf<Uri>()
+            data.data?.let(uris::add)
+            val clip = data.clipData
+            if (clip != null) {
+                for (index in 0 until clip.itemCount) {
+                    clip.getItemAt(index).uri?.let(uris::add)
+                }
+            }
+            uris.distinct().forEach {
+                takePersistablePermission(
+                    it,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            pending.result.set(uris.distinct().map(Uri::toString))
         }
         pending.latch.countDown()
         return true
@@ -965,6 +1939,214 @@ class KSMAndroidHostServices(
             }
         }
         return if (completed) pending.result.get() else null
+    }
+
+    private fun awaitUris(pendings: List<PendingUri>): List<String>? {
+        val completed = try {
+            pendings.first().latch.await(URI_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            false
+        }
+        synchronized(this) { pendingOpenFolder = null }
+        val value = pendings.first().result.get()
+        return if (completed && value != null) listOf(value) else null
+    }
+
+    private fun takePersistablePermission(uri: Uri, flags: Int) {
+        try {
+            activity.contentResolver.takePersistableUriPermission(uri, flags)
+        } catch (_: SecurityException) {
+        }
+    }
+
+    private fun documentName(uri: Uri): String {
+        activity.contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) {
+                    return cursor.getString(index) ?: ""
+                }
+            }
+        }
+        return ""
+    }
+
+    private fun documentSize(uri: Uri): Long {
+        activity.contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.SIZE),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (index >= 0 && !cursor.isNull(index)) {
+                    return cursor.getLong(index)
+                }
+            }
+        }
+        return 0L
+    }
+
+    private fun walkDocument(
+        document: DocumentFile,
+        path: String,
+        entries: MutableList<KSMWalkEntry>,
+        requestId: String?
+    ) {
+        if (requestId?.let(::isRequestCancelled) == true) {
+            throw KSMHostException("CANCELLED", "The command was cancelled.")
+        }
+        document.listFiles().forEach { child ->
+            val childPath = "$path/${child.name.orEmpty()}"
+            entries.add(
+                KSMWalkEntry(
+                    childPath,
+                    child.name.orEmpty(),
+                    child.isDirectory,
+                    if (child.isDirectory) 0L else child.length(),
+                    child.lastModified()
+                )
+            )
+            if (child.isDirectory) {
+                walkDocument(child, childPath, entries, requestId)
+            }
+        }
+    }
+
+    private fun resolveAudioUri(path: String): Uri? {
+        if (path.startsWith("https://")) {
+            return if (isHttpRequestUrlAllowed(path)) Uri.parse(path) else null
+        }
+        if (path.startsWith("app://scope/")) {
+            return resolveScopeUri(path)
+        }
+        return fileSystem?.resolveReadableFile(path)?.let(Uri::fromFile)
+    }
+
+    private fun resolveScopeUri(path: String): Uri? {
+        val remainder = path.removePrefix("app://scope/")
+        val id = remainder.substringBefore('/')
+        val scope = fileScopes[id] ?: return null
+        val relative = remainder.substringAfter('/', "")
+        if (relative.isEmpty()) {
+            return scope.root
+        }
+        if (scope.files.isNotEmpty() && relative.startsWith("file-")) {
+            val index = relative.removePrefix("file-").toIntOrNull()
+                ?: return null
+            return scope.files.getOrNull(index)
+        }
+        val root = DocumentFile.fromTreeUri(activity, scope.root)
+            ?: return null
+        var current: DocumentFile = root
+        for (segment in relative.split('/')) {
+            if (segment.isEmpty() || segment == "." || segment == "..") {
+                return null
+            }
+            current = current.findFile(segment) ?: return null
+        }
+        return current.uri
+    }
+
+    private fun <T> runOnAudioThread(block: () -> T): T {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            return block()
+        }
+        val result = AtomicReference<T?>()
+        val failure = AtomicReference<Throwable?>()
+        val latch = CountDownLatch(1)
+        audioHandler.post {
+            try {
+                result.set(block())
+            } catch (error: Throwable) {
+                failure.set(error)
+            } finally {
+                latch.countDown()
+            }
+        }
+        if (!latch.await(URI_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            throw KSMHostException("TIMEOUT", "The audio operation timed out.")
+        }
+        failure.get()?.let { throw it }
+        return result.get() as T
+    }
+
+    private fun dispatchAudioState() {
+        val state = audioState()
+        eventDispatcher(
+            "audio.stateChanged",
+            org.json.JSONObject()
+                .put(
+                    "state",
+                    org.json.JSONObject()
+                        .put(
+                            "playback",
+                            state.playback
+                        )
+                        .put("positionMs", state.positionMs)
+                        .put("durationMs", state.durationMs ?: org.json.JSONObject.NULL)
+                        .put("volume", state.volume)
+                        .put("muted", state.muted)
+                        .put("speed", state.speed)
+                        .put("outputMode", state.outputMode)
+                        .put(
+                            "deviceId",
+                            state.deviceId ?: org.json.JSONObject.NULL
+                        )
+                        .put(
+                            "source",
+                            state.source ?: org.json.JSONObject.NULL
+                        )
+                )
+                .put(
+                    "reason",
+                    if (state.playing) "play" else "pause"
+                )
+                .toString()
+        )
+    }
+
+    private fun startAudioTicks() {
+        if (audioTickTask != null) {
+            return
+        }
+        audioTickTask = downloadWatchdog.scheduleAtFixedRate(
+            {
+                val state = audioState()
+                eventDispatcher(
+                    "audio.tick",
+                    org.json.JSONObject()
+                        .put("positionMs", state.positionMs)
+                        .put(
+                            "durationMs",
+                            state.durationMs ?: org.json.JSONObject.NULL
+                        )
+                        .toString()
+                )
+            },
+            250L,
+            250L,
+            TimeUnit.MILLISECONDS
+        )
+    }
+
+    private fun stopAudioTicks() {
+        audioTickTask?.cancel(false)
+        audioTickTask = null
+    }
+
+    private fun cancelTransfer(state: TransferState) {
+        state.cancelled.set(true)
+        state.connection.getAndSet(null)?.disconnect()
     }
 
     private fun registerPicked(uri: Uri): String {

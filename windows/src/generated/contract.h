@@ -836,6 +836,642 @@ inline const Json& ArgSchemas() {
     "properties": {},
     "required": [],
     "additionalProperties": false
+  },
+  "http.request": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      },
+      "method": {
+        "type": "string",
+        "enum": [
+          "GET",
+          "POST"
+        ]
+      },
+      "headers": {
+        "type": "object"
+      },
+      "body": {
+        "type": "string"
+      },
+      "timeoutMs": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "url"
+    ],
+    "additionalProperties": false
+  },
+  "http.transfer.start": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      },
+      "method": {
+        "type": "string",
+        "enum": [
+          "GET",
+          "POST"
+        ]
+      },
+      "headers": {
+        "type": "object"
+      },
+      "body": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "overwrite": {
+        "type": "boolean"
+      },
+      "jarId": {
+        "type": "string"
+      },
+      "userAgent": {
+        "type": "string"
+      },
+      "referer": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "url",
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "http.transfer.cancel": {
+    "type": "object",
+    "properties": {
+      "transferId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "transferId"
+    ],
+    "additionalProperties": false
+  },
+  "http.cookies.get": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string"
+      },
+      "jarId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "url",
+      "jarId"
+    ],
+    "additionalProperties": false
+  },
+  "http.cookies.set": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string"
+      },
+      "jarId": {
+        "type": "string"
+      },
+      "cookies": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      }
+    },
+    "required": [
+      "url",
+      "jarId",
+      "cookies"
+    ],
+    "additionalProperties": false
+  },
+  "http.cookies.clear": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string"
+      },
+      "jarId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "url",
+      "jarId"
+    ],
+    "additionalProperties": false
+  },
+  "dialog.openFolder": {
+    "type": "object",
+    "properties": {
+      "persist": {
+        "type": "boolean"
+      },
+      "filters": {
+        "type": "object"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "dialog.openFiles": {
+    "type": "object",
+    "properties": {
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "fs.walk": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "maxDepth": {
+        "type": "integer"
+      },
+      "filter": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.scope.release": {
+    "type": "object",
+    "properties": {
+      "scopeId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "scopeId"
+    ],
+    "additionalProperties": false
+  },
+  "media.probe": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "media.ffmpeg.detect": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "media.ffmpeg.validate": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "media.ffmpeg.setPath": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "media.ffmpeg.pickExecutable": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.devices.list": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.devices.set": {
+    "type": "object",
+    "properties": {
+      "deviceId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "deviceId"
+    ],
+    "additionalProperties": false
+  },
+  "audio.output.getMode": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.output.setExclusive": {
+    "type": "object",
+    "properties": {
+      "exclusive": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "exclusive"
+    ],
+    "additionalProperties": false
+  },
+  "audio.eq.set": {
+    "type": "object",
+    "properties": {
+      "gains": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      }
+    },
+    "required": [
+      "gains"
+    ],
+    "additionalProperties": false
+  },
+  "audio.speed.set": {
+    "type": "object",
+    "properties": {
+      "speed": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "speed"
+    ],
+    "additionalProperties": false
+  },
+  "audio.probe": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "audio.load": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "audio.play": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.pause": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.stop": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.seek": {
+    "type": "object",
+    "properties": {
+      "positionMs": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "positionMs"
+    ],
+    "additionalProperties": false
+  },
+  "audio.volume.set": {
+    "type": "object",
+    "properties": {
+      "volume": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "volume"
+    ],
+    "additionalProperties": false
+  },
+  "audio.state.get": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "mediaSession.update": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "artist": {
+        "type": "string"
+      },
+      "album": {
+        "type": "string"
+      },
+      "artwork": {
+        "type": "string"
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "positionMs": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "state": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "additionalProperties": false
+  },
+  "mediaSession.clear": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "window.create": {
+    "type": "object",
+    "properties": {
+      "route": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "width": {
+        "type": "integer"
+      },
+      "height": {
+        "type": "integer"
+      },
+      "x": {
+        "type": "integer"
+      },
+      "y": {
+        "type": "integer"
+      },
+      "visible": {
+        "type": "boolean"
+      },
+      "alwaysOnTop": {
+        "type": "boolean"
+      },
+      "transparent": {
+        "type": "boolean"
+      },
+      "resizable": {
+        "type": "boolean"
+      },
+      "decorations": {
+        "type": "boolean"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "window.show": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "windowId"
+    ],
+    "additionalProperties": false
+  },
+  "window.hide": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "windowId"
+    ],
+    "additionalProperties": false
+  },
+  "window.setPosition": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      },
+      "x": {
+        "type": "integer"
+      },
+      "y": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "windowId",
+      "x",
+      "y"
+    ],
+    "additionalProperties": false
+  },
+  "window.setAlwaysOnTop": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "windowId",
+      "enabled"
+    ],
+    "additionalProperties": false
+  },
+  "window.setTransparent": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "windowId",
+      "enabled"
+    ],
+    "additionalProperties": false
+  },
+  "window.getState": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "windowId"
+    ],
+    "additionalProperties": false
+  },
+  "event.emit": {
+    "type": "object",
+    "properties": {
+      "event": {
+        "type": "string"
+      },
+      "payload": {
+        "type": "object"
+      },
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "event"
+    ],
+    "additionalProperties": false
+  },
+  "tray.configure": {
+    "type": "object",
+    "properties": {
+      "icon": {
+        "type": "string"
+      },
+      "tooltip": {
+        "type": "string"
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "updater.install": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "version": {
+        "type": "string"
+      },
+      "hash": {
+        "type": "string"
+      },
+      "signature": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "version"
+    ],
+    "additionalProperties": false
+  },
+  "app.openDevtools": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "app.deepLink.getPending": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
   }
 })KSMSCHEMA");
     return schemas;
@@ -942,42 +1578,42 @@ public:
 
 inline const std::vector<std::string>& KSMGeneratedContract::Commands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "tray.show", "tray.hide", "globalShortcut.register", "globalShortcut.unregister", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "tray.show", "tray.hide", "globalShortcut.register", "globalShortcut.unregister", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit", "http.request", "http.transfer.start", "http.transfer.cancel", "http.cookies.get", "http.cookies.set", "http.cookies.clear", "dialog.openFolder", "dialog.openFiles", "fs.walk", "fs.scope.release", "media.probe", "media.ffmpeg.detect", "media.ffmpeg.validate", "media.ffmpeg.setPath", "media.ffmpeg.pickExecutable", "audio.devices.list", "audio.devices.set", "audio.output.getMode", "audio.output.setExclusive", "audio.eq.set", "audio.speed.set", "audio.probe", "audio.load", "audio.play", "audio.pause", "audio.stop", "audio.seek", "audio.volume.set", "audio.state.get", "mediaSession.update", "mediaSession.clear", "window.create", "window.show", "window.hide", "window.setPosition", "window.setAlwaysOnTop", "window.setTransparent", "window.getState", "event.emit", "tray.configure", "updater.install", "app.openDevtools", "app.deepLink.getPending"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::WindowsCommands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "tray.show", "tray.hide", "globalShortcut.register", "globalShortcut.unregister", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "tray.show", "tray.hide", "globalShortcut.register", "globalShortcut.unregister", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit", "http.request", "http.transfer.start", "http.transfer.cancel", "http.cookies.get", "http.cookies.set", "http.cookies.clear", "dialog.openFolder", "dialog.openFiles", "fs.walk", "fs.scope.release", "media.probe", "media.ffmpeg.detect", "media.ffmpeg.validate", "media.ffmpeg.setPath", "media.ffmpeg.pickExecutable", "audio.devices.list", "audio.devices.set", "audio.output.getMode", "audio.output.setExclusive", "audio.eq.set", "audio.speed.set", "audio.probe", "audio.load", "audio.play", "audio.pause", "audio.stop", "audio.seek", "audio.volume.set", "audio.state.get", "window.create", "window.show", "window.hide", "window.setPosition", "window.setAlwaysOnTop", "window.setTransparent", "window.getState", "event.emit", "tray.configure", "updater.install", "app.openDevtools"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::AndroidCommands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit"
+        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit", "http.request", "http.transfer.start", "http.transfer.cancel", "http.cookies.get", "http.cookies.set", "http.cookies.clear", "dialog.openFolder", "dialog.openFiles", "fs.walk", "fs.scope.release", "media.probe", "media.ffmpeg.detect", "media.ffmpeg.validate", "audio.devices.list", "audio.devices.set", "audio.eq.set", "audio.speed.set", "audio.probe", "audio.load", "audio.play", "audio.pause", "audio.stop", "audio.seek", "audio.volume.set", "audio.state.get", "mediaSession.update", "mediaSession.clear", "event.emit", "updater.install", "app.openDevtools", "app.deepLink.getPending"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::Events() {
     static const std::vector<std::string> values = {
-        "webview.navigated", "webview.reloaded", "window.resized"
+        "webview.navigated", "webview.reloaded", "window.resized", "http.transfer.progress", "http.transfer.completed", "http.transfer.failed", "audio.tick", "audio.ended", "audio.stateChanged", "audio.error", "mediaSession.command", "window.visibilityChanged", "window.stateChanged", "tray.action", "tray.click", "globalShortcut.triggered", "updater.progress", "updater.status", "app.deepLink.received", "app.secondInstance.received"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::Permissions() {
     static const std::vector<std::string> values = {
-        "fs.read", "fs.write", "fs.remove", "dialog", "clipboard.read", "clipboard.write", "notification.show", "window.control", "http.download", "shell.open", "device.info", "sql", "store", "os.info", "log.write", "updater", "globalShortcut", "tray"
+        "fs.read", "fs.write", "fs.remove", "dialog", "clipboard.read", "clipboard.write", "notification.show", "window.control", "http.download", "shell.open", "device.info", "sql", "store", "os.info", "log.write", "updater", "globalShortcut", "tray", "http.request", "http.cookies", "http.transfer", "media.read", "media.control", "media.probe", "audio.play", "mediaSession", "window.manage", "tray.configure", "updater.install", "app.deepLink", "app.devtools"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::Plugins() {
     static const std::vector<std::string> values = {
-        "core", "fs", "dialog", "clipboard", "notification", "window", "http", "shell", "device", "sql", "path", "store", "os", "log", "appInstance", "updater", "globalShortcut", "tray"
+        "core", "fs", "dialog", "clipboard", "notification", "window", "http", "shell", "device", "sql", "path", "store", "os", "log", "appInstance", "updater", "globalShortcut", "tray", "media", "audio", "mediaSession"
     };
     return values;
 }
@@ -995,9 +1631,13 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
       "android"
     ],
     "permissions": [
+      "app.deepLink",
+      "app.devtools",
       "window.control"
     ],
     "defaultPermissions": [
+      "app.deepLink",
+      "app.devtools",
       "window.control"
     ],
     "commands": [
@@ -1007,7 +1647,9 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
       "app.exit",
       "permission.request",
       "event.subscribe",
-      "event.unsubscribe"
+      "event.unsubscribe",
+      "app.openDevtools",
+      "app.deepLink.getPending"
     ]
   },
   "fs": {
@@ -1021,13 +1663,13 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
     ],
     "permissions": [
       "fs.read",
-      "fs.write",
-      "fs.remove"
+      "fs.remove",
+      "fs.write"
     ],
     "defaultPermissions": [
       "fs.read",
-      "fs.write",
-      "fs.remove"
+      "fs.remove",
+      "fs.write"
     ],
     "commands": [
       "fs.readText",
@@ -1041,7 +1683,9 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
       "fs.remove",
       "fs.readDir",
       "fs.mkdir",
-      "fs.stat"
+      "fs.stat",
+      "fs.walk",
+      "fs.scope.release"
     ]
   },
   "dialog": {
@@ -1063,7 +1707,9 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
       "dialog.message",
       "dialog.confirm",
       "dialog.openFile",
-      "dialog.saveFile"
+      "dialog.saveFile",
+      "dialog.openFolder",
+      "dialog.openFiles"
     ]
   },
   "clipboard": {
@@ -1117,17 +1763,27 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
       "android"
     ],
     "permissions": [
-      "window.control"
+      "window.control",
+      "window.manage"
     ],
     "defaultPermissions": [
-      "window.control"
+      "window.control",
+      "window.manage"
     ],
     "commands": [
       "window.setTitle",
       "window.minimize",
       "window.maximize",
       "window.setSize",
-      "window.close"
+      "window.close",
+      "window.create",
+      "window.show",
+      "window.hide",
+      "window.setPosition",
+      "window.setAlwaysOnTop",
+      "window.setTransparent",
+      "window.getState",
+      "event.emit"
     ]
   },
   "http": {
@@ -1140,13 +1796,23 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
       "android"
     ],
     "permissions": [
-      "http.download"
+      "http.cookies",
+      "http.download",
+      "http.request"
     ],
     "defaultPermissions": [
-      "http.download"
+      "http.cookies",
+      "http.download",
+      "http.request"
     ],
     "commands": [
-      "http.download"
+      "http.download",
+      "http.request",
+      "http.transfer.start",
+      "http.transfer.cancel",
+      "http.cookies.get",
+      "http.cookies.set",
+      "http.cookies.clear"
     ]
   },
   "shell": {
@@ -1319,14 +1985,17 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
       "android"
     ],
     "permissions": [
-      "updater"
+      "updater",
+      "updater.install"
     ],
     "defaultPermissions": [
-      "updater"
+      "updater",
+      "updater.install"
     ],
     "commands": [
       "updater.check",
-      "updater.download"
+      "updater.download",
+      "updater.install"
     ]
   },
   "globalShortcut": {
@@ -1357,14 +2026,93 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
       "windows"
     ],
     "permissions": [
-      "tray"
+      "tray",
+      "tray.configure"
     ],
     "defaultPermissions": [
-      "tray"
+      "tray",
+      "tray.configure"
     ],
     "commands": [
       "tray.show",
-      "tray.hide"
+      "tray.hide",
+      "tray.configure"
+    ]
+  },
+  "media": {
+    "name": "Media",
+    "version": "1.5.0",
+    "description": "Media metadata, external tool discovery, and virtual media scopes.",
+    "frontendPackage": "kasumi-plugin-media",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "media.read"
+    ],
+    "defaultPermissions": [
+      "media.read"
+    ],
+    "commands": [
+      "media.probe",
+      "media.ffmpeg.detect",
+      "media.ffmpeg.validate",
+      "media.ffmpeg.setPath",
+      "media.ffmpeg.pickExecutable"
+    ]
+  },
+  "audio": {
+    "name": "Audio",
+    "version": "1.5.0",
+    "description": "Audio playback, device selection, effects, and state.",
+    "frontendPackage": "kasumi-plugin-audio",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "media.control",
+      "media.read"
+    ],
+    "defaultPermissions": [
+      "media.control",
+      "media.read"
+    ],
+    "commands": [
+      "audio.devices.list",
+      "audio.devices.set",
+      "audio.output.getMode",
+      "audio.output.setExclusive",
+      "audio.eq.set",
+      "audio.speed.set",
+      "audio.probe",
+      "audio.load",
+      "audio.play",
+      "audio.pause",
+      "audio.stop",
+      "audio.seek",
+      "audio.volume.set",
+      "audio.state.get"
+    ]
+  },
+  "mediaSession": {
+    "name": "Media Session",
+    "version": "1.5.0",
+    "description": "System media session metadata and transport commands.",
+    "frontendPackage": "kasumi-plugin-media-session",
+    "platforms": [
+      "android"
+    ],
+    "permissions": [
+      "mediaSession"
+    ],
+    "defaultPermissions": [
+      "mediaSession"
+    ],
+    "commands": [
+      "mediaSession.update",
+      "mediaSession.clear"
     ]
   }
 })KSMMETADATA"
@@ -1382,7 +2130,9 @@ inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {
     "app.exit",
     "permission.request",
     "event.subscribe",
-    "event.unsubscribe"
+    "event.unsubscribe",
+    "app.openDevtools",
+    "app.deepLink.getPending"
   ],
   "fs": [
     "fs.readText",
@@ -1396,13 +2146,17 @@ inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {
     "fs.remove",
     "fs.readDir",
     "fs.mkdir",
-    "fs.stat"
+    "fs.stat",
+    "fs.walk",
+    "fs.scope.release"
   ],
   "dialog": [
     "dialog.message",
     "dialog.confirm",
     "dialog.openFile",
-    "dialog.saveFile"
+    "dialog.saveFile",
+    "dialog.openFolder",
+    "dialog.openFiles"
   ],
   "clipboard": [
     "clipboard.readText",
@@ -1416,10 +2170,24 @@ inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {
     "window.minimize",
     "window.maximize",
     "window.setSize",
-    "window.close"
+    "window.close",
+    "window.create",
+    "window.show",
+    "window.hide",
+    "window.setPosition",
+    "window.setAlwaysOnTop",
+    "window.setTransparent",
+    "window.getState",
+    "event.emit"
   ],
   "http": [
-    "http.download"
+    "http.download",
+    "http.request",
+    "http.transfer.start",
+    "http.transfer.cancel",
+    "http.cookies.get",
+    "http.cookies.set",
+    "http.cookies.clear"
   ],
   "shell": [
     "shell.openExternal",
@@ -1464,7 +2232,8 @@ inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {
   ],
   "updater": [
     "updater.check",
-    "updater.download"
+    "updater.download",
+    "updater.install"
   ],
   "globalShortcut": [
     "globalShortcut.register",
@@ -1472,7 +2241,35 @@ inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {
   ],
   "tray": [
     "tray.show",
-    "tray.hide"
+    "tray.hide",
+    "tray.configure"
+  ],
+  "media": [
+    "media.probe",
+    "media.ffmpeg.detect",
+    "media.ffmpeg.validate",
+    "media.ffmpeg.setPath",
+    "media.ffmpeg.pickExecutable"
+  ],
+  "audio": [
+    "audio.devices.list",
+    "audio.devices.set",
+    "audio.output.getMode",
+    "audio.output.setExclusive",
+    "audio.eq.set",
+    "audio.speed.set",
+    "audio.probe",
+    "audio.load",
+    "audio.play",
+    "audio.pause",
+    "audio.stop",
+    "audio.seek",
+    "audio.volume.set",
+    "audio.state.get"
+  ],
+  "mediaSession": [
+    "mediaSession.update",
+    "mediaSession.clear"
   ]
 })KSMPLUGINS"
     );
@@ -1641,6 +2438,135 @@ inline const nlohmann::json& KSMGeneratedContract::CommandPermissions() {
   ],
   "app.exit": [
     "window.control"
+  ],
+  "http.request": [
+    "http.request"
+  ],
+  "http.transfer.start": [
+    "http.request"
+  ],
+  "http.transfer.cancel": [
+    "http.request"
+  ],
+  "http.cookies.get": [
+    "http.cookies"
+  ],
+  "http.cookies.set": [
+    "http.cookies"
+  ],
+  "http.cookies.clear": [
+    "http.cookies"
+  ],
+  "dialog.openFolder": [
+    "dialog"
+  ],
+  "dialog.openFiles": [
+    "dialog"
+  ],
+  "fs.walk": [
+    "fs.read"
+  ],
+  "fs.scope.release": [
+    "fs.read"
+  ],
+  "media.probe": [
+    "media.read"
+  ],
+  "media.ffmpeg.detect": [
+    "media.read"
+  ],
+  "media.ffmpeg.validate": [
+    "media.read"
+  ],
+  "media.ffmpeg.setPath": [
+    "media.read"
+  ],
+  "media.ffmpeg.pickExecutable": [
+    "media.read"
+  ],
+  "audio.devices.list": [
+    "media.control"
+  ],
+  "audio.devices.set": [
+    "media.control"
+  ],
+  "audio.output.getMode": [
+    "media.control"
+  ],
+  "audio.output.setExclusive": [
+    "media.control"
+  ],
+  "audio.eq.set": [
+    "media.control"
+  ],
+  "audio.speed.set": [
+    "media.control"
+  ],
+  "audio.probe": [
+    "media.read"
+  ],
+  "audio.load": [
+    "media.control"
+  ],
+  "audio.play": [
+    "media.control"
+  ],
+  "audio.pause": [
+    "media.control"
+  ],
+  "audio.stop": [
+    "media.control"
+  ],
+  "audio.seek": [
+    "media.control"
+  ],
+  "audio.volume.set": [
+    "media.control"
+  ],
+  "audio.state.get": [
+    "media.read"
+  ],
+  "mediaSession.update": [
+    "mediaSession"
+  ],
+  "mediaSession.clear": [
+    "mediaSession"
+  ],
+  "window.create": [
+    "window.manage"
+  ],
+  "window.show": [
+    "window.manage"
+  ],
+  "window.hide": [
+    "window.manage"
+  ],
+  "window.setPosition": [
+    "window.manage"
+  ],
+  "window.setAlwaysOnTop": [
+    "window.manage"
+  ],
+  "window.setTransparent": [
+    "window.manage"
+  ],
+  "window.getState": [
+    "window.manage"
+  ],
+  "event.emit": [
+    "window.manage"
+  ],
+  "tray.configure": [
+    "tray.configure"
+  ],
+  "updater.install": [
+    "updater.install"
+  ],
+  "app.openDevtools": [
+    "app.devtools"
+  ],
+  "app.deepLink.getPending": [
+    "app.deepLink"
   ]
 })KSMPERMISSIONS"
     );

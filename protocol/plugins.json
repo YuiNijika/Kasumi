@@ -5,9 +5,20 @@
       "version": "1.0.0",
       "description": "Application lifecycle, permissions, events and capability discovery.",
       "frontendPackage": "kasumi-bridge",
-      "platforms": ["windows", "android"],
-      "permissions": ["window.control"],
-      "defaultPermissions": ["window.control"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "app.deepLink",
+        "app.devtools",
+        "window.control"
+      ],
+      "defaultPermissions": [
+        "app.deepLink",
+        "app.devtools",
+        "window.control"
+      ],
       "commands": [
         "ping",
         "capabilities.query",
@@ -15,7 +26,9 @@
         "app.exit",
         "permission.request",
         "event.subscribe",
-        "event.unsubscribe"
+        "event.unsubscribe",
+        "app.openDevtools",
+        "app.deepLink.getPending"
       ]
     },
     "fs": {
@@ -23,9 +36,20 @@
       "version": "1.0.0",
       "description": "Sandboxed virtual filesystem access.",
       "frontendPackage": "kasumi-plugin-fs",
-      "platforms": ["windows", "android"],
-      "permissions": ["fs.read", "fs.write", "fs.remove"],
-      "defaultPermissions": ["fs.read", "fs.write", "fs.remove"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "fs.read",
+        "fs.remove",
+        "fs.write"
+      ],
+      "defaultPermissions": [
+        "fs.read",
+        "fs.remove",
+        "fs.write"
+      ],
       "commands": [
         "fs.readText",
         "fs.writeText",
@@ -38,7 +62,9 @@
         "fs.remove",
         "fs.readDir",
         "fs.mkdir",
-        "fs.stat"
+        "fs.stat",
+        "fs.walk",
+        "fs.scope.release"
       ]
     },
     "dialog": {
@@ -46,14 +72,23 @@
       "version": "1.0.0",
       "description": "Native message, confirmation and file picker dialogs.",
       "frontendPackage": "kasumi-plugin-dialog",
-      "platforms": ["windows", "android"],
-      "permissions": ["dialog"],
-      "defaultPermissions": ["dialog"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "dialog"
+      ],
+      "defaultPermissions": [
+        "dialog"
+      ],
       "commands": [
         "dialog.message",
         "dialog.confirm",
         "dialog.openFile",
-        "dialog.saveFile"
+        "dialog.saveFile",
+        "dialog.openFolder",
+        "dialog.openFiles"
       ]
     },
     "clipboard": {
@@ -61,9 +96,18 @@
       "version": "1.0.0",
       "description": "System clipboard text access.",
       "frontendPackage": "kasumi-plugin-clipboard",
-      "platforms": ["windows", "android"],
-      "permissions": ["clipboard.read", "clipboard.write"],
-      "defaultPermissions": ["clipboard.read", "clipboard.write"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "clipboard.read",
+        "clipboard.write"
+      ],
+      "defaultPermissions": [
+        "clipboard.read",
+        "clipboard.write"
+      ],
       "commands": [
         "clipboard.readText",
         "clipboard.writeText"
@@ -74,9 +118,16 @@
       "version": "1.0.0",
       "description": "Native system notifications.",
       "frontendPackage": "kasumi-plugin-notification",
-      "platforms": ["windows", "android"],
-      "permissions": ["notification.show"],
-      "defaultPermissions": ["notification.show"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "notification.show"
+      ],
+      "defaultPermissions": [
+        "notification.show"
+      ],
       "commands": [
         "notification.show"
       ]
@@ -86,15 +137,32 @@
       "version": "1.0.0",
       "description": "Window title, size, lifecycle and application exit controls.",
       "frontendPackage": "kasumi-plugin-window",
-      "platforms": ["windows", "android"],
-      "permissions": ["window.control"],
-      "defaultPermissions": ["window.control"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "window.control",
+        "window.manage"
+      ],
+      "defaultPermissions": [
+        "window.control",
+        "window.manage"
+      ],
       "commands": [
         "window.setTitle",
         "window.minimize",
         "window.maximize",
         "window.setSize",
-        "window.close"
+        "window.close",
+        "window.create",
+        "window.show",
+        "window.hide",
+        "window.setPosition",
+        "window.setAlwaysOnTop",
+        "window.setTransparent",
+        "window.getState",
+        "event.emit"
       ]
     },
     "http": {
@@ -102,11 +170,28 @@
       "version": "1.0.0",
       "description": "HTTPS downloads into the virtual filesystem.",
       "frontendPackage": "kasumi-plugin-http",
-      "platforms": ["windows", "android"],
-      "permissions": ["http.download"],
-      "defaultPermissions": ["http.download"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "http.cookies",
+        "http.download",
+        "http.request"
+      ],
+      "defaultPermissions": [
+        "http.cookies",
+        "http.download",
+        "http.request"
+      ],
       "commands": [
-        "http.download"
+        "http.download",
+        "http.request",
+        "http.transfer.start",
+        "http.transfer.cancel",
+        "http.cookies.get",
+        "http.cookies.set",
+        "http.cookies.clear"
       ]
     },
     "shell": {
@@ -114,9 +199,16 @@
       "version": "1.4.0",
       "description": "Allowlisted external URL launching.",
       "frontendPackage": "kasumi-plugin-shell",
-      "platforms": ["windows", "android"],
-      "permissions": ["shell.open"],
-      "defaultPermissions": ["shell.open"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "shell.open"
+      ],
+      "defaultPermissions": [
+        "shell.open"
+      ],
       "commands": [
         "shell.openExternal",
         "shell.openPath",
@@ -128,9 +220,15 @@
       "version": "1.0.0",
       "description": "Non-identifying Android device information.",
       "frontendPackage": "kasumi-plugin-device",
-      "platforms": ["android"],
-      "permissions": ["device.info"],
-      "defaultPermissions": ["device.info"],
+      "platforms": [
+        "android"
+      ],
+      "permissions": [
+        "device.info"
+      ],
+      "defaultPermissions": [
+        "device.info"
+      ],
       "commands": [
         "device.getInfo"
       ]
@@ -140,9 +238,16 @@
       "version": "1.2.0",
       "description": "Database connections and parameterised SQL statements.",
       "frontendPackage": "kasumi-plugin-sql",
-      "platforms": ["windows", "android"],
-      "permissions": ["sql"],
-      "defaultPermissions": ["sql"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "sql"
+      ],
+      "defaultPermissions": [
+        "sql"
+      ],
       "commands": [
         "sql.drivers",
         "sql.open",
@@ -156,7 +261,10 @@
       "version": "1.3.0",
       "description": "Virtual application path inspection and construction.",
       "frontendPackage": "kasumi-plugin-path",
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "permissions": [],
       "defaultPermissions": [],
       "commands": [
@@ -174,9 +282,16 @@
       "version": "1.3.0",
       "description": "Persistent JSON key-value storage inside application data.",
       "frontendPackage": "kasumi-plugin-store",
-      "platforms": ["windows", "android"],
-      "permissions": ["store"],
-      "defaultPermissions": ["store"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "store"
+      ],
+      "defaultPermissions": [
+        "store"
+      ],
       "commands": [
         "store.get",
         "store.set",
@@ -190,9 +305,16 @@
       "version": "1.3.0",
       "description": "Non-identifying operating system and runtime information.",
       "frontendPackage": "kasumi-plugin-os",
-      "platforms": ["windows", "android"],
-      "permissions": ["os.info"],
-      "defaultPermissions": ["os.info"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "os.info"
+      ],
+      "defaultPermissions": [
+        "os.info"
+      ],
       "commands": [
         "os.getInfo"
       ]
@@ -202,9 +324,16 @@
       "version": "1.3.0",
       "description": "Platform logger access with bounded messages.",
       "frontendPackage": "kasumi-plugin-log",
-      "platforms": ["windows", "android"],
-      "permissions": ["log.write"],
-      "defaultPermissions": ["log.write"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "log.write"
+      ],
+      "defaultPermissions": [
+        "log.write"
+      ],
       "commands": [
         "log.write"
       ]
@@ -214,7 +343,10 @@
       "version": "1.4.0",
       "description": "Single instance state and focus coordination.",
       "frontendPackage": "kasumi-bridge",
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "permissions": [],
       "defaultPermissions": [],
       "commands": [
@@ -227,12 +359,22 @@
       "version": "1.4.0",
       "description": "Check and download application update packages.",
       "frontendPackage": "kasumi-plugin-updater",
-      "platforms": ["windows", "android"],
-      "permissions": ["updater"],
-      "defaultPermissions": ["updater"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "updater",
+        "updater.install"
+      ],
+      "defaultPermissions": [
+        "updater",
+        "updater.install"
+      ],
       "commands": [
         "updater.check",
-        "updater.download"
+        "updater.download",
+        "updater.install"
       ]
     },
     "globalShortcut": {
@@ -240,9 +382,15 @@
       "version": "1.4.0",
       "description": "Register and unregister global keyboard shortcuts.",
       "frontendPackage": "kasumi-plugin-global-shortcut",
-      "platforms": ["windows"],
-      "permissions": ["globalShortcut"],
-      "defaultPermissions": ["globalShortcut"],
+      "platforms": [
+        "windows"
+      ],
+      "permissions": [
+        "globalShortcut"
+      ],
+      "defaultPermissions": [
+        "globalShortcut"
+      ],
       "commands": [
         "globalShortcut.register",
         "globalShortcut.unregister"
@@ -253,12 +401,97 @@
       "version": "1.4.0",
       "description": "Show and hide the system tray icon.",
       "frontendPackage": "kasumi-plugin-tray",
-      "platforms": ["windows"],
-      "permissions": ["tray"],
-      "defaultPermissions": ["tray"],
+      "platforms": [
+        "windows"
+      ],
+      "permissions": [
+        "tray",
+        "tray.configure"
+      ],
+      "defaultPermissions": [
+        "tray",
+        "tray.configure"
+      ],
       "commands": [
         "tray.show",
-        "tray.hide"
+        "tray.hide",
+        "tray.configure"
+      ]
+    },
+    "media": {
+      "name": "Media",
+      "version": "1.5.0",
+      "description": "Media metadata, external tool discovery, and virtual media scopes.",
+      "frontendPackage": "kasumi-plugin-media",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "media.read"
+      ],
+      "defaultPermissions": [
+        "media.read"
+      ],
+      "commands": [
+        "media.probe",
+        "media.ffmpeg.detect",
+        "media.ffmpeg.validate",
+        "media.ffmpeg.setPath",
+        "media.ffmpeg.pickExecutable"
+      ]
+    },
+    "audio": {
+      "name": "Audio",
+      "version": "1.5.0",
+      "description": "Audio playback, device selection, effects, and state.",
+      "frontendPackage": "kasumi-plugin-audio",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "media.control",
+        "media.read"
+      ],
+      "defaultPermissions": [
+        "media.control",
+        "media.read"
+      ],
+      "commands": [
+        "audio.devices.list",
+        "audio.devices.set",
+        "audio.output.getMode",
+        "audio.output.setExclusive",
+        "audio.eq.set",
+        "audio.speed.set",
+        "audio.probe",
+        "audio.load",
+        "audio.play",
+        "audio.pause",
+        "audio.stop",
+        "audio.seek",
+        "audio.volume.set",
+        "audio.state.get"
+      ]
+    },
+    "mediaSession": {
+      "name": "Media Session",
+      "version": "1.5.0",
+      "description": "System media session metadata and transport commands.",
+      "frontendPackage": "kasumi-plugin-media-session",
+      "platforms": [
+        "android"
+      ],
+      "permissions": [
+        "mediaSession"
+      ],
+      "defaultPermissions": [
+        "mediaSession"
+      ],
+      "commands": [
+        "mediaSession.update",
+        "mediaSession.clear"
       ]
     }
   }

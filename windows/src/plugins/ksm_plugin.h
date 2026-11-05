@@ -10,10 +10,17 @@ class KSMFileSystem;
 class KSMHostServices;
 
 struct KSMPluginContext {
+    using EventSender =
+        std::function<bool(const std::string&, const nlohmann::json&)>;
+
     std::shared_ptr<KSMFileSystem> file_system;
     std::shared_ptr<KSMHostServices> host_services;
     std::function<bool(const std::string&)> has_permission;
     std::string request_id;
+    std::string window_id = "default";
+    EventSender emit_event = [](const std::string&, const nlohmann::json&) {
+        return false;
+    };
 };
 
 class KSMPlugin {

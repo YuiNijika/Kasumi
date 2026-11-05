@@ -1,15 +1,43 @@
 import { KSM } from '../bridge/ksm.js';
 import {
   assertBoolean,
+  assertInteger,
+  assertScopeId,
   assertString,
+  assertStringArray,
   assertVirtualDirectoryPath,
   assertVirtualPath,
   assertVirtualStatPath
 } from './guards.js';
 import type {
   KSMDirectoryEntry,
-  KSMFileMetadata
+  KSMDirectoryFilter,
+  KSMFileMetadata,
+  KSMFsWalkArgs,
+  KSMFsWalkResult,
+  KSMScopeReleaseArgs,
+  KSMScopeReleaseResult
 } from '../bridge/types.js';
+
+const MAX_WALK_DEPTH = 64;
+
+function assertDirectoryFilter(
+  value: KSMDirectoryFilter | undefined,
+  field: string
+): void {
+  if (value === undefined) {
+    return;
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError(`${field} must be an object.`);
+  }
+  if (value.extensions !== undefined) {
+    assertStringArray(value.extensions, `${field}.extensions`, 128);
+  }
+  if (value.mimeTypes !== undefined) {
+    assertStringArray(value.mimeTypes, `${field}.mimeTypes`, 128);
+  }
+}
 
 export function readText(args: { path: string }): Promise<string | { file: string }> {
   assertVirtualPath(args.path);
@@ -95,4 +123,20 @@ export function mkdir(
 export function stat(args: { path: string }): Promise<KSMFileMetadata> {
   assertVirtualStatPath(args.path);
   return KSM.invoke('fs.stat', args);
+}
+
+export function walk(args: KSMFsWalkArgs): Promise<KSMFsWalkResult> {
+  assertVirtualDirectoryPath(args.path);
+  if (args.maxDepth !== undefined) {
+    assertInteger(args.maxDepth, 'maxDepth', { min: 0, max: MAX_WALK_DEPTH });
+  }
+  assertDirectoryFilter(args.filter, 'filter');
+  return KSM.invoke('fs.walk', args, 60000);
+}
+
+export function releaseScope(
+  args: KSMScopeReleaseArgs
+): Promise<KSMScopeReleaseResult> {
+  assertScopeId(args.scopeId, 'scopeId');
+  return KSM.invoke('fs.scope.release', args);
 }

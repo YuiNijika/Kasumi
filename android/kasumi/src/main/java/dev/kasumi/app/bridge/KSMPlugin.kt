@@ -7,7 +7,9 @@ data class KSMPluginContext(
     val hostServices: KSMHostServices?,
     val hasPermission: (String) -> Boolean,
     val requestId: String? = null,
-    val windowId: String? = null
+    val windowId: String? = null,
+    val cancelToken: (() -> Boolean)? = null,
+    val emitEvent: (String, JSONObject) -> Boolean = { _, _ -> false }
 )
 
 interface KSMPlugin {
@@ -93,6 +95,7 @@ class KSMPluginRegistry(
 
 fun ksmDefaultPlugins(): List<KSMPlugin> {
     return listOf(
+        KSMCapabilityPlugin(),
         KSMFileSystemPlugin(),
         KSMDialogPlugin(),
         KSMClipboardPlugin(),

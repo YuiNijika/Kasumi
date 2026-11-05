@@ -88,7 +88,13 @@ class MainActivity : Activity() {
         data: Intent?
     ) {
         super.onActivityResult(requestCode, resultCode, data)
-        hostServices.handleActivityResult(requestCode, resultCode, data)
+        if (!hostServices.handleActivityResult(requestCode, resultCode, data)) {
+            hostServices.handleMultiSelectActivityResult(
+                requestCode,
+                resultCode,
+                data
+            )
+        }
     }
 
     override fun onRequestPermissionsResult(

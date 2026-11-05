@@ -3,7 +3,9 @@ export type {
   KSMDirectoryEntry,
   KSMFileHandle,
   KSMFileKind,
-  KSMFileMetadata
+  KSMFileMetadata,
+  KSMFsWalkArgs,
+  KSMFsWalkResult
 } from 'kasumi-bridge';
 
 export const PLUGIN_ID = 'fs' as const;

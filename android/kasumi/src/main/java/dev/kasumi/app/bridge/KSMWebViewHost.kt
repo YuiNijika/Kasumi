@@ -94,7 +94,16 @@ class KSMWebViewHost(
         },
         plugins = plugins,
         requestScope = windowId
-    )
+    ).also {
+        hostServices?.setEventDispatcher { event, payload ->
+            val json = try {
+                org.json.JSONObject(payload)
+            } catch (_: org.json.JSONException) {
+                org.json.JSONObject()
+            }
+            it.emitEvent(event, json)
+        }
+    }
     private val commandScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val commandExecutor = ThreadPoolExecutor(
         MAX_CONCURRENT_COMMANDS,
@@ -400,14 +409,14 @@ class KSMWebViewHost(
             }
         } catch (_: TimeoutCancellationException) {
             if (id != null) {
-                hostServices.cancelRequest(scopedRequestId(id))
+                hostServices.cancelRequestWithScope(scopedRequestId(id))
             }
             timeoutResponse(id)
         } catch (_: CancellationException) {
             if (id == null) {
                 throw CancellationException("Command was cancelled.")
             }
-            hostServices.cancelRequest(scopedRequestId(id))
+            hostServices.cancelRequestWithScope(scopedRequestId(id))
             if (active?.shouldSuppressResponse() == true) "" else cancelledResponse(id)
         }
     }
@@ -438,7 +447,7 @@ class KSMWebViewHost(
             return
         }
         activeRequests[id]?.cancel()
-        hostServices.cancelRequest(scopedRequestId(id))
+        hostServices.cancelRequestWithScope(scopedRequestId(id))
     }
 
     private fun resetSession(silent: Boolean) {
@@ -446,7 +455,7 @@ class KSMWebViewHost(
         activeRequests.clear()
         for ((id, command) in requests) {
             command.cancel(silent)
-            hostServices.cancelRequest(scopedRequestId(id))
+            hostServices.cancelRequestWithScope(scopedRequestId(id))
         }
     }
 

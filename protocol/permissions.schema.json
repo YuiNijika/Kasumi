@@ -3,24 +3,378 @@
   "title": "Kasumi permission contract",
   "type": "object",
   "properties": {
-    "fs.read": {"type": "object", "description": "Read files inside the Kasumi virtual filesystem.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "fs.write": {"type": "object", "description": "Write files inside the Kasumi virtual filesystem.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "fs.remove": {"type": "object", "description": "Remove files inside the Kasumi virtual filesystem.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "dialog": {"type": "object", "description": "Show native dialogs and file pickers.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "clipboard.read": {"type": "object", "description": "Read text from the system clipboard.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "clipboard.write": {"type": "object", "description": "Write text to the system clipboard.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "notification.show": {"type": "object", "description": "Show a system notification.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "window.control": {"type": "object", "description": "Control the host window or application lifecycle.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "http.download": {"type": "object", "description": "Download HTTPS resources into the Kasumi virtual filesystem.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "shell.open": {"type": "object", "description": "Open allowlisted web origins in the system browser.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "device.info": {"type": "object", "description": "Read non-identifying Android device and display information.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "sql": {"type": "object", "description": "Open database connections and execute SQL statements.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "store": {"type": "object", "description": "Read and write the application JSON store.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "os.info": {"type": "object", "description": "Read non-identifying operating system information.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "log.write": {"type": "object", "description": "Write messages to the platform logger.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "updater": {"type": "object", "description": "Check and download application update packages.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "globalShortcut": {"type": "object", "description": "Register and unregister global keyboard shortcuts.", "required": ["description"], "properties": {"description": {"type": "string"}}},
-    "tray": {"type": "object", "description": "Configure the system tray icon and menu.", "required": ["description"], "properties": {"description": {"type": "string"}}}
+    "fs.read": {
+      "type": "object",
+      "description": "Read files inside the Kasumi virtual filesystem.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "fs.write": {
+      "type": "object",
+      "description": "Write files inside the Kasumi virtual filesystem.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "fs.remove": {
+      "type": "object",
+      "description": "Remove files inside the Kasumi virtual filesystem.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "dialog": {
+      "type": "object",
+      "description": "Show native dialogs and file pickers.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "clipboard.read": {
+      "type": "object",
+      "description": "Read text from the system clipboard.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "clipboard.write": {
+      "type": "object",
+      "description": "Write text to the system clipboard.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "notification.show": {
+      "type": "object",
+      "description": "Show a system notification.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "window.control": {
+      "type": "object",
+      "description": "Control the host window or application lifecycle.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "http.download": {
+      "type": "object",
+      "description": "Download HTTPS resources into the Kasumi virtual filesystem.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "shell.open": {
+      "type": "object",
+      "description": "Open allowlisted web origins in the system browser.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "device.info": {
+      "type": "object",
+      "description": "Read non-identifying Android device and display information.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "sql": {
+      "type": "object",
+      "description": "Open database connections and execute SQL statements.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "store": {
+      "type": "object",
+      "description": "Read and write the application JSON store.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "os.info": {
+      "type": "object",
+      "description": "Read non-identifying operating system information.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "log.write": {
+      "type": "object",
+      "description": "Write messages to the platform logger.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "updater": {
+      "type": "object",
+      "description": "Check and download application update packages.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "globalShortcut": {
+      "type": "object",
+      "description": "Register and unregister global keyboard shortcuts.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "tray": {
+      "type": "object",
+      "description": "Configure the system tray icon and menu.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "http.request": {
+      "type": "object",
+      "description": "Perform allowlisted generic HTTPS requests.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "http.cookies": {
+      "type": "object",
+      "description": "Read and write isolated HTTP cookie jars.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "http.transfer": {
+      "type": "object",
+      "description": "Start and cancel managed HTTP transfers.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "media.read": {
+      "type": "object",
+      "description": "Read media metadata and active virtual file scopes.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "media.control": {
+      "type": "object",
+      "description": "Control audio playback, output, and effects.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "media.probe": {
+      "type": "object",
+      "description": "Probe media metadata and external media tools.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "audio.play": {
+      "type": "object",
+      "description": "Control audio playback and output state.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "mediaSession": {
+      "type": "object",
+      "description": "Publish and clear the system media session.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "window.manage": {
+      "type": "object",
+      "description": "Create and manage host application windows.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "tray.configure": {
+      "type": "object",
+      "description": "Configure the system tray icon and menu.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "updater.install": {
+      "type": "object",
+      "description": "Verify and install application updates.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "app.deepLink": {
+      "type": "object",
+      "description": "Read and receive application deep links.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "app.devtools": {
+      "type": "object",
+      "description": "Open and close host developer tools.",
+      "required": [
+        "description"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        }
+      }
+    }
   },
   "additionalProperties": false
 }

@@ -31,6 +31,7 @@
 #include "../src/platform/ksm_webview_host.h"
 #include "../src/platform/ksm_windows_host_services.h"
 #include "../src/plugins/ksm_log_plugin.h"
+#include "../src/plugins/ksm_capability_plugin.h"
 #include "../src/plugins/ksm_os_plugin.h"
 #include "../src/plugins/ksm_path_plugin.h"
 #include "../src/plugins/ksm_store_plugin.h"
@@ -881,6 +882,122 @@ void TestKsmRoot(
         KSM::App::GetInfo().has_value() ||
         KSM::App::Exit()) {
         throw std::runtime_error("KSM::Shutdown left a submodule active.");
+    }
+}
+
+void TestCapabilityFoundation(
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    auto services = std::make_shared<BlockingHostServices>();
+    auto commands = AllWindowsCommands();
+    const auto capability_commands = KSMCapabilityCommands();
+    commands.insert(
+        commands.end(),
+        capability_commands.begin(),
+        capability_commands.end()
+    );
+    auto permissions = AllPermissions();
+    for (const auto& permission : {
+        "http.request",
+        "http.transfer",
+        "http.cookies",
+        "media.probe",
+        "audio.play",
+        "mediaSession"
+    }) {
+        permissions.emplace_back(permission);
+    }
+    KSMRouter router(
+        file_system,
+        services,
+        commands,
+        permissions,
+        {},
+        "window-1"
+    );
+    ExpectError(
+        Invoke(
+            router,
+            "http.request",
+            Json{{"url", "https://example.com/path"}}
+        ),
+        "NOT_SUPPORTED"
+    );
+    ExpectError(
+        Invoke(
+            router,
+            "fs.walk",
+            Json{{"path", "app://data/../secret"}}
+        ),
+        "PERMISSION_DENIED"
+    );
+    ExpectError(
+        Invoke(
+            router,
+            "audio.devices.list",
+            Json::object()
+        ),
+        "NOT_SUPPORTED"
+    );
+    ExpectError(
+        Invoke(
+            router,
+            "event.emit",
+            Json{
+                {"event", "http.transfer.completed"},
+                {"payload", Json{{"transferId", "transfer-1"}}}
+            }
+        ),
+        "NOT_SUPPORTED"
+    );
+    const auto subscribed = Invoke(
+        router,
+        "event.subscribe",
+        Json{{"event", "http.transfer.completed"}}
+    );
+    ExpectOk(subscribed);
+    std::vector<std::string> responses;
+    const Json request{
+        {"type", "request"},
+        {"id", "contract-event"},
+        {"cmd", "event.emit"},
+        {"args", {
+            {"event", "http.transfer.completed"},
+            {"payload", {{"transferId", "transfer-1"}}}
+        }}
+    };
+    router.HandleMessage(
+        request.dump(),
+        [&responses](const std::string& response) {
+            responses.push_back(response);
+        }
+    );
+    if (
+        std::find_if(
+            responses.begin(),
+            responses.end(),
+            [](const std::string& response) {
+                const Json parsed = Json::parse(response);
+                return parsed.value("type", "") == "event" &&
+                    parsed.value("event", "") ==
+                        "http.transfer.completed";
+            }
+        ) == responses.end()
+    ) {
+        throw std::runtime_error(
+            "A subscribed capability event was not delivered."
+        );
+    }
+    const auto pending = Invoke(
+        router,
+        "app.deepLink.getPending",
+        Json::object()
+    );
+    ExpectOk(pending);
+    if (!pending.at("data").at("url").is_null()) {
+        throw std::runtime_error(
+            "An empty deep link queue returned a URL."
+        );
     }
 }
 
@@ -2344,6 +2461,7 @@ int main() {
         TestWebViewSecurity();
         TestUrlPolicy();
         TestNewCommands(file_system);
+        TestCapabilityFoundation(file_system);
         TestUtilityPlugins(file_system);
         TestConcurrentStoreWrites(file_system);
         TestFileSystemSymlinkContainment(root, file_system);

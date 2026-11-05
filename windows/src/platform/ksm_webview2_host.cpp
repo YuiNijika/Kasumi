@@ -173,7 +173,21 @@ struct KSMWebView2View::Impl
             this->file_system, services,
             [this](std::function<void()> task) { PostToUi(std::move(task)); },
             std::move(allowed_commands), dev_mode, std::move(plugins),
-            std::move(allowed_permissions)) {
+            std::move(allowed_permissions),
+            std::to_string(window_id_value)) {
+    services->SetEventDispatcher(
+        [this](const std::string& event, const std::string& payload) {
+            PostToUi([this, event, payload] {
+                webview_host.EmitEvent(
+                    event,
+                    payload,
+                    [this](const std::string& response) {
+                        PostResponse(response);
+                    }
+                );
+            });
+        }
+    );
     desired_bounds = options.bounds;
     if (!options.start_url.empty()) {
       this->start_url = std::move(options.start_url);
@@ -813,6 +827,15 @@ struct KSMWebView2Host::Impl
 
   ~Impl() { Close(); }
 
+  void DispatchSystemMessage(
+      unsigned int message,
+      std::uintptr_t wparam
+  ) {
+    for (const auto& entry : views) {
+      entry.second->DispatchSystemMessage(message, wparam);
+    }
+  }
+
   bool Start(bool create_default_view,
              InitializationCallback completion_callback) {
     if (closed || started || initializing) {
@@ -1019,6 +1042,14 @@ struct KSMWebView2Host::Impl
       self->Close();
     } else if (message == WM_SIZE) {
       self->LayoutFillViews();
+    } else if (
+        message == WM_HOTKEY ||
+        message == WM_APP + 0x4C
+    ) {
+      self->DispatchSystemMessage(
+          message,
+          static_cast<std::uintptr_t>(wparam)
+      );
     }
     return DefSubclassProc(window, message, wparam, lparam);
   }
@@ -1083,6 +1114,13 @@ bool KSMWebView2View::Reload() { return impl_->ReloadPage(); }
 HWND KSMWebView2View::window() const noexcept { return impl_->window; }
 
 RECT KSMWebView2View::bounds() const noexcept { return impl_->desired_bounds; }
+
+void KSMWebView2View::DispatchSystemMessage(
+    unsigned int message,
+    std::uintptr_t wparam
+) {
+    impl_->services->DispatchSystemMessage(message, wparam);
+}
 
 bool KSMWebView2View::is_initialized() const noexcept {
   return impl_->webview && !impl_->closed;

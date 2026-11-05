@@ -1,10 +1,22 @@
 {
   "name": "kasumi-windows",
-  "version-string": "26.11.5",
+  "version-string": "26.11.6",
   "builtin-baseline": "d186940b2f0c4e8e5b4ff804af57d2a26fbfa091",
   "dependencies": [
+    "ffmpeg",
     "nlohmann-json",
     "sqlite3",
+    "taglib",
     "webview2"
+  ],
+  "overrides": [
+    {
+      "name": "ffmpeg",
+      "version": "9.0.2#2"
+    },
+    {
+      "name": "taglib",
+      "version": "2.3.1"
+    }
   ]
 }

@@ -23,3 +23,7 @@ await close();
 
 Windows 支持标题、最小化、最大化、尺寸和关闭。Android 只提供 `close`，其余命令返回
 `NOT_SUPPORTED`。`KSM.window` 继续作为兼容入口。
+
+`create`、`show`、`hide`、`setPosition`、`setAlwaysOnTop`、`setTransparent`
+和 `getState` 按 `windowId` 管理多窗口状态。`emit` 通过 `event.emit`
+发送受校验的窗口定向事件。

@@ -75,9 +75,10 @@ class KSMRouter(
     private val unsupportedGeneratedCommands =
         KSMGeneratedContract.commands.toSet() -
             KSMCommandRegistry.supportedCommands.toSet()
-    private val pluginCommands = pluginRegistry.commands.filter {
-        it !in unsupportedGeneratedCommands &&
-            it in allowedCommandNames
+    private val pluginCommands = pluginRegistry.commands.filter { command ->
+        (KSMCapabilityNames.isCapabilityCommand(command) ||
+            command !in unsupportedGeneratedCommands) &&
+            command in allowedCommandNames
     }
     val supportedCommands: List<String> = (
         generatedCommands + pluginCommands
@@ -146,7 +147,8 @@ class KSMRouter(
                 val args = request.getJSONObject("args")
                 val command = request.getString("cmd")
                 val generatedCommand = KSMGeneratedContract.isKnownCommand(command)
-                if (!generatedCommand && !pluginRegistry.owns(command)) {
+                val capabilityCommand = KSMCapabilityNames.isCapabilityCommand(command)
+                if (!generatedCommand && !capabilityCommand && !pluginRegistry.owns(command)) {
                     return errorResponse(
                         id,
                         "UNKNOWN_COMMAND",
@@ -162,8 +164,10 @@ class KSMRouter(
                 }
                 val validArgs = if (generatedCommand) {
                     KSMGeneratedContract.validateArgs(command, args)
-                } else {
+                } else if (capabilityCommand || pluginRegistry.owns(command)) {
                     pluginRegistry.validateArgs(command, args)
+                } else {
+                    false
                 }
                 if (!validArgs) {
                     return errorResponse(
@@ -172,7 +176,7 @@ class KSMRouter(
                         "Arguments do not match the command schema."
                     )
                 }
-                if (pluginRegistry.owns(command)) {
+                if (capabilityCommand || pluginRegistry.owns(command)) {
                     val rawRequestId = id as? String
                     val scopedRequestId = rawRequestId
                         ?.takeIf { requestScope.isNotEmpty() }
@@ -188,9 +192,21 @@ class KSMRouter(
                                 permission in grantedPermissions
                             },
                             requestId = scopedRequestId,
-                            windowId = requestScope.ifEmpty { null }
+                            windowId = requestScope.ifEmpty { null },
+                            cancelToken = {
+                                scopedRequestId?.let {
+                                    hostServices?.isRequestCancelled(it)
+                                } ?: false
+                            },
+                            emitEvent = { event, payload ->
+                                emitEvent(event, payload)
+                            }
                         )
-                    ) ?: JSONObject.NULL
+                    ) ?: return errorResponse(
+                        id,
+                        "NOT_SUPPORTED",
+                        "The command is not implemented on this host."
+                    )
                     successResponse(id, data)
                 } else when (command) {
                     "ping" -> successResponse(id, JSONObject().put("pong", true))
@@ -271,7 +287,10 @@ class KSMRouter(
                         val event = args.opt("event")
                         if (event !is String || event.isEmpty()) {
                             errorResponse(id, "INVALID_ARGS", "event is required.")
-                        } else if (event !in KSMGeneratedContract.events) {
+                        } else if (
+                            event !in KSMGeneratedContract.events &&
+                            event !in KSMCapabilityNames.events
+                        ) {
                             errorResponse(id, "INVALID_ARGS", "event is not registered.")
                         } else {
                             subscribedEvents.add(event)
@@ -282,7 +301,10 @@ class KSMRouter(
                         val event = args.opt("event")
                         if (event !is String || event.isEmpty()) {
                             errorResponse(id, "INVALID_ARGS", "event is required.")
-                        } else if (event !in KSMGeneratedContract.events) {
+                        } else if (
+                            event !in KSMGeneratedContract.events &&
+                            event !in KSMCapabilityNames.events
+                        ) {
                             errorResponse(id, "INVALID_ARGS", "event is not registered.")
                         } else {
                             subscribedEvents.remove(event)

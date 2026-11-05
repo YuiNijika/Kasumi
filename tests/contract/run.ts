@@ -3,6 +3,7 @@ import type { KSMPlatform } from '../../frontend/src/bridge/types';
 import { FrontendContractAdapter } from './adapters/frontend';
 import { MockHost, MockWebView } from './adapters/mock-host';
 import { runContractSuite } from './runner';
+import { runCapabilityApiCases } from './cases/capability-api.test';
 import { runTransportEventCases } from './cases/transport-events.test';
 import { runReloadRecoveryCase } from './cases/reload-recovery.test';
 
@@ -19,6 +20,7 @@ async function runPlatform(platform: KSMPlatform): Promise<void> {
 async function main(): Promise<void> {
   runTransportEventCases();
   await runReloadRecoveryCase();
+  await runCapabilityApiCases();
   await runPlatform('windows');
   await runPlatform('android');
   console.log('frontend contract passed for windows and android');

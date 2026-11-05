@@ -21,6 +21,20 @@ class VersionMetadataTest(unittest.TestCase):
     def test_current_versions_match(self) -> None:
         self.assertEqual(check_versions(ROOT), {})
 
+    def test_native_dependency_pins_do_not_use_release_version(self) -> None:
+        version = read_version(ROOT)
+        vcpkg = json.loads(
+            (ROOT / "windows" / "vcpkg.json").read_text(encoding="utf-8")
+        )
+        for override in vcpkg.get("overrides", []):
+            with self.subTest(port=override.get("name")):
+                self.assertNotEqual(override.get("version"), version)
+
+        catalog = (
+            ROOT / "android" / "gradle" / "libs.versions.toml"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn(version, catalog)
+
     def test_android_sdk_version_reads_version_metadata(self) -> None:
         self.assertEqual(android_sdk_version(), read_version(ROOT))
 
@@ -41,11 +55,22 @@ class VersionMetadataTest(unittest.TestCase):
             self.assertIn("pyproject.toml", changed)
             self.assertIn("packages/kasumi-plugin-fs/package.json", changed)
             self.assertIn("packages/kasumi-plugin-dialog/package.json", changed)
+            self.assertIn("packages/kasumi-plugin-audio/package.json", changed)
+            self.assertIn(
+                "packages/kasumi-plugin-media-session/package.json",
+                changed,
+            )
             self.assertIn("packages/kasumi-plugin-sql/package.json", changed)
             self.assertIn("packages/kasumi-plugin-path/package.json", changed)
             self.assertIn("packages/kasumi-plugin-store/package.json", changed)
             self.assertIn("packages/kasumi-plugin-os/package.json", changed)
             self.assertIn("packages/kasumi-plugin-log/package.json", changed)
+            self.assertIn("packages/kasumi-plugin-updater/package.json", changed)
+            self.assertIn(
+                "packages/kasumi-plugin-global-shortcut/package.json",
+                changed,
+            )
+            self.assertIn("packages/kasumi-plugin-tray/package.json", changed)
             self.assertEqual(check_versions(root), {})
             self.assertEqual(read_version(root), "1.0.0")
 
@@ -72,6 +97,8 @@ class VersionMetadataTest(unittest.TestCase):
             root / "packages" / "kasumi-plugin-fs" / "package.json",
             root / "packages" / "kasumi-plugin-dialog" / "package.json",
             root / "packages" / "kasumi-plugin-clipboard" / "package.json",
+            root / "packages" / "kasumi-plugin-audio" / "package.json",
+            root / "packages" / "kasumi-plugin-media-session" / "package.json",
             root / "packages" / "kasumi-plugin-notification" / "package.json",
             root / "packages" / "kasumi-plugin-window" / "package.json",
             root / "packages" / "kasumi-plugin-http" / "package.json",
@@ -82,6 +109,9 @@ class VersionMetadataTest(unittest.TestCase):
             root / "packages" / "kasumi-plugin-store" / "package.json",
             root / "packages" / "kasumi-plugin-os" / "package.json",
             root / "packages" / "kasumi-plugin-log" / "package.json",
+            root / "packages" / "kasumi-plugin-updater" / "package.json",
+            root / "packages" / "kasumi-plugin-global-shortcut" / "package.json",
+            root / "packages" / "kasumi-plugin-tray" / "package.json",
         ]
         for path in package_paths:
             path.parent.mkdir(parents=True, exist_ok=True)

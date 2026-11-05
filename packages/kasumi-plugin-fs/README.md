@@ -26,3 +26,6 @@ const text = await readText({ path: "app://data/example.txt" });
 
 这个包只提供前端调用入口。路径沙箱、权限、命令 allowlist 和平台检查仍由
 Windows 或 Android 宿主执行。`KSM.fs` 继续作为兼容入口保留。
+
+`walk` 使用虚拟目录 scope 递归枚举并返回 `{ entries }`；`releaseScope`
+释放目录授权。两者都不接受真实路径。

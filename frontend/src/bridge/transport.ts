@@ -4,7 +4,7 @@ import type {
   KSMTransport
 } from './types.js';
 
-const MAX_MESSAGE_BYTES = 64 * 1024;
+export const MAX_MESSAGE_BYTES = 64 * 1024;
 
 interface KSMWebView {
   postMessage(message: string): void;

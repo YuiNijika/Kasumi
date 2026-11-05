@@ -81,7 +81,11 @@ afterEvaluate {
 }
 
 dependencies {
-    api("androidx.core:core-ktx:1.13.1")
+    api(libs.androidx.core.ktx)
+    api(libs.androidx.documentfile)
+    api(libs.androidx.media)
+    api(libs.androidx.media3.exoplayer)
+    api(libs.androidx.media3.session)
     api("androidx.webkit:webkit:1.14.0")
     api("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     testImplementation("junit:junit:4.13.2")

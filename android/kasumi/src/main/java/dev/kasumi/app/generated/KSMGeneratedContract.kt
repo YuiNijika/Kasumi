@@ -67,7 +67,50 @@ object KSMGeneratedContract {
         "store.keys",
         "os.getInfo",
         "log.write",
-        "app.exit"
+        "app.exit",
+        "http.request",
+        "http.transfer.start",
+        "http.transfer.cancel",
+        "http.cookies.get",
+        "http.cookies.set",
+        "http.cookies.clear",
+        "dialog.openFolder",
+        "dialog.openFiles",
+        "fs.walk",
+        "fs.scope.release",
+        "media.probe",
+        "media.ffmpeg.detect",
+        "media.ffmpeg.validate",
+        "media.ffmpeg.setPath",
+        "media.ffmpeg.pickExecutable",
+        "audio.devices.list",
+        "audio.devices.set",
+        "audio.output.getMode",
+        "audio.output.setExclusive",
+        "audio.eq.set",
+        "audio.speed.set",
+        "audio.probe",
+        "audio.load",
+        "audio.play",
+        "audio.pause",
+        "audio.stop",
+        "audio.seek",
+        "audio.volume.set",
+        "audio.state.get",
+        "mediaSession.update",
+        "mediaSession.clear",
+        "window.create",
+        "window.show",
+        "window.hide",
+        "window.setPosition",
+        "window.setAlwaysOnTop",
+        "window.setTransparent",
+        "window.getState",
+        "event.emit",
+        "tray.configure",
+        "updater.install",
+        "app.openDevtools",
+        "app.deepLink.getPending"
     )
 
     val windowsCommands: List<String> = listOf(
@@ -132,7 +175,47 @@ object KSMGeneratedContract {
         "store.keys",
         "os.getInfo",
         "log.write",
-        "app.exit"
+        "app.exit",
+        "http.request",
+        "http.transfer.start",
+        "http.transfer.cancel",
+        "http.cookies.get",
+        "http.cookies.set",
+        "http.cookies.clear",
+        "dialog.openFolder",
+        "dialog.openFiles",
+        "fs.walk",
+        "fs.scope.release",
+        "media.probe",
+        "media.ffmpeg.detect",
+        "media.ffmpeg.validate",
+        "media.ffmpeg.setPath",
+        "media.ffmpeg.pickExecutable",
+        "audio.devices.list",
+        "audio.devices.set",
+        "audio.output.getMode",
+        "audio.output.setExclusive",
+        "audio.eq.set",
+        "audio.speed.set",
+        "audio.probe",
+        "audio.load",
+        "audio.play",
+        "audio.pause",
+        "audio.stop",
+        "audio.seek",
+        "audio.volume.set",
+        "audio.state.get",
+        "window.create",
+        "window.show",
+        "window.hide",
+        "window.setPosition",
+        "window.setAlwaysOnTop",
+        "window.setTransparent",
+        "window.getState",
+        "event.emit",
+        "tray.configure",
+        "updater.install",
+        "app.openDevtools"
     )
 
     val androidCommands: List<String> = listOf(
@@ -190,13 +273,61 @@ object KSMGeneratedContract {
         "store.keys",
         "os.getInfo",
         "log.write",
-        "app.exit"
+        "app.exit",
+        "http.request",
+        "http.transfer.start",
+        "http.transfer.cancel",
+        "http.cookies.get",
+        "http.cookies.set",
+        "http.cookies.clear",
+        "dialog.openFolder",
+        "dialog.openFiles",
+        "fs.walk",
+        "fs.scope.release",
+        "media.probe",
+        "media.ffmpeg.detect",
+        "media.ffmpeg.validate",
+        "audio.devices.list",
+        "audio.devices.set",
+        "audio.eq.set",
+        "audio.speed.set",
+        "audio.probe",
+        "audio.load",
+        "audio.play",
+        "audio.pause",
+        "audio.stop",
+        "audio.seek",
+        "audio.volume.set",
+        "audio.state.get",
+        "mediaSession.update",
+        "mediaSession.clear",
+        "event.emit",
+        "updater.install",
+        "app.openDevtools",
+        "app.deepLink.getPending"
     )
 
     val events: List<String> = listOf(
         "webview.navigated",
         "webview.reloaded",
-        "window.resized"
+        "window.resized",
+        "http.transfer.progress",
+        "http.transfer.completed",
+        "http.transfer.failed",
+        "audio.tick",
+        "audio.ended",
+        "audio.stateChanged",
+        "audio.error",
+        "mediaSession.command",
+        "window.visibilityChanged",
+        "window.stateChanged",
+        "tray.action",
+        "tray.click",
+        "globalShortcut.triggered",
+        "updater.progress",
+        "updater.status",
+        "app.deepLink.received",
+        "app.secondInstance.received"
     )
 
     val permissions: List<String> = listOf(
@@ -217,7 +348,20 @@ object KSMGeneratedContract {
         "log.write",
         "updater",
         "globalShortcut",
-        "tray"
+        "tray",
+        "http.request",
+        "http.cookies",
+        "http.transfer",
+        "media.read",
+        "media.control",
+        "media.probe",
+        "audio.play",
+        "mediaSession",
+        "window.manage",
+        "tray.configure",
+        "updater.install",
+        "app.deepLink",
+        "app.devtools"
     )
 
     val plugins: List<String> = listOf(
@@ -238,7 +382,10 @@ object KSMGeneratedContract {
         "appInstance",
         "updater",
         "globalShortcut",
-        "tray"
+        "tray",
+        "media",
+        "audio",
+        "mediaSession"
     )
 
     val pluginMetadata: JSONObject = JSONObject("""{
@@ -252,9 +399,13 @@ object KSMGeneratedContract {
       "android"
     ],
     "permissions": [
+      "app.deepLink",
+      "app.devtools",
       "window.control"
     ],
     "defaultPermissions": [
+      "app.deepLink",
+      "app.devtools",
       "window.control"
     ],
     "commands": [
@@ -264,7 +415,9 @@ object KSMGeneratedContract {
       "app.exit",
       "permission.request",
       "event.subscribe",
-      "event.unsubscribe"
+      "event.unsubscribe",
+      "app.openDevtools",
+      "app.deepLink.getPending"
     ]
   },
   "fs": {
@@ -278,13 +431,13 @@ object KSMGeneratedContract {
     ],
     "permissions": [
       "fs.read",
-      "fs.write",
-      "fs.remove"
+      "fs.remove",
+      "fs.write"
     ],
     "defaultPermissions": [
       "fs.read",
-      "fs.write",
-      "fs.remove"
+      "fs.remove",
+      "fs.write"
     ],
     "commands": [
       "fs.readText",
@@ -298,7 +451,9 @@ object KSMGeneratedContract {
       "fs.remove",
       "fs.readDir",
       "fs.mkdir",
-      "fs.stat"
+      "fs.stat",
+      "fs.walk",
+      "fs.scope.release"
     ]
   },
   "dialog": {
@@ -320,7 +475,9 @@ object KSMGeneratedContract {
       "dialog.message",
       "dialog.confirm",
       "dialog.openFile",
-      "dialog.saveFile"
+      "dialog.saveFile",
+      "dialog.openFolder",
+      "dialog.openFiles"
     ]
   },
   "clipboard": {
@@ -374,17 +531,27 @@ object KSMGeneratedContract {
       "android"
     ],
     "permissions": [
-      "window.control"
+      "window.control",
+      "window.manage"
     ],
     "defaultPermissions": [
-      "window.control"
+      "window.control",
+      "window.manage"
     ],
     "commands": [
       "window.setTitle",
       "window.minimize",
       "window.maximize",
       "window.setSize",
-      "window.close"
+      "window.close",
+      "window.create",
+      "window.show",
+      "window.hide",
+      "window.setPosition",
+      "window.setAlwaysOnTop",
+      "window.setTransparent",
+      "window.getState",
+      "event.emit"
     ]
   },
   "http": {
@@ -397,13 +564,23 @@ object KSMGeneratedContract {
       "android"
     ],
     "permissions": [
-      "http.download"
+      "http.cookies",
+      "http.download",
+      "http.request"
     ],
     "defaultPermissions": [
-      "http.download"
+      "http.cookies",
+      "http.download",
+      "http.request"
     ],
     "commands": [
-      "http.download"
+      "http.download",
+      "http.request",
+      "http.transfer.start",
+      "http.transfer.cancel",
+      "http.cookies.get",
+      "http.cookies.set",
+      "http.cookies.clear"
     ]
   },
   "shell": {
@@ -576,14 +753,17 @@ object KSMGeneratedContract {
       "android"
     ],
     "permissions": [
-      "updater"
+      "updater",
+      "updater.install"
     ],
     "defaultPermissions": [
-      "updater"
+      "updater",
+      "updater.install"
     ],
     "commands": [
       "updater.check",
-      "updater.download"
+      "updater.download",
+      "updater.install"
     ]
   },
   "globalShortcut": {
@@ -614,14 +794,93 @@ object KSMGeneratedContract {
       "windows"
     ],
     "permissions": [
-      "tray"
+      "tray",
+      "tray.configure"
     ],
     "defaultPermissions": [
-      "tray"
+      "tray",
+      "tray.configure"
     ],
     "commands": [
       "tray.show",
-      "tray.hide"
+      "tray.hide",
+      "tray.configure"
+    ]
+  },
+  "media": {
+    "name": "Media",
+    "version": "1.5.0",
+    "description": "Media metadata, external tool discovery, and virtual media scopes.",
+    "frontendPackage": "kasumi-plugin-media",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "media.read"
+    ],
+    "defaultPermissions": [
+      "media.read"
+    ],
+    "commands": [
+      "media.probe",
+      "media.ffmpeg.detect",
+      "media.ffmpeg.validate",
+      "media.ffmpeg.setPath",
+      "media.ffmpeg.pickExecutable"
+    ]
+  },
+  "audio": {
+    "name": "Audio",
+    "version": "1.5.0",
+    "description": "Audio playback, device selection, effects, and state.",
+    "frontendPackage": "kasumi-plugin-audio",
+    "platforms": [
+      "windows",
+      "android"
+    ],
+    "permissions": [
+      "media.control",
+      "media.read"
+    ],
+    "defaultPermissions": [
+      "media.control",
+      "media.read"
+    ],
+    "commands": [
+      "audio.devices.list",
+      "audio.devices.set",
+      "audio.output.getMode",
+      "audio.output.setExclusive",
+      "audio.eq.set",
+      "audio.speed.set",
+      "audio.probe",
+      "audio.load",
+      "audio.play",
+      "audio.pause",
+      "audio.stop",
+      "audio.seek",
+      "audio.volume.set",
+      "audio.state.get"
+    ]
+  },
+  "mediaSession": {
+    "name": "Media Session",
+    "version": "1.5.0",
+    "description": "System media session metadata and transport commands.",
+    "frontendPackage": "kasumi-plugin-media-session",
+    "platforms": [
+      "android"
+    ],
+    "permissions": [
+      "mediaSession"
+    ],
+    "defaultPermissions": [
+      "mediaSession"
+    ],
+    "commands": [
+      "mediaSession.update",
+      "mediaSession.clear"
     ]
   }
 }""")
@@ -634,7 +893,9 @@ object KSMGeneratedContract {
             "app.exit",
             "permission.request",
             "event.subscribe",
-            "event.unsubscribe"
+            "event.unsubscribe",
+            "app.openDevtools",
+            "app.deepLink.getPending"
         ),
         "fs" to listOf(
             "fs.readText",
@@ -648,13 +909,17 @@ object KSMGeneratedContract {
             "fs.remove",
             "fs.readDir",
             "fs.mkdir",
-            "fs.stat"
+            "fs.stat",
+            "fs.walk",
+            "fs.scope.release"
         ),
         "dialog" to listOf(
             "dialog.message",
             "dialog.confirm",
             "dialog.openFile",
-            "dialog.saveFile"
+            "dialog.saveFile",
+            "dialog.openFolder",
+            "dialog.openFiles"
         ),
         "clipboard" to listOf(
             "clipboard.readText",
@@ -668,10 +933,24 @@ object KSMGeneratedContract {
             "window.minimize",
             "window.maximize",
             "window.setSize",
-            "window.close"
+            "window.close",
+            "window.create",
+            "window.show",
+            "window.hide",
+            "window.setPosition",
+            "window.setAlwaysOnTop",
+            "window.setTransparent",
+            "window.getState",
+            "event.emit"
         ),
         "http" to listOf(
-            "http.download"
+            "http.download",
+            "http.request",
+            "http.transfer.start",
+            "http.transfer.cancel",
+            "http.cookies.get",
+            "http.cookies.set",
+            "http.cookies.clear"
         ),
         "shell" to listOf(
             "shell.openExternal",
@@ -716,7 +995,8 @@ object KSMGeneratedContract {
         ),
         "updater" to listOf(
             "updater.check",
-            "updater.download"
+            "updater.download",
+            "updater.install"
         ),
         "globalShortcut" to listOf(
             "globalShortcut.register",
@@ -724,7 +1004,35 @@ object KSMGeneratedContract {
         ),
         "tray" to listOf(
             "tray.show",
-            "tray.hide"
+            "tray.hide",
+            "tray.configure"
+        ),
+        "media" to listOf(
+            "media.probe",
+            "media.ffmpeg.detect",
+            "media.ffmpeg.validate",
+            "media.ffmpeg.setPath",
+            "media.ffmpeg.pickExecutable"
+        ),
+        "audio" to listOf(
+            "audio.devices.list",
+            "audio.devices.set",
+            "audio.output.getMode",
+            "audio.output.setExclusive",
+            "audio.eq.set",
+            "audio.speed.set",
+            "audio.probe",
+            "audio.load",
+            "audio.play",
+            "audio.pause",
+            "audio.stop",
+            "audio.seek",
+            "audio.volume.set",
+            "audio.state.get"
+        ),
+        "mediaSession" to listOf(
+            "mediaSession.update",
+            "mediaSession.clear"
         )
     )
 
@@ -888,6 +1196,135 @@ object KSMGeneratedContract {
         ),
         "app.exit" to listOf(
             "window.control"
+        ),
+        "http.request" to listOf(
+            "http.request"
+        ),
+        "http.transfer.start" to listOf(
+            "http.request"
+        ),
+        "http.transfer.cancel" to listOf(
+            "http.request"
+        ),
+        "http.cookies.get" to listOf(
+            "http.cookies"
+        ),
+        "http.cookies.set" to listOf(
+            "http.cookies"
+        ),
+        "http.cookies.clear" to listOf(
+            "http.cookies"
+        ),
+        "dialog.openFolder" to listOf(
+            "dialog"
+        ),
+        "dialog.openFiles" to listOf(
+            "dialog"
+        ),
+        "fs.walk" to listOf(
+            "fs.read"
+        ),
+        "fs.scope.release" to listOf(
+            "fs.read"
+        ),
+        "media.probe" to listOf(
+            "media.read"
+        ),
+        "media.ffmpeg.detect" to listOf(
+            "media.read"
+        ),
+        "media.ffmpeg.validate" to listOf(
+            "media.read"
+        ),
+        "media.ffmpeg.setPath" to listOf(
+            "media.read"
+        ),
+        "media.ffmpeg.pickExecutable" to listOf(
+            "media.read"
+        ),
+        "audio.devices.list" to listOf(
+            "media.control"
+        ),
+        "audio.devices.set" to listOf(
+            "media.control"
+        ),
+        "audio.output.getMode" to listOf(
+            "media.control"
+        ),
+        "audio.output.setExclusive" to listOf(
+            "media.control"
+        ),
+        "audio.eq.set" to listOf(
+            "media.control"
+        ),
+        "audio.speed.set" to listOf(
+            "media.control"
+        ),
+        "audio.probe" to listOf(
+            "media.read"
+        ),
+        "audio.load" to listOf(
+            "media.control"
+        ),
+        "audio.play" to listOf(
+            "media.control"
+        ),
+        "audio.pause" to listOf(
+            "media.control"
+        ),
+        "audio.stop" to listOf(
+            "media.control"
+        ),
+        "audio.seek" to listOf(
+            "media.control"
+        ),
+        "audio.volume.set" to listOf(
+            "media.control"
+        ),
+        "audio.state.get" to listOf(
+            "media.read"
+        ),
+        "mediaSession.update" to listOf(
+            "mediaSession"
+        ),
+        "mediaSession.clear" to listOf(
+            "mediaSession"
+        ),
+        "window.create" to listOf(
+            "window.manage"
+        ),
+        "window.show" to listOf(
+            "window.manage"
+        ),
+        "window.hide" to listOf(
+            "window.manage"
+        ),
+        "window.setPosition" to listOf(
+            "window.manage"
+        ),
+        "window.setAlwaysOnTop" to listOf(
+            "window.manage"
+        ),
+        "window.setTransparent" to listOf(
+            "window.manage"
+        ),
+        "window.getState" to listOf(
+            "window.manage"
+        ),
+        "event.emit" to listOf(
+            "window.manage"
+        ),
+        "tray.configure" to listOf(
+            "tray.configure"
+        ),
+        "updater.install" to listOf(
+            "updater.install"
+        ),
+        "app.openDevtools" to listOf(
+            "app.devtools"
+        ),
+        "app.deepLink.getPending" to listOf(
+            "app.deepLink"
         )
     )
 
@@ -1713,6 +2150,642 @@ object KSMGeneratedContract {
     "additionalProperties": false
   },
   "app.exit": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "http.request": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      },
+      "method": {
+        "type": "string",
+        "enum": [
+          "GET",
+          "POST"
+        ]
+      },
+      "headers": {
+        "type": "object"
+      },
+      "body": {
+        "type": "string"
+      },
+      "timeoutMs": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "url"
+    ],
+    "additionalProperties": false
+  },
+  "http.transfer.start": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "minLength": 1
+      },
+      "method": {
+        "type": "string",
+        "enum": [
+          "GET",
+          "POST"
+        ]
+      },
+      "headers": {
+        "type": "object"
+      },
+      "body": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "overwrite": {
+        "type": "boolean"
+      },
+      "jarId": {
+        "type": "string"
+      },
+      "userAgent": {
+        "type": "string"
+      },
+      "referer": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "url",
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "http.transfer.cancel": {
+    "type": "object",
+    "properties": {
+      "transferId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "transferId"
+    ],
+    "additionalProperties": false
+  },
+  "http.cookies.get": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string"
+      },
+      "jarId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "url",
+      "jarId"
+    ],
+    "additionalProperties": false
+  },
+  "http.cookies.set": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string"
+      },
+      "jarId": {
+        "type": "string"
+      },
+      "cookies": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      }
+    },
+    "required": [
+      "url",
+      "jarId",
+      "cookies"
+    ],
+    "additionalProperties": false
+  },
+  "http.cookies.clear": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string"
+      },
+      "jarId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "url",
+      "jarId"
+    ],
+    "additionalProperties": false
+  },
+  "dialog.openFolder": {
+    "type": "object",
+    "properties": {
+      "persist": {
+        "type": "boolean"
+      },
+      "filters": {
+        "type": "object"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "dialog.openFiles": {
+    "type": "object",
+    "properties": {
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "fs.walk": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "maxDepth": {
+        "type": "integer"
+      },
+      "filter": {
+        "type": "object"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "fs.scope.release": {
+    "type": "object",
+    "properties": {
+      "scopeId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "scopeId"
+    ],
+    "additionalProperties": false
+  },
+  "media.probe": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "media.ffmpeg.detect": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "media.ffmpeg.validate": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "media.ffmpeg.setPath": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "media.ffmpeg.pickExecutable": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.devices.list": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.devices.set": {
+    "type": "object",
+    "properties": {
+      "deviceId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "deviceId"
+    ],
+    "additionalProperties": false
+  },
+  "audio.output.getMode": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.output.setExclusive": {
+    "type": "object",
+    "properties": {
+      "exclusive": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "exclusive"
+    ],
+    "additionalProperties": false
+  },
+  "audio.eq.set": {
+    "type": "object",
+    "properties": {
+      "gains": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        }
+      }
+    },
+    "required": [
+      "gains"
+    ],
+    "additionalProperties": false
+  },
+  "audio.speed.set": {
+    "type": "object",
+    "properties": {
+      "speed": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "speed"
+    ],
+    "additionalProperties": false
+  },
+  "audio.probe": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "audio.load": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "additionalProperties": false
+  },
+  "audio.play": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.pause": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.stop": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "audio.seek": {
+    "type": "object",
+    "properties": {
+      "positionMs": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "positionMs"
+    ],
+    "additionalProperties": false
+  },
+  "audio.volume.set": {
+    "type": "object",
+    "properties": {
+      "volume": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "volume"
+    ],
+    "additionalProperties": false
+  },
+  "audio.state.get": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "mediaSession.update": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "artist": {
+        "type": "string"
+      },
+      "album": {
+        "type": "string"
+      },
+      "artwork": {
+        "type": "string"
+      },
+      "durationMs": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "positionMs": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "state": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "additionalProperties": false
+  },
+  "mediaSession.clear": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "window.create": {
+    "type": "object",
+    "properties": {
+      "route": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "width": {
+        "type": "integer"
+      },
+      "height": {
+        "type": "integer"
+      },
+      "x": {
+        "type": "integer"
+      },
+      "y": {
+        "type": "integer"
+      },
+      "visible": {
+        "type": "boolean"
+      },
+      "alwaysOnTop": {
+        "type": "boolean"
+      },
+      "transparent": {
+        "type": "boolean"
+      },
+      "resizable": {
+        "type": "boolean"
+      },
+      "decorations": {
+        "type": "boolean"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "window.show": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "windowId"
+    ],
+    "additionalProperties": false
+  },
+  "window.hide": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "windowId"
+    ],
+    "additionalProperties": false
+  },
+  "window.setPosition": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      },
+      "x": {
+        "type": "integer"
+      },
+      "y": {
+        "type": "integer"
+      }
+    },
+    "required": [
+      "windowId",
+      "x",
+      "y"
+    ],
+    "additionalProperties": false
+  },
+  "window.setAlwaysOnTop": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "windowId",
+      "enabled"
+    ],
+    "additionalProperties": false
+  },
+  "window.setTransparent": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "windowId",
+      "enabled"
+    ],
+    "additionalProperties": false
+  },
+  "window.getState": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "windowId"
+    ],
+    "additionalProperties": false
+  },
+  "event.emit": {
+    "type": "object",
+    "properties": {
+      "event": {
+        "type": "string"
+      },
+      "payload": {
+        "type": "object"
+      },
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "event"
+    ],
+    "additionalProperties": false
+  },
+  "tray.configure": {
+    "type": "object",
+    "properties": {
+      "icon": {
+        "type": "string"
+      },
+      "tooltip": {
+        "type": "string"
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "updater.install": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "version": {
+        "type": "string"
+      },
+      "hash": {
+        "type": "string"
+      },
+      "signature": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "version"
+    ],
+    "additionalProperties": false
+  },
+  "app.openDevtools": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "app.deepLink.getPending": {
     "type": "object",
     "properties": {},
     "required": [],

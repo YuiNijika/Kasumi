@@ -61,6 +61,7 @@ add_library(
     src/platform/ksm_sqlite_driver.cpp
     src/platform/ksm_windows_host_services.cpp
     src/plugins/ksm_clipboard_plugin.cpp
+    src/plugins/ksm_capability_plugin.cpp
     src/plugins/ksm_dialog_plugin.cpp
     src/plugins/ksm_filesystem_plugin.cpp
     src/plugins/ksm_http_plugin.cpp
@@ -137,6 +138,7 @@ if (WIN32)
             shell32
             shlwapi
             user32
+            winmm
             winhttp
             dnsapi
             unofficial::webview2::webview2

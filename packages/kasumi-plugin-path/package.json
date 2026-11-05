@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-path",
-  "version": "26.11.5",
+  "version": "26.11.6",
   "description": "Virtual path utilities for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

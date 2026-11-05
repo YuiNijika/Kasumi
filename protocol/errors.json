@@ -9,5 +9,10 @@
   "TIMEOUT": "The request timed out.",
   "BUSY": "The requested resource is busy.",
   "RESOURCE_LIMIT": "The requested operation exceeds a resource limit.",
-  "INTERNAL_ERROR": "The operation failed unexpectedly."
+  "INTERNAL_ERROR": "The operation failed unexpectedly.",
+  "MEDIA_UNSUPPORTED": "The media resource or format is not supported.",
+  "AUDIO_DEVICE_BUSY": "The requested audio device is busy.",
+  "UPDATE_VERIFICATION_FAILED": "The update package failed verification.",
+  "DEEP_LINK_INVALID": "The deep link is invalid or not allowed.",
+  "EXTENSION_CONFLICT": "The extension conflicts with a registered contract."
 }

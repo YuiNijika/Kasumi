@@ -1,4 +1,6 @@
 import type { KSMJsonValue, KSMLogLevel } from '../bridge/types.js';
+import { MAX_REQUEST_TIMEOUT_MS } from '../bridge/bus.js';
+import { MAX_MESSAGE_BYTES } from '../bridge/transport.js';
 
 const MAX_JSON_DEPTH = 32;
 const LOG_LEVELS = new Set<KSMLogLevel>([
@@ -30,9 +32,18 @@ export function assertBoundedString(
   }
 }
 
-const VIRTUAL_PATH = /^app:\/\/(data|cache|tmp|picked|res|assets)(?:\/(.*))?$/;
-const READABLE_ROOTS = new Set(['data', 'cache', 'tmp', 'picked', 'res', 'assets']);
+const VIRTUAL_PATH = /^app:\/\/(data|cache|tmp|picked|res|assets|scope)(?:\/(.*))?$/;
+const READABLE_ROOTS = new Set([
+  'data',
+  'cache',
+  'tmp',
+  'picked',
+  'res',
+  'assets',
+  'scope'
+]);
 const WRITABLE_ROOTS = new Set(['data', 'cache', 'tmp', 'picked']);
+const SCOPE_ID = /^[A-Za-z0-9_-]+$/;
 
 interface VirtualPathOptions {
   allowRoot?: boolean;
@@ -55,7 +66,25 @@ function validateVirtualPath(path: string, options: VirtualPathOptions): void {
   if (root === undefined) {
     throw new TypeError('path must use a Kasumi virtual path.');
   }
-  if (relative === undefined || relative.length === 0) {
+  if (root === 'scope') {
+    if (relative === undefined || relative.length === 0) {
+      throw new TypeError('scope paths must include a scope ID.');
+    }
+    if (
+      relative.includes(':') ||
+      relative.includes('\\') ||
+      relative.startsWith('/')
+    ) {
+      throw new TypeError('path contains a forbidden segment.');
+    }
+    const [scopeId, ...segments] = relative.split('/');
+    if (!SCOPE_ID.test(scopeId ?? '')) {
+      throw new TypeError('scope ID contains a forbidden character.');
+    }
+    if (segments.some((segment) => segment.length === 0 || segment === '.')) {
+      throw new TypeError('path contains a forbidden segment.');
+    }
+  } else if (relative === undefined || relative.length === 0) {
     if (!options.allowRoot || root === 'picked') {
       throw new TypeError('path must use a Kasumi virtual path.');
     }
@@ -114,6 +143,19 @@ export function assertBoolean(value: unknown, field: string): asserts value is b
   }
 }
 
+export function assertTimeout(value: unknown, field: string): asserts value is number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isSafeInteger(value) ||
+    value <= 0 ||
+    value > MAX_REQUEST_TIMEOUT_MS
+  ) {
+    throw new TypeError(
+      `${field} must be an integer between 1 and ${MAX_REQUEST_TIMEOUT_MS}.`
+    );
+  }
+}
+
 export function assertHttpUrl(
   value: unknown,
   field: string,
@@ -147,6 +189,144 @@ export function assertPositiveInteger(value: unknown, field: string): asserts va
     value <= 0
   ) {
     throw new TypeError(`${field} must be a positive integer.`);
+  }
+}
+
+export function assertNonNegativeNumber(
+  value: unknown,
+  field: string,
+  options: { min?: number; max?: number; allowZero?: boolean } = {}
+): asserts value is number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    value < (options.min ?? (options.allowZero === false ? Number.MIN_VALUE : 0)) ||
+    (options.max !== undefined && value > options.max)
+  ) {
+    throw new TypeError(`${field} must be a finite number within its range.`);
+  }
+}
+
+export function assertInteger(
+  value: unknown,
+  field: string,
+  options: { min?: number; max?: number } = {}
+): asserts value is number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isSafeInteger(value) ||
+    (options.min !== undefined && value < options.min) ||
+    (options.max !== undefined && value > options.max)
+  ) {
+    throw new TypeError(`${field} must be an integer.`);
+  }
+}
+
+export function assertStringArray(
+  value: unknown,
+  field: string,
+  maxEntries = 64
+): asserts value is string[] {
+  if (!Array.isArray(value) || value.length > maxEntries) {
+    throw new TypeError(`${field} must contain at most ${maxEntries} strings.`);
+  }
+  (value as unknown[]).forEach((item, index) => {
+    assertBoundedString(item, `${field}[${index}]`, 256);
+  });
+}
+
+export function assertPlainObject(
+  value: unknown,
+  field: string
+): asserts value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new TypeError(`${field} must be an object.`);
+  }
+}
+
+export function assertRecord(
+  value: unknown,
+  field: string
+): asserts value is Record<string, KSMJsonValue> {
+  assertPlainObject(value, field);
+  assertJsonValue(value, field);
+}
+
+export function assertHeaderMap(
+  value: unknown,
+  field: string
+): asserts value is Record<string, string> {
+  assertPlainObject(value, field);
+  const entries = Object.entries(value);
+  if (entries.length > 32) {
+    throw new TypeError(`${field} must contain at most 32 headers.`);
+  }
+  for (const [name, headerValue] of entries) {
+    assertBoundedString(name, `${field}.${name}`, 128);
+    assertBoundedString(headerValue, `${field}.${name}`, 8192, true);
+    if (!/^[A-Za-z0-9-]+$/.test(name)) {
+      throw new TypeError(`${field}.${name} contains a forbidden character.`);
+    }
+  }
+}
+
+export function assertHttpHeaders(
+  value: unknown,
+  field: string
+): asserts value is Array<{ name: string; value: string }> {
+  if (!Array.isArray(value) || value.length > 32) {
+    throw new TypeError(`${field} must contain at most 32 headers.`);
+  }
+  for (const [index, header] of (value as unknown[]).entries()) {
+    assertPlainObject(header, `${field}[${index}]`);
+    assertBoundedString(header.name, `${field}[${index}].name`, 128);
+    assertBoundedString(
+      header.value,
+      `${field}[${index}].value`,
+      8192,
+      true
+    );
+    if (!/^[A-Za-z0-9-]+$/.test(header.name)) {
+      throw new TypeError(`${field}[${index}].name is invalid.`);
+    }
+  }
+}
+
+export function assertOptionalVirtualPath(
+  value: unknown,
+  field: string,
+  writable: boolean
+): void {
+  if (value !== undefined) {
+    assertVirtualPath(value as string, writable, false);
+  }
+}
+
+export function assertScopeId(value: unknown, field: string): asserts value is string {
+  assertBoundedString(value, field, 128);
+  if (!SCOPE_ID.test(value)) {
+    throw new TypeError(`${field} contains a forbidden character.`);
+  }
+}
+
+export function assertMessagePayloadSize(value: unknown, field: string): void {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(value);
+  } catch {
+    const error = new TypeError(`${field} must be serializable as JSON.`);
+    error.name = 'INVALID_ARGS';
+    throw error;
+  }
+  if (serialized === undefined) {
+    const error = new TypeError(`${field} must be serializable as JSON.`);
+    error.name = 'INVALID_ARGS';
+    throw error;
+  }
+  if (new TextEncoder().encode(serialized).byteLength > MAX_MESSAGE_BYTES) {
+    const error = new TypeError(`${field} must not exceed 64KB.`);
+    error.name = 'INVALID_ARGS';
+    throw error;
   }
 }
 

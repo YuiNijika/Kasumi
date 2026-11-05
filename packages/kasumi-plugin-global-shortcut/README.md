@@ -21,3 +21,6 @@ await unregister({ shortcut: "Ctrl+Shift+K" });
 ```
 
 当前仅在 Windows 宿主提供支持。
+
+`onTriggered` 订阅 `globalShortcut.triggered`。注册失败必须返回
+`{ registered: false }`，不能把占位行为伪装成成功。

@@ -10,13 +10,21 @@
       "result": {
         "type": "object",
         "properties": {
-          "pong": {"type": "boolean", "const": true}
+          "pong": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["pong"],
+        "required": [
+          "pong"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "capabilities.query": {
@@ -29,16 +37,45 @@
       "result": {
         "type": "object",
         "properties": {
-          "platform": {"type": "string", "enum": ["windows", "android"]},
-          "commands": {"type": "array", "items": {"type": "string"}},
-          "permissions": {"type": "array", "items": {"type": "string"}},
-          "plugins": {"type": "array", "items": {"type": "string"}}
+          "platform": {
+            "type": "string",
+            "enum": [
+              "windows",
+              "android"
+            ]
+          },
+          "commands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "plugins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         },
-        "required": ["platform", "commands", "permissions", "plugins"],
+        "required": [
+          "platform",
+          "commands",
+          "permissions",
+          "plugins"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "app.getInfo": {
@@ -51,16 +88,36 @@
       "result": {
         "type": "object",
         "properties": {
-          "name": {"type": "string"},
-          "version": {"type": "string"},
-          "platform": {"type": "string", "enum": ["windows", "android"]},
-          "language": {"type": "string"}
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "windows",
+              "android"
+            ]
+          },
+          "language": {
+            "type": "string"
+          }
         },
-        "required": ["name", "version", "platform", "language"],
+        "required": [
+          "name",
+          "version",
+          "platform",
+          "language"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "device.getInfo": {
@@ -73,18 +130,45 @@
       "result": {
         "type": "object",
         "properties": {
-          "platform": {"type": "string", "enum": ["android"]},
-          "osVersion": {"type": "string"},
-          "model": {"type": "string"},
-          "manufacturer": {"type": "string"},
-          "appVersion": {"type": "string"},
-          "language": {"type": "string"},
-          "screenWidth": {"type": "number"},
-          "screenHeight": {"type": "number"},
-          "density": {"type": "number"},
-          "deviceName": {"type": "string"},
-          "timezone": {"type": "string"},
-          "architecture": {"type": "string"}
+          "platform": {
+            "type": "string",
+            "enum": [
+              "android"
+            ]
+          },
+          "osVersion": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "manufacturer": {
+            "type": "string"
+          },
+          "appVersion": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "screenWidth": {
+            "type": "number"
+          },
+          "screenHeight": {
+            "type": "number"
+          },
+          "density": {
+            "type": "number"
+          },
+          "deviceName": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "architecture": {
+            "type": "string"
+          }
         },
         "required": [
           "platform",
@@ -102,102 +186,175 @@
         ],
         "additionalProperties": false
       },
-      "permissions": ["device.info"],
-      "platforms": ["android"],
+      "permissions": [
+        "device.info"
+      ],
+      "platforms": [
+        "android"
+      ],
       "since": "1.1.0"
     },
     "fs.readText": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
-        "type": ["string", "object"],
+        "type": [
+          "string",
+          "object"
+        ],
         "properties": {
-          "file": {"type": "string"}
+          "file": {
+            "type": "string"
+          }
         },
-        "required": ["file"],
+        "required": [
+          "file"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.read"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "fs.writeText": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1},
-          "content": {"type": "string", "maxBytes": 16777216}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content": {
+            "type": "string",
+            "maxBytes": 16777216
+          }
         },
-        "required": ["path", "content"],
+        "required": [
+          "path",
+          "content"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "written": {"type": "boolean", "const": true}
+          "written": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["written"],
+        "required": [
+          "written"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.write"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.write"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "fs.exists": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "exists": {"type": "boolean"}
+          "exists": {
+            "type": "boolean"
+          }
         },
-        "required": ["exists"],
+        "required": [
+          "exists"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.read"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "fs.remove": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "removed": {"type": "boolean"}
+          "removed": {
+            "type": "boolean"
+          }
         },
-        "required": ["removed"],
+        "required": [
+          "removed"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.remove"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.remove"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "fs.readDir": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
@@ -208,227 +365,429 @@
             "items": {
               "type": "object",
               "properties": {
-                "name": {"type": "string"},
-                "path": {"type": "string"},
-                "kind": {"type": "string", "enum": ["file", "directory"]},
-                "size": {"type": "number"},
-                "modifiedAt": {"type": ["number", "null"]}
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "file",
+                    "directory"
+                  ]
+                },
+                "size": {
+                  "type": "number"
+                },
+                "modifiedAt": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
               },
-              "required": ["name", "path", "kind", "size", "modifiedAt"],
+              "required": [
+                "name",
+                "path",
+                "kind",
+                "size",
+                "modifiedAt"
+              ],
               "additionalProperties": false
             }
           }
         },
-        "required": ["entries"],
+        "required": [
+          "entries"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.read"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.1.0"
     },
     "fs.mkdir": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1},
-          "recursive": {"type": "boolean"}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recursive": {
+            "type": "boolean"
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "created": {"type": "boolean"}
+          "created": {
+            "type": "boolean"
+          }
         },
-        "required": ["created"],
+        "required": [
+          "created"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.write"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.write"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.1.0"
     },
     "fs.stat": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "kind": {"type": "string", "enum": ["file", "directory"]},
-          "size": {"type": "number"},
-          "modifiedAt": {"type": ["number", "null"]}
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "directory"
+            ]
+          },
+          "size": {
+            "type": "number"
+          },
+          "modifiedAt": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
         },
-        "required": ["kind", "size", "modifiedAt"],
+        "required": [
+          "kind",
+          "size",
+          "modifiedAt"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.read"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.1.0"
     },
     "fs.appendText": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1},
-          "content": {"type": "string", "maxBytes": 16777216}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "content": {
+            "type": "string",
+            "maxBytes": 16777216
+          }
         },
-        "required": ["path", "content"],
+        "required": [
+          "path",
+          "content"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "written": {"type": "boolean", "const": true}
+          "written": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["written"],
+        "required": [
+          "written"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.write"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.write"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "fs.copy": {
       "args": {
         "type": "object",
         "properties": {
-          "from": {"type": "string", "minLength": 1},
-          "to": {"type": "string", "minLength": 1}
+          "from": {
+            "type": "string",
+            "minLength": 1
+          },
+          "to": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["from", "to"],
+        "required": [
+          "from",
+          "to"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "copied": {"type": "boolean", "const": true}
+          "copied": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["copied"],
+        "required": [
+          "copied"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.read", "fs.write"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.read",
+        "fs.write"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "fs.move": {
       "args": {
         "type": "object",
         "properties": {
-          "from": {"type": "string", "minLength": 1},
-          "to": {"type": "string", "minLength": 1}
+          "from": {
+            "type": "string",
+            "minLength": 1
+          },
+          "to": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["from", "to"],
+        "required": [
+          "from",
+          "to"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "moved": {"type": "boolean", "const": true}
+          "moved": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["moved"],
+        "required": [
+          "moved"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.write"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.write"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "fs.readBytes": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "base64": {"type": "string", "maxBytes": 33554432}
+          "base64": {
+            "type": "string",
+            "maxBytes": 33554432
+          }
         },
-        "required": ["base64"],
+        "required": [
+          "base64"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.read"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "fs.writeBytes": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1},
-          "base64": {"type": "string", "maxBytes": 33554432}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "base64": {
+            "type": "string",
+            "maxBytes": 33554432
+          }
         },
-        "required": ["path", "base64"],
+        "required": [
+          "path",
+          "base64"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "written": {"type": "boolean", "const": true}
+          "written": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["written"],
+        "required": [
+          "written"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["fs.write"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "fs.write"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "dialog.message": {
       "args": {
         "type": "object",
         "properties": {
-          "title": {"type": "string"},
-          "message": {"type": "string"}
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
         },
-        "required": ["title", "message"],
+        "required": [
+          "title",
+          "message"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "confirmed": {"type": "boolean"}
+          "confirmed": {
+            "type": "boolean"
+          }
         },
-        "required": ["confirmed"],
+        "required": [
+          "confirmed"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["dialog"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "dialog"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "dialog.confirm": {
       "args": {
         "type": "object",
         "properties": {
-          "title": {"type": "string"},
-          "message": {"type": "string"}
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
         },
-        "required": ["title", "message"],
+        "required": [
+          "title",
+          "message"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "confirmed": {"type": "boolean"}
+          "confirmed": {
+            "type": "boolean"
+          }
         },
-        "required": ["confirmed"],
+        "required": [
+          "confirmed"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["dialog"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "dialog"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "dialog.openFile": {
       "args": {
         "type": "object",
         "properties": {
-          "filters": {"type": "array", "items": {"type": "string"}}
+          "filters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         },
         "required": [],
         "additionalProperties": false
@@ -436,20 +795,34 @@
       "result": {
         "type": "object",
         "properties": {
-          "file": {"type": ["string", "null"]}
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         },
-        "required": ["file"],
+        "required": [
+          "file"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["dialog"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "dialog"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "dialog.saveFile": {
       "args": {
         "type": "object",
         "properties": {
-          "suggestedName": {"type": "string"}
+          "suggestedName": {
+            "type": "string"
+          }
         },
         "required": [],
         "additionalProperties": false
@@ -457,13 +830,25 @@
       "result": {
         "type": "object",
         "properties": {
-          "file": {"type": ["string", "null"]}
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         },
-        "required": ["file"],
+        "required": [
+          "file"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["dialog"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "dialog"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "clipboard.readText": {
@@ -476,140 +861,228 @@
       "result": {
         "type": "object",
         "properties": {
-          "text": {"type": "string"}
+          "text": {
+            "type": "string"
+          }
         },
-        "required": ["text"],
+        "required": [
+          "text"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["clipboard.read"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "clipboard.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "clipboard.writeText": {
       "args": {
         "type": "object",
         "properties": {
-          "text": {"type": "string"}
+          "text": {
+            "type": "string"
+          }
         },
-        "required": ["text"],
+        "required": [
+          "text"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "written": {"type": "boolean"}
+          "written": {
+            "type": "boolean"
+          }
         },
-        "required": ["written"],
+        "required": [
+          "written"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["clipboard.write"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "clipboard.write"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "notification.show": {
       "args": {
         "type": "object",
         "properties": {
-          "title": {"type": "string"},
-          "body": {"type": "string"}
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
         },
-        "required": ["title", "body"],
+        "required": [
+          "title",
+          "body"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "shown": {"type": "boolean"}
+          "shown": {
+            "type": "boolean"
+          }
         },
-        "required": ["shown"],
+        "required": [
+          "shown"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["notification.show"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "notification.show"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "permission.request": {
       "args": {
         "type": "object",
         "properties": {
-          "permission": {"type": "string", "minLength": 1}
+          "permission": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["permission"],
+        "required": [
+          "permission"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "granted": {"type": "boolean"}
+          "granted": {
+            "type": "boolean"
+          }
         },
-        "required": ["granted"],
+        "required": [
+          "granted"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "event.subscribe": {
       "args": {
         "type": "object",
         "properties": {
-          "event": {"type": "string", "minLength": 1}
+          "event": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["event"],
+        "required": [
+          "event"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "subscribed": {"type": "boolean", "const": true}
+          "subscribed": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["subscribed"],
+        "required": [
+          "subscribed"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "event.unsubscribe": {
       "args": {
         "type": "object",
         "properties": {
-          "event": {"type": "string", "minLength": 1}
+          "event": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["event"],
+        "required": [
+          "event"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "unsubscribed": {"type": "boolean", "const": true}
+          "unsubscribed": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["unsubscribed"],
+        "required": [
+          "unsubscribed"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "window.setTitle": {
       "args": {
         "type": "object",
         "properties": {
-          "title": {"type": "string"}
+          "title": {
+            "type": "string"
+          }
         },
-        "required": ["title"],
+        "required": [
+          "title"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "updated": {"type": "boolean"}
+          "updated": {
+            "type": "boolean"
+          }
         },
-        "required": ["updated"],
+        "required": [
+          "updated"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["window.control"],
-      "platforms": ["windows"],
+      "permissions": [
+        "window.control"
+      ],
+      "platforms": [
+        "windows"
+      ],
       "since": "1.0.0"
     },
     "window.minimize": {
@@ -622,13 +1095,21 @@
       "result": {
         "type": "object",
         "properties": {
-          "updated": {"type": "boolean"}
+          "updated": {
+            "type": "boolean"
+          }
         },
-        "required": ["updated"],
+        "required": [
+          "updated"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["window.control"],
-      "platforms": ["windows"],
+      "permissions": [
+        "window.control"
+      ],
+      "platforms": [
+        "windows"
+      ],
       "since": "1.0.0"
     },
     "window.maximize": {
@@ -641,35 +1122,58 @@
       "result": {
         "type": "object",
         "properties": {
-          "updated": {"type": "boolean"}
+          "updated": {
+            "type": "boolean"
+          }
         },
-        "required": ["updated"],
+        "required": [
+          "updated"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["window.control"],
-      "platforms": ["windows"],
+      "permissions": [
+        "window.control"
+      ],
+      "platforms": [
+        "windows"
+      ],
       "since": "1.0.0"
     },
     "window.setSize": {
       "args": {
         "type": "object",
         "properties": {
-          "width": {"type": "integer"},
-          "height": {"type": "integer"}
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          }
         },
-        "required": ["width", "height"],
+        "required": [
+          "width",
+          "height"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "updated": {"type": "boolean"}
+          "updated": {
+            "type": "boolean"
+          }
         },
-        "required": ["updated"],
+        "required": [
+          "updated"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["window.control"],
-      "platforms": ["windows"],
+      "permissions": [
+        "window.control"
+      ],
+      "platforms": [
+        "windows"
+      ],
       "since": "1.1.0"
     },
     "window.close": {
@@ -682,76 +1186,127 @@
       "result": {
         "type": "object",
         "properties": {
-          "closed": {"type": "boolean"}
+          "closed": {
+            "type": "boolean"
+          }
         },
-        "required": ["closed"],
+        "required": [
+          "closed"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["window.control"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "window.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "shell.openExternal": {
       "args": {
         "type": "object",
         "properties": {
-          "url": {"type": "string", "minLength": 1}
+          "url": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["url"],
+        "required": [
+          "url"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "opened": {"type": "boolean"}
+          "opened": {
+            "type": "boolean"
+          }
         },
-        "required": ["opened"],
+        "required": [
+          "opened"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["shell.open"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "shell.open"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.1.0"
     },
     "shell.openPath": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "opened": {"type": "boolean"}
+          "opened": {
+            "type": "boolean"
+          }
         },
-        "required": ["opened"],
+        "required": [
+          "opened"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["shell.open"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "shell.open"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "shell.showInFolder": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1}
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "shown": {"type": "boolean"}
+          "shown": {
+            "type": "boolean"
+          }
         },
-        "required": ["shown"],
+        "required": [
+          "shown"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["shell.open"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "shell.open"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "app.singleInstance.state": {
@@ -764,13 +1319,20 @@
       "result": {
         "type": "object",
         "properties": {
-          "primary": {"type": "boolean"}
+          "primary": {
+            "type": "boolean"
+          }
         },
-        "required": ["primary"],
+        "required": [
+          "primary"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "app.singleInstance.focus": {
@@ -783,13 +1345,20 @@
       "result": {
         "type": "object",
         "properties": {
-          "focused": {"type": "boolean"}
+          "focused": {
+            "type": "boolean"
+          }
         },
-        "required": ["focused"],
+        "required": [
+          "focused"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "tray.show": {
@@ -802,13 +1371,21 @@
       "result": {
         "type": "object",
         "properties": {
-          "shown": {"type": "boolean"}
+          "shown": {
+            "type": "boolean"
+          }
         },
-        "required": ["shown"],
+        "required": [
+          "shown"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["tray"],
-      "platforms": ["windows"],
+      "permissions": [
+        "tray"
+      ],
+      "platforms": [
+        "windows"
+      ],
       "since": "1.4.0"
     },
     "tray.hide": {
@@ -821,55 +1398,91 @@
       "result": {
         "type": "object",
         "properties": {
-          "hidden": {"type": "boolean"}
+          "hidden": {
+            "type": "boolean"
+          }
         },
-        "required": ["hidden"],
+        "required": [
+          "hidden"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["tray"],
-      "platforms": ["windows"],
+      "permissions": [
+        "tray"
+      ],
+      "platforms": [
+        "windows"
+      ],
       "since": "1.4.0"
     },
     "globalShortcut.register": {
       "args": {
         "type": "object",
         "properties": {
-          "shortcut": {"type": "string", "minLength": 1, "maxBytes": 256}
+          "shortcut": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 256
+          }
         },
-        "required": ["shortcut"],
+        "required": [
+          "shortcut"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "registered": {"type": "boolean"}
+          "registered": {
+            "type": "boolean"
+          }
         },
-        "required": ["registered"],
+        "required": [
+          "registered"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["globalShortcut"],
-      "platforms": ["windows"],
+      "permissions": [
+        "globalShortcut"
+      ],
+      "platforms": [
+        "windows"
+      ],
       "since": "1.4.0"
     },
     "globalShortcut.unregister": {
       "args": {
         "type": "object",
         "properties": {
-          "shortcut": {"type": "string", "minLength": 1, "maxBytes": 256}
+          "shortcut": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 256
+          }
         },
-        "required": ["shortcut"],
+        "required": [
+          "shortcut"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "unregistered": {"type": "boolean"}
+          "unregistered": {
+            "type": "boolean"
+          }
         },
-        "required": ["unregistered"],
+        "required": [
+          "unregistered"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["globalShortcut"],
-      "platforms": ["windows"],
+      "permissions": [
+        "globalShortcut"
+      ],
+      "platforms": [
+        "windows"
+      ],
       "since": "1.4.0"
     },
     "updater.check": {
@@ -882,59 +1495,112 @@
       "result": {
         "type": "object",
         "properties": {
-          "available": {"type": "boolean"},
-          "version": {"type": ["string", "null"]}
+          "available": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         },
-        "required": ["available", "version"],
+        "required": [
+          "available",
+          "version"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["updater"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "updater"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "updater.download": {
       "args": {
         "type": "object",
         "properties": {
-          "version": {"type": "string", "minLength": 1, "maxBytes": 128}
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 128
+          }
         },
-        "required": ["version"],
+        "required": [
+          "version"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "downloaded": {"type": "boolean"}
+          "downloaded": {
+            "type": "boolean"
+          }
         },
-        "required": ["downloaded"],
+        "required": [
+          "downloaded"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["updater"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "updater"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.4.0"
     },
     "http.download": {
       "args": {
         "type": "object",
         "properties": {
-          "url": {"type": "string", "minLength": 1},
-          "path": {"type": "string", "minLength": 1},
-          "overwrite": {"type": "boolean"}
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "overwrite": {
+            "type": "boolean"
+          }
         },
-        "required": ["url", "path"],
+        "required": [
+          "url",
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "path": {"type": "string"},
-          "bytes": {"type": "number"}
+          "path": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "number"
+          }
         },
-        "required": ["path", "bytes"],
+        "required": [
+          "path",
+          "bytes"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["http.download"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "http.download"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.1.0"
     },
     "sql.drivers": {
@@ -947,57 +1613,113 @@
       "result": {
         "type": "object",
         "properties": {
-          "drivers": {"type": "array", "items": {"type": "string"}}
+          "drivers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         },
-        "required": ["drivers"],
+        "required": [
+          "drivers"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["sql"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "sql"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.2.0"
     },
     "sql.open": {
       "args": {
         "type": "object",
         "properties": {
-          "driver": {"type": "string", "enum": ["sqlite", "mysql", "postgres", "mongodb"]},
-          "url": {"type": "string", "minLength": 1, "maxBytes": 4096}
+          "driver": {
+            "type": "string",
+            "enum": [
+              "sqlite",
+              "mysql",
+              "postgres",
+              "mongodb"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 4096
+          }
         },
-        "required": ["driver", "url"],
+        "required": [
+          "driver",
+          "url"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "connectionId": {"type": "string"}
+          "connectionId": {
+            "type": "string"
+          }
         },
-        "required": ["connectionId"],
+        "required": [
+          "connectionId"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["sql"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "sql"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.2.0"
     },
     "sql.query": {
       "args": {
         "type": "object",
         "properties": {
-          "connectionId": {"type": "string", "minLength": 1},
-          "statement": {"type": "string", "minLength": 1, "maxBytes": 1048576},
+          "connectionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 1048576
+          },
           "params": {
             "type": "array",
             "items": {
-              "type": ["string", "number", "boolean", "null"]
+              "type": [
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
             }
           }
         },
-        "required": ["connectionId", "statement"],
+        "required": [
+          "connectionId",
+          "statement"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "columns": {"type": "array", "items": {"type": "string"}},
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "rows": {
             "type": "array",
             "items": {
@@ -1008,61 +1730,113 @@
             }
           }
         },
-        "required": ["columns", "rows"],
+        "required": [
+          "columns",
+          "rows"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["sql"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "sql"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.2.0"
     },
     "sql.execute": {
       "args": {
         "type": "object",
         "properties": {
-          "connectionId": {"type": "string", "minLength": 1},
-          "statement": {"type": "string", "minLength": 1, "maxBytes": 1048576},
+          "connectionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 1048576
+          },
           "params": {
             "type": "array",
             "items": {
-              "type": ["string", "number", "boolean", "null"]
+              "type": [
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
             }
           }
         },
-        "required": ["connectionId", "statement"],
+        "required": [
+          "connectionId",
+          "statement"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "rowsAffected": {"type": "number"},
-          "lastInsertId": {"type": ["number", "null"]}
+          "rowsAffected": {
+            "type": "number"
+          },
+          "lastInsertId": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
         },
-        "required": ["rowsAffected", "lastInsertId"],
+        "required": [
+          "rowsAffected",
+          "lastInsertId"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["sql"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "sql"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.2.0"
     },
     "sql.close": {
       "args": {
         "type": "object",
         "properties": {
-          "connectionId": {"type": "string", "minLength": 1}
+          "connectionId": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "required": ["connectionId"],
+        "required": [
+          "connectionId"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "closed": {"type": "boolean"}
+          "closed": {
+            "type": "boolean"
+          }
         },
-        "required": ["closed"],
+        "required": [
+          "closed"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["sql"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "sql"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.2.0"
     },
     "path.dirs": {
@@ -1075,18 +1849,42 @@
       "result": {
         "type": "object",
         "properties": {
-          "data": {"type": "string"},
-          "cache": {"type": "string"},
-          "temp": {"type": "string"},
-          "resource": {"type": "string"},
-          "asset": {"type": "string"},
-          "home": {"type": "string"},
-          "config": {"type": "string"},
-          "log": {"type": "string"},
-          "runtime": {"type": "string"},
-          "executable": {"type": "string"},
-          "desktop": {"type": "string"},
-          "download": {"type": "string"}
+          "data": {
+            "type": "string"
+          },
+          "cache": {
+            "type": "string"
+          },
+          "temp": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "home": {
+            "type": "string"
+          },
+          "config": {
+            "type": "string"
+          },
+          "log": {
+            "type": "string"
+          },
+          "runtime": {
+            "type": "string"
+          },
+          "executable": {
+            "type": "string"
+          },
+          "desktop": {
+            "type": "string"
+          },
+          "download": {
+            "type": "string"
+          }
         },
         "required": [
           "data",
@@ -1105,207 +1903,357 @@
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "path.join": {
       "args": {
         "type": "object",
         "properties": {
-          "base": {"type": "string", "minLength": 1},
+          "base": {
+            "type": "string",
+            "minLength": 1
+          },
           "segments": {
             "type": "array",
-            "items": {"type": "string", "minLength": 1, "maxBytes": 256}
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxBytes": 256
+            }
           }
         },
-        "required": ["base", "segments"],
+        "required": [
+          "base",
+          "segments"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "path": {"type": "string"}
+          "path": {
+            "type": "string"
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "path.normalize": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1, "maxBytes": 8192}
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 8192
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "path": {"type": "string"}
+          "path": {
+            "type": "string"
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "path.dirname": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1, "maxBytes": 8192}
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 8192
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "path": {"type": "string"}
+          "path": {
+            "type": "string"
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "path.basename": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1, "maxBytes": 8192},
-          "suffix": {"type": "string", "maxBytes": 256}
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 8192
+          },
+          "suffix": {
+            "type": "string",
+            "maxBytes": 256
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "name": {"type": "string"}
+          "name": {
+            "type": "string"
+          }
         },
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "path.extname": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1, "maxBytes": 8192}
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 8192
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "extension": {"type": "string"}
+          "extension": {
+            "type": "string"
+          }
         },
-        "required": ["extension"],
+        "required": [
+          "extension"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "path.isAbsolute": {
       "args": {
         "type": "object",
         "properties": {
-          "path": {"type": "string", "minLength": 1, "maxBytes": 8192}
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 8192
+          }
         },
-        "required": ["path"],
+        "required": [
+          "path"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "absolute": {"type": "boolean"}
+          "absolute": {
+            "type": "boolean"
+          }
         },
-        "required": ["absolute"],
+        "required": [
+          "absolute"
+        ],
         "additionalProperties": false
       },
       "permissions": [],
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "store.get": {
       "args": {
         "type": "object",
         "properties": {
-          "key": {"type": "string", "minLength": 1, "maxBytes": 256}
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 256
+          }
         },
-        "required": ["key"],
+        "required": [
+          "key"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "found": {"type": "boolean"},
+          "found": {
+            "type": "boolean"
+          },
           "value": {
-            "type": ["object", "array", "string", "number", "boolean", "null"]
+            "type": [
+              "object",
+              "array",
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
           }
         },
-        "required": ["found", "value"],
+        "required": [
+          "found",
+          "value"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["store"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "store"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "store.set": {
       "args": {
         "type": "object",
         "properties": {
-          "key": {"type": "string", "minLength": 1, "maxBytes": 256},
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 256
+          },
           "value": {
-            "type": ["object", "array", "string", "number", "boolean", "null"]
+            "type": [
+              "object",
+              "array",
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
           }
         },
-        "required": ["key", "value"],
+        "required": [
+          "key",
+          "value"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "updated": {"type": "boolean", "const": true}
+          "updated": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["updated"],
+        "required": [
+          "updated"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["store"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "store"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "store.delete": {
       "args": {
         "type": "object",
         "properties": {
-          "key": {"type": "string", "minLength": 1, "maxBytes": 256}
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 256
+          }
         },
-        "required": ["key"],
+        "required": [
+          "key"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "deleted": {"type": "boolean"}
+          "deleted": {
+            "type": "boolean"
+          }
         },
-        "required": ["deleted"],
+        "required": [
+          "deleted"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["store"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "store"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "store.clear": {
@@ -1318,13 +2266,23 @@
       "result": {
         "type": "object",
         "properties": {
-          "cleared": {"type": "boolean", "const": true}
+          "cleared": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["cleared"],
+        "required": [
+          "cleared"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["store"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "store"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "store.keys": {
@@ -1337,13 +2295,25 @@
       "result": {
         "type": "object",
         "properties": {
-          "keys": {"type": "array", "items": {"type": "string"}}
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         },
-        "required": ["keys"],
+        "required": [
+          "keys"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["store"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "store"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "os.getInfo": {
@@ -1356,15 +2326,37 @@
       "result": {
         "type": "object",
         "properties": {
-          "platform": {"type": "string", "enum": ["windows", "android"]},
-          "architecture": {"type": "string"},
-          "version": {"type": "string"},
-          "locale": {"type": "string"},
-          "timezone": {"type": "string"},
-          "appVersion": {"type": "string"},
-          "devMode": {"type": "boolean"},
-          "hostname": {"type": "string"},
-          "username": {"type": "string"}
+          "platform": {
+            "type": "string",
+            "enum": [
+              "windows",
+              "android"
+            ]
+          },
+          "architecture": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "appVersion": {
+            "type": "string"
+          },
+          "devMode": {
+            "type": "boolean"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
         },
         "required": [
           "platform",
@@ -1377,8 +2369,13 @@
         ],
         "additionalProperties": false
       },
-      "permissions": ["os.info"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "os.info"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "log.write": {
@@ -1387,24 +2384,51 @@
         "properties": {
           "level": {
             "type": "string",
-            "enum": ["trace", "debug", "info", "warn", "error"]
+            "enum": [
+              "trace",
+              "debug",
+              "info",
+              "warn",
+              "error"
+            ]
           },
-          "message": {"type": "string", "minLength": 1, "maxBytes": 65536},
-          "target": {"type": "string", "minLength": 1, "maxBytes": 128}
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 65536
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "maxBytes": 128
+          }
         },
-        "required": ["level", "message"],
+        "required": [
+          "level",
+          "message"
+        ],
         "additionalProperties": false
       },
       "result": {
         "type": "object",
         "properties": {
-          "logged": {"type": "boolean", "const": true}
+          "logged": {
+            "type": "boolean",
+            "const": true
+          }
         },
-        "required": ["logged"],
+        "required": [
+          "logged"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["log.write"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "log.write"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.3.0"
     },
     "app.exit": {
@@ -1417,14 +2441,1649 @@
       "result": {
         "type": "object",
         "properties": {
-          "exited": {"type": "boolean"}
+          "exited": {
+            "type": "boolean"
+          }
         },
-        "required": ["exited"],
+        "required": [
+          "exited"
+        ],
         "additionalProperties": false
       },
-      "permissions": ["window.control"],
-      "platforms": ["windows", "android"],
+      "permissions": [
+        "window.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
+    },
+    "http.request": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST"
+            ]
+          },
+          "headers": {
+            "type": "object"
+          },
+          "body": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "integer"
+          },
+          "headers": {
+            "type": "object"
+          },
+          "body": {
+            "type": "string"
+          },
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bytes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "status",
+          "headers",
+          "body",
+          "bytes"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "http.request"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "http.transfer.start": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST"
+            ]
+          },
+          "headers": {
+            "type": "object"
+          },
+          "body": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "jarId": {
+            "type": "string"
+          },
+          "userAgent": {
+            "type": "string"
+          },
+          "referer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transferId"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "http.request"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "http.transfer.cancel": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transferId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "cancelled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cancelled"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "http.request"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "http.cookies.get": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "jarId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "jarId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "cookies": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "cookies"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "http.cookies"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "http.cookies.set": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "jarId": {
+            "type": "string"
+          },
+          "cookies": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "url",
+          "jarId",
+          "cookies"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "http.cookies"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "http.cookies.clear": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "jarId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "jarId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "cleared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cleared"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "http.cookies"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "dialog.openFolder": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "persist": {
+            "type": "boolean"
+          },
+          "filters": {
+            "type": "object"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "files"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "dialog"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "dialog.openFiles": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "files"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "dialog"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "fs.walk": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "maxDepth": {
+            "type": "integer"
+          },
+          "filter": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "fs.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "fs.scope.release": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "scopeId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scopeId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "released": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "released"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "fs.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "media.probe": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+ "type": "object",
+ "properties": {
+ "title": {"type": ["string", "null"]},
+ "artist": {"type": ["string", "null"]},
+ "album": {"type": ["string", "null"]},
+ "durationMs": {"type": ["number", "null"]},
+ "cover": {"type": ["string", "null"]},
+ "lyric": {"type": ["string", "null"]},
+ "format": {"type": ["string", "null"]}
+ },
+ "required": ["title", "artist", "album", "durationMs", "cover", "lyric", "format"],
+ "additionalProperties": false
+      },
+      "permissions": [
+        "media.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "media.ffmpeg.detect": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+ "type": "object",
+ "properties": {
+ "available": {"type": "boolean"},
+ "path": {"type": ["string", "null"]},
+ "version": {"type": ["string", "null"]},
+ "source": {"type": ["string", "null"], "enum": ["bundled", "configured", "picked", null]}
+ },
+ "required": ["available", "path", "version", "source"],
+ "additionalProperties": false
+      },
+      "permissions": [
+        "media.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "media.ffmpeg.validate": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+ "type": "object",
+ "properties": {
+ "valid": {"type": "boolean"},
+ "version": {"type": ["string", "null"]}
+ },
+ "required": ["valid", "version"],
+ "additionalProperties": false
+      },
+      "permissions": [
+        "media.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "media.ffmpeg.setPath": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.read"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "media.ffmpeg.pickExecutable": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.read"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.devices.list": {
+      "args": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "devices": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "devices"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.devices.set": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deviceId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.output.getMode": {
+      "args": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "shared",
+              "exclusive"
+            ]
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.output.setExclusive": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "exclusive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "exclusive"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.eq.set": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "gains": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "gains"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.speed.set": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "speed": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "speed"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.probe": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+ "type": "object",
+ "properties": {
+ "durationMs": {"type": ["number", "null"]},
+ "sampleRate": {"type": ["number", "null"]},
+ "channels": {"type": ["number", "null"]},
+ "codec": {"type": ["string", "null"]}
+ },
+ "required": ["durationMs", "sampleRate", "channels", "codec"],
+ "additionalProperties": false
+      },
+      "permissions": [
+        "media.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.load": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "loaded": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "loaded"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.play": {
+      "args": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.pause": {
+      "args": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.stop": {
+      "args": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.seek": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "positionMs": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "positionMs"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.volume.set": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "volume": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "volume"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "media.control"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.state.get": {
+      "args": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+ "type": "object",
+ "properties": {
+ "playback": {"type": "string", "enum": ["idle", "loading", "playing", "paused", "stopped", "error"]},
+ "positionMs": {"type": "number"},
+ "durationMs": {"type": ["number", "null"]},
+ "volume": {"type": "number"},
+ "muted": {"type": "boolean"},
+ "speed": {"type": "number"},
+ "outputMode": {"type": "string", "enum": ["shared", "exclusive"]},
+ "deviceId": {"type": ["string", "null"]},
+ "source": {"type": ["string", "null"]}
+ },
+ "required": ["playback", "positionMs", "durationMs", "volume", "muted", "speed", "outputMode", "deviceId", "source"],
+ "additionalProperties": false
+      },
+      "permissions": [
+        "media.read"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "mediaSession.update": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "artist": {
+            "type": "string"
+          },
+          "album": {
+            "type": "string"
+          },
+          "artwork": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "positionMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "mediaSession"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "mediaSession.clear": {
+      "args": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "cleared": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cleared"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "mediaSession"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "window.create": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "route": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "x": {
+            "type": "integer"
+          },
+          "y": {
+            "type": "integer"
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "alwaysOnTop": {
+            "type": "boolean"
+          },
+          "transparent": {
+            "type": "boolean"
+          },
+          "resizable": {
+            "type": "boolean"
+          },
+          "decorations": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+ "type": "object",
+ "properties": {
+ "windowId": {"type": "string"}
+ },
+ "required": ["windowId"],
+ "additionalProperties": false
+      },
+      "permissions": [
+        "window.manage"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "window.show": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "windowId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "window.manage"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "window.hide": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "windowId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "window.manage"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "window.setPosition": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          },
+          "x": {
+            "type": "integer"
+          },
+          "y": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "windowId",
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "window.manage"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "window.setAlwaysOnTop": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "windowId",
+          "enabled"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "window.manage"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "window.setTransparent": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "windowId",
+          "enabled"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "window.manage"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "window.getState": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "windowId"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+ "type": "object",
+ "properties": {
+ "windowId": {"type": "string"},
+ "visible": {"type": "boolean"},
+ "alwaysOnTop": {"type": "boolean"},
+ "transparent": {"type": "boolean"},
+ "width": {"type": "number"},
+ "height": {"type": "number"},
+ "x": {"type": ["number", "null"]},
+ "y": {"type": ["number", "null"]}
+ },
+ "required": ["windowId", "visible", "alwaysOnTop", "transparent", "width", "height", "x", "y"],
+ "additionalProperties": false
+      },
+      "permissions": [
+        "window.manage"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "event.emit": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "event"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "emitted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "emitted"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "window.manage"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "tray.configure": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "icon": {
+            "type": "string"
+          },
+          "tooltip": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "tray.configure"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "updater.install": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "installed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "installed"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "updater.install"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "app.openDevtools": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "opened": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "opened"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "app.devtools"
+      ],
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "app.deepLink.getPending": {
+      "args": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "app.deepLink"
+      ],
+      "platforms": [
+        "android"
+      ],
+      "since": "26.11.5"
     }
   },
   "events": {
@@ -1435,7 +4094,10 @@
         "required": [],
         "additionalProperties": false
       },
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.2.0"
     },
     "webview.reloaded": {
@@ -1445,21 +4107,381 @@
         "required": [],
         "additionalProperties": false
       },
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
     },
     "window.resized": {
       "payload": {
         "type": "object",
         "properties": {
-          "width": {"type": "number"},
-          "height": {"type": "number"}
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          }
         },
-        "required": ["width", "height"],
+        "required": [
+          "width",
+          "height"
+        ],
         "additionalProperties": false
       },
-      "platforms": ["windows", "android"],
+      "platforms": [
+        "windows",
+        "android"
+      ],
       "since": "1.0.0"
+    },
+    "http.transfer.progress": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "number"
+          },
+          "totalBytes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "http.transfer.completed": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "http.transfer.failed": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.tick": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "positionMs": {
+            "type": "number"
+          },
+          "durationMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.ended": {
+      "payload": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.stateChanged": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "object"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.error": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "mediaSession.command": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "positionMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "window.visibilityChanged": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          },
+          "visible": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "window.stateChanged": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "object"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "tray.action": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "checked": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "tray.click": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "button": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "globalShortcut.triggered": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "shortcut": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "updater.progress": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "phase": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "totalBytes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "updater.status": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "app.deepLink.received": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "app.secondInstance.received": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
     }
   }
 }

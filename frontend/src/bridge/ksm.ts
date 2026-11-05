@@ -1,6 +1,94 @@
 import { KSMBus, MAX_REQUEST_TIMEOUT_MS } from './bus.js';
 import { KSMWebMessageTransport } from './transport.js';
 import {
+  extensionJsonValue,
+  matchesSchema,
+  validateExtensionContract
+} from './extension-contract.js';
+import { KSM_PLANNED_COMMANDS, KSM_PLANNED_EVENTS } from './planned.js';
+import {
+  request as requestHttp,
+  startTransfer as startHttpTransfer,
+  cancelTransfer as cancelHttpTransfer,
+  getCookies as getHttpCookies,
+  setCookies as setHttpCookies,
+  clearCookies as clearHttpCookies,
+  onTransferProgress as onHttpTransferProgress,
+  onTransferCompleted as onHttpTransferCompleted,
+  onTransferFailed as onHttpTransferFailed
+} from '../api/http.js';
+import {
+  walk as walkFs,
+  releaseScope as releaseFsScope
+} from '../api/fs.js';
+import {
+  openFolder,
+  openFiles
+} from '../api/dialog.js';
+import {
+  probe as probeMedia,
+  detectFfmpeg,
+  validateFfmpeg,
+  setFfmpegPath,
+  pickFfmpegExecutable
+} from '../api/media.js';
+import {
+  listDevices as listAudioDevices,
+  setDevice as setAudioDevice,
+  getOutputMode as getAudioOutputMode,
+  setExclusiveOutput as setExclusiveAudioOutput,
+  setEq as setAudioEq,
+  setSpeed as setAudioSpeed,
+  probe as probeAudio,
+  load as loadAudio,
+  play as playAudio,
+  pause as pauseAudio,
+  stop as stopAudio,
+  seek as seekAudio,
+  setVolume as setAudioVolume,
+  getState as getAudioState,
+  onTick as onAudioTick,
+  onEnded as onAudioEnded,
+  onStateChanged as onAudioStateChanged,
+  onError as onAudioError
+} from '../api/audio.js';
+import {
+  update as updateMediaSession,
+  clear as clearMediaSession,
+  onCommand as onMediaSessionCommand
+} from '../api/mediaSession.js';
+import {
+  create as createWindow,
+  show as showWindow,
+  hide as hideWindow,
+  setPosition as setWindowPosition,
+  setAlwaysOnTop as setWindowAlwaysOnTop,
+  setTransparent as setWindowTransparent,
+  getState as getWindowState
+} from '../api/window.js';
+import {
+  configure as configureTray,
+  onAction as onTrayAction,
+  onClick as onTrayClick
+} from '../api/tray.js';
+import {
+  onTriggered as onGlobalShortcutTriggered
+} from '../api/globalShortcut.js';
+import {
+  install as installUpdate,
+  onProgress as onUpdaterProgress,
+  onStatus as onUpdaterStatus
+} from '../api/updater.js';
+import {
+  onSecondInstance as onAppSecondInstance
+} from '../api/appInstance.js';
+import {
+  getPending as getPendingDeepLink,
+  onReceived as onDeepLinkReceived,
+  onSecondInstance as onDeepLinkSecondInstance
+} from '../api/deepLinks.js';
+import { open as openDevtools } from '../api/devtools.js';
+import {
   KSM_COMMANDS,
   KSM_EVENTS,
   validateKSMArgs,
@@ -12,6 +100,7 @@ import {
   assertHttpUrl,
   assertJsonValue,
   assertLogLevel,
+  assertMessagePayloadSize,
   assertPositiveInteger,
   assertSqlConnectionId,
   assertSqlDriver,
@@ -24,6 +113,7 @@ import {
   assertVirtualStatPath
 } from '../api/guards.js';
 import type {
+  KSMAudioApi,
   KSMAppInfo,
   KSMAppApi,
   KSMAppInstanceApi,
@@ -32,12 +122,20 @@ import type {
   KSMDeviceInfo,
   KSMDirectoryEntry,
   KSMCapabilities,
+  KSMDeepLinksApi,
+  KSMDevtoolsApi,
   KSMDialogApi,
+  KSMEmitResult,
+  KSMExtensionContract,
+  KSMExtensionsApi,
   KSMFileMetadata,
   KSMFsApi,
   KSMGlobalShortcutApi,
   KSMHttpApi,
   KSMHttpDownloadResult,
+  KSMJsonValue,
+  KSMMediaApi,
+  KSMMediaSessionApi,
   KSMLogApi,
   KSMNotificationApi,
   KSMOperatingSystemApi,
@@ -65,6 +163,16 @@ export interface KSMEventApi {
   on<TPayload>(event: string, listener: (payload: TPayload) => void): () => void;
 }
 
+const EVENT_TIMEOUT_MS = 60000;
+const KNOWN_COMMANDS = new Set<string>([
+  ...KSM_COMMANDS,
+  ...KSM_PLANNED_COMMANDS
+]);
+const KNOWN_EVENTS = new Set<string>([
+  ...KSM_EVENTS,
+  ...KSM_PLANNED_EVENTS
+]);
+
 export class KSM {
   private static bus: KSMBus | undefined;
   private static cachedCapabilities: KSMCapabilities | undefined;
@@ -72,6 +180,18 @@ export class KSM {
   private static readonly eventListenerCounts = new Map<string, number>();
   private static readonly subscriptionSyncs = new Map<string, Promise<void>>();
   private static bridgeGeneration = 0;
+  private static readonly extensionContracts = new Map<
+    string,
+    KSMExtensionContract
+  >();
+  private static readonly extensionCommands = new Map<
+    string,
+    KSMExtensionContract['commands'][number]
+  >();
+  private static readonly extensionEvents = new Map<
+    string,
+    KSMExtensionContract['events'][number]
+  >();
   public static readonly app: KSMAppApi = {
     getInfo: (): Promise<KSMAppInfo> => KSM.getInfo(),
     exit: (): Promise<{ exited: boolean }> => KSM.invoke('app.exit', {})
@@ -132,13 +252,19 @@ export class KSM {
     stat: (args): Promise<KSMFileMetadata> => {
       assertVirtualStatPath(args.path);
       return KSM.invoke('fs.stat', args);
+    },
+    walk: (args) => walkFs(args),
+    scope: {
+      release: (args) => releaseFsScope(args)
     }
   };
   public static readonly dialog: KSMDialogApi = {
     message: (args): Promise<{ confirmed: boolean }> => KSM.invoke('dialog.message', args),
     confirm: (args): Promise<{ confirmed: boolean }> => KSM.invoke('dialog.confirm', args),
     openFile: (args = {}): Promise<{ file: string | null }> => KSM.invoke('dialog.openFile', args),
-    saveFile: (args = {}): Promise<{ file: string | null }> => KSM.invoke('dialog.saveFile', args)
+    saveFile: (args = {}): Promise<{ file: string | null }> => KSM.invoke('dialog.saveFile', args),
+    openFolder: (args = {}) => openFolder(args),
+    openFiles: (args = {}) => openFiles(args)
   };
   public static readonly clipboard: KSMClipboardApi = {
     readText: (): Promise<{ text: string }> => KSM.invoke('clipboard.readText', {}),
@@ -158,7 +284,92 @@ export class KSM {
         assertBoolean(args.overwrite, 'overwrite');
       }
       return KSM.invoke('http.download', args, 120000);
+    },
+    request: (args) => requestHttp(args),
+    transfer: {
+      start: (args) => startHttpTransfer(args),
+      cancel: (args) => cancelHttpTransfer(args),
+      onProgress: (listener) => onHttpTransferProgress(listener),
+      onCompleted: (listener) => onHttpTransferCompleted(listener),
+      onFailed: (listener) => onHttpTransferFailed(listener)
+    },
+    cookies: {
+      get: (args) => getHttpCookies(args),
+      set: (args) => setHttpCookies(args),
+      clear: (args) => clearHttpCookies(args)
     }
+  };
+  public static readonly media: KSMMediaApi = {
+    probe: (args) => probeMedia(args),
+    ffmpeg: {
+      detect: () => detectFfmpeg(),
+      validate: () => validateFfmpeg(),
+      setPath: (args) => setFfmpegPath(args),
+      pickExecutable: () => pickFfmpegExecutable()
+    }
+  };
+  public static readonly audio: KSMAudioApi = {
+    devices: {
+      list: () => listAudioDevices(),
+      set: (args) => setAudioDevice(args)
+    },
+    output: {
+      getMode: () => getAudioOutputMode(),
+      setExclusive: (args) => setExclusiveAudioOutput(args)
+    },
+    eq: {
+      set: (args) => setAudioEq(args)
+    },
+    speed: {
+      set: (args) => setAudioSpeed(args)
+    },
+    volume: {
+      set: (args) => setAudioVolume(args)
+    },
+    state: {
+      get: () => getAudioState()
+    },
+    probe: (args) => probeAudio(args),
+    load: (args) => loadAudio(args),
+    play: () => playAudio(),
+    pause: () => pauseAudio(),
+    stop: () => stopAudio(),
+    seek: (args) => seekAudio(args),
+    onTick: (listener) => onAudioTick(listener),
+    onEnded: (listener) => onAudioEnded(listener),
+    onStateChanged: (listener) => onAudioStateChanged(listener),
+    onError: (listener) => onAudioError(listener)
+  };
+  public static readonly mediaSession: KSMMediaSessionApi = {
+    update: (args) => updateMediaSession(args),
+    clear: () => clearMediaSession(),
+    onCommand: (listener) => onMediaSessionCommand(listener)
+  };
+  public static readonly deepLinks: KSMDeepLinksApi = {
+    getPending: () => getPendingDeepLink(),
+    onReceived: (listener) => onDeepLinkReceived(listener),
+    onSecondInstance: (listener) => onDeepLinkSecondInstance(listener)
+  };
+  public static readonly devtools: KSMDevtoolsApi = {
+    open: () => openDevtools()
+  };
+  public static readonly extensions: KSMExtensionsApi = {
+    configure: (contract): void => KSM.configureExtensions(contract),
+    emit: (event, payload, windowId): Promise<KSMEmitResult> =>
+      KSM.emit(event, payload, windowId),
+    invoke: <TResult extends KSMJsonValue>(
+      command: string,
+      args: KSMJsonValue,
+      timeoutMs = 10000
+    ): Promise<TResult> => KSM.invoke<TResult, KSMJsonValue>(
+      command,
+      args,
+      timeoutMs
+    ),
+    on: <TPayload extends KSMJsonValue>(
+      event: string,
+      listener: (payload: TPayload) => void
+    ): (() => void) => KSM.on(event, listener)
   };
   public static readonly shell: KSMShellApi = {
     openExternal: (args): Promise<{ opened: boolean }> => {
@@ -178,7 +389,8 @@ export class KSM {
     state: (): Promise<{ primary: boolean }> =>
       KSM.invoke('app.singleInstance.state', {}),
     focus: (): Promise<{ focused: boolean }> =>
-      KSM.invoke('app.singleInstance.focus', {})
+      KSM.invoke('app.singleInstance.focus', {}),
+    onSecondInstance: (listener) => onAppSecondInstance(listener)
   };
   public static readonly updater: KSMUpdaterApi = {
     check: (): Promise<KSMUpdaterCheckResult> =>
@@ -186,7 +398,10 @@ export class KSM {
     download: (args): Promise<{ downloaded: boolean }> => {
       assertBoundedString(args.version, 'version', 128);
       return KSM.invoke('updater.download', args);
-    }
+    },
+    install: (args) => installUpdate(args),
+    onProgress: (listener) => onUpdaterProgress(listener),
+    onStatus: (listener) => onUpdaterStatus(listener)
   };
   public static readonly globalShortcut: KSMGlobalShortcutApi = {
     register: (args): Promise<{ registered: boolean }> => {
@@ -196,11 +411,15 @@ export class KSM {
     unregister: (args): Promise<{ unregistered: boolean }> => {
       assertBoundedString(args.shortcut, 'shortcut', 256);
       return KSM.invoke('globalShortcut.unregister', args);
-    }
+    },
+    onTriggered: (listener) => onGlobalShortcutTriggered(listener)
   };
   public static readonly tray: KSMTrayApi = {
     show: (): Promise<{ shown: boolean }> => KSM.invoke('tray.show', {}),
-    hide: (): Promise<{ hidden: boolean }> => KSM.invoke('tray.hide', {})
+    hide: (): Promise<{ hidden: boolean }> => KSM.invoke('tray.hide', {}),
+    configure: (args) => configureTray(args),
+    onAction: (listener) => onTrayAction(listener),
+    onClick: (listener) => onTrayClick(listener)
   };
   public static readonly device: KSMDeviceApi = {
     getInfo: (): Promise<KSMDeviceInfo> => KSM.invoke('device.getInfo', {})
@@ -313,11 +532,19 @@ export class KSM {
       assertPositiveInteger(args.height, 'height');
       return KSM.invoke('window.setSize', args);
     },
-    close: (): Promise<{ closed: boolean }> => KSM.invoke('window.close', {})
+    close: (): Promise<{ closed: boolean }> => KSM.invoke('window.close', {}),
+    create: (args) => createWindow(args),
+    show: (args = {}) => showWindow(args),
+    hide: (args = {}) => hideWindow(args),
+    setPosition: (args) => setWindowPosition(args),
+    setAlwaysOnTop: (args) => setWindowAlwaysOnTop(args),
+    setTransparent: (args) => setWindowTransparent(args),
+    getState: (args = {}) => getWindowState(args),
+    emit: (event, payload, windowId) => KSM.emit(event, payload, windowId)
   };
   public static readonly events: KSMEventApi = {
     on: <TPayload>(event: string, listener: (payload: TPayload) => void): (() => void) => {
-      if (!(KSM_EVENTS as readonly string[]).includes(event)) {
+      if (!KSM.isKnownEvent(event)) {
         throw new TypeError(`Unknown Kasumi event: ${event}`);
       }
       const bus = KSM.requireBus();
@@ -349,6 +576,9 @@ export class KSM {
     KSM.subscriptionSyncs.clear();
     KSM.cachedCapabilities = undefined;
     KSM.capabilitiesPromise = undefined;
+    KSM.extensionContracts.clear();
+    KSM.extensionCommands.clear();
+    KSM.extensionEvents.clear();
     KSM.bus = new KSMBus(resolvedTransport);
     KSM.bus.on('webview.reloaded', () => {
       void KSM.recoverAfterReload();
@@ -363,6 +593,9 @@ export class KSM {
     KSM.capabilitiesPromise = undefined;
     KSM.eventListenerCounts.clear();
     KSM.subscriptionSyncs.clear();
+    KSM.extensionContracts.clear();
+    KSM.extensionCommands.clear();
+    KSM.extensionEvents.clear();
   }
 
   public static shutdown(): void {
@@ -378,7 +611,7 @@ export class KSM {
 
   public static async capabilities(): Promise<KSMCapabilities> {
     if (KSM.cachedCapabilities) {
-      return KSM.cachedCapabilities;
+      return KSM.withExtensionCapabilities(KSM.cachedCapabilities);
     }
     if (!KSM.capabilitiesPromise) {
       KSM.capabilitiesPromise = KSM.requireBus()
@@ -388,7 +621,7 @@ export class KSM {
         )
         .then((capabilities) => {
           KSM.cachedCapabilities = capabilities;
-          return capabilities;
+          return KSM.withExtensionCapabilities(capabilities);
         })
         .finally(() => {
           KSM.capabilitiesPromise = undefined;
@@ -432,11 +665,23 @@ export class KSM {
       error.name = 'INVALID_ARGS';
       throw error;
     }
+    const extensionCommand = KSM.extensionCommands.get(cmd);
+    if (!KNOWN_COMMANDS.has(cmd) && !extensionCommand) {
+      const error = new Error(`Unknown Kasumi command: ${cmd}`);
+      error.name = 'UNKNOWN_COMMAND';
+      throw error;
+    }
+    if (extensionCommand && !matchesSchema(args, extensionCommand.args)) {
+      const error = new Error(`Arguments do not match the ${cmd} extension contract.`);
+      error.name = 'INVALID_ARGS';
+      throw error;
+    }
+    assertMessagePayloadSize(args, 'args');
     return KSM.requireBus().invoke<TResult, TArgs>(cmd, args, timeoutMs);
   }
 
   public static async subscribe(event: string): Promise<void> {
-    if (!(KSM_EVENTS as readonly string[]).includes(event)) {
+    if (!KSM.isKnownEvent(event)) {
       throw new TypeError(`Unknown Kasumi event: ${event}`);
     }
     await KSM.requireBus().invoke('event.subscribe', { event });
@@ -444,7 +689,7 @@ export class KSM {
   }
 
   public static async unsubscribe(event: string): Promise<void> {
-    if (!(KSM_EVENTS as readonly string[]).includes(event)) {
+    if (!KSM.isKnownEvent(event)) {
       throw new TypeError(`Unknown Kasumi event: ${event}`);
     }
     await KSM.requireBus().invoke('event.unsubscribe', { event });
@@ -458,6 +703,86 @@ export class KSM {
     return KSM.events.on(event, listener);
   }
 
+  public static configureExtensions(contract: KSMExtensionContract): void {
+    const previous = KSM.extensionContracts.get(contract.id);
+    const previousCommands = new Set(
+      previous?.commands.map((command) => command.name) ?? []
+    );
+    const previousEvents = new Set(
+      previous?.events.map((event) => event.name) ?? []
+    );
+    const validated = validateExtensionContract(contract, {
+      ids: new Set(KSM.extensionContracts.keys()),
+      commands: new Set(
+        [...KSM.extensionCommands.keys()].filter(
+          (name) => !previousCommands.has(name)
+        )
+      ),
+      events: new Set(
+        [...KSM.extensionEvents.keys()].filter(
+          (name) => !previousEvents.has(name)
+        )
+      ),
+      excludeId: contract.id
+    });
+    if (previous) {
+      for (const command of previous.commands) {
+        KSM.extensionCommands.delete(command.name);
+      }
+      for (const event of previous.events) {
+        KSM.extensionEvents.delete(event.name);
+      }
+    }
+    KSM.extensionContracts.set(validated.id, validated);
+    for (const command of validated.commands) {
+      KSM.extensionCommands.set(command.name, command);
+    }
+    for (const event of validated.events) {
+      KSM.extensionEvents.set(event.name, event);
+    }
+  }
+
+  public static async emit<TPayload extends KSMJsonValue>(
+    event: string,
+    payload: TPayload,
+    windowId?: string
+  ): Promise<KSMEmitResult> {
+    if (!KSM.isKnownEvent(event)) {
+      const error = new Error(`Unknown Kasumi event: ${event}`);
+      error.name = 'UNKNOWN_COMMAND';
+      throw error;
+    }
+    if (windowId !== undefined) {
+      assertBoundedString(windowId, 'windowId', 128);
+    }
+    const args = {
+      event,
+      payload: extensionJsonValue(payload, 'payload'),
+      ...(windowId === undefined ? {} : { windowId })
+    };
+    assertMessagePayloadSize(args, 'args');
+    return await KSM.invoke<KSMEmitResult, typeof args>(
+      'event.emit',
+      args,
+      EVENT_TIMEOUT_MS
+    );
+  }
+
+  private static isKnownEvent(event: string): boolean {
+    return KNOWN_EVENTS.has(event) || KSM.extensionEvents.has(event);
+  }
+
+  private static withExtensionCapabilities(
+    capabilities: KSMCapabilities
+  ): KSMCapabilities {
+    return {
+      ...capabilities,
+      extensionIds: [...KSM.extensionContracts.keys()],
+      extensionCommands: [...KSM.extensionCommands.keys()],
+      extensionEvents: [...KSM.extensionEvents.keys()]
+    };
+  }
+
   private static requireBus(): KSMBus {
     if (!KSM.bus) {
       throw new Error('KSM must be initialized before use.');
@@ -467,12 +792,23 @@ export class KSM {
 
   private static async recoverAfterReload(): Promise<void> {
     const bus = KSM.requireBus();
-    const subscriptions = bus.trackedSubscriptions();
+    const subscriptions = [
+      ...bus.trackedSubscriptions(),
+      ...[...KSM.eventListenerCounts.entries()]
+        .filter(([event, count]) =>
+          count > 0 &&
+          bus.eventListenerCount(event) > 0 &&
+          !bus.trackedSubscriptions().includes(event) &&
+          KSM.isKnownEvent(event)
+        )
+        .map(([event]) => event)
+    ];
     bus.discardPending('Kasumi WebView reloaded before the request completed.');
     KSM.cachedCapabilities = undefined;
     await KSM.capabilities();
     for (const event of subscriptions) {
       await bus.invoke('event.subscribe', { event });
+      bus.trackSubscription(event);
     }
   }
 

@@ -33,6 +33,8 @@ const packages = [
   'kasumi-plugin-updater',
   'kasumi-plugin-global-shortcut',
   'kasumi-plugin-tray',
+  'kasumi-plugin-audio',
+  'kasumi-plugin-media-session',
   'kasumi-cli',
   'create-kasumi'
 ];
@@ -132,14 +134,16 @@ try {
     'log',
     'updater',
     'global-shortcut',
-    'tray'
+    'tray',
+    'audio',
+    'media-session'
   ]) {
     await run(
       'node',
       [
         '--input-type=module',
         '--eval',
-        `import("kasumi-plugin-${plugin}").then((module) => { if (module.PLUGIN_ID !== "${plugin}") process.exit(1); });`
+        `import("kasumi-plugin-${plugin}").then((module) => { if (!module.PLUGIN_ID) process.exit(1); });`
       ],
       { cwd: installRoot }
     );

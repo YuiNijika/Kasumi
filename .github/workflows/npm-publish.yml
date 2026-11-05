@@ -60,7 +60,9 @@ jobs:
         run: |
           VERSION="${RELEASE_TAG#v}"
           NPM_TAG=latest
-          if [[ "$VERSION" == *-* ]]; then
+          if [[ "$VERSION" == "26.11.6" ]]; then
+            NPM_TAG=rc
+          elif [[ "$VERSION" == *-* ]]; then
             NPM_TAG="${VERSION#*-}"
             NPM_TAG="${NPM_TAG%%.*}"
           fi
@@ -133,6 +135,14 @@ jobs:
         run: pnpm --filter kasumi-plugin-tray publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-audio
+        run: pnpm --filter kasumi-plugin-audio publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish kasumi-plugin-media-session
+        run: pnpm --filter kasumi-plugin-media-session publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Publish kasumi-cli
         run: pnpm --filter kasumi-cli publish --provenance --access public --tag "$NPM_TAG" --no-git-checks
         env:
@@ -144,7 +154,7 @@ jobs:
       - name: Verify published versions
         run: |
           VERSION="${RELEASE_TAG#v}"
-          for package in kasumi-bridge kasumi-plugin-fs kasumi-plugin-dialog kasumi-plugin-clipboard kasumi-plugin-notification kasumi-plugin-window kasumi-plugin-http kasumi-plugin-shell kasumi-plugin-device kasumi-plugin-sql kasumi-plugin-path kasumi-plugin-store kasumi-plugin-os kasumi-plugin-log kasumi-plugin-updater kasumi-plugin-global-shortcut kasumi-plugin-tray kasumi-cli create-kasumi
+          for package in kasumi-bridge kasumi-plugin-fs kasumi-plugin-dialog kasumi-plugin-clipboard kasumi-plugin-notification kasumi-plugin-window kasumi-plugin-http kasumi-plugin-shell kasumi-plugin-device kasumi-plugin-sql kasumi-plugin-path kasumi-plugin-store kasumi-plugin-os kasumi-plugin-log kasumi-plugin-updater kasumi-plugin-global-shortcut kasumi-plugin-tray kasumi-plugin-audio kasumi-plugin-media-session kasumi-cli create-kasumi
           do
             test "$(npm view "$package@$NPM_TAG" version)" = "$VERSION"
           done
