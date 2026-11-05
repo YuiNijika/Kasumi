@@ -45,8 +45,7 @@ public:
     void NotifyWindowResized(int width, int height);
     void EmitEvent(
         const std::string& event,
-        const std::string& payload_json,
-        const std::function<void(const std::string&)>& send_response
+        const std::string& payload_json
     );
     bool IsAllowedOrigin(const std::string& origin) const;
     bool IsAllowedNavigation(const std::string& url) const;

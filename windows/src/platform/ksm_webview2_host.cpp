@@ -180,10 +180,7 @@ struct KSMWebView2View::Impl
             PostToUi([this, event, payload] {
                 webview_host.EmitEvent(
                     event,
-                    payload,
-                    [this](const std::string& response) {
-                        PostResponse(response);
-                    }
+                    payload
                 );
             });
         }

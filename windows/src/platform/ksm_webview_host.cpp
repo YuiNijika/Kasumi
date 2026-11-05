@@ -591,10 +591,15 @@ void KSMWebViewHost::NotifyWindowResized(int width, int height) {
 
 void KSMWebViewHost::EmitEvent(
     const std::string& event,
-    const std::string& payload_json,
-    const std::function<void(const std::string&)>& send_response
+    const std::string& payload_json
 ) {
-    router_.EmitEvent(event, payload_json, send_response);
+    router_.EmitEvent(
+        event,
+        payload_json,
+        [this](const std::string& response) {
+            PostResponse(response);
+        }
+    );
 }
 
 bool KSMWebViewHost::IsAllowedOrigin(const std::string& origin) const {
