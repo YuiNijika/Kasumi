@@ -27,10 +27,35 @@ PROTOCOL_PERMISSIONS_FILE = (
 PERMISSION_PATTERN = re.compile(
     r"^[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$"
 )
+ENTRY_URL_PATTERN = re.compile(
+    r"^(https?)://([^/?#]+)([^?#]*)$"
+)
+SAFE_ENTRY_PATH_PATTERN = re.compile(
+    r"^/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]*$"
+)
+HTML_FILE_PATTERN = re.compile(
+    r"^(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\.html$"
+)
+DEFAULT_WEBVIEW = {
+    "productionEntry": "https://app.local/index.html",
+    "developmentEntries": (
+        "http://localhost:5173/index.html",
+        "http://localhost:5173/",
+        "http://localhost:5173",
+    ),
+    "supportedHtmlFiles": ("index.html",),
+}
 
 
 class ConfigError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class WebViewConfig:
+    production_entry: str
+    development_entries: tuple[str, ...]
+    supported_html_files: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -48,6 +73,7 @@ class PlatformConfig:
     resources: tuple[str, ...] = ()
     signing: dict[str, str] | None = None
     bundle: dict[str, Any] | None = None
+    webview: WebViewConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +116,7 @@ def _platform_config(
     platform: str,
     package_pattern: re.Pattern[str],
     allow_decorations: bool = False,
+    allow_webview: bool = False,
 ) -> PlatformConfig:
     location = platform
     data = _expect_object(value, location)
@@ -109,6 +136,8 @@ def _platform_config(
     }
     if allow_decorations:
         allowed_fields.add("decorations")
+    if allow_webview:
+        allowed_fields.add("webview")
     _reject_unknown_keys(
         data,
         allowed_fields,
@@ -182,7 +211,148 @@ def _platform_config(
             f"{location}.signing",
         ),
         bundle=_parse_bundle(data.get("bundle"), f"{location}.bundle"),
+        webview=_parse_webview(data.get("webview"), f"{location}.webview")
+        if allow_webview
+        else None,
     )
+
+
+def _parse_webview(value: Any, location: str) -> WebViewConfig:
+    if value is None:
+        return WebViewConfig(
+            production_entry=DEFAULT_WEBVIEW["productionEntry"],
+            development_entries=DEFAULT_WEBVIEW["developmentEntries"],
+            supported_html_files=DEFAULT_WEBVIEW["supportedHtmlFiles"],
+        )
+    data = _expect_object(value, location)
+    _reject_unknown_keys(
+        data,
+        {"productionEntry", "developmentEntries", "supportedHtmlFiles"},
+        location,
+    )
+    production_entry = _parse_production_entry(
+        data.get("productionEntry", DEFAULT_WEBVIEW["productionEntry"]),
+        f"{location}.productionEntry",
+    )
+    production_html_file = production_entry.split("://", 1)[1].partition("/")[2]
+    supported_html_files = _parse_html_files(
+        data.get("supportedHtmlFiles", DEFAULT_WEBVIEW["supportedHtmlFiles"]),
+        f"{location}.supportedHtmlFiles",
+    )
+    if "index.html" not in supported_html_files:
+        raise ConfigError(
+            f"{location}.supportedHtmlFiles must include index.html "
+            f"for frontend builds."
+        )
+    development_entries = _parse_development_entries(
+        data.get("developmentEntries", DEFAULT_WEBVIEW["developmentEntries"]),
+        f"{location}.developmentEntries",
+        supported_html_files,
+        production_html_file,
+    )
+    return WebViewConfig(
+        production_entry=production_entry,
+        development_entries=development_entries,
+        supported_html_files=supported_html_files,
+    )
+
+
+def _parse_production_entry(value: Any, location: str) -> str:
+    entry = _parse_entry_url(value, location, "https", "app.local", "")
+    html_file = entry[1].lstrip("/")
+    if not html_file.endswith(".html"):
+        raise ConfigError(f"{location} must point to an HTML file.")
+    return entry[0]
+
+
+def _parse_development_entries(
+    value: Any,
+    location: str,
+    supported_html_files: tuple[str, ...],
+    production_html_file: str,
+) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value:
+        raise ConfigError(f"{location} must be a non-empty array.")
+    entries: list[str] = []
+    for index, raw_entry in enumerate(value):
+        item_location = f"{location}[{index}]"
+        entry = _parse_entry_url(
+            raw_entry,
+            item_location,
+            "http",
+            "localhost",
+            ":5173",
+        )
+        html_file = entry[1].lstrip("/")
+        if html_file and html_file not in supported_html_files:
+            raise ConfigError(
+                f"{item_location} is not in "
+                f"configuration.android.webview.supportedHtmlFiles."
+            )
+        if entry[0] in entries:
+            raise ConfigError(f"{location} contains a duplicate: {entry[0]}.")
+        entries.append(entry[0])
+    if not any(item.endswith(f"/{production_html_file}") for item in entries):
+        raise ConfigError(
+            f"{location} must include the production HTML file: "
+            f"{production_html_file}."
+        )
+    return tuple(entries)
+
+
+def _parse_entry_url(
+    value: Any,
+    location: str,
+    scheme: str,
+    authority: str,
+    port: str,
+) -> tuple[str, str]:
+    text = _expect_string(value, location)
+    if text.strip() != text:
+        raise ConfigError(f"{location} is invalid.")
+    match = ENTRY_URL_PATTERN.fullmatch(text)
+    if match is None or match.group(1) != scheme:
+        raise ConfigError(f"{location} is invalid.")
+    actual_authority = match.group(2)
+    path = match.group(3)
+    if (
+        actual_authority != f"{authority}{port}"
+        or "?" in text
+        or "#" in text
+        or not _is_safe_entry_path(path)
+    ):
+        raise ConfigError(f"{location} is invalid.")
+    return text, path
+
+
+def _is_safe_entry_path(path: str) -> bool:
+    if not path:
+        return True
+    return (
+        SAFE_ENTRY_PATH_PATTERN.fullmatch(path) is not None
+        and "%" not in path
+        and "\\" not in path
+        and "\u0000" not in path
+    )
+
+
+def _parse_html_files(value: Any, location: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value:
+        raise ConfigError(f"{location} must be a non-empty array.")
+    html_files: list[str] = []
+    for index, raw_file in enumerate(value):
+        item_location = f"{location}[{index}]"
+        html_file = _expect_string(raw_file, item_location)
+        if (
+            HTML_FILE_PATTERN.fullmatch(html_file) is None
+            or "\\" in html_file
+            or "\u0000" in html_file
+        ):
+            raise ConfigError(f"{item_location} is invalid.")
+        if html_file in html_files:
+            raise ConfigError(f"{location} contains a duplicate: {html_file}.")
+        html_files.append(html_file)
+    return tuple(html_files)
 
 
 def _parse_window(
@@ -513,6 +683,7 @@ def load_config(path: Path) -> KasumiConfig:
             "$schema",
             "windows",
             "android",
+            "extensions",
             "appId",
             "icons",
             "resources",
@@ -548,5 +719,6 @@ def load_config(path: Path) -> KasumiConfig:
             "android",
             "configuration.android",
             ANDROID_PACKAGE_PATTERN,
+            allow_webview=True,
         ),
     )

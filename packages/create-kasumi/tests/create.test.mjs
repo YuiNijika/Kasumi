@@ -220,6 +220,15 @@ test('initializes a source-only project without framework source', async () => {
     assert.equal(config.windows.decorations, true);
     assert.deepEqual(config.android.commands, config.windows.commands);
     assert.deepEqual(config.android.permissions, []);
+    assert.deepEqual(config.android.webview, {
+      productionEntry: 'https://app.local/index.html',
+      developmentEntries: [
+        'http://localhost:5173/index.html',
+        'http://localhost:5173/',
+        'http://localhost:5173'
+      ],
+      supportedHtmlFiles: ['index.html']
+    });
     const mainActivity = path.join(
       destination,
       'android',
@@ -239,7 +248,35 @@ test('initializes a source-only project without framework source', async () => {
       /import dev\.kasumi\.app\.bridge\.KSMWebViewHost/
     );
     assert.equal(mainActivitySource.includes('ACTION_VIEW'), false);
-    assert.match(mainActivitySource, /if \(!BuildConfig\.DEBUG\)/);
+    assert.match(
+      mainActivitySource,
+      /KSMWebViewConfig\(/
+    );
+    assert.match(
+      mainActivitySource,
+      /KSMDevelopmentEntry\.resolve\(/
+    );
+    assert.match(
+      mainActivitySource,
+      /webViewConfig = webViewConfig/
+    );
+    assert.equal(mainActivitySource.includes('/index.html'), false);
+    const androidBuildGradle = await readFile(
+      path.join(destination, 'android', 'app', 'build.gradle.kts'),
+      'utf8'
+    );
+    assert.match(
+      androidBuildGradle,
+      /KSM_WEBVIEW_PRODUCTION_ENTRY/
+    );
+    assert.match(
+      androidBuildGradle,
+      /KSM_WEBVIEW_DEVELOPMENT_ENTRIES/
+    );
+    assert.match(
+      androidBuildGradle,
+      /KSM_WEBVIEW_SUPPORTED_HTML_FILES/
+    );
     assert.equal(
       await exists(path.join(destination, 'windows', 'src')),
       false

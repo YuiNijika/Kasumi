@@ -26,6 +26,9 @@ export async function buildAndroid(projectRoot, config) {
     `-PksmPermissions=${config.permissions.join(',')}`,
     `-PksmShellAllowedOrigins=${config.shell.allowedOrigins.join(',')}`,
     `-PksmHttpAllowedOrigins=${config.http.allowedOrigins.join(',')}`,
+    `-PksmWebViewProductionEntry=${config.webview.productionEntry}`,
+    `-PksmWebViewDevelopmentEntries=${config.webview.developmentEntries.join(',')}`,
+    `-PksmWebViewSupportedHtmlFiles=${config.webview.supportedHtmlFiles.join(',')}`,
     'assembleDebug'
   ];
   await run(gradle.command, [...gradle.prefix, ...args], {
@@ -72,6 +75,9 @@ export async function packageAndroid(projectRoot, config) {
       `-PksmPermissions=${config.permissions.join(',')}`,
       `-PksmShellAllowedOrigins=${config.shell.allowedOrigins.join(',')}`,
       `-PksmHttpAllowedOrigins=${config.http.allowedOrigins.join(',')}`,
+      `-PksmWebViewProductionEntry=${config.webview.productionEntry}`,
+      `-PksmWebViewDevelopmentEntries=${config.webview.developmentEntries.join(',')}`,
+      `-PksmWebViewSupportedHtmlFiles=${config.webview.supportedHtmlFiles.join(',')}`,
       'assembleRelease'
     ],
     {
@@ -114,6 +120,12 @@ export async function packageAndroid(projectRoot, config) {
 }
 
 export async function runAndroidDevelopment(projectRoot, config, server) {
+  const developmentEntries = config.webview?.developmentEntries ?? [];
+  if (!developmentEntries.includes(server.url)) {
+    throw new Error(
+      `Development URL ${server.url} is not listed in android.webview.developmentEntries.`
+    );
+  }
   const configuredAdb = process.env.ADB;
   const adb = configuredAdb && await exists(configuredAdb)
     ? configuredAdb

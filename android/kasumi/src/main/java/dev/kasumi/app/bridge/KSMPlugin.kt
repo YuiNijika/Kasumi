@@ -95,7 +95,6 @@ class KSMPluginRegistry(
 
 fun ksmDefaultPlugins(): List<KSMPlugin> {
     return listOf(
-        KSMCapabilityPlugin(),
         KSMFileSystemPlugin(),
         KSMDialogPlugin(),
         KSMClipboardPlugin(),
@@ -109,5 +108,5 @@ fun ksmDefaultPlugins(): List<KSMPlugin> {
         KSMStorePlugin(),
         KSMOperatingSystemPlugin(),
         KSMLogPlugin()
-    )
+    ) + KSMCapabilityPlugin()
 }

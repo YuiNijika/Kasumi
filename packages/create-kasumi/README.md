@@ -132,6 +132,28 @@ Windows 还可以设置 `"decorations": false` 隐藏系统标题栏。此时应
 
 Android 没有该字段，配置中写入 `decorations` 会被拒绝。
 
+Android WebView 入口在 `kasumi.config.json` 的 `android.webview` 中声明：
+
+```json
+{
+  "android": {
+    "webview": {
+      "productionEntry": "https://app.local/index.html",
+      "developmentEntries": [
+        "http://localhost:5173/index.html",
+        "http://localhost:5173/",
+        "http://localhost:5173"
+      ],
+      "supportedHtmlFiles": ["index.html"]
+    }
+  }
+}
+```
+
+模板写入这三个字段，CLI 将其注入 `BuildConfig.KSM_WEBVIEW_*`。生产入口决定 release
+加载的 HTML 文件；开发入口决定 `ksm dev --android` 可接受的 URL；`supportedHtmlFiles`
+同时约束页面导航与资源加载。自定义入口时先补齐白名单，避免 debug 应用回退生产入口。
+
 ## SDK 下载
 
 默认 Release 地址为：

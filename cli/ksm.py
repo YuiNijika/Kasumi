@@ -29,9 +29,7 @@ PLATFORMS = ("windows", "android")
 TARGETS = ("sdk", "example", "all")
 CONFIG_FILE = ROOT / "kasumi.config.json"
 PROTOCOL_COMMANDS_FILE = ROOT / "protocol" / "commands.json"
-DEV_HOST = "127.0.0.1"
 DEV_PORT = 5173
-DEV_URL = f"http://localhost:{DEV_PORT}/index.html"
 SHOWCASE_DIR = ROOT / "examples" / "showcase"
 WINDOWS_SDK_BUILD_ROOT = ROOT / "windows" / "build"
 WINDOWS_EXAMPLE_DIR = ROOT / "windows" / "examples" / "win32-host"
@@ -511,6 +509,9 @@ def build_android_sdk() -> None:
 
 
 def android_app_gradle_arguments(config: KasumiConfig) -> list[str]:
+    webview = config.android.webview
+    if webview is None:
+        raise RuntimeError("android.webview is required for Android builds.")
     return [
         f"-PksmPackageName={config.android.package_name}",
         f"-PksmVersion={config.android.version}",
@@ -520,7 +521,23 @@ def android_app_gradle_arguments(config: KasumiConfig) -> list[str]:
         f"{','.join(config.android.shell_allowed_origins)}",
         f"-PksmHttpAllowedOrigins="
         f"{','.join(config.android.http_allowed_origins)}",
+        f"-PksmWebViewProductionEntry={webview.production_entry}",
+        f"-PksmWebViewDevelopmentEntries="
+        f"{','.join(webview.development_entries)}",
+        f"-PksmWebViewSupportedHtmlFiles="
+        f"{','.join(webview.supported_html_files)}",
     ]
+
+
+def development_url(config: KasumiConfig) -> str:
+    webview = config.android.webview
+    if webview is None:
+        raise RuntimeError("android.webview is required for development.")
+    entries = webview.development_entries
+    return next(
+        (entry for entry in entries if entry.endswith(".html")),
+        entries[0],
+    )
 
 
 def build_android_example(
@@ -980,9 +997,11 @@ def android_adb_environment() -> dict[str, str]:
     return environment
 
 
-def start_dev_server() -> subprocess.Popen[bytes]:
+def start_dev_server(url: str) -> subprocess.Popen[bytes]:
     if not (SHOWCASE_DIR / "index.html").is_file():
-        raise FileNotFoundError(f"Showcase entry not found: {SHOWCASE_DIR / 'index.html'}")
+        raise FileNotFoundError(
+            f"Showcase entry not found: {SHOWCASE_DIR / 'index.html'}"
+        )
     server = subprocess.Popen(
         [
             sys.executable,
@@ -990,7 +1009,7 @@ def start_dev_server() -> subprocess.Popen[bytes]:
             "http.server",
             str(DEV_PORT),
             "--bind",
-            DEV_HOST,
+            "127.0.0.1",
             "--directory",
             str(SHOWCASE_DIR),
         ],
@@ -1001,12 +1020,12 @@ def start_dev_server() -> subprocess.Popen[bytes]:
         if server.poll() is not None:
             raise RuntimeError("The development server exited before it became ready.")
         try:
-            with urllib.request.urlopen(DEV_URL, timeout=0.5):
+            with urllib.request.urlopen(url, timeout=0.5):
                 return server
         except (OSError, urllib.error.URLError):
             time.sleep(0.2)
     server.terminate()
-    raise RuntimeError(f"The development server did not become ready: {DEV_URL}")
+    raise RuntimeError(f"The development server did not become ready: {url}")
 
 
 def stop_dev_server(server: subprocess.Popen[bytes]) -> None:
@@ -1057,7 +1076,8 @@ def dev_windows(
     multi_view: bool = False,
 ) -> None:
     build_windows_example(config, False, bundle_webview2_loader, multi_view)
-    server = start_dev_server()
+    server = start_dev_server(url)
+    url = development_url(config)
     try:
         executable = (
             windows_example_output_directory(bundle_webview2_loader)
@@ -1065,8 +1085,8 @@ def dev_windows(
         )
         if not executable.is_file():
             raise FileNotFoundError(f"Windows example executable not found: {executable}")
-        print(f"Windows development app is running against {DEV_URL}")
-        arguments = [str(executable), "--url", DEV_URL, "--dev"]
+        print(f"Windows development app is running against {url}")
+        arguments = [str(executable), "--url", url, "--dev"]
         if multi_view:
             arguments.append("--multi-view")
         run(arguments, cwd=executable.parent)
@@ -1078,6 +1098,7 @@ def dev_android(config: KasumiConfig) -> None:
     build_android_example(config)
     adb = android_adb()
     environment = android_adb_environment()
+    url = development_url(config)
     apk = (
         ROOT
         / "examples"
@@ -1097,7 +1118,7 @@ def dev_android(config: KasumiConfig) -> None:
     )
     server: subprocess.Popen[bytes] | None = None
     try:
-        server = start_dev_server()
+        server = start_dev_server(url)
         install_android_apk(
             adb,
             apk,
@@ -1124,11 +1145,11 @@ def dev_android(config: KasumiConfig) -> None:
                 f"{config.android.package_name}/.MainActivity",
                 "--es",
                 "ksmDevUrl",
-                DEV_URL,
+                url,
             ],
             env=environment,
         )
-        print(f"Android development app is running against {DEV_URL}")
+        print(f"Android development app is running against {url}")
         try:
             while True:
                 time.sleep(1)

@@ -22,9 +22,35 @@ class KSMRouter(
     }
 
     private val pluginRegistry = KSMPluginRegistry(
-        ksmDefaultPlugins().filterNot { defaultPlugin ->
+        (ksmDefaultPlugins().filterNot { defaultPlugin ->
             plugins.any { it.id == defaultPlugin.id }
-        } + plugins
+        } + plugins).map { plugin ->
+            if (plugin.id != "capabilities") {
+                plugin
+            } else {
+                val ownedCommands = plugins
+                    .filterNot { it.id == "capabilities" }
+                    .flatMap { it.commands }
+                    .toSet()
+                object : KSMPlugin {
+                    override val id = plugin.id
+                    override val commands =
+                        plugin.commands - ownedCommands
+                    override val permissions = plugin.permissions
+
+                    override fun validateArgs(
+                        command: String,
+                        args: JSONObject
+                    ): Boolean = plugin.validateArgs(command, args)
+
+                    override fun handle(
+                        command: String,
+                        args: JSONObject,
+                        context: KSMPluginContext
+                    ): Any = plugin.handle(command, args, context)
+                }
+            }
+        }
     )
 
     init {
@@ -41,8 +67,16 @@ class KSMRouter(
             val generatedCommandsForPlugin =
                 KSMGeneratedContract.pluginCommands[plugin.id]
             if (plugin.id in replaceable) {
+                val capabilityCommands = ksmDefaultPlugins()
+                    .firstOrNull { it.id == "capabilities" }
+                    ?.commands
+                    .orEmpty()
                 require(
-                    plugin.commands == generatedCommandsForPlugin?.toSet().orEmpty()
+                    plugin.commands ==
+                        generatedCommandsForPlugin
+                            .orEmpty()
+                            .filterNot { it in capabilityCommands }
+                            .toSet()
                 ) {
                     "A replacement built-in plugin must own exactly the " +
                         "generated commands for its plugin ID."

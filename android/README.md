@@ -42,7 +42,8 @@ Android 当前实现 **44/44 个适用命令**。Windows 专属的窗口标题�
 
 Android 示例从仓库根目录 `kasumi.config.json` 读取 `android.packageName`、
 `android.version`、`android.commands`、`android.permissions`，以及可选的
-`android.shell.allowedOrigins` 和 `android.http.allowedOrigins`：
+`android.shell.allowedOrigins`、`android.http.allowedOrigins` 和
+`android.webview`：
 
 ```json
 {
@@ -61,6 +62,15 @@ Android 示例从仓库根目录 `kasumi.config.json` 读取 `android.packageNam
     },
     "http": {
       "allowedOrigins": ["https://cdn.example.com"]
+    },
+    "webview": {
+      "productionEntry": "https://app.local/index.html",
+      "developmentEntries": [
+        "http://localhost:5173/index.html",
+        "http://localhost:5173/",
+        "http://localhost:5173"
+      ],
+      "supportedHtmlFiles": ["index.html"]
     }
   }
 }
@@ -79,9 +89,22 @@ Android 示例从仓库根目录 `kasumi.config.json` 读取 `android.packageNam
 `shell.allowedOrigins` 接受精确 `http` / `https` origin；`http.allowedOrigins` 只接受
 精确 `https` origin。两者默认拒绝，不支持通配符或用户名密码，每一跳下载重定向都要重新匹配。
 
+| `android.webview` 字段 | 作用 |
+| --- | --- |
+| `productionEntry` | 生产构建加载的 `https://app.local/*.html` 入口 |
+| `developmentEntries` | debug 构建允许 CLI 通过 `ksmDevUrl` 传入的完整 URL，覆盖 `/`、无路径与 HTML 文件形式 |
+| `supportedHtmlFiles` | WebView 导航与 `KSMWebAssetLoader` 允许加载的 HTML 资源白名单 |
+
+三项均可省略，默认值与上例相同。生产入口与开发 HTML 入口必须落在 `supportedHtmlFiles`
+中；开发入口必须包含生产入口使用的 HTML 文件，CLI 也会据此选择 Vite、Next.js 与 Nuxt
+的启动 URL。URL 不接受查询、片段、凭据、编码路径或父目录段。配置经 Node / Python CLI
+写入 Gradle 的 `KSM_WEBVIEW_*` BuildConfig，再传入 `KSMWebViewConfig`；直接调用 SDK 时
+可以显式构造同一个配置对象。
+
 CLI 默认读取 `kasumi.config.json`，也可用 `--config <path>` 指定其他文件。直接运行
 Gradle 时可用 `-PksmPackageName`、`-PksmVersion` 和逗号分隔的 `-PksmCommands`
-覆盖默认值。
+覆盖默认值；入口策略对应 `-PksmWebViewProductionEntry`、
+`-PksmWebViewDevelopmentEntries` 与 `-PksmWebViewSupportedHtmlFiles`。
 
 ## SDK 构建
 
@@ -335,13 +358,20 @@ Activity 需要声明：
 
 ## WebView 安全
 
-WebView 只允许 `https://app.local` 和开发用 `http://localhost:5173`。其他 `http` /
-`https` 导航直接拦截，应用必须通过 `shell.openExternal` 的精确 origin 白名单打开外部
-链接；`intent:`、`file:` 等 scheme 同样拒绝。`window.open` 被拒绝，生产构建关闭
-WebView 调试。CSP、导航拦截和来源校验必须保持开启，不使用 `addJavascriptInterface`。
+WebView 的生产与开发入口由 `android.webview` 配置。默认生产入口是
+`https://app.local/index.html`，开发入口是 `http://localhost:5173/index.html`、
+`http://localhost:5173/` 与 `http://localhost:5173`。`KSMDevelopmentEntry.resolve()`
+按 `KSMWebViewConfig` 校验 `ksmDevUrl`，只有 debug 构建且 URL 精确列入
+`developmentEntries` 时才进入同一消息桥；否则回退生产入口。导航与消息来源按配置派生，
+HTML 路径只有空路径、目录路径或 `supportedHtmlFiles` 中的文件才允许加载。其他
+`http` / `https` 导航直接拦截，应用必须通过
+`shell.openExternal` 的精确 origin 白名单打开外部链接；`intent:`、`file:` 等 scheme
+同样拒绝。`window.open` 被拒绝，生产构建关闭 WebView 调试。CSP、导航拦截和来源校验
+必须保持开启，不使用 `addJavascriptInterface`。
 
-使用 `KSMWebAssetLoader.create(context, assetRoot)` 创建资源加载器。该入口固定域名
-`app.local`，并拒绝包含路径穿越的资源和请求路径。AndroidX 默认域名是
+使用 `KSMWebAssetLoader.create(context, assetRoot, webViewConfig)` 创建资源加载器。该入口固定
+域名 `app.local`，目录请求回退到 `config.productionHtmlFile`，并拒绝白名单外的 HTML
+文件、路径穿越和编码路径。省略 `webViewConfig` 时使用 `KSMWebViewConfig.default()`。AndroidX 默认域名是
 `appassets.androidplatform.net`，直接构造 `WebViewAssetLoader.Builder` 时漏设域名会让
 `https://app.local/index.html` 落到系统 DNS 并报 `ERR_NAME_NOT_RESOLVED`。
 
@@ -417,15 +447,18 @@ python cli/ksm.py package --platform android --target example
 ## 排查路径
 
 1. 依赖解析失败：确认本地 Maven 仓库存在 `dev/kasumi/kasumi/<version>/`。
-2. 页面空白：检查 `assets/web/index.html`、CSP 和 `KSMWebAssetLoader` 的资源根。
-3. 请求一直超时：检查 `withTimeout`、专用执行器的取消链路、主线程回投和
+2. 页面空白：检查 `assets/web/index.html`、CSP、`KSMWebAssetLoader` 的资源根与
+   `android.webview.supportedHtmlFiles`。
+3. 开发模式回退生产入口：确认 `ksmDevUrl` 精确匹配 `developmentEntries`，且 APK 是
+   debug 构建。
+4. 请求一直超时：检查 `withTimeout`、专用执行器的取消链路、主线程回投和
    `timeoutMs` 是否在 `1..600000`。
-4. 文件被拒绝：检查虚拟根、picked 句柄和真实 URI 是否越界。
-5. 下载失败：检查 HTTPS、重定向、目标覆盖策略、网络权限和 `.part` 清理。
-6. 外部链接被拒绝：检查 origin 白名单、scheme、host 和端口。
-7. 通知不显示：先请求 `notification.show`，再检查 `POST_NOTIFICATIONS`。
-8. Activity 旋转后异常：检查旧请求是否被取消，迟到响应是否被抑制。
-9. 多 WebView 请求走错窗口：检查是否显式传入 `KSMWebViewHost.windowId`，不要把默认窗口
+5. 文件被拒绝：检查虚拟根、picked 句柄和真实 URI 是否越界。
+6. 下载失败：检查 HTTPS、重定向、目标覆盖策略、网络权限和 `.part` 清理。
+7. 外部链接被拒绝：检查 origin 白名单、scheme、host 和端口。
+8. 通知不显示：先请求 `notification.show`，再检查 `POST_NOTIFICATIONS`。
+9. Activity 旋转后异常：检查旧请求是否被取消，迟到响应是否被抑制。
+10. 多 WebView 请求走错窗口：检查是否显式传入 `KSMWebViewHost.windowId`，不要把默认窗口
    上下文用于多窗口路由。
-10. SQL 一直等待：确认 SQL request ID 未重复、取消令牌已透传，并检查
+11. SQL 一直等待：确认 SQL request ID 未重复、取消令牌已透传，并检查
     `CancellationSignal` 是否触发。

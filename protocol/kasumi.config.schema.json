@@ -342,6 +342,35 @@
               }
             }
           }
+        },
+        "webview": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Android WebView entry URLs and accepted HTML files.",
+          "properties": {
+            "productionEntry": {
+              "type": "string",
+              "pattern": "^https://app\\.local/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\\.html$"
+            },
+            "developmentEntries": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^http://localhost:5173(?:/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\\.html|/)?$"
+              }
+            },
+            "supportedHtmlFiles": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\\.html$"
+              }
+            }
+          }
         }
       }
     }

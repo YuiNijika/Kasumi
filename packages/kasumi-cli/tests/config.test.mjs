@@ -16,12 +16,13 @@ import { parseArgs } from '../src/args.mjs';
 import {
   findApkSigner,
   findGradle,
-  packageAndroid
+  packageAndroid,
+  runAndroidDevelopment
 } from '../src/android.mjs';
 import { ConfigError, readConfig } from '../src/config.mjs';
 import {
   injectContentSecurityPolicy,
-  readFrontendSettings
+  readFrontendSettings,
 } from '../src/frontend.mjs';
 import { createZipArchive } from '../src/archive.mjs';
 import {
@@ -348,6 +349,36 @@ test('detects frontend framework scripts and build outputs', async () => {
   }
 });
 
+test('uses configured Android WebView development entries', async () => {
+  const temporaryRoot = await mkdtemp(
+    path.join(tmpdir(), 'kasumi-frontend-test-')
+  );
+  try {
+    await writeFile(
+      path.join(temporaryRoot, 'package.json'),
+      JSON.stringify({
+        dependencies: { next: '^16.0.0' },
+        scripts: {
+          'frontend:dev': 'next dev',
+          'frontend:build': 'next build'
+        }
+      }),
+      'utf8'
+    );
+    const settings = await readFrontendSettings(temporaryRoot, {
+      productionEntry: 'https://app.local/start.html',
+      developmentEntries: [
+        'http://localhost:5173/start.html',
+        'http://localhost:5173/'
+      ],
+      supportedHtmlFiles: ['index.html', 'start.html']
+    });
+    assert.equal(settings.devUrl, 'http://localhost:5173/');
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
 test('injects a single CSP meta tag into frontend output', async () => {
   const temporaryRoot = await mkdtemp(
     path.join(tmpdir(), 'kasumi-csp-test-')
@@ -506,7 +537,12 @@ test('Android packaging rejects missing release signing configuration', async ()
       packageAndroid('unused', {
         packageName: 'dev.kasumi.sample',
         version: '0.1.0',
-        commands: ['ping', 'capabilities.query']
+        commands: ['ping', 'capabilities.query'],
+        webview: {
+          productionEntry: 'https://app.local/index.html',
+          developmentEntries: ['http://localhost:5173/index.html'],
+          supportedHtmlFiles: ['index.html']
+        }
       }),
       /Android release signing requires/
     );
@@ -672,6 +708,142 @@ test('loads a valid application configuration', async () => {
     assert.equal(config.windows.packageName, 'sample-app');
     assert.equal(config.android.packageName, 'dev.kasumi.sample');
     assert.equal(config.windows.decorations, true);
+    assert.deepEqual(config.android.webview, {
+      productionEntry: 'https://app.local/index.html',
+      developmentEntries: [
+        'http://localhost:5173/index.html',
+        'http://localhost:5173/',
+        'http://localhost:5173'
+      ],
+      supportedHtmlFiles: ['index.html']
+    });
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('accepts Android WebView entry configuration', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          webview: {
+            productionEntry: 'https://app.local/start.html',
+            developmentEntries: [
+              'http://localhost:5173/start.html',
+              'http://localhost:5173/'
+            ],
+            supportedHtmlFiles: ['index.html', 'start.html']
+          }
+        }
+      }),
+      'utf8'
+    );
+    const config = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.equal(
+      config.android.webview.productionEntry,
+      'https://app.local/start.html'
+    );
+    assert.deepEqual(config.android.webview.developmentEntries, [
+      'http://localhost:5173/start.html',
+      'http://localhost:5173/'
+    ]);
+    assert.deepEqual(config.android.webview.supportedHtmlFiles, [
+      'index.html',
+      'start.html'
+    ]);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('rejects unsafe Android WebView entry configuration', async () => {
+  const invalidConfigurations = [
+    {
+      productionEntry: 'https://app.local/index.html?next=1'
+    },
+    {
+      productionEntry: 'https://app.local/../index.html'
+    },
+    {
+      developmentEntries: [
+        'http://localhost:5173/index.html',
+        'http://localhost:5173/'
+      ],
+      supportedHtmlFiles: ['other.html']
+    },
+    {
+      developmentEntries: [
+        'http://localhost:5173/index.html',
+        'http://localhost:5173/secret.html'
+      ]
+    }
+  ];
+  for (const webview of invalidConfigurations) {
+    const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+    try {
+      await writeFile(
+        path.join(temporaryRoot, 'kasumi.config.json'),
+        JSON.stringify({
+          windows: {
+            packageName: 'sample-app',
+            version: '0.1.0',
+            commands: ['ping', 'capabilities.query']
+          },
+          android: {
+            packageName: 'dev.kasumi.sample',
+            version: '0.1.0',
+            commands: ['ping', 'capabilities.query'],
+            webview
+          }
+        }),
+        'utf8'
+      );
+      await assert.rejects(
+        readConfig(temporaryRoot, 'kasumi.config.json'),
+        /webview/i
+      );
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test('rejects Android WebView configuration on Windows', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    await writeFile(
+      path.join(temporaryRoot, 'kasumi.config.json'),
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          webview: {}
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        }
+      }),
+      'utf8'
+    );
+    await assert.rejects(
+      readConfig(temporaryRoot, 'kasumi.config.json'),
+      /unknown fields: webview/
+    );
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
@@ -954,6 +1126,35 @@ function zipEntryNames(buffer) {
   }
   return names;
 }
+
+test('keeps Android development URL within the configured WebView entries', async () => {
+  const originalAdb = process.env.ADB;
+  try {
+    delete process.env.ADB;
+    await assert.rejects(
+      runAndroidDevelopment(
+        'unused',
+        {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          webview: {
+            productionEntry: 'https://app.local/start.html',
+            developmentEntries: ['http://localhost:5173/start.html'],
+            supportedHtmlFiles: ['index.html', 'start.html']
+          }
+        },
+        { url: 'http://localhost:5173/index.html' }
+      ),
+      /not listed in android\.webview\.developmentEntries/
+    );
+  } finally {
+    if (originalAdb === undefined) {
+      delete process.env.ADB;
+    } else {
+      process.env.ADB = originalAdb;
+    }
+  }
+});
 
 function saveEnvironment(names) {
   return new Map(names.map((name) => [name, process.env[name]]));

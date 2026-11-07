@@ -245,15 +245,11 @@ class ContractTest {
 
     private class ReplacementFileSystemPlugin : KSMPlugin {
         override val id: String = "fs"
-        override val commands: Set<String> = setOf(
-            "fs.readText",
-            "fs.writeText",
-            "fs.exists",
-            "fs.remove",
-            "fs.readDir",
-            "fs.mkdir",
-            "fs.stat"
-        )
+        override val commands: Set<String> =
+            KSMGeneratedContract.pluginCommands["fs"]
+                .orEmpty()
+                .filterNot { it == "fs.walk" || it == "fs.scope.release" }
+                .toSet()
         override val permissions: Set<String> = setOf(
             "fs.read",
             "fs.write",

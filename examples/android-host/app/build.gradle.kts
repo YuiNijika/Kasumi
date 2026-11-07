@@ -30,6 +30,11 @@ val ksmCommands = csvProperty("ksmCommands")
 val ksmPermissions = csvProperty("ksmPermissions")
 val ksmShellAllowedOrigins = csvProperty("ksmShellAllowedOrigins")
 val ksmHttpAllowedOrigins = csvProperty("ksmHttpAllowedOrigins")
+val ksmWebViewProductionEntry = providers.gradleProperty("ksmWebViewProductionEntry")
+    .orElse("https://app.local/index.html")
+    .get()
+val ksmWebViewDevelopmentEntries = csvProperty("ksmWebViewDevelopmentEntries")
+val ksmWebViewSupportedHtmlFiles = csvProperty("ksmWebViewSupportedHtmlFiles")
 val releaseKeystore = System.getenv("KASUMI_ANDROID_KEYSTORE")
     ?.takeIf { it.isNotBlank() }
     ?.let { file(it) }
@@ -72,6 +77,31 @@ android {
             "String[]",
             "KSM_HTTP_ALLOWED_ORIGINS",
             stringArrayLiteral(ksmHttpAllowedOrigins)
+        )
+        buildConfigField(
+            "String",
+            "KSM_WEBVIEW_PRODUCTION_ENTRY",
+            "\"${ksmWebViewProductionEntry.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        )
+        buildConfigField(
+            "String[]",
+            "KSM_WEBVIEW_DEVELOPMENT_ENTRIES",
+            stringArrayLiteral(
+                ksmWebViewDevelopmentEntries.ifEmpty {
+                    listOf(
+                        "http://localhost:5173/index.html",
+                        "http://localhost:5173/",
+                        "http://localhost:5173"
+                    )
+                }
+            )
+        )
+        buildConfigField(
+            "String[]",
+            "KSM_WEBVIEW_SUPPORTED_HTML_FILES",
+            stringArrayLiteral(
+                ksmWebViewSupportedHtmlFiles.ifEmpty { listOf("index.html") }
+            )
         )
     }
 

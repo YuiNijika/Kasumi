@@ -2,11 +2,12 @@ package dev.kasumi.example
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import dev.kasumi.app.KSMAndroidHostServices
+import dev.kasumi.app.bridge.KSMDevelopmentEntry
 import dev.kasumi.app.bridge.KSMFileSystem
 import dev.kasumi.app.bridge.KSMWebViewHost
+import dev.kasumi.app.bridge.KSMWebViewConfig
 import java.io.File
 
 class MainActivity : Activity() {
@@ -21,6 +22,11 @@ class MainActivity : Activity() {
             cacheDir,
             File(cacheDir, "tmp")
         )
+        val webViewConfig = KSMWebViewConfig(
+            productionEntry = BuildConfig.KSM_WEBVIEW_PRODUCTION_ENTRY,
+            developmentEntries = BuildConfig.KSM_WEBVIEW_DEVELOPMENT_ENTRIES.toList(),
+            supportedHtmlFiles = BuildConfig.KSM_WEBVIEW_SUPPORTED_HTML_FILES.toList()
+        )
         hostServices = KSMAndroidHostServices(
             activity = this,
             allowedExternalOrigins = BuildConfig.KSM_SHELL_ALLOWED_ORIGINS.toSet(),
@@ -32,9 +38,14 @@ class MainActivity : Activity() {
             activity = this,
             fileSystem = fileSystem,
             hostServices = hostServices,
-            entryUrl = entryUrl(),
+            entryUrl = KSMDevelopmentEntry.resolve(
+                intent,
+                BuildConfig.DEBUG,
+                webViewConfig
+            ),
             allowedCommands = BuildConfig.KSM_COMMANDS.toList(),
             allowedPermissions = BuildConfig.KSM_PERMISSIONS.toList(),
+            webViewConfig = webViewConfig,
             debug = BuildConfig.DEBUG
         )
 
@@ -105,24 +116,4 @@ class MainActivity : Activity() {
         hostServices.handleRequestPermissionsResult(requestCode, grantResults)
     }
 
-    private fun entryUrl(): String {
-        val requested = intent?.getStringExtra(EXTRA_DEV_URL)
-            ?: return PRODUCTION_ENTRY_URL
-        if (!BuildConfig.DEBUG) {
-            return PRODUCTION_ENTRY_URL
-        }
-        val parsed = Uri.parse(requested)
-        val isDevelopmentEntry =
-            parsed.scheme == "http" &&
-                parsed.host == "localhost" &&
-                parsed.port == DEV_PORT &&
-                parsed.path == "/index.html"
-        return if (isDevelopmentEntry) requested else PRODUCTION_ENTRY_URL
-    }
-
-    companion object {
-        private const val DEV_PORT = 5173
-        private const val EXTRA_DEV_URL = "ksmDevUrl"
-        private const val PRODUCTION_ENTRY_URL = "https://app.local/index.html"
-    }
 }

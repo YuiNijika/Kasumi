@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import dev.kasumi.app.bridge.KSMFileSystem
 import dev.kasumi.app.bridge.KSMWebViewHost
+import dev.kasumi.app.bridge.KSMWebViewConfig
 import java.io.File
 
 class MainActivity : Activity() {
@@ -19,6 +20,7 @@ class MainActivity : Activity() {
             cacheDir,
             File(cacheDir, "tmp")
         )
+        val webViewConfig = KSMWebViewConfig.default()
         hostServices = KSMAndroidHostServices(
             activity = this,
             allowedExternalOrigins = setOf("https://example.com"),
@@ -28,8 +30,9 @@ class MainActivity : Activity() {
             activity = this,
             fileSystem = fileSystem,
             hostServices = hostServices,
-            entryUrl = "https://app.local/index.html",
+            entryUrl = webViewConfig.productionEntry,
             assetRoot = "web",
+            webViewConfig = webViewConfig,
             debug = BuildConfig.DEBUG
         )
 

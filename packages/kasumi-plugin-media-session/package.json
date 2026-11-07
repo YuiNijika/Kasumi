@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-media-session",
-  "version": "26.11.6",
+  "version": "26.11.7",
   "description": "Media session metadata and transport commands for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

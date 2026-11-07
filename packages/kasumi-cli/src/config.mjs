@@ -12,6 +12,16 @@ const WINDOWS_PACKAGE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const ANDROID_PACKAGE_PATTERN = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
 const COMMAND_PATTERN = /^[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$/;
 const PERMISSION_PATTERN = COMMAND_PATTERN;
+const DEVELOPMENT_ORIGIN = 'http://localhost:5173';
+const DEFAULT_WEBVIEW_CONFIG = Object.freeze({
+  productionEntry: 'https://app.local/index.html',
+  developmentEntries: [
+    `${DEVELOPMENT_ORIGIN}/index.html`,
+    `${DEVELOPMENT_ORIGIN}/`,
+    DEVELOPMENT_ORIGIN
+  ],
+  supportedHtmlFiles: ['index.html']
+});
 
 export class ConfigError extends Error {
   constructor(message) {
@@ -54,6 +64,16 @@ export async function readConfig(projectRoot, configPath) {
  const root = {
     appId: parseOptionalString(payload.appId, 'configuration.appId')
   };
+  const androidWebView = isObject(payload.android)
+    ? parseWebView(
+        payload.android.webview,
+        'configuration.android.webview'
+      )
+    : {
+        productionEntry: DEFAULT_WEBVIEW_CONFIG.productionEntry,
+        developmentEntries: [...DEFAULT_WEBVIEW_CONFIG.developmentEntries],
+        supportedHtmlFiles: [...DEFAULT_WEBVIEW_CONFIG.supportedHtmlFiles]
+      };
   for (const [key, parser] of [
     ['icons', parseIcons],
     ['resources', parseStringArray],
@@ -78,7 +98,9 @@ export async function readConfig(projectRoot, configPath) {
       'configuration.android',
       ANDROID_PACKAGE_PATTERN,
  [...commandData.android, ...extensions.androidCommands],
- [...commandData.permissions, ...extensions.permissions]
+ [...commandData.permissions, ...extensions.permissions],
+      false,
+      androidWebView
     )
   };
 }
@@ -383,7 +405,8 @@ function parsePlatform(
   packagePattern,
   availableCommands,
   availablePermissions,
-  allowDecorations = false
+  allowDecorations = false,
+  webviewConfig = undefined
 ) {
   if (!isObject(value)) {
     throw new ConfigError(`${location} must be an object.`);
@@ -400,6 +423,9 @@ function parsePlatform(
     allowedFields.add('decorations');
     allowedFields.add('window');
     allowedFields.add('tray');
+  }
+  if (webviewConfig !== undefined) {
+    allowedFields.add('webview');
   }
   rejectUnknown(value, allowedFields, location);
   for (const field of ['packageName', 'version', 'commands']) {
@@ -463,7 +489,148 @@ function parsePlatform(
   if (allowDecorations) {
     result.decorations = value.decorations ?? true;
   }
+  if (webviewConfig !== undefined) {
+    result.webview = webviewConfig;
+  }
   return result;
+}
+
+function parseWebView(value, location) {
+  if (value === undefined) {
+    return {
+      productionEntry: DEFAULT_WEBVIEW_CONFIG.productionEntry,
+      developmentEntries: [...DEFAULT_WEBVIEW_CONFIG.developmentEntries],
+      supportedHtmlFiles: [...DEFAULT_WEBVIEW_CONFIG.supportedHtmlFiles]
+    };
+  }
+  if (!isObject(value)) {
+    throw new ConfigError(`${location} must be an object.`);
+  }
+  rejectUnknown(
+    value,
+    new Set(['productionEntry', 'developmentEntries', 'supportedHtmlFiles']),
+    location
+  );
+  const productionEntry = parseProductionEntry(
+    value.productionEntry ?? DEFAULT_WEBVIEW_CONFIG.productionEntry,
+    `${location}.productionEntry`
+  );
+  const supportedHtmlFiles = parseHtmlFiles(
+    value.supportedHtmlFiles ?? DEFAULT_WEBVIEW_CONFIG.supportedHtmlFiles,
+    `${location}.supportedHtmlFiles`
+  );
+  if (!supportedHtmlFiles.includes('index.html')) {
+    throw new ConfigError(
+      `${location}.supportedHtmlFiles must include index.html for frontend builds.`
+    );
+  }
+  const developmentEntries = parseDevelopmentEntries(
+    value.developmentEntries ?? DEFAULT_WEBVIEW_CONFIG.developmentEntries,
+    `${location}.developmentEntries`,
+    supportedHtmlFiles,
+    productionEntry.slice(productionEntry.indexOf('/', 'https://'.length) + 1)
+  );
+  return { productionEntry, developmentEntries, supportedHtmlFiles };
+}
+
+function parseProductionEntry(value, location) {
+  const parsed = parseEntryUrl(value, location, 'https', 'app.local', '');
+  const htmlFile = parsed.path.slice(1);
+  if (!htmlFile.endsWith('.html')) {
+    throw new ConfigError(`${location} must point to an HTML file.`);
+  }
+  return parsed.url;
+}
+
+function parseDevelopmentEntries(
+  value,
+  location,
+  supportedHtmlFiles,
+  productionHtmlFile
+) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ConfigError(`${location} must be a non-empty array.`);
+  }
+  const entries = [];
+  for (const [index, entry] of value.entries()) {
+    const itemLocation = `${location}[${index}]`;
+    const parsed = parseEntryUrl(
+      entry,
+      itemLocation,
+      'http',
+      'localhost',
+      ':5173'
+    );
+    const path = parsed.path.slice(1);
+    if (path !== '' && !supportedHtmlFiles.includes(path)) {
+      throw new ConfigError(
+        `${itemLocation} is not in configuration.android.webview.supportedHtmlFiles.`
+      );
+    }
+    if (entries.includes(parsed.url)) {
+      throw new ConfigError(`${location} contains a duplicate: ${parsed.url}.`);
+    }
+    entries.push(parsed.url);
+  }
+  if (!entries.some((entry) => entry.endsWith(`/${productionHtmlFile}`))) {
+    throw new ConfigError(
+      `${location} must include the production HTML file: ${productionHtmlFile}.`
+    );
+  }
+  return entries;
+}
+
+function parseEntryUrl(value, location, scheme, authority, port) {
+  if (typeof value !== 'string' || value.trim() !== value || value === '') {
+    throw new ConfigError(`${location} is invalid.`);
+  }
+  const match = new RegExp(
+    `^${scheme}://([^/?#]+)([^?#]*)$`
+  ).exec(value);
+  if (!match || value.includes('?') || value.includes('#')) {
+    throw new ConfigError(`${location} is invalid.`);
+  }
+  const actualAuthority = match[1];
+  const path = match[2];
+  if (
+    actualAuthority !== `${authority}${port}` ||
+    !isSafeEntryPath(path)
+  ) {
+    throw new ConfigError(`${location} is invalid.`);
+  }
+  return { url: value, path };
+}
+
+function isSafeEntryPath(path) {
+  if (path === '') {
+    return true;
+  }
+  return /^\/(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]*$/.test(path) &&
+    !path.includes('%') &&
+    !path.includes('\\') &&
+    !path.includes('\u0000');
+}
+
+function parseHtmlFiles(value, location) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ConfigError(`${location} must be a non-empty array.`);
+  }
+  const htmlFiles = [];
+  for (const [index, entry] of value.entries()) {
+    if (
+      typeof entry !== 'string' ||
+      !/^(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+\.html$/.test(entry) ||
+      entry.includes('\\') ||
+      entry.includes('\u0000')
+    ) {
+      throw new ConfigError(`${location}[${index}] is invalid.`);
+    }
+    if (htmlFiles.includes(entry)) {
+      throw new ConfigError(`${location} contains a duplicate: ${entry}.`);
+    }
+    htmlFiles.push(entry);
+  }
+  return htmlFiles;
 }
 
 function parseWindow(value, location, allowWindowControl) {

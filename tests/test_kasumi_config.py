@@ -110,6 +110,26 @@ class KasumiConfigTest(unittest.TestCase):
         with self.assertRaisesRegex(ConfigError, "unknown fields: decorations"):
             load_config(path)
 
+    def test_rejects_windows_webview(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "webview": {},
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        with self.assertRaisesRegex(ConfigError, "unknown fields: webview"):
+            load_config(path)
+
     def test_expands_all_commands_by_platform(self) -> None:
         path = self.write_config(
             {
@@ -132,6 +152,118 @@ class KasumiConfigTest(unittest.TestCase):
         self.assertEqual(len(config.android.commands), 86)
         self.assertNotIn("device.getInfo", config.windows.commands)
         self.assertIn("device.getInfo", config.android.commands)
+
+    def test_loads_default_android_webview_entries(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        config = load_config(path)
+
+        self.assertIsNotNone(config.android.webview)
+        assert config.android.webview is not None
+        self.assertEqual(
+            config.android.webview.production_entry,
+            "https://app.local/index.html",
+        )
+        self.assertEqual(
+            config.android.webview.development_entries,
+            (
+                "http://localhost:5173/index.html",
+                "http://localhost:5173/",
+                "http://localhost:5173",
+            ),
+        )
+        self.assertEqual(
+            config.android.webview.supported_html_files,
+            ("index.html",),
+        )
+        self.assertIsNone(config.windows.webview)
+
+    def test_accepts_android_webview_entries(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "webview": {
+                        "productionEntry": "https://app.local/start.html",
+                        "developmentEntries": [
+                            "http://localhost:5173/start.html",
+                            "http://localhost:5173/",
+                        ],
+                        "supportedHtmlFiles": ["index.html", "start.html"],
+                    },
+                },
+            }
+        )
+
+        config = load_config(path)
+
+        assert config.android.webview is not None
+        self.assertEqual(
+            config.android.webview.production_entry,
+            "https://app.local/start.html",
+        )
+        self.assertEqual(
+            config.android.webview.supported_html_files,
+            ("index.html", "start.html"),
+        )
+
+    def test_rejects_unsafe_android_webview_entries(self) -> None:
+        invalid_webviews = (
+            {"productionEntry": "https://app.local/index.html?next=1"},
+            {"productionEntry": "https://app.local/../index.html"},
+            {
+                "developmentEntries": [
+                    "http://localhost:5173/index.html",
+                    "http://localhost:5173/",
+                ],
+                "supportedHtmlFiles": ["other.html"],
+            },
+            {
+                "developmentEntries": [
+                    "http://localhost:5173/index.html",
+                    "http://localhost:5173/secret.html",
+                ]
+            },
+        )
+        for webview in invalid_webviews:
+            with self.subTest(webview=webview):
+                path = self.write_config(
+                    {
+                        "windows": {
+                            "packageName": "kasumi-win32-example",
+                            "version": "1.2.3",
+                            "commands": ["ping", "capabilities.query"],
+                        },
+                        "android": {
+                            "packageName": "dev.kasumi.example",
+                            "version": "1.2.3",
+                            "commands": ["ping", "capabilities.query"],
+                            "webview": webview,
+                        },
+                    }
+                )
+                with self.assertRaisesRegex(ConfigError, "webview"):
+                    load_config(path)
 
     def test_rejects_missing_platform(self) -> None:
         path = self.write_config(

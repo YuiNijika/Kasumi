@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-audio",
-  "version": "26.11.6",
+  "version": "26.11.7",
   "description": "Audio playback and device controls for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

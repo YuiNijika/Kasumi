@@ -72,7 +72,28 @@ Windows 批处理入口统一交给 `cmd.exe` 启动，因此 pnpm、Gradle Wrap
 可选的 `decorations` 布尔值，默认 `true`；设为 `false` 会隐藏原生标题栏。`commands`
 使用 `"all"` 时会按平台协议矩阵展开全部命令；显式数组仍会拒绝未知字段、非法包名、
 非 SemVer 版本、未知命令和跨平台命令，并要求包含 `ping` 与 `capabilities.query`。
-Android 不接受 `decorations` 字段。
+Android 不接受 `decorations` 字段，但可通过 `android.webview` 配置 WebView 入口：
+
+```json
+{
+  "android": {
+    "webview": {
+      "productionEntry": "https://app.local/index.html",
+      "developmentEntries": [
+        "http://localhost:5173/index.html",
+        "http://localhost:5173/",
+        "http://localhost:5173"
+      ],
+      "supportedHtmlFiles": ["index.html"]
+    }
+  }
+}
+```
+
+三项可省略，默认值与上例相同。`developmentEntries` 是 CLI 开发 URL 与 Android debug
+入口的唯一允许列表；Vite 选择生产 HTML 文件对应的入口，Next.js 与 Nuxt 选择 `/` 或
+无路径入口。生产入口、开发 HTML 入口必须出现在 `supportedHtmlFiles` 中，且开发列表
+必须包含生产入口使用的 HTML 文件。配置会注入 Gradle `KSM_WEBVIEW_*` BuildConfig。
 
 `doctor` 使用与实际构建相同的框架识别逻辑。Next.js 与 Nuxt 项目只需要存在
 `frontend/`、`frontend:dev` 和 `frontend:build`，不再误报缺少根级
@@ -109,8 +130,8 @@ KASUMI_ANDROID_KEY_PASSWORD
 
 ## 开发服务器与来源
 
-Windows 与 Android 生产宿主只接受 `https://app.local`。开发 origin
-`http://localhost:5173` 只在 Windows `dev` 或 Android debug APK 中开放。
+Windows 与 Android 生产宿主只接受 `https://app.local`。Android 开发入口与 HTML 白名单
+由 `android.webview` 提供；开发 origin 只在 Windows `dev` 或 Android debug APK 中开放。
 Android WebView 遇到非应用导航会直接取消，不会绕过白名单启动外部 Activity。
 
 POSIX 下 CLI 以独立进程组启动前端开发服务器，退出时终止整个进程组，避免 Vite、
@@ -125,3 +146,4 @@ Next.js 或 Nuxt 的包管理器子进程残留。Windows 使用 `taskkill /T /F
 | `External web assets were not produced` | 外置 Web 构建失败 | 检查 CMake 的 `web/` 输出后重新打包 |
 | `frontend entry` 为 missing | 项目缺少 `frontend/` | 恢复前端目录或重新初始化项目 |
 | `Development port 5173 is already in use` | 端口被非本项目进程占用 | 停止占用进程后重新运行 `ksm dev` |
+| `not listed in android.webview.developmentEntries` | CLI 生成的开发 URL 不在配置允许列表 | 补齐对应入口，或调整 `productionEntry` 与白名单 |

@@ -1,18 +1,22 @@
 package dev.kasumi.app.bridge
 
 object KSMNavigationPolicy {
+    fun isAllowedDevelopmentUrl(
+        url: String,
+        config: KSMWebViewConfig = KSMWebViewConfig.default()
+    ): Boolean {
+        return config.isAllowedDevelopmentEntry(url)
+    }
+
     fun isAllowedOrigin(
         scheme: String?,
         host: String?,
         port: Int,
-        allowDevelopmentOrigin: Boolean = false
+        allowDevelopmentOrigin: Boolean = false,
+        config: KSMWebViewConfig = KSMWebViewConfig.default()
     ): Boolean {
-        val isAppOrigin = scheme.equals("https", ignoreCase = true) &&
-            host.equals("app.local", ignoreCase = true) &&
-            port == -1
-        val isDevelopmentOrigin = scheme.equals("http", ignoreCase = true) &&
-            host.equals("localhost", ignoreCase = true) &&
-            port == 5173
-        return isAppOrigin || (allowDevelopmentOrigin && isDevelopmentOrigin)
+        val origin = KSMWebViewConfig.originFor(scheme, host, port)
+        return origin == config.productionOrigin ||
+            (allowDevelopmentOrigin && config.developmentOrigins.contains(origin))
     }
 }

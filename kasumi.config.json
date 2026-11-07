@@ -2,7 +2,7 @@
   "$schema": "./protocol/kasumi.config.schema.json",
   "windows": {
     "packageName": "kasumi-win32-example",
-    "version": "26.11.6",
+    "version": "26.11.7",
     "commands": "all",
     "permissions": "all",
     "decorations": true,
@@ -19,7 +19,7 @@
   },
   "android": {
     "packageName": "dev.kasumi.example",
-    "version": "26.11.6",
+    "version": "26.11.7",
     "commands": "all",
     "permissions": "all",
     "shell": {
@@ -30,6 +30,17 @@
     "http": {
       "allowedOrigins": [
         "https://example.com"
+      ]
+    },
+    "webview": {
+      "productionEntry": "https://app.local/index.html",
+      "developmentEntries": [
+        "http://localhost:5173/index.html",
+        "http://localhost:5173/",
+        "http://localhost:5173"
+      ],
+      "supportedHtmlFiles": [
+        "index.html"
       ]
     }
   }

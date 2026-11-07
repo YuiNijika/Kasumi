@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-window",
-  "version": "26.11.6",
+  "version": "26.11.7",
   "description": "Window control plugin API for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

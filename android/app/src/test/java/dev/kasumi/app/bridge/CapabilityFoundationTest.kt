@@ -151,16 +151,22 @@ class CapabilityFoundationTest {
     }
 
     private fun allPermissions(): List<String> {
+        val capabilityPlugin = ksmDefaultPlugins().first {
+            it.id == "capabilities"
+        }
         return (
             KSMGeneratedContract.permissions +
-                KSMCapabilityNames.permissions
+                capabilityPlugin.permissions
             ).distinct()
     }
 
     private fun capabilityCommands(): List<String> {
+        val capabilityPlugin = ksmDefaultPlugins().first {
+            it.id == "capabilities"
+        }
         return (
             KSMGeneratedContract.androidCommands +
-                KSMCapabilityNames.commands()
+                capabilityPlugin.commands
             ).distinct()
     }
 
@@ -302,6 +308,9 @@ class CapabilityFoundationTest {
             JSONObject().put("event", "http.transfer.completed")
         )
         assertTrue(subscribed.getBoolean("ok"))
+        host.setEventDispatcher { event, payload ->
+            router.emitEvent(event, JSONObject(payload))
+        }
         host.dispatcher()(
             "http.transfer.completed",
             JSONObject().put("transferId", "transfer-1").toString()

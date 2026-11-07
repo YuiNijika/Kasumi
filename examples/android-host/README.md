@@ -39,15 +39,18 @@ cd examples/android-host
 示例应用。
 
 应用 ID、版本和启用命令来自仓库根目录 `kasumi.config.json` 的 `android` 配置。
-CLI 会通过 `-PksmPackageName`、`-PksmVersion` 和 `-PksmCommands` 注入 Gradle；
-直接运行 Wrapper 时使用 Gradle 中的默认值。`commands` 生成
+CLI 会通过 `-PksmPackageName`、`-PksmVersion`、`-PksmCommands` 和 `-PksmWebView*`
+注入 Gradle；直接运行 Wrapper 时使用 Gradle 中的默认值。`commands` 生成
 `BuildConfig.KSM_COMMANDS` 并交给 `KSMRouter`，未启用的命令返回 `NOT_SUPPORTED`。
 
 ## 运行边界
 
-- WebView 只加载 `https://app.local/index.html`，资源由
-  `KSMWebAssetLoader.create(context)` 提供。该入口固定域名 `app.local`；直接使用
-  `WebViewAssetLoader` 默认域名 `appassets.androidplatform.net` 不会匹配该 URL。
+- WebView 入口来自 `kasumi.config.json` 的 `android.webview`。默认生产模式加载
+  `https://app.local/index.html`，开发模式接受 `http://localhost:5173/index.html`、
+  `http://localhost:5173/` 与无路径形式；`supportedHtmlFiles` 默认只加载
+  `index.html`。资源由 `KSMWebAssetLoader.create(context, "", webViewConfig)`
+  提供。该入口固定域名 `app.local`；直接使用
+  `WebViewAssetLoader` 默认域名 `appassets.androidplatform.net` 不会匹配生产 URL。
 - 外部链接白名单只包含 `https://example.com`。
 - 下载目标限制在 `app://data`、`app://cache` 和 `app://tmp`。
 - 文件选择器只向前端返回 `app://picked/<id>`。
@@ -60,12 +63,15 @@ CLI 会通过 `-PksmPackageName`、`-PksmVersion` 和 `-PksmCommands` 注入 Gra
 ## 排查
 
 1. 依赖解析失败：先确认本地 Maven 仓库存在 `dev/kasumi/kasumi/<version>/`。
-2. 页面报 `ERR_NAME_NOT_RESOLVED`：确认宿主使用 `KSMWebAssetLoader.create(context)`，
-   且 `assets.srcDir` 指向 `examples/showcase`。
-3. 请求超时：确认 `WebViewCompat.addWebMessageListener` 的来源和 `ksm` 通道名称。
-4. 外部链接被拒绝：检查 `allowedExternalOrigins` 的 scheme、host 和端口。
-5. 生命周期异常：确认旧 Activity 销毁后不再投递迟到响应。
-6. 返回应用后页面定时器不恢复：确认 `onResume` 调用了 `KSMWebViewHost.onResume`。
-7. 返回应用后内存仍偏高：检查是否存在额外 WebView，当前 Android 宿主只管理一个实例。
-8. 状态栏重新出现：确认 Activity 转发 `onWindowFocusChanged`，或重新调用
+2. 页面报 `ERR_NAME_NOT_RESOLVED`：确认宿主使用
+   `KSMWebAssetLoader.create(context, "", webViewConfig)`，且 `assets.srcDir`
+   指向 `examples/showcase`。
+3. 开发模式仍加载生产入口：确认 debug 构建、`ksmDevUrl` 与
+   `android.webview.developmentEntries` 精确一致。
+4. 请求超时：确认 `WebViewCompat.addWebMessageListener` 的来源和 `ksm` 通道名称。
+5. 外部链接被拒绝：检查 `allowedExternalOrigins` 的 scheme、host 和端口。
+6. 生命周期异常：确认旧 Activity 销毁后不再投递迟到响应。
+7. 返回应用后页面定时器不恢复：确认 `onResume` 调用了 `KSMWebViewHost.onResume`。
+8. 返回应用后内存仍偏高：检查是否存在额外 WebView，当前 Android 宿主只管理一个实例。
+9. 状态栏重新出现：确认 Activity 转发 `onWindowFocusChanged`，或重新调用
    `KSMWebViewRuntime.applyFullscreen(activity)`。

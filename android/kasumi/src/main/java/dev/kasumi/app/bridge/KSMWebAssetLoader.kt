@@ -9,7 +9,11 @@ import androidx.webkit.WebViewAssetLoader
 object KSMWebAssetLoader {
     const val APP_DOMAIN = "app.local"
 
-    fun create(context: Context, assetRoot: String = ""): WebViewAssetLoader {
+    fun create(
+        context: Context,
+        assetRoot: String = "",
+        config: KSMWebViewConfig = KSMWebViewConfig.default()
+    ): WebViewAssetLoader {
         val normalizedRoot = assetRoot.trim('/')
         require(
             !normalizedRoot.contains("..") &&
@@ -27,16 +31,23 @@ object KSMWebAssetLoader {
                     if (
                         decoded.contains("..") ||
                         decoded.contains('\\') ||
-                        decoded.contains('\u0000')
+                        decoded.contains('\u0000') ||
+                        decoded.contains('%')
                     ) {
                         return null
                     }
 
                     val normalized = decoded.trimStart('/')
                     val relative = if (normalized.isEmpty() || normalized.endsWith('/')) {
-                        "${normalized}index.html"
+                        config.productionHtmlFile
                     } else {
                         normalized
+                    }
+                    if (
+                        relative.endsWith(".html", ignoreCase = true) &&
+                            !config.supportedHtmlFiles.contains(relative)
+                    ) {
+                        return null
                     }
                     val assetPath = if (normalizedRoot.isEmpty()) {
                         relative

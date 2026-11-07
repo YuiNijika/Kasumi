@@ -44,6 +44,7 @@ class KSMWebViewHost(
     assetRoot: String = "",
     allowedCommands: Collection<String> = emptyList(),
     allowedPermissions: Collection<String> = emptyList(),
+    webViewConfig: KSMWebViewConfig = KSMWebViewConfig.default(),
     private val debug: Boolean = false,
     private val onNativeEvent: ((String) -> Unit)? = null,
     private val fullscreen: Boolean = true,
@@ -118,6 +119,7 @@ class KSMWebViewHost(
         },
         ThreadPoolExecutor.AbortPolicy()
     )
+    private val navigationConfig = webViewConfig
     private val activeRequests = ConcurrentHashMap<String, ActiveCommand>()
     private val commandSlots = Semaphore(MAX_CONCURRENT_COMMANDS)
     private val layoutListener = object : View.OnLayoutChangeListener {
@@ -168,12 +170,17 @@ class KSMWebViewHost(
     init {
         val entryUri = Uri.parse(entryUrl)
         require(
-            KSMNavigationPolicy.isAllowedOrigin(
-                entryUri.scheme,
-                entryUri.host,
-                entryUri.port,
-                allowDevelopmentOrigin = debug
-            )
+            navigationConfig.isAllowedNavigation(entryUrl) &&
+                (
+                    !debug ||
+                        navigationConfig.productionOrigin ==
+                            KSMWebViewConfig.originFor(
+                                entryUri.scheme,
+                                entryUri.host,
+                                entryUri.port
+                            ) ||
+                        navigationConfig.isAllowedDevelopmentEntry(entryUrl)
+                    )
         ) {
             "entryUrl must use the Kasumi application or development origin"
         }
@@ -262,7 +269,11 @@ class KSMWebViewHost(
     }
 
     private fun configureWebView(assetRoot: String) {
-        val assetLoader = KSMWebAssetLoader.create(activity, assetRoot)
+        val assetLoader = KSMWebAssetLoader.create(
+            activity,
+            assetRoot,
+            navigationConfig
+        )
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(
                 view: WebView,
@@ -326,9 +337,10 @@ class KSMWebViewHost(
             webView,
             MESSAGE_CHANNEL,
             if (debug) {
-                setOf("https://app.local", "http://localhost:5173")
+                setOf(navigationConfig.productionOrigin) +
+                    navigationConfig.developmentOrigins
             } else {
-                setOf("https://app.local")
+                setOf(navigationConfig.productionOrigin)
             }
         ) { _, message, _, _, replyProxy ->
             handleWebMessage(message.data ?: "", replyProxy)
@@ -525,12 +537,17 @@ class KSMWebViewHost(
 
     private fun isAllowedUrl(url: String): Boolean {
         val parsed = Uri.parse(url)
-        return KSMNavigationPolicy.isAllowedOrigin(
-            parsed.scheme,
-            parsed.host,
-            parsed.port,
-            allowDevelopmentOrigin = debug
-        )
+        return navigationConfig.isAllowedNavigation(url) &&
+            (
+                !debug ||
+                    navigationConfig.productionOrigin ==
+                        KSMWebViewConfig.originFor(
+                            parsed.scheme,
+                            parsed.host,
+                            parsed.port
+                        ) ||
+                    navigationConfig.isAllowedDevelopmentEntry(url)
+            )
     }
 
     private fun busyResponse(id: String?): String {

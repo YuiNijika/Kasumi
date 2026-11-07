@@ -60,7 +60,10 @@ export async function run(argv) {
       throw new Error('dev requires exactly one platform.');
     }
     await beginDevelopmentSession(projectRoot);
-    const server = await startFrontendServer(projectRoot);
+    const server = await startFrontendServer(
+      projectRoot,
+      config.android.webview
+    );
     await recordDevelopmentProcess(
       projectRoot,
       'frontend',
@@ -164,9 +167,10 @@ export async function run(argv) {
 export async function collectDoctorChecks(projectRoot, config) {
   const checks = [];
   checks.push(check('Node.js', process.versions.node, true));
-  const frontendSettings = await readFrontendSettings(projectRoot).catch(
-    () => undefined
-  );
+  const frontendSettings = await readFrontendSettings(
+    projectRoot,
+    config.android.webview
+  ).catch(() => undefined);
   const frontendEntry = frontendSettings?.kind === 'legacy-vite'
     ? path.join(projectRoot, 'frontend', 'index.html')
     : path.join(projectRoot, 'frontend');

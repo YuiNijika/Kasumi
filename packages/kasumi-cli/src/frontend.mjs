@@ -31,20 +31,38 @@ const CONTENT_SECURITY_POLICY = [
 const CSP_META_PATTERN =
   /<meta\s+http-equiv=["']Content-Security-Policy["'][^>]*>/i;
 
-export async function readFrontendSettings(projectRoot) {
-  const packageJson = await readPackageJson(projectRoot);
-  const scripts = packageJson.scripts ?? {};
+export async function readFrontendSettings(
+  projectRoot,
+  androidWebView,
+  packageJson = undefined
+) {
+  const projectPackageJson = packageJson ?? await readPackageJson(projectRoot);
+  const scripts = projectPackageJson.scripts ?? {};
   const dependencies = {
-    ...packageJson.dependencies,
-    ...packageJson.devDependencies
+    ...projectPackageJson.dependencies,
+    ...projectPackageJson.devDependencies
   };
+  const developmentEntries = webviewDevelopmentEntries(androidWebView);
+  const productionEntry = androidWebView?.productionEntry;
+  const productionHtmlFile = typeof productionEntry === 'string'
+    ? productionEntry.slice(productionEntry.lastIndexOf('/') + 1)
+    : 'index.html';
+  const explicitEntry = developmentEntries.find((entry) =>
+    entry.endsWith(`/${productionHtmlFile}`)
+  );
+  const rootEntry = developmentEntries.find(
+    (entry) => new URL(entry).pathname === '/'
+  );
+  const bareEntry = developmentEntries.find(
+    (entry) => new URL(entry).pathname === ''
+  );
   if (
     typeof scripts['frontend:dev'] !== 'string' ||
     typeof scripts['frontend:build'] !== 'string'
   ) {
     return {
       kind: 'legacy-vite',
-      devUrl: `http://localhost:${DEV_PORT}/index.html`,
+      devUrl: explicitEntry ?? `http://localhost:${DEV_PORT}/index.html`,
       outputDirectory: FRONTEND_OUTPUT
     };
   }
@@ -53,7 +71,7 @@ export async function readFrontendSettings(projectRoot) {
       kind: 'next',
       devScript: 'frontend:dev',
       buildScript: 'frontend:build',
-      devUrl: `http://localhost:${DEV_PORT}/`,
+      devUrl: rootEntry ?? `http://localhost:${DEV_PORT}/`,
       outputDirectory: path.join('frontend', 'out')
     };
   }
@@ -62,7 +80,7 @@ export async function readFrontendSettings(projectRoot) {
       kind: 'nuxt',
       devScript: 'frontend:dev',
       buildScript: 'frontend:build',
-      devUrl: `http://localhost:${DEV_PORT}/`,
+      devUrl: rootEntry ?? `http://localhost:${DEV_PORT}/`,
       outputDirectory: path.join('frontend', '.output', 'public')
     };
   }
@@ -70,9 +88,16 @@ export async function readFrontendSettings(projectRoot) {
     kind: 'vite',
     devScript: 'frontend:dev',
     buildScript: 'frontend:build',
-    devUrl: `http://localhost:${DEV_PORT}/index.html`,
+    devUrl: explicitEntry ?? bareEntry ?? `http://localhost:${DEV_PORT}/index.html`,
     outputDirectory: FRONTEND_OUTPUT
   };
+}
+
+function webviewDevelopmentEntries(androidWebView) {
+  if (!Array.isArray(androidWebView?.developmentEntries)) {
+    return [];
+  }
+  return androidWebView.developmentEntries;
 }
 
 export async function buildFrontend(projectRoot) {
@@ -97,14 +122,19 @@ export async function buildFrontend(projectRoot) {
   await injectContentSecurityPolicy(projectRoot);
 }
 
-export async function startFrontendServer(projectRoot) {
-  const settings = await readFrontendSettings(projectRoot);
+export async function startFrontendServer(projectRoot, androidWebView) {
+  const packageJson = await readPackageJson(projectRoot);
+  const settings = await readFrontendSettings(
+    projectRoot,
+    androidWebView,
+    packageJson
+  );
   if (await canConnect(settings.devUrl)) {
     throw new Error(
       `Development port ${DEV_PORT} is already in use. Stop the other process and retry.`
     );
   }
-  const child = await startFrontendProcess(projectRoot, settings);
+  const child = await startFrontendProcess(projectRoot, settings, packageJson);
   await waitForServer(child, settings.devUrl);
   return {
     child,
@@ -115,7 +145,7 @@ export async function startFrontendServer(projectRoot) {
   };
 }
 
-async function startFrontendProcess(projectRoot, settings) {
+async function startFrontendProcess(projectRoot, settings, packageJson) {
   if (settings.kind === 'legacy-vite') {
     const viteBin = await requireVite(projectRoot);
     return spawn(
@@ -139,7 +169,10 @@ async function startFrontendProcess(projectRoot, settings) {
       }
     );
   }
-  const packageManager = await detectPackageManager(projectRoot);
+  const packageManager = await detectPackageManager(
+    projectRoot,
+    packageJson
+  );
   return spawnLongRunning(
     packageManagerExecutable(packageManager),
     scriptArguments(packageManager, settings.devScript),
@@ -213,10 +246,10 @@ export async function injectContentSecurityPolicy(projectRoot) {
   await writeFile(indexPath, updated, 'utf8');
 }
 
-async function detectPackageManager(projectRoot) {
-  const packageJson = await readPackageJson(projectRoot);
-  if (typeof packageJson.packageManager === 'string') {
-    const name = packageJson.packageManager.split('@')[0];
+async function detectPackageManager(projectRoot, packageJson = undefined) {
+  const projectPackageJson = packageJson ?? await readPackageJson(projectRoot);
+  if (typeof projectPackageJson.packageManager === 'string') {
+    const name = projectPackageJson.packageManager.split('@')[0];
     if (isSupportedPackageManager(name)) {
       return name;
     }
