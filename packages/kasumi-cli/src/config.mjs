@@ -49,7 +49,7 @@ export async function readConfig(projectRoot, configPath) {
   }
  rejectUnknown(
  payload,
- new Set(['$schema', 'windows', 'android', 'extensions']),
+ new Set(['$schema', 'appId', 'windows', 'android', 'extensions']),
  'configuration'
  );
   if (!('windows' in payload) || !('android' in payload)) {
@@ -129,6 +129,7 @@ export async function readConfig(projectRoot, configPath) {
   ...commandData.windows,
   ...commandData.android
   ]);
+  const events = new Set();
   const knownPermissions = new Set(commandData.permissions);
   const windowsCommands = [];
   const androidCommands = [];
@@ -195,20 +196,25 @@ export async function readConfig(projectRoot, configPath) {
   androidCommands.push(command.name);
   }
   for (const permission of command.permissions) {
-  if (!permissions.includes(permission)) {
+  if (
+  !knownPermissions.has(permission) &&
+  !permissions.includes(permission)
+  ) {
   permissions.push(permission);
   }
   }
   }
   for (const event of parsed.events) {
   if (
+  events.has(event.name) ||
   commandData.windows.includes(event.name) ||
   commandData.android.includes(event.name)
   ) {
   throw new ConfigError(
-  `${itemLocation}.manifest event conflicts with a built-in name: ${event.name}.`
+  `${itemLocation}.manifest event conflicts with a registered name: ${event.name}.`
   );
   }
+  events.add(event.name);
   }
   extensions.push({
   id: entry.id,
@@ -330,7 +336,8 @@ export async function readConfig(projectRoot, configPath) {
   if (
   typeof permission !== 'string' ||
   !EXTENSION_PERMISSION.test(permission) ||
-  !knownPermissions.has(permission)
+  (!knownPermissions.has(permission) &&
+  !isExtensionPermission(permission, entry.name))
   ) {
   throw new ConfigError(
   `${itemLocation}.permissions contains an unknown permission.`
@@ -349,6 +356,15 @@ export async function readConfig(projectRoot, configPath) {
   result: entry.result ?? {}
   };
   });
+ }
+
+ function isExtensionPermission(permission, command) {
+  const segments = command.split('.');
+  if (segments.length < 2) {
+  return false;
+  }
+  const namespace = `${segments[0]}.${segments[1]}`;
+  return permission === namespace || permission.startsWith(`${namespace}.`);
  }
 
  function parseExtensionEvents(value, location, platforms) {

@@ -219,6 +219,7 @@ class ContractTest {
         override val id: String = "contract.echo"
         override val commands: Set<String> = setOf("contract.echo")
         override val permissions: Set<String> = setOf("contract.echo")
+        override val events: Set<String> = setOf("contract.echo.event")
 
         override fun validateArgs(command: String, args: JSONObject): Boolean {
             return command == "contract.echo" &&
@@ -1468,6 +1469,55 @@ class ContractTest {
                     }
                 }
             assertTrue(plugins.any { it.getString("id") == "contract.echo" })
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun customPluginEvents() {
+        val root = Files.createTempDirectory("kasumi-plugin-event").toFile()
+        val fileSystem = KSMFileSystem(
+            File(root, "data"),
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        val sent = mutableListOf<String>()
+        val router = KSMRouter(
+            fileSystem,
+            null,
+            allowedCommands = KSMCommandRegistry.supportedCommands + "contract.echo",
+            allowedPermissions = KSMGeneratedContract.permissions + "contract.echo",
+            eventSender = { sent.add(it) },
+            plugins = listOf(EchoPlugin())
+        )
+        try {
+            val subscribed = invoke(
+                router,
+                "event.subscribe",
+                JSONObject().put("event", "contract.echo.event")
+            )
+            assertTrue(subscribed.getBoolean("ok"))
+            assertTrue(
+                router.emitEvent(
+                    "contract.echo.event",
+                    JSONObject().put("value", "event")
+                )
+            )
+            assertEquals(1, sent.size)
+
+            val unsubscribed = invoke(
+                router,
+                "event.unsubscribe",
+                JSONObject().put("event", "contract.echo.event")
+            )
+            assertTrue(unsubscribed.getBoolean("ok"))
+            assertFalse(
+                router.emitEvent(
+                    "contract.echo.event",
+                    JSONObject().put("value", "event")
+                )
+            )
         } finally {
             root.deleteRecursively()
         }

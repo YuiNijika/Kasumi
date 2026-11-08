@@ -8,6 +8,8 @@
 #include <windns.h>
 #include <wrl/client.h>
 #include <shobjidl_core.h>
+#include <propkey.h>
+#include <propvarutil.h>
 
 #include <algorithm>
 #include <atomic>
@@ -1467,6 +1469,61 @@ std::optional<KSMMediaProbe> KSMWindowsHostServices::ProbeMedia(
     KSMMediaProbe probe;
     probe.title = resolved->stem().string();
     probe.format = extension.substr(1);
+    Microsoft::WRL::ComPtr<IShellItem2> item;
+    if (FAILED(SHCreateItemFromParsingName(
+            resolved->c_str(),
+            nullptr,
+            IID_PPV_ARGS(&item)
+        )) || !item) {
+        return probe;
+    }
+    Microsoft::WRL::ComPtr<IPropertyStore> store;
+    if (FAILED(item->GetPropertyStore(
+            GPS_DEFAULT,
+            IID_PPV_ARGS(&store)
+        )) || !store) {
+        return probe;
+    }
+    const auto read_string = [&store](
+        REFPROPERTYKEY key
+    ) -> std::optional<std::string> {
+        PROPVARIANT value;
+        PropVariantInit(&value);
+        std::optional<std::string> text;
+        if (
+            SUCCEEDED(store->GetValue(key, &value)) &&
+            value.vt == VT_LPWSTR &&
+            value.pwszVal != nullptr
+        ) {
+            text = ToUtf8(value.pwszVal);
+        }
+        PropVariantClear(&value);
+        return text;
+    };
+    if (const auto title = read_string(PKEY_Title); title && !title->empty()) {
+        probe.title = *title;
+    }
+    if (const auto artist = read_string(PKEY_Music_Artist); artist && !artist->empty()) {
+        probe.artist = *artist;
+    }
+    if (const auto album = read_string(PKEY_Music_AlbumTitle); album && !album->empty()) {
+        probe.album = *album;
+    }
+    PROPVARIANT duration;
+    PropVariantInit(&duration);
+    if (SUCCEEDED(store->GetValue(PKEY_Media_Duration, &duration))) {
+        if (duration.vt == VT_UI8) {
+            probe.duration_ms = static_cast<int>(
+                duration.uhVal.QuadPart / 10'000
+            );
+        } else if (duration.vt == VT_FILETIME) {
+            ULARGE_INTEGER ticks{};
+            ticks.LowPart = duration.filetime.dwLowDateTime;
+            ticks.HighPart = duration.filetime.dwHighDateTime;
+            probe.duration_ms = static_cast<int>(ticks.QuadPart / 10'000);
+        }
+    }
+    PropVariantClear(&duration);
     return probe;
 }
 
@@ -2535,10 +2592,22 @@ bool KSMWindowsHostServices::InstallUpdate(
     const auto resolved = file_system_
         ? file_system_->ResolveReadableFile(package_path)
         : std::nullopt;
-    if (!resolved || !std::filesystem::is_regular_file(*resolved)) {
+    const auto picked = resolved
+        ? std::nullopt
+        : ResolvePicked(package_path);
+    const auto target = resolved ? resolved : picked;
+    if (!target || !std::filesystem::is_regular_file(*target)) {
         return false;
     }
-    return false;
+    const HINSTANCE result = ShellExecuteW(
+        window_,
+        L"open",
+        target->c_str(),
+        nullptr,
+        target->parent_path().c_str(),
+        SW_SHOWNORMAL
+    );
+    return reinterpret_cast<std::intptr_t>(result) > 32;
 }
 
 std::optional<std::string>

@@ -7,6 +7,7 @@ import {
   writeFile
 } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createZipArchive } from './archive.mjs';
 import {
@@ -358,8 +359,27 @@ export async function createVcpkgEnvironment(projectRoot) {
     VCPKG_DEFAULT_BINARY_CACHE: archives,
     VCPKG_BINARY_SOURCES: `clear;files,${archives},readwrite`,
     VCPKG_DOWNLOADS: downloads,
+    X_VCPKG_ASSET_SOURCES: buildVcpkgAssetSources(),
     installed
   };
+}
+
+export function buildVcpkgAssetSources() {
+  const script = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    'bin',
+    'vcpkg-download.mjs'
+  );
+  return [
+    'clear',
+    `x-script,${shellQuote(process.execPath)} ${shellQuote(script)} ` +
+      '{url} {sha512} {dst}'
+  ].join(';');
+}
+
+function shellQuote(value) {
+  return `"${String(value).replaceAll('"', '\\"')}"`;
 }
 
 async function visualStudioEnvironment() {

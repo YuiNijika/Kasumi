@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cwchar>
 #include <deque>
 #include <functional>
 #include <iterator>
@@ -69,6 +70,23 @@ std::string ToUtf8(const std::wstring &value) {
   WideCharToMultiByte(CP_UTF8, 0, value.data(), static_cast<int>(value.size()),
                       result.data(), size, nullptr, nullptr);
   return result;
+}
+
+std::wstring WebViewDebugArguments() {
+  wchar_t value[16]{};
+  const DWORD length = GetEnvironmentVariableW(
+      L"KASUMI_WEBVIEW_DEBUG_PORT", value,
+      static_cast<DWORD>(std::size(value)));
+  if (length == 0 || length >= std::size(value)) {
+    return {};
+  }
+  wchar_t *end = nullptr;
+  const long port = std::wcstol(value, &end, 10);
+  if (end == value || *end != L'\0' || port <= 0 || port > 65535) {
+    return {};
+  }
+  return L"--remote-debugging-port=" + std::to_wstring(port) +
+         L" --remote-allow-origins=*";
 }
 
 std::wstring RuntimeVersionWide() {
@@ -462,7 +480,9 @@ struct KSMWebView2View::Impl
               if (*path == "index.html") {
                 headers += L"Content-Security-Policy: ";
                 headers += ToWide(
-                    std::string(KSMWebViewSecurity::ContentSecurityPolicy()));
+                    KSMWebViewSecurity::ContentSecurityPolicy(
+                        self->allowed_http_origins
+                    ));
                 headers += L"\r\n";
               }
               headers += L"Cache-Control: no-cache\r\n";
@@ -877,15 +897,21 @@ struct KSMWebView2Host::Impl
               return S_OK;
             });
 
-    ComPtr<CoreWebView2EnvironmentOptions> options;
+    std::wstring additional_browser_arguments = WebViewDebugArguments();
 #if defined(KASUMI_ENABLE_SMOKE_TEST) && KASUMI_ENABLE_SMOKE_TEST
     if (smoke_test) {
-      options = Make<CoreWebView2EnvironmentOptions>();
-      // CI desktop sessions can block Chromium's sandbox before the
-      // controller callback runs.
-      options->put_AdditionalBrowserArguments(L"--no-sandbox");
+      if (!additional_browser_arguments.empty()) {
+        additional_browser_arguments += L" ";
+      }
+      additional_browser_arguments += L"--no-sandbox";
     }
 #endif
+    ComPtr<CoreWebView2EnvironmentOptions> options;
+    if (!additional_browser_arguments.empty()) {
+      options = Make<CoreWebView2EnvironmentOptions>();
+      options->put_AdditionalBrowserArguments(
+          additional_browser_arguments.c_str());
+    }
     const std::filesystem::path resolved_user_data_folder =
         user_data_folder.empty() ? DefaultUserDataFolder() : user_data_folder;
     const std::wstring data_folder = resolved_user_data_folder.wstring();

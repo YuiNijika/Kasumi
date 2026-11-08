@@ -207,6 +207,17 @@ object KSM {
         }
     }
 
+    fun broadcastEvent(event: String, payload: JSONObject): Boolean {
+        val registeredWindows = synchronized(stateLock) {
+            windows.entries.map { entry -> entry.key to entry.value.router }
+        }
+        var delivered = false
+        for ((_, router) in registeredWindows) {
+            delivered = router.emitEvent(event, payload) || delivered
+        }
+        return delivered
+    }
+
     fun ping(): KSMPingResult {
         return KSMPingResult(pong = true)
     }

@@ -243,7 +243,11 @@ KSMWebViewHost::KSMWebViewHost(
           window_id
       ),
       window_id_(std::move(window_id)),
-      allow_development_origin_(allow_development_origin) {}
+      allow_development_origin_(allow_development_origin) {
+    router_.SetEventSender([this](const std::string& response) {
+        PostResponse(response);
+    });
+}
 
 KSMWebViewHost::~KSMWebViewHost() {
     std::vector<std::uint64_t> timers;

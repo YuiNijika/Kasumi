@@ -94,7 +94,10 @@ class KSMWebViewHost(
             dispatchWebEvent(event)
         },
         plugins = plugins,
-        requestScope = windowId
+        requestScope = windowId,
+        eventBroadcaster = { event, payload ->
+            KSM.broadcastEvent(event, payload)
+        }
     ).also {
         hostServices?.setEventDispatcher { event, payload ->
             val json = try {
@@ -279,6 +282,10 @@ class KSMWebViewHost(
                 view: WebView,
                 request: WebResourceRequest
             ): WebResourceResponse? {
+                KSMLocalResourceHandler.responseFor(
+                    request.url,
+                    fileSystem
+                )?.let { return it }
                 return assetLoader.shouldInterceptRequest(request.url)
             }
 

@@ -1,14 +1,24 @@
 #pragma once
 
 #include <string>
-#include <string_view>
+#include <vector>
 
 class KSMWebViewSecurity {
 public:
-    static constexpr std::string_view ContentSecurityPolicy() {
+    static std::string ContentSecurityPolicy(
+        const std::vector<std::string>& connect_sources = {}
+    ) {
+        std::string sources;
+        for (const auto& source : connect_sources) {
+            if (!source.empty()) {
+                sources += " " + source;
+            }
+        }
         return "default-src 'self'; script-src 'self' 'unsafe-inline'; "
                "style-src 'self' 'unsafe-inline'; "
-               "img-src 'self' data:; connect-src 'self'; object-src 'none'; "
+               "img-src 'self' data:" + sources + "; "
+               "media-src 'self' blob:" + sources + "; "
+               "connect-src 'self'" + sources + "; object-src 'none'; "
                "base-uri 'none'; frame-ancestors 'none'";
     }
 

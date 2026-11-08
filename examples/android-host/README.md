@@ -40,8 +40,9 @@ cd examples/android-host
 
 应用 ID、版本和启用命令来自仓库根目录 `kasumi.config.json` 的 `android` 配置。
 CLI 会通过 `-PksmPackageName`、`-PksmVersion`、`-PksmCommands` 和 `-PksmWebView*`
-注入 Gradle；直接运行 Wrapper 时使用 Gradle 中的默认值。`commands` 生成
-`BuildConfig.KSM_COMMANDS` 并交给 `KSMRouter`，未启用的命令返回 `NOT_SUPPORTED`。
+注入 Gradle；直接运行 Wrapper 时读取仓库根 `kasumi.config.json`，`"all"` 按 Android
+协议矩阵展开，显式 `-Pksm*` 参数优先。`commands` 生成 `BuildConfig.KSM_COMMANDS`
+并交给 `KSMRouter`，未启用的命令返回 `NOT_SUPPORTED`。
 
 ## 运行边界
 

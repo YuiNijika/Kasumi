@@ -21,6 +21,7 @@ public:
     ) const;
     bool OwnsCommand(const std::string& command) const;
     bool KnowsPermission(const std::string& permission) const;
+    bool KnowsEvent(const std::string& event) const;
  std::string PluginIdForCommand(const std::string& command) const;
  const std::vector<std::string>& PermissionsForCommand(
  const std::string& command
@@ -43,6 +44,7 @@ private:
     std::vector<std::string> plugin_ids_;
     std::vector<std::string> command_names_;
     std::vector<std::string> permissions_;
+    std::vector<std::string> events_;
 };
 
 std::vector<std::shared_ptr<KSMPlugin>> KSMDefaultPlugins();

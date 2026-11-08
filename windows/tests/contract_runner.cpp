@@ -14,6 +14,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <source_location>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -66,20 +67,31 @@ Json Invoke(KSMRouter& router, const std::string& command, const Json& args) {
     return Json::parse(response_text);
 }
 
-void ExpectOk(const Json& response) {
+void ExpectOk(
+    const Json& response,
+    std::source_location location = std::source_location::current()
+) {
     if (!response.value("ok", false)) {
-        throw std::runtime_error(response.dump());
+        throw std::runtime_error(
+            response.dump() + " at line " +
+            std::to_string(location.line()) + "."
+        );
     }
 }
 
-void ExpectError(const Json& response, const std::string& code) {
+void ExpectError(
+    const Json& response,
+    const std::string& code,
+    std::source_location location = std::source_location::current()
+) {
     if (response.value("ok", true)) {
         throw std::runtime_error("Expected an error response.");
     }
     const std::string actual = response.at("error").value("code", "");
     if (actual != code) {
         throw std::runtime_error(
-            "Expected " + code + " but received " + actual + "."
+            "Expected " + code + " but received " + actual + " at line " +
+            std::to_string(location.line()) + "."
         );
     }
 }
@@ -260,6 +272,10 @@ public:
         return url.starts_with("https://example.com/");
     }
 
+    bool IsHttpRequestUrlAllowed(const std::string& url) const override {
+        return url.starts_with("https://example.com/");
+    }
+
     bool OpenExternal(const std::string& url) override {
         return IsExternalUrlAllowed(url);
     }
@@ -342,6 +358,58 @@ public:
     }
 };
 
+class ContractEventPlugin final : public KSMPlugin {
+public:
+    const std::string& Id() const override {
+        static const std::string id = "contract.event";
+        return id;
+    }
+
+    const std::vector<std::string>& Commands() const override {
+        static const std::vector<std::string> commands = {
+            "contract.emit"
+        };
+        return commands;
+    }
+
+    const std::vector<std::string>& Permissions() const override {
+        static const std::vector<std::string> permissions = {
+            "contract.emit"
+        };
+        return permissions;
+    }
+
+    const std::vector<std::string>& Events() const override {
+        static const std::vector<std::string> events = {
+            "contract.event"
+        };
+        return events;
+    }
+
+    Json Handle(
+        const std::string& command,
+        const Json&,
+        const KSMPluginContext& context
+    ) override {
+        if (
+            command != "contract.emit" ||
+            !context.has_permission("contract.emit")
+        ) {
+            throw KSMHostException(
+                "PERMISSION_DENIED",
+                "The event plugin was not authorized."
+            );
+        }
+        return Json{{
+            "emitted",
+            context.emit_event(
+                "contract.event",
+                Json{{"value", "event"}}
+            )
+        }};
+    }
+};
+
 class ReplacementFileSystemPlugin final : public KSMPlugin {
 public:
     const std::string& Id() const override {
@@ -362,7 +430,9 @@ public:
             "fs.remove",
             "fs.readDir",
             "fs.mkdir",
-            "fs.stat"
+            "fs.stat",
+            "fs.walk",
+            "fs.scope.release"
         };
         return commands;
     }
@@ -915,6 +985,12 @@ void TestCapabilityFoundation(
         {},
         "window-1"
     );
+    std::vector<std::string> responses;
+    router.SetEventSender(
+        [&responses](const std::string& response) {
+            responses.push_back(response);
+        }
+    );
     ExpectError(
         Invoke(
             router,
@@ -956,7 +1032,6 @@ void TestCapabilityFoundation(
         Json{{"event", "http.transfer.completed"}}
     );
     ExpectOk(subscribed);
-    std::vector<std::string> responses;
     const Json request{
         {"type", "request"},
         {"id", "contract-event"},
@@ -993,12 +1068,7 @@ void TestCapabilityFoundation(
         "app.deepLink.getPending",
         Json::object()
     );
-    ExpectOk(pending);
-    if (!pending.at("data").at("url").is_null()) {
-        throw std::runtime_error(
-            "An empty deep link queue returned a URL."
-        );
-    }
+    ExpectError(pending, "NOT_SUPPORTED");
 }
 
 void TestWebViewSecurity() {
@@ -2130,6 +2200,47 @@ void TestCapabilityPermissionFilter(
     }
 }
 
+void TestPluginEventResponse(
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    auto plugin = std::make_shared<ContractEventPlugin>();
+    KSMRouter router(
+        file_system,
+        nullptr,
+        {"event.subscribe", "contract.emit"},
+        {"contract.emit"},
+        {plugin}
+    );
+    std::vector<Json> events;
+    router.SetEventSender([&events](const std::string& response) {
+        events.push_back(Json::parse(response));
+    });
+
+    const auto subscribed = Invoke(
+        router,
+        "event.subscribe",
+        Json{{"event", "contract.event"}}
+    );
+    ExpectOk(subscribed);
+
+    const auto emitted = Invoke(router, "contract.emit", Json::object());
+    ExpectOk(emitted);
+    if (emitted.at("data").at("emitted") != true) {
+        throw std::runtime_error("The plugin event was not delivered.");
+    }
+    if (events.size() != 1) {
+        throw std::runtime_error("The plugin event used the response channel.");
+    }
+    const auto& event = events.front();
+    if (
+        event.at("type") != "event" ||
+        event.at("event") != "contract.event" ||
+        event.at("payload").at("value") != "event"
+    ) {
+        throw std::runtime_error("The plugin event payload was invalid.");
+    }
+}
+
 }
 
 int main() {
@@ -2472,6 +2583,7 @@ int main() {
         TestPluginRules(file_system);
         TestCommandAllowlist(file_system);
         TestCapabilityPermissionFilter(file_system);
+        TestPluginEventResponse(file_system);
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         std::error_code ignored;

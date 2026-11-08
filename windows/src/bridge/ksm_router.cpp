@@ -209,9 +209,6 @@ std::vector<std::shared_ptr<KSMPlugin>> BuildPlugins(
     }
 
     auto plugins = KSMDefaultPlugins();
-    plugins.push_back(
-        std::make_shared<KSMCapabilityPlugin>(KSMCapabilityCommands())
-    );
     plugins.erase(
         std::remove_if(
             plugins.begin(),
@@ -226,6 +223,27 @@ std::vector<std::shared_ptr<KSMPlugin>> BuildPlugins(
         plugins.end(),
         std::make_move_iterator(additional.begin()),
         std::make_move_iterator(additional.end())
+    );
+    std::set<std::string> owned_commands;
+    for (const auto& plugin : plugins) {
+        const auto& commands = plugin->Commands();
+        owned_commands.insert(commands.begin(), commands.end());
+    }
+    auto capability_commands = KSMCapabilityCommands();
+    capability_commands.erase(
+        std::remove_if(
+            capability_commands.begin(),
+            capability_commands.end(),
+            [&owned_commands](const std::string& command) {
+                return owned_commands.contains(command);
+            }
+        ),
+        capability_commands.end()
+    );
+    plugins.push_back(
+        std::make_shared<KSMCapabilityPlugin>(
+            std::move(capability_commands)
+        )
     );
     return plugins;
 }
@@ -370,10 +388,13 @@ void KSMRouter::EmitEvent(
     }.dump());
 }
 
+void KSMRouter::SetEventSender(ResponseSender sender) {
+    event_sender_ = std::move(sender);
+}
+
 bool KSMRouter::EmitPluginEvent(
     const std::string& event,
-    const Json& payload,
-    const ResponseSender& send_response
+    const Json& payload
 ) const {
     {
         std::lock_guard lock(state_mutex_);
@@ -381,7 +402,10 @@ bool KSMRouter::EmitPluginEvent(
             return false;
         }
     }
-    send_response(Json{
+    if (!event_sender_) {
+        return false;
+    }
+    event_sender_(Json{
         {"type", "event"},
         {"event", event},
         {"payload", payload}
@@ -628,7 +652,8 @@ void KSMRouter::HandleMessage(
                 known_events.end(),
                 event
             ) != known_events.end() ||
-                Contains(capability_events_, event);
+                Contains(capability_events_, event) ||
+                plugin_registry_.KnowsEvent(event);
             if (!known) {
                 SendError(id, "INVALID_ARGS", "event is not registered.", send_response);
                 return;
@@ -792,7 +817,7 @@ void KSMRouter::HandleMessage(
             return;
         }
 
-        if (capability_command) {
+        if (plugin_registry_.OwnsCommand(command)) {
             const auto data = plugin_registry_.Handle(
                 command,
                 args,
@@ -806,11 +831,11 @@ void KSMRouter::HandleMessage(
                         ? id.get<std::string>()
                         : std::string(),
                     .window_id = window_id_.empty() ? "default" : window_id_,
-                    .emit_event = [this, &send_response](
+                    .emit_event = [this](
                         const std::string& event,
                         const Json& payload
                     ) {
-                        return EmitPluginEvent(event, payload, send_response);
+                        return EmitPluginEvent(event, payload);
                     }
                 }
             );

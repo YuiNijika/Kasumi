@@ -90,7 +90,7 @@ export async function run(argv) {
           path.join(projectRoot, 'frontend', 'dist', 'index.html')
         );
         if (!hasWindowsDevMode && !hasFrontendBuild) {
-          await buildFrontend(projectRoot);
+          await buildFrontend(projectRoot, config);
         }
         await buildWindows(projectRoot, config.windows, {
           ...options,
@@ -125,7 +125,7 @@ export async function run(argv) {
     return;
   }
 
-  await buildFrontend(projectRoot);
+  await buildFrontend(projectRoot, config);
   if (options.command === 'package') {
     if (options.platforms.has('windows')) {
       const output = await packageWindows(projectRoot, config.windows, options);

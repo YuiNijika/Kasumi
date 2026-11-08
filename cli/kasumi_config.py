@@ -36,6 +36,12 @@ SAFE_ENTRY_PATH_PATTERN = re.compile(
 HTML_FILE_PATTERN = re.compile(
     r"^(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\.html$"
 )
+EXTENSION_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+EXTENSION_NAME_PATTERN = re.compile(
+    r"^app\.[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$"
+)
+EXTENSION_PLATFORMS = ("windows", "android")
+RESERVED_EXTENSION_PREFIXES = ("core", "ksm")
 DEFAULT_WEBVIEW = {
     "productionEntry": "https://app.local/index.html",
     "developmentEntries": (
@@ -85,6 +91,7 @@ class KasumiConfig:
     resources: tuple[str, ...] = ()
     signing: dict[str, str] | None = None
     bundle: dict[str, Any] | None = None
+    extensions: tuple[dict[str, Any], ...] = ()
 
 
 def _expect_object(value: Any, location: str) -> dict[str, Any]:
@@ -117,6 +124,8 @@ def _platform_config(
     package_pattern: re.Pattern[str],
     allow_decorations: bool = False,
     allow_webview: bool = False,
+    extension_commands: tuple[str, ...] = (),
+    extension_permissions: tuple[str, ...] = (),
 ) -> PlatformConfig:
     location = platform
     data = _expect_object(value, location)
@@ -173,10 +182,16 @@ def _platform_config(
             )
         decorations = data["decorations"]
 
-    commands = _parse_commands(data["commands"], platform_name, location)
+    commands = _parse_commands(
+        data["commands"],
+        platform_name,
+        location,
+        extension_commands,
+    )
     permissions = _parse_permissions(
         data.get("permissions"),
         f"{location}.permissions",
+        extension_permissions,
     )
 
     return PlatformConfig(
@@ -530,9 +545,11 @@ def _parse_commands(
     value: Any,
     platform: str,
     location: str,
+    extension_commands: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     if value == "all":
-        return _available_commands(platform)
+        commands = [*_available_commands(platform), *extension_commands]
+        return tuple(dict.fromkeys(commands))
     if not isinstance(value, list) or not value:
         raise ConfigError(
             f"{location}.commands must be \"all\" or a non-empty array."
@@ -552,8 +569,14 @@ def _parse_commands(
     return tuple(commands)
 
 
-def _parse_permissions(value: Any, location: str) -> tuple[str, ...]:
-    available = _available_permissions()
+def _parse_permissions(
+    value: Any,
+    location: str,
+    extension_permissions: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    available = tuple(
+        dict.fromkeys([*_available_permissions(), *extension_permissions])
+    )
     if value == "all":
         return available
     if value is None:
@@ -665,6 +688,299 @@ def _available_permissions() -> tuple[str, ...]:
     )
 
 
+def _parse_extensions(
+    value: Any,
+    project_root: Path,
+    location: str,
+) -> tuple[
+    tuple[dict[str, Any], ...],
+    dict[str, tuple[str, ...]],
+    tuple[str, ...],
+]:
+    empty_commands = {"windows": (), "android": ()}
+    if value is None:
+        return (), empty_commands, ()
+    if not isinstance(value, list):
+        raise ConfigError(f"{location} must be an array.")
+
+    root = project_root.resolve()
+    ids: set[str] = set()
+    used_commands = set(_available_commands("windows")) | set(
+        _available_commands("android")
+    )
+    used_events: set[str] = set()
+    known_permissions = set(_available_permissions())
+    extensions: list[dict[str, Any]] = []
+    windows_commands: list[str] = []
+    android_commands: list[str] = []
+    custom_permissions: list[str] = []
+
+    for index, entry in enumerate(value):
+        item_location = f"{location}[{index}]"
+        data = _expect_object(entry, item_location)
+        _reject_unknown_keys(
+            data,
+            {"id", "manifest", "platforms"},
+            item_location,
+        )
+        extension_id = _expect_string(
+            data.get("id"),
+            f"{item_location}.id",
+        )
+        if not EXTENSION_ID_PATTERN.fullmatch(extension_id):
+            raise ConfigError(f"{item_location}.id has an invalid format.")
+        if extension_id in ids:
+            raise ConfigError(
+                f"{item_location}.id is duplicated: {extension_id}."
+            )
+        ids.add(extension_id)
+        platforms = _parse_extension_platforms(
+            data.get("platforms"),
+            f"{item_location}.platforms",
+        )
+        manifest_relative = _expect_string(
+            data.get("manifest"),
+            f"{item_location}.manifest",
+        )
+        manifest_path = (root / manifest_relative).resolve()
+        try:
+            manifest_path.relative_to(root)
+        except ValueError as error:
+            raise ConfigError(
+                f"{item_location}.manifest must stay inside the project."
+            ) from error
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except FileNotFoundError as error:
+            raise ConfigError(
+                f"{item_location}.manifest was not found."
+            ) from error
+        except json.JSONDecodeError as error:
+            raise ConfigError(
+                f"{item_location}.manifest is not valid JSON."
+            ) from error
+        parsed = _parse_extension_manifest(
+            manifest,
+            manifest_relative,
+            extension_id,
+            platforms,
+            used_commands,
+            used_events,
+            known_permissions,
+        )
+        for command in parsed["commands"]:
+            used_commands.add(command["name"])
+            if "windows" in command["platforms"]:
+                windows_commands.append(command["name"])
+            if "android" in command["platforms"]:
+                android_commands.append(command["name"])
+            for permission in command["permissions"]:
+                if (
+                    permission not in known_permissions
+                    and permission not in custom_permissions
+                ):
+                    custom_permissions.append(permission)
+        for event in parsed["events"]:
+            used_events.add(event["name"])
+        extensions.append(
+            {
+                "id": extension_id,
+                "manifest": manifest_relative,
+                "platforms": platforms,
+                "commands": tuple(parsed["commands"]),
+                "events": tuple(parsed["events"]),
+            }
+        )
+
+    return (
+        tuple(extensions),
+        {
+            "windows": tuple(windows_commands),
+            "android": tuple(android_commands),
+        },
+        tuple(custom_permissions),
+    )
+
+
+def _parse_extension_platforms(value: Any, location: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value:
+        raise ConfigError(f"{location} must be a non-empty array.")
+    platforms: list[str] = []
+    for platform in value:
+        if not isinstance(platform, str) or platform not in EXTENSION_PLATFORMS:
+            raise ConfigError(f"{location} contains an invalid platform.")
+        if platform in platforms:
+            raise ConfigError(
+                f"{location} contains a duplicate platform."
+            )
+        platforms.append(platform)
+    return tuple(platforms)
+
+
+def _parse_extension_manifest(
+    value: Any,
+    location: str,
+    extension_id: str,
+    platforms: tuple[str, ...],
+    used_commands: set[str],
+    used_events: set[str],
+    known_permissions: set[str],
+) -> dict[str, list[dict[str, Any]]]:
+    data = _expect_object(value, location)
+    _reject_unknown_keys(data, {"id", "commands", "events"}, location)
+    if data.get("id") != extension_id:
+        raise ConfigError(
+            f"{location}.id must match configuration extension id."
+        )
+    return {
+        "commands": _parse_extension_commands(
+            data.get("commands"),
+            f"{location}.commands",
+            platforms,
+            used_commands,
+            known_permissions,
+        ),
+        "events": _parse_extension_events(
+            data.get("events"),
+            f"{location}.events",
+            platforms,
+            used_events,
+        ),
+    }
+
+
+def _parse_extension_commands(
+    value: Any,
+    location: str,
+    platforms: tuple[str, ...],
+    used_commands: set[str],
+    known_permissions: set[str],
+) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ConfigError(f"{location} must be an array.")
+    seen: set[str] = set()
+    commands: list[dict[str, Any]] = []
+    for index, entry in enumerate(value):
+        item_location = f"{location}[{index}]"
+        data = _expect_object(entry, item_location)
+        _reject_unknown_keys(
+            data,
+            {"name", "platforms", "permissions", "args", "result"},
+            item_location,
+        )
+        name = _expect_string(data.get("name"), f"{item_location}.name")
+        if (
+            not EXTENSION_NAME_PATTERN.fullmatch(name)
+            or any(name.startswith(f"{prefix}.") for prefix in RESERVED_EXTENSION_PREFIXES)
+        ):
+            raise ConfigError(f"{item_location}.name has an invalid format.")
+        if name in seen or name in used_commands:
+            raise ConfigError(f"{item_location}.name conflicts: {name}.")
+        seen.add(name)
+        declared = _parse_extension_platforms(
+            data.get("platforms"),
+            f"{item_location}.platforms",
+        )
+        if any(platform not in platforms for platform in declared):
+            raise ConfigError(
+                f"{item_location}.platforms exceeds the extension platform list."
+            )
+        permissions: list[str] = []
+        raw_permissions = data.get("permissions")
+        if raw_permissions is not None:
+            if not isinstance(raw_permissions, list):
+                raise ConfigError(
+                    f"{item_location}.permissions must be an array."
+                )
+            for permission_index, raw_permission in enumerate(raw_permissions):
+                permission = _expect_string(
+                    raw_permission,
+                    f"{item_location}.permissions[{permission_index}]",
+                )
+                if (
+                    not PERMISSION_PATTERN.fullmatch(permission)
+                    or (
+                        permission not in known_permissions
+                        and not _extension_permission_matches(
+                            permission,
+                            name,
+                        )
+                    )
+                ):
+                    raise ConfigError(
+                        f"{item_location}.permissions contains an unknown permission."
+                    )
+                if permission not in permissions:
+                    permissions.append(permission)
+        commands.append(
+            {
+                "name": name,
+                "platforms": declared,
+                "permissions": tuple(permissions),
+                "args": data.get("args") or {},
+                "result": data.get("result") or {},
+            }
+        )
+    return commands
+
+
+def _parse_extension_events(
+    value: Any,
+    location: str,
+    platforms: tuple[str, ...],
+    used_events: set[str],
+) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ConfigError(f"{location} must be an array.")
+    seen: set[str] = set()
+    events: list[dict[str, Any]] = []
+    for index, entry in enumerate(value):
+        item_location = f"{location}[{index}]"
+        data = _expect_object(entry, item_location)
+        _reject_unknown_keys(
+            data,
+            {"name", "platforms", "payload"},
+            item_location,
+        )
+        name = _expect_string(data.get("name"), f"{item_location}.name")
+        if (
+            not EXTENSION_NAME_PATTERN.fullmatch(name)
+            or any(name.startswith(f"{prefix}.") for prefix in RESERVED_EXTENSION_PREFIXES)
+        ):
+            raise ConfigError(f"{item_location}.name has an invalid format.")
+        if name in seen or name in used_events:
+            raise ConfigError(f"{item_location}.name is duplicated: {name}.")
+        seen.add(name)
+        declared = _parse_extension_platforms(
+            data.get("platforms"),
+            f"{item_location}.platforms",
+        )
+        if any(platform not in platforms for platform in declared):
+            raise ConfigError(
+                f"{item_location}.platforms exceeds the extension platform list."
+            )
+        events.append(
+            {
+                "name": name,
+                "platforms": declared,
+                "payload": data.get("payload") or {},
+            }
+        )
+    return events
+
+
+def _extension_permission_matches(permission: str, command: str) -> bool:
+    segments = command.split(".")
+    if len(segments) < 2:
+        return False
+    namespace = ".".join(segments[:2])
+    return permission == namespace or permission.startswith(f"{namespace}.")
+
+
 def load_config(path: Path) -> KasumiConfig:
     if not path.is_file():
         raise ConfigError(f"Configuration file not found: {path}")
@@ -697,6 +1013,12 @@ def load_config(path: Path) -> KasumiConfig:
     if "android" not in data:
         raise ConfigError("configuration.android is required.")
 
+    extensions, extension_commands, extension_permissions = _parse_extensions(
+        data.get("extensions"),
+        path.parent,
+        "configuration.extensions",
+    )
+
     return KasumiConfig(
         app_id=_parse_optional_string(data.get("appId"), "configuration.appId"),
         icons=_parse_icons(data.get("icons"), "configuration.icons"),
@@ -713,6 +1035,8 @@ def load_config(path: Path) -> KasumiConfig:
             "configuration.windows",
             WINDOWS_PACKAGE_PATTERN,
             True,
+            extension_commands["windows"],
+            extension_permissions,
         ),
         android=_platform_config(
             data["android"],
@@ -720,5 +1044,8 @@ def load_config(path: Path) -> KasumiConfig:
             "configuration.android",
             ANDROID_PACKAGE_PATTERN,
             allow_webview=True,
+            extension_commands=extension_commands["android"],
+            extension_permissions=extension_permissions,
         ),
+        extensions=extensions,
     )

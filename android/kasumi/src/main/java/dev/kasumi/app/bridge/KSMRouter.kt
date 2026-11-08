@@ -15,7 +15,9 @@ class KSMRouter(
     allowedPermissions: Collection<String> = emptyList(),
     private val eventSender: (String) -> Unit = {},
     plugins: Collection<KSMPlugin> = emptyList(),
-    private val requestScope: String = ""
+    private val requestScope: String = "",
+    private val eventBroadcaster:
+        ((String, JSONObject) -> Boolean)? = null
 ) {
     companion object {
         private const val MAX_INLINE_TEXT_BYTES = 64 * 1024
@@ -234,7 +236,8 @@ class KSMRouter(
                                 } ?: false
                             },
                             emitEvent = { event, payload ->
-                                emitEvent(event, payload)
+                                eventBroadcaster?.invoke(event, payload)
+                                    ?: emitEvent(event, payload)
                             }
                         )
                     ) ?: return errorResponse(
@@ -324,7 +327,8 @@ class KSMRouter(
                             errorResponse(id, "INVALID_ARGS", "event is required.")
                         } else if (
                             event !in KSMGeneratedContract.events &&
-                            event !in KSMCapabilityNames.events
+                            event !in KSMCapabilityNames.events &&
+                            !pluginRegistry.knowsEvent(event)
                         ) {
                             errorResponse(id, "INVALID_ARGS", "event is not registered.")
                         } else {
@@ -338,7 +342,8 @@ class KSMRouter(
                             errorResponse(id, "INVALID_ARGS", "event is required.")
                         } else if (
                             event !in KSMGeneratedContract.events &&
-                            event !in KSMCapabilityNames.events
+                            event !in KSMCapabilityNames.events &&
+                            !pluginRegistry.knowsEvent(event)
                         ) {
                             errorResponse(id, "INVALID_ARGS", "event is not registered.")
                         } else {

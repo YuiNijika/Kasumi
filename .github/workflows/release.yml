@@ -207,6 +207,16 @@ jobs:
       - name: Build signed example APK
         if: startsWith(github.ref, 'refs/tags/')
         run: bash examples/android-host/gradlew -p examples/android-host :app:assembleRelease
+      - name: Verify Android example bridge configuration
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          BUILD_CONFIG=examples/android-host/app/build/generated/source/buildConfig/release/dev/kasumi/example/BuildConfig.java
+          for command in ping capabilities.query app.getInfo; do
+            grep -Fq "\"$command\"" "$BUILD_CONFIG"
+          done
+          for permission in fs.read window.control; do
+            grep -Fq "\"$permission\"" "$BUILD_CONFIG"
+          done
       - name: Package signed example APK
         if: startsWith(github.ref, 'refs/tags/')
         run: |

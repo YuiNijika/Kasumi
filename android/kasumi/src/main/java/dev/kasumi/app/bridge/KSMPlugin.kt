@@ -17,6 +17,8 @@ interface KSMPlugin {
     val commands: Set<String>
     val permissions: Set<String>
         get() = emptySet()
+    val events: Set<String>
+        get() = emptySet()
 
     fun validateArgs(command: String, args: JSONObject): Boolean {
         return true
@@ -38,8 +40,10 @@ class KSMPluginRegistry(
     val ids: List<String>
     val commands: List<String>
     val permissions: Set<String>
+    val events: Set<String>
 
     init {
+        val declaredEvents = linkedSetOf<String>()
         for (plugin in plugins) {
             require(plugin.id.isNotBlank()) {
                 "A Kasumi plugin must have an ID."
@@ -55,12 +59,21 @@ class KSMPluginRegistry(
                     "Kasumi plugin commands must be unique."
                 }
             }
+            for (event in plugin.events) {
+                require(event.isNotBlank()) {
+                    "A Kasumi plugin event cannot be empty."
+                }
+                require(declaredEvents.add(event)) {
+                    "Kasumi plugin events must be unique."
+                }
+            }
         }
         ids = pluginsById.keys.toList()
         commands = handlers.keys.toList()
         permissions = pluginsById.values
             .flatMap { it.permissions }
             .toSet()
+        events = declaredEvents
     }
 
     fun owns(command: String): Boolean {
@@ -69,6 +82,10 @@ class KSMPluginRegistry(
 
     fun knows(permission: String): Boolean {
         return permission in permissions
+    }
+
+    fun knowsEvent(event: String): Boolean {
+        return event in events
     }
 
     fun pluginIdForCommand(command: String): String? {

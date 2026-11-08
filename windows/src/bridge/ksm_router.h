@@ -36,6 +36,7 @@ public:
         const std::string& payload_json,
         const ResponseSender& send_response
     ) const;
+    void SetEventSender(ResponseSender sender);
     void EmitSystemEvent(
         const std::string& event,
         const std::string& payload_json,
@@ -48,10 +49,10 @@ private:
     bool HasPermission(const std::string& permission) const;
     bool EmitPluginEvent(
         const std::string& event,
-        const nlohmann::json& payload,
-        const ResponseSender& send_response
+        const nlohmann::json& payload
     ) const;
 
+    ResponseSender event_sender_;
     std::shared_ptr<KSMFileSystem> file_system_;
     std::shared_ptr<KSMHostServices> host_services_;
     std::vector<std::string> supported_commands_;

@@ -61,6 +61,18 @@ KSMPluginRegistry::KSMPluginRegistry(
                 permissions_.push_back(permission);
             }
         }
+        for (const auto& event : plugin->Events()) {
+            if (
+                event.empty() ||
+                std::find(events_.begin(), events_.end(), event) !=
+                    events_.end()
+            ) {
+                throw std::invalid_argument(
+                    "Kasumi plugin events must be unique and non-empty."
+                );
+            }
+            events_.push_back(event);
+        }
     }
 }
 
@@ -88,6 +100,10 @@ bool KSMPluginRegistry::KnowsPermission(
         permissions_.end(),
         permission
     ) != permissions_.end();
+}
+
+bool KSMPluginRegistry::KnowsEvent(const std::string& event) const {
+    return std::find(events_.begin(), events_.end(), event) != events_.end();
 }
 
 std::string KSMPluginRegistry::PluginIdForCommand(

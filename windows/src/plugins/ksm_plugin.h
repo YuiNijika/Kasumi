@@ -33,6 +33,10 @@ public:
         static const std::vector<std::string> empty;
         return empty;
     }
+    virtual const std::vector<std::string>& Events() const {
+        static const std::vector<std::string> empty;
+        return empty;
+    }
     virtual bool ValidateArgs(
         const std::string& command,
         const nlohmann::json& args

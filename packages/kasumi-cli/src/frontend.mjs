@@ -19,17 +19,39 @@ import {
 const DEV_PORT = 5173;
 const DEV_TIMEOUT_MS = 120_000;
 const FRONTEND_OUTPUT = path.join('frontend', 'dist');
-const CONTENT_SECURITY_POLICY = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
-  "connect-src 'self'",
-  "object-src 'none'",
-  "base-uri 'none'"
-].join('; ');
 const CSP_META_PATTERN =
   /<meta\s+http-equiv=["']Content-Security-Policy["'][^>]*>/i;
+
+export function contentSecurityPolicy(connectSources = []) {
+  const sources = [
+    ...new Set(
+      connectSources
+        .map((source) => String(source).trim())
+        .filter(Boolean)
+    )
+  ];
+  const allowed = sources.length > 0 ? ` ${sources.join(' ')}` : '';
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    `img-src 'self' data:${allowed}`,
+    `media-src 'self' blob:${allowed}`,
+    `connect-src 'self'${allowed}`,
+    "object-src 'none'",
+    "base-uri 'none'"
+  ].join('; ');
+}
+
+export function configuredConnectSources(config) {
+  if (!config) {
+    return [];
+  }
+  return [
+    ...(config.windows?.http?.allowedOrigins ?? []),
+    ...(config.android?.http?.allowedOrigins ?? [])
+  ];
+}
 
 export async function readFrontendSettings(
   projectRoot,
@@ -100,7 +122,8 @@ function webviewDevelopmentEntries(androidWebView) {
   return androidWebView.developmentEntries;
 }
 
-export async function buildFrontend(projectRoot) {
+export async function buildFrontend(projectRoot, config = undefined) {
+  const connectSources = configuredConnectSources(config);
   const settings = await readFrontendSettings(projectRoot);
   if (settings.kind === 'legacy-vite') {
     const viteBin = await requireVite(projectRoot);
@@ -109,7 +132,7 @@ export async function buildFrontend(projectRoot) {
       [viteBin, 'build', '--config', 'frontend/vite.config.ts'],
       { cwd: projectRoot }
     );
-    await injectContentSecurityPolicy(projectRoot);
+    await injectContentSecurityPolicy(projectRoot, connectSources);
     return;
   }
   const packageManager = await detectPackageManager(projectRoot);
@@ -119,7 +142,7 @@ export async function buildFrontend(projectRoot) {
     { cwd: projectRoot }
   );
   await copyFrontendOutput(projectRoot, settings.outputDirectory);
-  await injectContentSecurityPolicy(projectRoot);
+  await injectContentSecurityPolicy(projectRoot, connectSources);
 }
 
 export async function startFrontendServer(projectRoot, androidWebView) {
@@ -216,7 +239,10 @@ async function copyFrontendOutput(projectRoot, outputDirectory) {
   await cp(source, destination, { recursive: true });
 }
 
-export async function injectContentSecurityPolicy(projectRoot) {
+export async function injectContentSecurityPolicy(
+  projectRoot,
+  connectSources = []
+) {
   const indexPath = path.resolve(projectRoot, FRONTEND_OUTPUT, 'index.html');
   let html;
   try {
@@ -227,13 +253,28 @@ export async function injectContentSecurityPolicy(projectRoot) {
     }
     throw error;
   }
+  const policy = contentSecurityPolicy(connectSources);
   if (CSP_META_PATTERN.test(html)) {
+    if (connectSources.length === 0) {
+      return;
+    }
+    const updated = html.replace(
+      CSP_META_PATTERN,
+      (tag) =>
+        tag.replace(
+          /content=(?:"[^"]*"|'[^']*')/i,
+          `content="${policy}"`
+        )
+    );
+    if (updated !== html) {
+      await writeFile(indexPath, updated, 'utf8');
+    }
     return;
   }
   const meta = [
     '<meta',
     'http-equiv="Content-Security-Policy"',
-    `content="${CONTENT_SECURITY_POLICY}"`,
+    `content="${policy}"`,
     '>'
   ].join(' ');
   const updated = html.replace(

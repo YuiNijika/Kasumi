@@ -21,6 +21,8 @@ import {
 } from '../src/android.mjs';
 import { ConfigError, readConfig } from '../src/config.mjs';
 import {
+  contentSecurityPolicy,
+  configuredConnectSources,
   injectContentSecurityPolicy,
   readFrontendSettings,
 } from '../src/frontend.mjs';
@@ -41,6 +43,7 @@ import {
   createVcpkgEnvironment,
   createWindowsPackage,
   findVcpkgToolchain,
+  buildVcpkgAssetSources,
   supportsWindowsDevMode
 } from '../src/windows.mjs';
 
@@ -177,6 +180,14 @@ test('keeps vcpkg caches inside the project', async () => {
       environment.VCPKG_BINARY_SOURCES,
       /readwrite$/
     );
+    assert.match(
+      environment.X_VCPKG_ASSET_SOURCES,
+      /^clear;x-script,/
+    );
+    assert.match(
+      environment.X_VCPKG_ASSET_SOURCES,
+      /\{url\} \{sha512\} \{dst\}$/
+    );
     for (const directory of [
       environment.X_VCPKG_REGISTRIES_CACHE,
       environment.VCPKG_DEFAULT_BINARY_CACHE,
@@ -188,6 +199,13 @@ test('keeps vcpkg caches inside the project', async () => {
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
+});
+
+test('builds a quoted vcpkg asset source command', () => {
+  const sources = buildVcpkgAssetSources();
+  assert.match(sources, /^clear;x-script,"/);
+  assert.match(sources, /vcpkg-download\.mjs/);
+  assert.match(sources, /\{url\} \{sha512\} \{dst\}$/);
 });
 
 test('tracks and clears development process state', async () => {
@@ -402,6 +420,57 @@ test('injects a single CSP meta tag into frontend output', async () => {
       1
     );
     assert.match(html, /script-src 'self' 'unsafe-inline'/);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('adds configured HTTP origins to the injected CSP', async () => {
+  const temporaryRoot = await mkdtemp(
+    path.join(tmpdir(), 'kasumi-csp-test-')
+  );
+  const outputDirectory = path.join(temporaryRoot, 'frontend', 'dist');
+  try {
+    await mkdir(outputDirectory, { recursive: true });
+    await writeFile(
+      path.join(outputDirectory, 'index.html'),
+      '<!doctype html><html><head><title>App</title></head><body></body></html>',
+      'utf8'
+    );
+    const connectSources = configuredConnectSources({
+      windows: {
+        http: { allowedOrigins: ['https://api.github.com'] }
+      },
+      android: {
+        http: { allowedOrigins: ['https://api.miomoe.cn'] }
+      }
+    });
+    assert.deepEqual(connectSources, [
+      'https://api.github.com',
+      'https://api.miomoe.cn'
+    ]);
+    assert.match(
+      contentSecurityPolicy(connectSources),
+      /connect-src 'self' https:\/\/api\.github\.com https:\/\/api\.miomoe\.cn/
+    );
+    await injectContentSecurityPolicy(temporaryRoot, connectSources);
+    await injectContentSecurityPolicy(temporaryRoot, connectSources);
+    const html = await readFile(
+      path.join(outputDirectory, 'index.html'),
+      'utf8'
+    );
+    assert.equal(
+      html.match(/http-equiv="Content-Security-Policy"/g)?.length,
+      1
+    );
+    assert.match(
+      html,
+      /connect-src 'self' https:\/\/api\.github\.com https:\/\/api\.miomoe\.cn/
+    );
+    assert.match(
+      html,
+      /img-src 'self' data: https:\/\/api\.github\.com https:\/\/api\.miomoe\.cn/
+    );
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
@@ -636,6 +705,67 @@ test('loads an extension manifest into the command allowlist', async () => {
  } finally {
  await rm(temporaryRoot, { recursive: true, force: true });
  }
+});
+
+test('expands all commands with extension commands and permissions', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    await writeFile(
+      path.join(temporaryRoot, 'musicstorm.extension.json'),
+      JSON.stringify({
+        id: 'musicstorm',
+        commands: [
+          {
+            name: 'app.musicstorm.command',
+            platforms: ['windows', 'android'],
+            permissions: ['app.musicstorm'],
+            args: { type: 'object', properties: {}, required: [] },
+            result: { type: 'object', properties: {}, required: [] }
+          }
+        ],
+        events: [
+          {
+            name: 'app.musicstorm.event',
+            platforms: ['windows', 'android'],
+            payload: { type: 'object', properties: {}, required: [] }
+          }
+        ]
+      }),
+      'utf8'
+    );
+    await writeFile(
+      path.join(temporaryRoot, 'kasumi.config.json'),
+      JSON.stringify({
+        extensions: [
+          {
+            id: 'musicstorm',
+            manifest: 'musicstorm.extension.json',
+            platforms: ['windows', 'android']
+          }
+        ],
+        windows: {
+          packageName: 'music-storm',
+          version: '0.1.0',
+          commands: 'all',
+          permissions: 'all'
+        },
+        android: {
+          packageName: 'dev.kasumi.music_storm',
+          version: '0.1.0',
+          commands: 'all',
+          permissions: 'all'
+        }
+      }),
+      'utf8'
+    );
+    const config = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.ok(config.windows.commands.includes('app.musicstorm.command'));
+    assert.ok(config.android.commands.includes('app.musicstorm.command'));
+    assert.ok(config.android.permissions.includes('app.musicstorm'));
+    assert.equal(config.extensions[0].events[0].name, 'app.musicstorm.event');
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
 });
 
 test('rejects an extension command that exceeds its declared platforms', async () => {
