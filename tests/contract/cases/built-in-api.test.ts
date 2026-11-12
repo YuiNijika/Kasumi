@@ -408,6 +408,24 @@ export async function runBuiltInApiCases(
     if (!resized.updated) {
       throw new Error('window.setSize failed.');
     }
+    const dragging = await adapter.invoke<{ dragging: boolean }>(
+      'window.startDragging',
+      {}
+    );
+    if (!dragging.dragging) {
+      throw new Error('window.startDragging failed.');
+    }
+    const resizing = await adapter.invoke<{ resizing: boolean }>(
+      'window.startResizing',
+      { direction: 'bottomRight' }
+    );
+    if (!resizing.resizing) {
+      throw new Error('window.startResizing failed.');
+    }
+    await expectError(
+      adapter.invoke('window.startResizing', { direction: 'diagonal' }),
+      'INVALID_ARGS'
+    );
   } else {
     await expectError(
       adapter.invoke('window.setTitle', { title: 'Kasumi' }),
@@ -415,6 +433,14 @@ export async function runBuiltInApiCases(
     );
     await expectError(
       adapter.invoke('window.setSize', { width: 960, height: 720 }),
+      'NOT_SUPPORTED'
+    );
+    await expectError(
+      adapter.invoke('window.startDragging', {}),
+      'NOT_SUPPORTED'
+    );
+    await expectError(
+      adapter.invoke('window.startResizing', { direction: 'bottomRight' }),
       'NOT_SUPPORTED'
     );
   }

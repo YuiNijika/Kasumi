@@ -277,6 +277,21 @@ test('initializes a source-only project without framework source', async () => {
       androidBuildGradle,
       /KSM_WEBVIEW_SUPPORTED_HTML_FILES/
     );
+    const androidManifest = await readFile(
+      path.join(
+        destination,
+        'android',
+        'app',
+        'src',
+        'main',
+        'AndroidManifest.xml'
+      ),
+      'utf8'
+    );
+    assert.match(
+      androidManifest,
+      /android:theme="@style\/Theme\.Kasumi\.Fullscreen"/
+    );
     assert.equal(
       await exists(path.join(destination, 'windows', 'src')),
       false

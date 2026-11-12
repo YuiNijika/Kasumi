@@ -40,6 +40,11 @@ Next.js 与 Nuxt 的静态 HTML 包含框架生成的启动脚本。CLI 在缺�
 Windows 开发宿主使用独立目录 `.ksm/dev/windows/`，WebView2 用户数据放在
 `.ksm/dev/webview2/`，不会覆盖 `.ksm/dist/windows/` 下的应用产物。
 
+`ksm dev --windows` 会监听 `kasumi.config.json`（或 `--config` 指定的文件）、`windows/`
+和 `extensions/`。保存 Windows 后端源码、扩展清单或配置后，CLI 会防抖并串行重建
+开发宿主，成功后重启应用；配置语法错误或编译失败时会保留当前应用，或恢复重建前的
+可执行文件。前端文件仍由 Vite、Next.js 或 Nuxt 的开发服务器热更新，不触发原生重建。
+
 CLI 把 CMake 配置参数与 `CMakeCache.txt` 对照，缓存一致时直接执行增量构建。vcpkg
 安装目录固定在 `.ksm/vcpkg/installed/`，下载和二进制包分别复用
 `.ksm/vcpkg/downloads/` 与 `.ksm/vcpkg/archives/`。依赖只在首次配置或清单变化时安装，
@@ -69,8 +74,12 @@ Windows 批处理入口统一交给 `cmd.exe` 启动，因此 pnpm、Gradle Wrap
 ## 配置
 
 项目配置包含 Windows 与 Android 各自的包名、版本和命令 allowlist。Windows 还可设置
-可选的 `decorations` 布尔值，默认 `true`；设为 `false` 会隐藏原生标题栏。`commands`
-使用 `"all"` 时会按平台协议矩阵展开全部命令；显式数组仍会拒绝未知字段、非法包名、
+可选的 `decorations` 布尔值，默认 `true`；设为 `false` 会隐藏原生标题栏。
+`windows.window` 可设置初始尺寸 `width` / `height`、最小尺寸 `minWidth` / `minHeight`
+和最大尺寸 `maxWidth` / `maxHeight`；最大值为 `0` 表示不限制，尺寸单位是 DIP。
+`windows.errorPage` 可设置 WebView2 初始化失败或导航失败面板的背景、卡片、边框、文字、
+强调色以及标题和提示文本；颜色接受 `#RRGGBB` 或 `#AARRGGBB`。
+`commands` 使用 `"all"` 时会按平台协议矩阵展开全部命令；显式数组仍会拒绝未知字段、非法包名、
 非 SemVer 版本、未知命令和跨平台命令，并要求包含 `ping` 与 `capabilities.query`。
 Android 不接受 `decorations` 字段，但可通过 `android.webview` 配置 WebView 入口：
 
@@ -94,6 +103,22 @@ Android 不接受 `decorations` 字段，但可通过 `android.webview` 配置 W
 入口的唯一允许列表；Vite 选择生产 HTML 文件对应的入口，Next.js 与 Nuxt 选择 `/` 或
 无路径入口。生产入口、开发 HTML 入口必须出现在 `supportedHtmlFiles` 中，且开发列表
 必须包含生产入口使用的 HTML 文件。配置会注入 Gradle `KSM_WEBVIEW_*` BuildConfig。
+
+图标写在根级 `icons`，也可以在各平台 `icons` 中覆盖：
+
+```json
+{
+  "icons": {
+    "window": "icons/icon.ico",
+    "tray": "icons/icon.ico",
+    "installer": "icons/icon.ico",
+    "android": "icons/android.png"
+  }
+}
+```
+
+Windows 的 `window`、`tray`、`installer` 只接受 `.ico`；Android 的 `android` 只接受
+方形 `.png`。图标必须位于项目目录内，CLI 会在构建前校验扩展名与存在性。
 
 `doctor` 使用与实际构建相同的框架识别逻辑。Next.js 与 Nuxt 项目只需要存在
 `frontend/`、`frontend:dev` 和 `frontend:build`，不再误报缺少根级

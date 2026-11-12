@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-global-shortcut",
-  "version": "26.11.7",
+  "version": "26.11.12",
   "description": "Global keyboard shortcut registration for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

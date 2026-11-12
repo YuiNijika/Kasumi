@@ -18,6 +18,8 @@ endif()
 
 project(kasumi_windows VERSION "${KASUMI_PROJECT_VERSION}" LANGUAGES CXX)
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/KasumiCompilerDependencies.cmake")
+
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated/include")
 configure_file(
     src/platform/ksm_version.h.in
@@ -40,6 +42,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
 
 add_library(
     kasumi_windows_bridge
@@ -133,6 +139,8 @@ if (WIN32)
         PUBLIC
             comdlg32
             comctl32
+            gdi32
+            msimg32
             odbc32
             ole32
             shell32
@@ -206,6 +214,7 @@ configure_package_config_file(
 
 install(
     FILES "${CMAKE_CURRENT_BINARY_DIR}/KasumiConfig.cmake"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/KasumiCompilerDependencies.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Kasumi
 )
 

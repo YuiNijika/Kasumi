@@ -508,10 +508,19 @@ void KSMRouter::HandleMessage(
                 command
             ) == supported_commands_.end()
         ) {
+            const bool supported_on_platform = generated_command
+                ? Contains(
+                      KSMGeneratedContract::WindowsCommands(),
+                      command
+                  )
+                : capability_command ||
+                      plugin_registry_.OwnsCommand(command);
             SendError(
                 id,
                 "NOT_SUPPORTED",
-                "The command is disabled by application configuration.",
+                supported_on_platform
+                    ? "The command is disabled by application configuration."
+                    : "The command is not supported on this platform.",
                 send_response
             );
             return;
@@ -1489,6 +1498,119 @@ void KSMRouter::HandleMessage(
                 }
             );
             SendSuccess(id, Json{{"updated", updated}}, send_response);
+            return;
+        }
+
+        if (command == "window.startDragging") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The window service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            std::string window_id;
+            if (args.contains("windowId")) {
+                if (!IsString(args, "windowId")) {
+                    SendError(
+                        id,
+                        "INVALID_ARGS",
+                        "windowId must be a string.",
+                        send_response
+                    );
+                    return;
+                }
+                window_id = args.at("windowId").get<std::string>();
+            }
+            const char* permission = window_id.empty()
+                ? "window.control"
+                : "window.manage";
+            if (!HasPermission(permission)) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            const bool dragging = host_services_->StartWindowDrag(window_id);
+            SendSuccess(id, Json{{"dragging", dragging}}, send_response);
+            return;
+        }
+
+        if (command == "window.startResizing") {
+            if (!host_services_) {
+                SendError(
+                    id,
+                    "NOT_SUPPORTED",
+                    "The window service is not configured.",
+                    send_response
+                );
+                return;
+            }
+            if (!IsString(args, "direction")) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "direction must be a string.",
+                    send_response
+                );
+                return;
+            }
+            const std::string direction =
+                args.at("direction").get<std::string>();
+            static const std::set<std::string> allowed_directions = {
+                "top",
+                "bottom",
+                "left",
+                "right",
+                "topLeft",
+                "topRight",
+                "bottomLeft",
+                "bottomRight"
+            };
+            if (!allowed_directions.contains(direction)) {
+                SendError(
+                    id,
+                    "INVALID_ARGS",
+                    "direction is not a supported resize direction.",
+                    send_response
+                );
+                return;
+            }
+            std::string window_id;
+            if (args.contains("windowId")) {
+                if (!IsString(args, "windowId")) {
+                    SendError(
+                        id,
+                        "INVALID_ARGS",
+                        "windowId must be a string.",
+                        send_response
+                    );
+                    return;
+                }
+                window_id = args.at("windowId").get<std::string>();
+            }
+            const char* permission = window_id.empty()
+                ? "window.control"
+                : "window.manage";
+            if (!HasPermission(permission)) {
+                SendError(
+                    id,
+                    "PERMISSION_DENIED",
+                    "The requested permission was denied.",
+                    send_response
+                );
+                return;
+            }
+            const bool resizing = host_services_->StartWindowResize(
+                window_id,
+                direction
+            );
+            SendSuccess(id, Json{{"resizing", resizing}}, send_response);
             return;
         }
 

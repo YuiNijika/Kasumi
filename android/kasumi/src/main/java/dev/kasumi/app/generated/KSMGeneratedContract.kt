@@ -35,6 +35,8 @@ object KSMGeneratedContract {
         "window.minimize",
         "window.maximize",
         "window.setSize",
+        "window.startDragging",
+        "window.startResizing",
         "window.close",
         "shell.openExternal",
         "shell.openPath",
@@ -143,6 +145,8 @@ object KSMGeneratedContract {
         "window.minimize",
         "window.maximize",
         "window.setSize",
+        "window.startDragging",
+        "window.startResizing",
         "window.close",
         "shell.openExternal",
         "shell.openPath",
@@ -289,6 +293,7 @@ object KSMGeneratedContract {
         "media.ffmpeg.validate",
         "audio.devices.list",
         "audio.devices.set",
+        "audio.output.getMode",
         "audio.eq.set",
         "audio.speed.set",
         "audio.probe",
@@ -543,6 +548,8 @@ object KSMGeneratedContract {
       "window.minimize",
       "window.maximize",
       "window.setSize",
+      "window.startDragging",
+      "window.startResizing",
       "window.close",
       "window.create",
       "window.show",
@@ -933,6 +940,8 @@ object KSMGeneratedContract {
             "window.minimize",
             "window.maximize",
             "window.setSize",
+            "window.startDragging",
+            "window.startResizing",
             "window.close",
             "window.create",
             "window.show",
@@ -1116,6 +1125,12 @@ object KSMGeneratedContract {
         "window.setSize" to listOf(
             "window.control"
         ),
+        "window.startDragging" to listOf(
+            "window.control"
+        ),
+        "window.startResizing" to listOf(
+            "window.control"
+        ),
         "window.close" to listOf(
             "window.control"
         ),
@@ -1243,13 +1258,13 @@ object KSMGeneratedContract {
             "media.read"
         ),
         "audio.devices.list" to listOf(
-            "media.control"
+            "media.read"
         ),
         "audio.devices.set" to listOf(
             "media.control"
         ),
         "audio.output.getMode" to listOf(
-            "media.control"
+            "media.read"
         ),
         "audio.output.setExclusive" to listOf(
             "media.control"
@@ -1702,6 +1717,41 @@ object KSMGeneratedContract {
     "required": [
       "width",
       "height"
+    ],
+    "additionalProperties": false
+  },
+  "window.startDragging": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "window.startResizing": {
+    "type": "object",
+    "properties": {
+      "direction": {
+        "type": "string",
+        "enum": [
+          "top",
+          "bottom",
+          "left",
+          "right",
+          "topLeft",
+          "topRight",
+          "bottomLeft",
+          "bottomRight"
+        ]
+      },
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "direction"
     ],
     "additionalProperties": false
   },

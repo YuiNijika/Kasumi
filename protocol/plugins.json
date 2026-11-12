@@ -154,6 +154,8 @@
         "window.minimize",
         "window.maximize",
         "window.setSize",
+        "window.startDragging",
+        "window.startResizing",
         "window.close",
         "window.create",
         "window.show",

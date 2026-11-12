@@ -25,12 +25,16 @@ namespace {
 
 constexpr wchar_t kWindowClass[] = L"KasumiApplicationWindow";
 constexpr wchar_t kWindowTitle[] = L"__APP_TITLE__";
-constexpr int kWindowWidth = 1080;
-constexpr int kWindowHeight = 720;
+constexpr int kApplicationIconResource = 101;
 #if defined(KASUMI_WINDOW_DECORATIONS)
 constexpr bool kWindowDecorations = KASUMI_WINDOW_DECORATIONS != 0;
 #else
 constexpr bool kWindowDecorations = true;
+#endif
+#if defined(KASUMI_WINDOW_RESIZABLE)
+constexpr bool kWindowResizable = KASUMI_WINDOW_RESIZABLE != 0;
+#else
+constexpr bool kWindowResizable = true;
 #endif
 
 std::wstring ToWide(const std::string &value) {
@@ -57,6 +61,13 @@ std::filesystem::path ExecutableDirectory() {
     return std::filesystem::current_path();
   }
   return std::filesystem::path(buffer).parent_path();
+}
+
+HICON LoadApplicationIcon(HINSTANCE instance, int width, int height) {
+  const HICON icon = static_cast<HICON>(
+      LoadImageW(instance, MAKEINTRESOURCEW(kApplicationIconResource),
+                 IMAGE_ICON, width, height, LR_DEFAULTCOLOR | LR_SHARED));
+  return icon ? icon : LoadIconW(nullptr, IDI_APPLICATION);
 }
 
 std::optional<std::filesystem::path> LocalDataDirectory() {
@@ -146,6 +157,94 @@ std::vector<std::string> ConfiguredHttpOrigins() {
   return ConfiguredValues(KASUMI_HTTP_ALLOWED_ORIGINS);
 }
 
+std::string ConfiguredWindowBackgroundColor() {
+#if defined(KASUMI_WINDOW_BACKGROUND_COLOR)
+  return "#" KASUMI_WINDOW_BACKGROUND_COLOR;
+#else
+  return {};
+#endif
+}
+
+KSMWebView2ErrorPageOptions ConfiguredErrorPageOptions() {
+  KSMWebView2ErrorPageOptions options;
+#if defined(KASUMI_ERROR_PAGE_BACKGROUND_COLOR)
+  options.background_color = "#" KASUMI_ERROR_PAGE_BACKGROUND_COLOR;
+#endif
+#if defined(KASUMI_ERROR_PAGE_CARD_COLOR)
+  options.card_color = "#" KASUMI_ERROR_PAGE_CARD_COLOR;
+#endif
+#if defined(KASUMI_ERROR_PAGE_BORDER_COLOR)
+  options.border_color = "#" KASUMI_ERROR_PAGE_BORDER_COLOR;
+#endif
+#if defined(KASUMI_ERROR_PAGE_TEXT_COLOR)
+  options.text_color = "#" KASUMI_ERROR_PAGE_TEXT_COLOR;
+#endif
+#if defined(KASUMI_ERROR_PAGE_MUTED_TEXT_COLOR)
+  options.muted_text_color = "#" KASUMI_ERROR_PAGE_MUTED_TEXT_COLOR;
+#endif
+#if defined(KASUMI_ERROR_PAGE_ACCENT_COLOR)
+  options.accent_color = "#" KASUMI_ERROR_PAGE_ACCENT_COLOR;
+#endif
+#if defined(KASUMI_ERROR_PAGE_ERROR_COLOR)
+  options.error_color = "#" KASUMI_ERROR_PAGE_ERROR_COLOR;
+#endif
+#if defined(KASUMI_ERROR_PAGE_TITLE)
+  options.title = KASUMI_ERROR_PAGE_TITLE;
+#endif
+#if defined(KASUMI_ERROR_PAGE_HINT)
+  options.hint = KASUMI_ERROR_PAGE_HINT;
+#endif
+  return options;
+}
+
+int ConfiguredWindowWidth() {
+#if defined(KASUMI_WINDOW_WIDTH)
+  return KASUMI_WINDOW_WIDTH > 0 ? KASUMI_WINDOW_WIDTH : 1080;
+#else
+  return 1080;
+#endif
+}
+
+int ConfiguredWindowHeight() {
+#if defined(KASUMI_WINDOW_HEIGHT)
+  return KASUMI_WINDOW_HEIGHT > 0 ? KASUMI_WINDOW_HEIGHT : 720;
+#else
+  return 720;
+#endif
+}
+
+int ConfiguredWindowMinWidth() {
+#if defined(KASUMI_WINDOW_MIN_WIDTH)
+  return KASUMI_WINDOW_MIN_WIDTH > 0 ? KASUMI_WINDOW_MIN_WIDTH : 320;
+#else
+  return 320;
+#endif
+}
+
+int ConfiguredWindowMinHeight() {
+#if defined(KASUMI_WINDOW_MIN_HEIGHT)
+  return KASUMI_WINDOW_MIN_HEIGHT > 0 ? KASUMI_WINDOW_MIN_HEIGHT : 240;
+#else
+  return 240;
+#endif
+}
+
+int ConfiguredWindowMaxWidth() {
+#if defined(KASUMI_WINDOW_MAX_WIDTH)
+  return KASUMI_WINDOW_MAX_WIDTH;
+#else
+  return 0;
+#endif
+}
+
+int ConfiguredWindowMaxHeight() {
+#if defined(KASUMI_WINDOW_MAX_HEIGHT)
+  return KASUMI_WINDOW_MAX_HEIGHT;
+#else
+  return 0;
+#endif
+}
+
 void ShowRuntimePrompt(HWND owner) {
   MessageBoxW(owner,
               L"__APP_TITLE__ needs the Microsoft Edge WebView2 Evergreen "
@@ -159,12 +258,8 @@ void ShowRuntimePrompt(HWND owner) {
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam,
                             LPARAM lparam) {
   switch (message) {
-  case WM_GETMINMAXINFO: {
-    auto *info = reinterpret_cast<MINMAXINFO *>(lparam);
-    info->ptMinTrackSize.x = 320;
-    info->ptMinTrackSize.y = 240;
-    return 0;
-  }
+  case WM_ERASEBKGND:
+    return 1;
   case WM_CLOSE:
     DestroyWindow(window);
     return 0;
@@ -210,19 +305,38 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   window_class.lpfnWndProc = WindowProc;
   window_class.lpszClassName = kWindowClass;
   window_class.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-  window_class.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+  window_class.hbrBackground = nullptr;
+  window_class.hIcon =
+      LoadApplicationIcon(instance, GetSystemMetrics(SM_CXICON),
+                          GetSystemMetrics(SM_CYICON));
+  window_class.hIconSm =
+      LoadApplicationIcon(instance, GetSystemMetrics(SM_CXSMICON),
+                          GetSystemMetrics(SM_CYSMICON));
   if (!RegisterClassExW(&window_class)) {
     return 1;
   }
 
   HWND window =
       CreateWindowExW(0, kWindowClass, kWindowTitle, WS_OVERLAPPEDWINDOW,
-                      CW_USEDEFAULT, CW_USEDEFAULT, kWindowWidth, kWindowHeight,
+                      CW_USEDEFAULT, CW_USEDEFAULT, ConfiguredWindowWidth(),
+                      ConfiguredWindowHeight(),
                       nullptr, nullptr, instance, nullptr);
   if (!window) {
     return 1;
   }
-  if (!KSMWindowFrame::Configure(window, kWindowDecorations)) {
+  SendMessageW(window, WM_SETICON, ICON_BIG,
+               reinterpret_cast<LPARAM>(window_class.hIcon));
+  SendMessageW(window, WM_SETICON, ICON_SMALL,
+               reinterpret_cast<LPARAM>(window_class.hIconSm));
+  if (!KSMWindowFrame::Configure(
+          window,
+          kWindowDecorations,
+          kWindowResizable,
+          ConfiguredWindowMinWidth(),
+          ConfiguredWindowMinHeight(),
+          ConfiguredWindowMaxWidth(),
+          ConfiguredWindowMaxHeight()
+      )) {
     MessageBoxW(window, L"The application window frame could not be configured.",
                 kWindowTitle, MB_OK | MB_ICONERROR);
     DestroyWindow(window);
@@ -311,18 +425,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
   }
 #endif
 
-  ShowWindow(window, smoke_test ? SW_SHOWNOACTIVATE : show_command);
-  UpdateWindow(window);
-
  auto host = std::unique_ptr<KSMWebView2Host>(new KSMWebView2Host(
  window, file_system, ConfiguredShellOrigins(),
  web_root, webview_data, smoke_test, web_resources, start_url, dev_mode,
  KASUMI_APP_VERSION, ConfiguredCommands(), kWindowDecorations,
  std::vector<std::shared_ptr<KSMPlugin>>{},
- ConfiguredPermissions(), ConfiguredHttpOrigins()));
+ ConfiguredPermissions(), ConfiguredHttpOrigins(),
+ ConfiguredWindowBackgroundColor(), ConfiguredErrorPageOptions()));
 
+  KSMWebView2Host *host_pointer = host.get();
   if (!host->Initialize(
-          [window, smoke_test](bool success, const std::string &error) {
+          [window, smoke_test, show_command, host_pointer](
+              bool success,
+              const std::string &error
+          ) {
             if (success) {
               if (smoke_test) {
                 ShowWindow(window, SW_HIDE);
@@ -333,15 +449,29 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
               PostQuitMessage(1);
               return;
             }
-            const std::wstring message = ToWide(error);
+            ShowWindow(window, show_command);
+            UpdateWindow(window);
+            std::wstring message = ToWide(error);
+            const std::wstring log_path =
+                ToWide(host_pointer->last_log_path());
+            if (!log_path.empty()) {
+              message += L"\n\n日志文件:\n" + log_path;
+            }
             MessageBoxW(window, message.c_str(), kWindowTitle,
                         MB_OK | MB_ICONERROR);
-            PostMessageW(window, WM_CLOSE, 0, 0);
           })) {
-    host.reset();
-    DestroyWindow(window);
-    return 1;
+    if (!smoke_test) {
+      ShowWindow(window, show_command);
+      UpdateWindow(window);
+    } else {
+      host.reset();
+      DestroyWindow(window);
+      return 1;
+    }
   }
+
+  ShowWindow(window, smoke_test ? SW_SHOWNOACTIVATE : show_command);
+  UpdateWindow(window);
 
   MSG message{};
   while (GetMessageW(&message, nullptr, 0, 0) > 0) {

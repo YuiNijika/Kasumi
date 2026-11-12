@@ -13,6 +13,8 @@ import type {
   KSMWindowCreateOptions,
   KSMWindowFlagArgs,
   KSMWindowPositionArgs,
+  KSMWindowResizeArgs,
+  KSMWindowResizeDirection,
   KSMWindowSize,
   KSMWindowState,
   KSMWindowTargetArgs,
@@ -23,6 +25,29 @@ import type {
 function assertTarget(args: KSMWindowTargetArgs | undefined, field: string): void {
   if (args?.windowId !== undefined) {
     assertBoundedString(args.windowId, `${field}.windowId`, 128);
+  }
+}
+
+const RESIZE_DIRECTIONS: readonly KSMWindowResizeDirection[] = [
+  'top',
+  'bottom',
+  'left',
+  'right',
+  'topLeft',
+  'topRight',
+  'bottomLeft',
+  'bottomRight'
+];
+
+function assertResizeDirection(
+  value: unknown,
+  field: string
+): asserts value is KSMWindowResizeDirection {
+  if (
+    typeof value !== 'string' ||
+    !RESIZE_DIRECTIONS.includes(value as KSMWindowResizeDirection)
+  ) {
+    throw new TypeError(`${field} must be a supported resize direction.`);
   }
 }
 
@@ -43,6 +68,21 @@ export function setSize(args: KSMWindowSize): Promise<{ updated: boolean }> {
   assertPositiveInteger(args.width, 'width');
   assertPositiveInteger(args.height, 'height');
   return KSM.invoke('window.setSize', args);
+}
+
+export function startDragging(
+  args: KSMWindowTargetArgs = {}
+): Promise<{ dragging: boolean }> {
+  assertTarget(args, 'args');
+  return KSM.invoke('window.startDragging', args);
+}
+
+export function startResizing(
+  args: KSMWindowResizeArgs
+): Promise<{ resizing: boolean }> {
+  assertResizeDirection(args.direction, 'direction');
+  assertTarget(args, 'args');
+  return KSM.invoke('window.startResizing', args);
 }
 
 export function close(): Promise<{ closed: boolean }> {

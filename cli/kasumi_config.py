@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -36,6 +36,8 @@ SAFE_ENTRY_PATH_PATTERN = re.compile(
 HTML_FILE_PATTERN = re.compile(
     r"^(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\.html$"
 )
+WINDOW_BACKGROUND_PATTERN = re.compile(r"^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$")
+ERROR_PAGE_TEXT_PATTERN = re.compile(r'^[^"\\;\u0000-\u001F\u007F]+$')
 EXTENSION_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 EXTENSION_NAME_PATTERN = re.compile(
     r"^app\.[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$"
@@ -74,6 +76,7 @@ class PlatformConfig:
     shell_allowed_origins: tuple[str, ...] = ()
     http_allowed_origins: tuple[str, ...] = ()
     window: dict[str, Any] | None = None
+    error_page: dict[str, str] | None = None
     tray: dict[str, Any] | None = None
     icons: dict[str, str] | None = None
     resources: tuple[str, ...] = ()
@@ -145,6 +148,7 @@ def _platform_config(
     }
     if allow_decorations:
         allowed_fields.add("decorations")
+        allowed_fields.add("errorPage")
     if allow_webview:
         allowed_fields.add("webview")
     _reject_unknown_keys(
@@ -174,7 +178,12 @@ def _platform_config(
             f"{location}.version must be a semantic version."
         )
 
-    decorations = True
+    window = _parse_window(
+        data.get("window"),
+        f"{location}.window",
+        allow_decorations,
+    )
+    decorations = True if window is None else window.get("decorations", True)
     if allow_decorations and "decorations" in data:
         if not isinstance(data["decorations"], bool):
             raise ConfigError(
@@ -210,10 +219,14 @@ def _platform_config(
             f"{location}.http",
             {"https"},
         ),
-        window=_parse_window(
-            data.get("window"),
-            f"{location}.window",
-            allow_decorations,
+        window=window,
+        error_page=(
+            _parse_error_page(
+                data.get("errorPage"),
+                f"{location}.errorPage",
+            )
+            if allow_decorations
+            else None
         ),
         tray=_parse_tray(data.get("tray"), f"{location}.tray"),
         icons=_parse_icons(data.get("icons"), f"{location}.icons"),
@@ -384,6 +397,7 @@ def _parse_window(
             "title",
             "decorations",
             "transparent",
+            "backgroundColor",
             "alwaysOnTop",
             "center",
             "width",
@@ -403,6 +417,7 @@ def _parse_window(
         "title": "",
         "decorations": True,
         "transparent": False,
+        "backgroundColor": "",
         "alwaysOnTop": False,
         "center": True,
         "width": 1080,
@@ -420,6 +435,14 @@ def _parse_window(
     }
     if not isinstance(result["title"], str):
         raise ConfigError(f"{location}.title must be a string.")
+    background_color = result["backgroundColor"]
+    if not isinstance(background_color, str) or (
+        background_color
+        and not WINDOW_BACKGROUND_PATTERN.fullmatch(background_color)
+    ):
+        raise ConfigError(
+            f"{location}.backgroundColor must be #RRGGBB or #AARRGGBB."
+        )
     for key in (
         "decorations",
         "transparent",
@@ -446,6 +469,66 @@ def _parse_window(
             raise ConfigError(
                 f"{location}.{key} must be a non-negative integer."
             )
+    if result["maxWidth"] > 0 and result["maxWidth"] < result["minWidth"]:
+        raise ConfigError(
+            f"{location}.maxWidth must be greater than or equal to minWidth."
+        )
+    if result["maxHeight"] > 0 and result["maxHeight"] < result["minHeight"]:
+        raise ConfigError(
+            f"{location}.maxHeight must be greater than or equal to minHeight."
+        )
+    if result["maxWidth"] > 0 and result["width"] > result["maxWidth"]:
+        raise ConfigError(
+            f"{location}.width must be less than or equal to maxWidth."
+        )
+    if result["maxHeight"] > 0 and result["height"] > result["maxHeight"]:
+        raise ConfigError(
+            f"{location}.height must be less than or equal to maxHeight."
+        )
+    return result
+
+
+def _parse_error_page(value: Any, location: str) -> dict[str, str] | None:
+    if value is None:
+        return None
+    data = _expect_object(value, location)
+    color_fields = (
+        "backgroundColor",
+        "cardColor",
+        "borderColor",
+        "textColor",
+        "mutedTextColor",
+        "accentColor",
+        "errorColor",
+    )
+    text_fields = {
+        "title": 80,
+        "hint": 240,
+    }
+    _reject_unknown_keys(
+        data,
+        {*color_fields, *text_fields},
+        location,
+    )
+    result: dict[str, str] = {}
+    for key in color_fields:
+        if key not in data:
+            continue
+        color = _expect_string(data[key], f"{location}.{key}")
+        if not WINDOW_BACKGROUND_PATTERN.fullmatch(color):
+            raise ConfigError(
+                f"{location}.{key} must be #RRGGBB or #AARRGGBB."
+            )
+        result[key] = color
+    for key, max_length in text_fields.items():
+        if key not in data:
+            continue
+        text = _expect_string(data[key], f"{location}.{key}")
+        if len(text) > max_length or not ERROR_PAGE_TEXT_PATTERN.fullmatch(text):
+            raise ConfigError(
+                f"{location}.{key} must be 1-{max_length} safe characters."
+            )
+        result[key] = text
     return result
 
 
@@ -487,9 +570,13 @@ def _parse_icons(value: Any, location: str) -> dict[str, str] | None:
     if value is None:
         return None
     data = _expect_object(value, location)
-    _reject_unknown_keys(data, {"window", "tray", "installer"}, location)
+    _reject_unknown_keys(
+        data,
+        {"window", "tray", "installer", "android"},
+        location,
+    )
     result: dict[str, str] = {}
-    for key in ("window", "tray", "installer"):
+    for key in ("window", "tray", "installer", "android"):
         if key in data:
             result[key] = _expect_string(data[key], f"{location}.{key}")
     return result
@@ -1019,9 +1106,37 @@ def load_config(path: Path) -> KasumiConfig:
         "configuration.extensions",
     )
 
+    root_icons = _parse_icons(data.get("icons"), "configuration.icons")
+    windows = _platform_config(
+        data["windows"],
+        "windows",
+        "configuration.windows",
+        WINDOWS_PACKAGE_PATTERN,
+        True,
+        extension_commands["windows"],
+        extension_permissions,
+    )
+    android = _platform_config(
+        data["android"],
+        "android",
+        "configuration.android",
+        ANDROID_PACKAGE_PATTERN,
+        allow_webview=True,
+        extension_commands=extension_commands["android"],
+        extension_permissions=extension_permissions,
+    )
+    windows = replace(
+        windows,
+        icons={**dict(root_icons or {}), **dict(windows.icons or {})} or None,
+    )
+    android = replace(
+        android,
+        icons={**dict(root_icons or {}), **dict(android.icons or {})} or None,
+    )
+
     return KasumiConfig(
         app_id=_parse_optional_string(data.get("appId"), "configuration.appId"),
-        icons=_parse_icons(data.get("icons"), "configuration.icons"),
+        icons=root_icons,
         resources=_parse_string_array(
             data.get("resources"), "configuration.resources"
         ),
@@ -1029,23 +1144,7 @@ def load_config(path: Path) -> KasumiConfig:
             data.get("signing"), "configuration.signing"
         ),
         bundle=_parse_bundle(data.get("bundle"), "configuration.bundle"),
-        windows=_platform_config(
-            data["windows"],
-            "windows",
-            "configuration.windows",
-            WINDOWS_PACKAGE_PATTERN,
-            True,
-            extension_commands["windows"],
-            extension_permissions,
-        ),
-        android=_platform_config(
-            data["android"],
-            "android",
-            "configuration.android",
-            ANDROID_PACKAGE_PATTERN,
-            allow_webview=True,
-            extension_commands=extension_commands["android"],
-            extension_permissions=extension_permissions,
-        ),
+        windows=windows,
+        android=android,
         extensions=extensions,
     )

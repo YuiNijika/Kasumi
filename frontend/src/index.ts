@@ -179,6 +179,8 @@ export type {
   KSMWindowCreateOptions,
   KSMWindowFlagArgs,
   KSMWindowPositionArgs,
+  KSMWindowResizeArgs,
+  KSMWindowResizeDirection,
   KSMWindowSize,
   KSMWindowState,
   KSMWindowStateChangedPayload,

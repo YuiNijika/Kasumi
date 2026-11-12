@@ -23,15 +23,23 @@
       "properties": {
         "window": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Path to an .ico file used for the Windows executable, title bar and taskbar."
         },
         "tray": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Path to an .ico file used by the Windows tray icon."
         },
         "installer": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "description": "Path to an .ico file used by Windows installers."
+        },
+        "android": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to a square PNG file used as the Android launcher icon."
         }
       }
     },
@@ -191,6 +199,11 @@
             "transparent": {
               "type": "boolean"
             },
+            "backgroundColor": {
+              "type": "string",
+              "pattern": "^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+              "description": "WebView2 fallback background color as #RRGGBB or #AARRGGBB. Use a color that matches the page background to avoid a white flash while resizing."
+            },
             "alwaysOnTop": {
               "type": "boolean"
             },
@@ -199,33 +212,95 @@
             },
             "width": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Initial window width in DIP. Zero falls back to 1080."
             },
             "height": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Initial window height in DIP. Zero falls back to 720."
             },
             "minWidth": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Minimum window width in DIP. Zero falls back to 320."
             },
             "minHeight": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Minimum window height in DIP. Zero falls back to 240."
             },
             "maxWidth": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Maximum window width in DIP. Zero means no upper bound."
             },
             "maxHeight": {
               "type": "integer",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Maximum window height in DIP. Zero means no upper bound."
             },
             "resizable": {
               "type": "boolean"
             },
             "visible": {
               "type": "boolean"
+            }
+          }
+        },
+        "errorPage": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Customize the native WebView2 surface shown when initialization or navigation fails.",
+          "properties": {
+            "backgroundColor": {
+              "type": "string",
+              "pattern": "^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+              "description": "Surface background as #RRGGBB or #AARRGGBB. Alpha is ignored by the native renderer."
+            },
+            "cardColor": {
+              "type": "string",
+              "pattern": "^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+              "description": "Error card background as #RRGGBB or #AARRGGBB."
+            },
+            "borderColor": {
+              "type": "string",
+              "pattern": "^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+              "description": "Error card border as #RRGGBB or #AARRGGBB."
+            },
+            "textColor": {
+              "type": "string",
+              "pattern": "^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+              "description": "Primary error text as #RRGGBB or #AARRGGBB."
+            },
+            "mutedTextColor": {
+              "type": "string",
+              "pattern": "^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+              "description": "Secondary error text as #RRGGBB or #AARRGGBB."
+            },
+            "accentColor": {
+              "type": "string",
+              "pattern": "^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+              "description": "Accent color as #RRGGBB or #AARRGGBB."
+            },
+            "errorColor": {
+              "type": "string",
+              "pattern": "^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+              "description": "Error indicator color as #RRGGBB or #AARRGGBB."
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "^[^\"\\\\;\\u0000-\\u001F\\u007F]+$",
+              "description": "Error page title. Quotes, backslashes, semicolons and control characters are rejected."
+            },
+            "hint": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240,
+              "pattern": "^[^\"\\\\;\\u0000-\\u001F\\u007F]+$",
+              "description": "Error page footer hint. Quotes, backslashes, semicolons and control characters are rejected."
             }
           }
         },
@@ -260,6 +335,29 @@
             },
             "clickAction": {
               "type": "string"
+            }
+          }
+        },
+        "icons": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Windows-specific icon overrides. Root-level icons apply to both platforms.",
+          "properties": {
+            "window": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tray": {
+              "type": "string",
+              "minLength": 1
+            },
+            "installer": {
+              "type": "string",
+              "minLength": 1
+            },
+            "android": {
+              "type": "string",
+              "minLength": 1
             }
           }
         }
@@ -369,6 +467,29 @@
                 "type": "string",
                 "pattern": "^(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\\.html$"
               }
+            }
+          }
+        },
+        "icons": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Android-specific icon overrides. Root-level icons apply to both platforms.",
+          "properties": {
+            "window": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tray": {
+              "type": "string",
+              "minLength": 1
+            },
+            "installer": {
+              "type": "string",
+              "minLength": 1
+            },
+            "android": {
+              "type": "string",
+              "minLength": 1
             }
           }
         }

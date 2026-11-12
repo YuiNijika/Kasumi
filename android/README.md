@@ -167,7 +167,7 @@ val webViewHost = KSMWebViewHost(
     fileSystem = fileSystem,
     hostServices = hostServices,
     entryUrl = "https://app.local/index.html",
-    fullscreen = true
+    fullscreen = false
 )
 setContentView(webViewHost.webView)
 webViewHost.start()
@@ -304,6 +304,10 @@ val result = KSM.http.download(
 - 取消消息会 `disconnect` 活动连接；`onTrimMemory` 只取消当前窗口下载，Activity 销毁
   由宿主服务统一关闭剩余下载。
 
+编译进宿主的可信插件可调用 `downloadTrusted`：跳过 `allowedOrigins`，但仍要求 HTTPS、
+公网主机，且主机必须匹配调用方显式传入的后缀列表；额外请求头会校验 CR/LF。该入口不
+暴露为协议命令，只用于媒体缓存等需要动态 CDN 域名的插件场景。
+
 ### `shell.openExternal`
 
 ```kotlin
@@ -342,9 +346,8 @@ Android O 及以上把 WebView 渲染进程设置为绑定当前应用，并允�
 waive 渲染进程优先级，降低应用进入后台后继续占用 WebView 内存的概率。多个 WebView
 共用进程级定时器暂停状态时使用租约计数，单个窗口恢复不会提前恢复其他窗口。
 
-`KSMWebViewHost` 默认 `fullscreen = true`，隐藏 ActionBar、状态栏和导航栏，并把 WebView
-扩展到系统栏与刘海区域。系统栏可通过边缘滑动临时显示，窗口重新获得焦点后会再次隐藏。
-Activity 需要声明：
+`KSMWebViewHost` 默认 `fullscreen = false`，保留系统状态栏和导航栏。无论该参数取值，
+Activity 都需要声明以下主题来移除原生 ActionBar：
 
 ```xml
 <activity
@@ -353,8 +356,16 @@ Activity 需要声明：
     android:windowSoftInputMode="adjustResize" />
 ```
 
-如果应用需要保留系统栏，在创建宿主时传入 `fullscreen = false`。标题栏仍由
-`Theme.Kasumi.Fullscreen` 移除。
+需要沉浸式显示时，在创建宿主时传入 `fullscreen = true`。此时隐藏状态栏和导航栏，
+WebView 扩展到系统栏与刘海区域，系统栏可通过边缘滑动临时显示，窗口重新获得焦点后会
+再次隐藏。
+
+## 启动器图标
+
+根级 `icons.android` 指向项目内的方形 PNG。CLI 构建前会把它复制到
+`.ksm/android-res/drawable/ksm_launcher.png`，Gradle 通过额外的 `res` 源目录打包，
+并通过 manifest placeholder 写入 `android:icon`。未配置时使用系统默认应用图标。
+`icons.android` 必须是 `.png`，路径必须位于项目目录内。
 
 ## WebView 安全
 

@@ -64,7 +64,9 @@ import {
   setPosition as setWindowPosition,
   setAlwaysOnTop as setWindowAlwaysOnTop,
   setTransparent as setWindowTransparent,
-  getState as getWindowState
+  getState as getWindowState,
+  startDragging as startWindowDragging,
+  startResizing as startWindowResizing
 } from '../api/window.js';
 import {
   configure as configureTray,
@@ -532,6 +534,10 @@ export class KSM {
       assertPositiveInteger(args.height, 'height');
       return KSM.invoke('window.setSize', args);
     },
+    startDragging: (args = {}): Promise<{ dragging: boolean }> =>
+      startWindowDragging(args),
+    startResizing: (args): Promise<{ resizing: boolean }> =>
+      startWindowResizing(args),
     close: (): Promise<{ closed: boolean }> => KSM.invoke('window.close', {}),
     create: (args) => createWindow(args),
     show: (args = {}) => showWindow(args),

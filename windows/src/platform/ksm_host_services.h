@@ -34,6 +34,7 @@ struct KSMHttpRequestSpec {
     std::optional<std::string> jar_id;
     std::optional<std::string> user_agent;
     std::optional<std::string> referer;
+    std::optional<std::string> cookie_header;
 };
 
 struct KSMHttpResponse {
@@ -53,6 +54,7 @@ struct KSMHttpTransferSpec {
     std::optional<std::string> jar_id;
     std::optional<std::string> user_agent;
     std::optional<std::string> referer;
+    std::optional<std::string> cookie_header;
     bool overwrite = false;
 };
 
@@ -140,10 +142,16 @@ struct KSMWindowState {
     bool visible = false;
     bool always_on_top = false;
     bool transparent = false;
+    bool maximized = false;
+    bool resizable = true;
+    bool decorations = true;
+    bool skip_taskbar = false;
     int x = 0;
     int y = 0;
     int width = 0;
     int height = 0;
+    std::string url;
+    std::string title;
 };
 
 struct KSMTrayMenuItem {
@@ -242,6 +250,20 @@ public:
     virtual std::optional<std::string> ReadPickedText(
         const std::string& path
     ) = 0;
+    virtual std::optional<std::vector<std::uint8_t>> ReadPickedBytes(
+        const std::string& path
+    ) {
+        (void)path;
+        return std::nullopt;
+    }
+    virtual bool WritePickedBytes(
+        const std::string& path,
+        const std::vector<std::uint8_t>& bytes
+    ) {
+        (void)path;
+        (void)bytes;
+        return false;
+    }
     virtual bool WritePickedText(
         const std::string& path,
         const std::string& content
@@ -260,6 +282,9 @@ public:
     virtual bool SetWindowTitle(const std::string& title) = 0;
     virtual bool MinimizeWindow() = 0;
     virtual bool MaximizeWindow() = 0;
+    virtual bool RestoreWindow() {
+        return false;
+    }
     virtual bool CloseWindow() = 0;
     virtual bool ExitApp() = 0;
     virtual std::optional<KSMHttpDownloadResult> Download(
@@ -272,6 +297,22 @@ public:
         (void)path;
         (void)overwrite;
         (void)request_id;
+        return std::nullopt;
+    }
+    virtual std::optional<KSMHttpDownloadResult> DownloadTrusted(
+        const std::string& url,
+        const std::string& path,
+        bool overwrite,
+        const std::string& request_id,
+        const std::vector<KSMHttpHeader>& headers,
+        const std::vector<std::string>& allowed_hosts
+    ) {
+        (void)url;
+        (void)path;
+        (void)overwrite;
+        (void)request_id;
+        (void)headers;
+        (void)allowed_hosts;
         return std::nullopt;
     }
     virtual bool IsHttpRequestUrlAllowed(const std::string& url) const {
@@ -542,6 +583,18 @@ public:
     ) {
         (void)window_id;
         (void)enabled;
+        return false;
+    }
+    virtual bool StartWindowDrag(const std::string& window_id) {
+        (void)window_id;
+        return false;
+    }
+    virtual bool StartWindowResize(
+        const std::string& window_id,
+        const std::string& direction
+    ) {
+        (void)window_id;
+        (void)direction;
         return false;
     }
     virtual std::optional<KSMWindowState> GetWindowState(

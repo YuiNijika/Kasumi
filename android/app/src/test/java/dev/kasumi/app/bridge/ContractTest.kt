@@ -35,6 +35,10 @@ class ContractTest {
             return languageTag
         }
 
+        override fun audioState(): KSMAudioState {
+            return KSMAudioState()
+        }
+
         override fun showMessage(title: String, message: String): Boolean {
             return title == "Kasumi" && message == "root"
         }
@@ -1572,6 +1576,81 @@ class ContractTest {
             assertFalse(KSM.fs.writeText("app://data/blocked.txt", "blocked"))
         } finally {
             KSM.shutdown()
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun androidAudioOutputMode() {
+        val root = Files.createTempDirectory("kasumi-audio-output").toFile()
+        val fileSystem = KSMFileSystem(
+            File(root, "data"),
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        val router = KSMRouter(
+            fileSystem,
+            TestHostServices(),
+            allowedCommands = listOf(
+                "capabilities.query",
+                "audio.output.getMode"
+            ),
+            allowedPermissions = listOf("media.read")
+        )
+        try {
+            val mode = invoke(
+                router,
+                "audio.output.getMode",
+                JSONObject()
+            )
+            assertTrue(mode.getBoolean("ok"))
+            assertEquals(
+                "shared",
+                mode.getJSONObject("data").getString("mode")
+            )
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun platformOnlyCommandReportsPlatformSupport() {
+        val root = Files.createTempDirectory("kasumi-platform-command").toFile()
+        val fileSystem = KSMFileSystem(
+            File(root, "data"),
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        val router = KSMRouter(
+            fileSystem,
+            TestHostServices(),
+            allowedCommands = listOf(
+                "capabilities.query",
+                "window.getState"
+            ),
+            allowedPermissions = listOf("window.manage")
+        )
+        try {
+            val response = JSONObject(
+                router.handleMessage(
+                    JSONObject()
+                        .put("type", "request")
+                        .put("id", "platform-command")
+                        .put("cmd", "window.getState")
+                        .put("args", JSONObject())
+                        .toString()
+                )
+            )
+            assertFalse(response.getBoolean("ok"))
+            assertEquals(
+                "NOT_SUPPORTED",
+                response.getJSONObject("error").getString("code")
+            )
+            assertEquals(
+                "The command is not supported on this platform.",
+                response.getJSONObject("error").getString("message")
+            )
+        } finally {
             root.deleteRecursively()
         }
     }

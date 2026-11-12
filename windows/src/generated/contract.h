@@ -387,6 +387,41 @@ inline const Json& ArgSchemas() {
     ],
     "additionalProperties": false
   },
+  "window.startDragging": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "window.startResizing": {
+    "type": "object",
+    "properties": {
+      "direction": {
+        "type": "string",
+        "enum": [
+          "top",
+          "bottom",
+          "left",
+          "right",
+          "topLeft",
+          "topRight",
+          "bottomLeft",
+          "bottomRight"
+        ]
+      },
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "direction"
+    ],
+    "additionalProperties": false
+  },
   "window.close": {
     "type": "object",
     "properties": {},
@@ -1578,21 +1613,21 @@ public:
 
 inline const std::vector<std::string>& KSMGeneratedContract::Commands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "tray.show", "tray.hide", "globalShortcut.register", "globalShortcut.unregister", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit", "http.request", "http.transfer.start", "http.transfer.cancel", "http.cookies.get", "http.cookies.set", "http.cookies.clear", "dialog.openFolder", "dialog.openFiles", "fs.walk", "fs.scope.release", "media.probe", "media.ffmpeg.detect", "media.ffmpeg.validate", "media.ffmpeg.setPath", "media.ffmpeg.pickExecutable", "audio.devices.list", "audio.devices.set", "audio.output.getMode", "audio.output.setExclusive", "audio.eq.set", "audio.speed.set", "audio.probe", "audio.load", "audio.play", "audio.pause", "audio.stop", "audio.seek", "audio.volume.set", "audio.state.get", "mediaSession.update", "mediaSession.clear", "window.create", "window.show", "window.hide", "window.setPosition", "window.setAlwaysOnTop", "window.setTransparent", "window.getState", "event.emit", "tray.configure", "updater.install", "app.openDevtools", "app.deepLink.getPending"
+        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.startDragging", "window.startResizing", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "tray.show", "tray.hide", "globalShortcut.register", "globalShortcut.unregister", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit", "http.request", "http.transfer.start", "http.transfer.cancel", "http.cookies.get", "http.cookies.set", "http.cookies.clear", "dialog.openFolder", "dialog.openFiles", "fs.walk", "fs.scope.release", "media.probe", "media.ffmpeg.detect", "media.ffmpeg.validate", "media.ffmpeg.setPath", "media.ffmpeg.pickExecutable", "audio.devices.list", "audio.devices.set", "audio.output.getMode", "audio.output.setExclusive", "audio.eq.set", "audio.speed.set", "audio.probe", "audio.load", "audio.play", "audio.pause", "audio.stop", "audio.seek", "audio.volume.set", "audio.state.get", "mediaSession.update", "mediaSession.clear", "window.create", "window.show", "window.hide", "window.setPosition", "window.setAlwaysOnTop", "window.setTransparent", "window.getState", "event.emit", "tray.configure", "updater.install", "app.openDevtools", "app.deepLink.getPending"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::WindowsCommands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "tray.show", "tray.hide", "globalShortcut.register", "globalShortcut.unregister", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit", "http.request", "http.transfer.start", "http.transfer.cancel", "http.cookies.get", "http.cookies.set", "http.cookies.clear", "dialog.openFolder", "dialog.openFiles", "fs.walk", "fs.scope.release", "media.probe", "media.ffmpeg.detect", "media.ffmpeg.validate", "media.ffmpeg.setPath", "media.ffmpeg.pickExecutable", "audio.devices.list", "audio.devices.set", "audio.output.getMode", "audio.output.setExclusive", "audio.eq.set", "audio.speed.set", "audio.probe", "audio.load", "audio.play", "audio.pause", "audio.stop", "audio.seek", "audio.volume.set", "audio.state.get", "window.create", "window.show", "window.hide", "window.setPosition", "window.setAlwaysOnTop", "window.setTransparent", "window.getState", "event.emit", "tray.configure", "updater.install", "app.openDevtools"
+        "ping", "capabilities.query", "app.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.setTitle", "window.minimize", "window.maximize", "window.setSize", "window.startDragging", "window.startResizing", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "tray.show", "tray.hide", "globalShortcut.register", "globalShortcut.unregister", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit", "http.request", "http.transfer.start", "http.transfer.cancel", "http.cookies.get", "http.cookies.set", "http.cookies.clear", "dialog.openFolder", "dialog.openFiles", "fs.walk", "fs.scope.release", "media.probe", "media.ffmpeg.detect", "media.ffmpeg.validate", "media.ffmpeg.setPath", "media.ffmpeg.pickExecutable", "audio.devices.list", "audio.devices.set", "audio.output.getMode", "audio.output.setExclusive", "audio.eq.set", "audio.speed.set", "audio.probe", "audio.load", "audio.play", "audio.pause", "audio.stop", "audio.seek", "audio.volume.set", "audio.state.get", "window.create", "window.show", "window.hide", "window.setPosition", "window.setAlwaysOnTop", "window.setTransparent", "window.getState", "event.emit", "tray.configure", "updater.install", "app.openDevtools"
     };
     return values;
 }
 
 inline const std::vector<std::string>& KSMGeneratedContract::AndroidCommands() {
     static const std::vector<std::string> values = {
-        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit", "http.request", "http.transfer.start", "http.transfer.cancel", "http.cookies.get", "http.cookies.set", "http.cookies.clear", "dialog.openFolder", "dialog.openFiles", "fs.walk", "fs.scope.release", "media.probe", "media.ffmpeg.detect", "media.ffmpeg.validate", "audio.devices.list", "audio.devices.set", "audio.eq.set", "audio.speed.set", "audio.probe", "audio.load", "audio.play", "audio.pause", "audio.stop", "audio.seek", "audio.volume.set", "audio.state.get", "mediaSession.update", "mediaSession.clear", "event.emit", "updater.install", "app.openDevtools", "app.deepLink.getPending"
+        "ping", "capabilities.query", "app.getInfo", "device.getInfo", "fs.readText", "fs.writeText", "fs.exists", "fs.remove", "fs.readDir", "fs.mkdir", "fs.stat", "fs.appendText", "fs.copy", "fs.move", "fs.readBytes", "fs.writeBytes", "dialog.message", "dialog.confirm", "dialog.openFile", "dialog.saveFile", "clipboard.readText", "clipboard.writeText", "notification.show", "permission.request", "event.subscribe", "event.unsubscribe", "window.close", "shell.openExternal", "shell.openPath", "shell.showInFolder", "app.singleInstance.state", "app.singleInstance.focus", "updater.check", "updater.download", "http.download", "sql.drivers", "sql.open", "sql.query", "sql.execute", "sql.close", "path.dirs", "path.join", "path.normalize", "path.dirname", "path.basename", "path.extname", "path.isAbsolute", "store.get", "store.set", "store.delete", "store.clear", "store.keys", "os.getInfo", "log.write", "app.exit", "http.request", "http.transfer.start", "http.transfer.cancel", "http.cookies.get", "http.cookies.set", "http.cookies.clear", "dialog.openFolder", "dialog.openFiles", "fs.walk", "fs.scope.release", "media.probe", "media.ffmpeg.detect", "media.ffmpeg.validate", "audio.devices.list", "audio.devices.set", "audio.output.getMode", "audio.eq.set", "audio.speed.set", "audio.probe", "audio.load", "audio.play", "audio.pause", "audio.stop", "audio.seek", "audio.volume.set", "audio.state.get", "mediaSession.update", "mediaSession.clear", "event.emit", "updater.install", "app.openDevtools", "app.deepLink.getPending"
     };
     return values;
 }
@@ -1775,6 +1810,8 @@ inline const nlohmann::json& KSMGeneratedContract::PluginMetadata() {
       "window.minimize",
       "window.maximize",
       "window.setSize",
+      "window.startDragging",
+      "window.startResizing",
       "window.close",
       "window.create",
       "window.show",
@@ -2170,6 +2207,8 @@ inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {
     "window.minimize",
     "window.maximize",
     "window.setSize",
+    "window.startDragging",
+    "window.startResizing",
     "window.close",
     "window.create",
     "window.show",
@@ -2358,6 +2397,12 @@ inline const nlohmann::json& KSMGeneratedContract::CommandPermissions() {
   "window.setSize": [
     "window.control"
   ],
+  "window.startDragging": [
+    "window.control"
+  ],
+  "window.startResizing": [
+    "window.control"
+  ],
   "window.close": [
     "window.control"
   ],
@@ -2485,13 +2530,13 @@ inline const nlohmann::json& KSMGeneratedContract::CommandPermissions() {
     "media.read"
   ],
   "audio.devices.list": [
-    "media.control"
+    "media.read"
   ],
   "audio.devices.set": [
     "media.control"
   ],
   "audio.output.getMode": [
-    "media.control"
+    "media.read"
   ],
   "audio.output.setExclusive": [
     "media.control"

@@ -18,14 +18,16 @@ import {
 import {
   beginDevelopmentSession,
   cleanupStaleDevelopment,
+  clearDevelopmentProcess,
   recordDevelopmentProcess
 } from './dev-runtime.mjs';
+import { watchDevelopmentChanges } from './dev-watcher.mjs';
 import {
   buildWindows,
   findCMake,
   findVcpkgToolchain,
   packageWindows,
-  runWindowsDevelopment,
+  startWindowsDevelopment,
   supportsWindowsDevMode
 } from './windows.mjs';
 import {
@@ -96,24 +98,12 @@ export async function run(argv) {
           ...options,
           devMode: true
         });
-        await runWindowsDevelopment(
+        await runWindowsHotDevelopment({
           projectRoot,
-          config.windows,
-          server,
-          {
-            onSpawn(child) {
-              void recordDevelopmentProcess(
-                projectRoot,
-                'app',
-                child.pid
-              ).catch((error) => {
-                console.error(
-                  `Could not track the development app: ${error.message}`
-                );
-              });
-            }
-          }
-        );
+          options,
+          config,
+          server
+        });
       } else {
         await runAndroidDevelopment(projectRoot, config.android, server);
       }
@@ -161,6 +151,148 @@ export async function run(argv) {
       ],
       { cwd: projectRoot }
     );
+  }
+}
+
+async function runWindowsHotDevelopment({
+  projectRoot,
+  options,
+  config,
+  server
+}) {
+  let activeConfig = config;
+  let activeServer = server;
+  let activeHost;
+  let resolveAppExit;
+  const appExited = new Promise((resolve) => {
+    resolveAppExit = resolve;
+  });
+  const configPath = path.resolve(projectRoot, options.config);
+  const configLabel = path.relative(projectRoot, configPath) || configPath;
+  const extensionPaths = (activeConfig.extensions ?? []).map((extension) =>
+    path.resolve(projectRoot, extension.manifest)
+  );
+
+  const trackHost = (host) => {
+    host.restartExpected = false;
+    host.child.once('exit', () => {
+      if (!host.restartExpected) {
+        resolveAppExit();
+      }
+    });
+    void recordDevelopmentProcess(projectRoot, 'app', host.child.pid).catch(
+      (error) => {
+        console.error(
+          `Could not track the development app: ${error.message}`
+        );
+      }
+    );
+  };
+
+  const launch = async (nextConfig, nextServer, executable) => {
+    activeHost = await startWindowsDevelopment(
+      projectRoot,
+      nextConfig.windows,
+      nextServer,
+      {
+        executable,
+        onSpawn(child) {
+          console.log(`[ksm] Development app started (PID ${child.pid}).`);
+        }
+      }
+    );
+    trackHost(activeHost);
+    return activeHost;
+  };
+
+  const stopActiveHost = async () => {
+    if (!activeHost) {
+      return;
+    }
+    const host = activeHost;
+    activeHost = undefined;
+    host.restartExpected = true;
+    await host.stop();
+    await clearDevelopmentProcess(projectRoot, 'app', host.child.pid);
+  };
+
+  await launch(activeConfig, activeServer);
+  console.log(
+    `[ksm] Watching ${configLabel}, windows/, and extensions/ for backend changes.`
+  );
+
+  const watcher = await watchDevelopmentChanges({
+    projectRoot,
+    configPath,
+    extensionPaths,
+    async onChange(changes) {
+      const relativePaths = changes.map((change) =>
+        path.relative(projectRoot, change.path)
+      );
+      console.log(
+        `[ksm] Backend change detected: ${relativePaths.join(', ')}`
+      );
+
+      let nextConfig;
+      try {
+        nextConfig = await readConfig(projectRoot, options.config);
+      } catch (error) {
+        console.error(
+          `[ksm] Configuration reload failed; keeping the current app.\n${error.message}`
+        );
+        return;
+      }
+
+      const frontendSettings = await readFrontendSettings(
+        projectRoot,
+        nextConfig.android.webview
+      );
+      const nextServer = {
+        ...activeServer,
+        url: frontendSettings.devUrl
+      };
+      const previousHost = activeHost;
+      const previousExecutable = previousHost?.executable;
+      await stopActiveHost();
+      try {
+        console.log('[ksm] Rebuilding the Windows development host...');
+        const executable = await buildWindows(
+          projectRoot,
+          nextConfig.windows,
+          {
+            ...options,
+            devMode: true
+          }
+        );
+        activeConfig = nextConfig;
+        activeServer = nextServer;
+        await launch(activeConfig, activeServer, executable);
+        console.log('[ksm] Windows development host reloaded.');
+      } catch (error) {
+        console.error(
+          `[ksm] Windows rebuild failed; restoring the previous app.\n${error.message}`
+        );
+        if (!previousExecutable) {
+          resolveAppExit();
+          return;
+        }
+        try {
+          await launch(activeConfig, activeServer, previousExecutable);
+        } catch (restartError) {
+          console.error(
+            `[ksm] Could not restore the previous app.\n${restartError.message}`
+          );
+          resolveAppExit();
+        }
+      }
+    }
+  });
+
+  try {
+    await appExited;
+  } finally {
+    await watcher.close();
+    await stopActiveHost();
   }
 }
 

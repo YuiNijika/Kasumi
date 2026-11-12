@@ -13,6 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 
 try:
+    from cli.dev_watcher import changed_files, collect_snapshot
     from cli.kasumi_config import ConfigError, KasumiConfig, load_config
     from cli.version_metadata import (
         check_versions,
@@ -20,6 +21,7 @@ try:
         sync_versions,
     )
 except ModuleNotFoundError:
+    from dev_watcher import changed_files, collect_snapshot
     from kasumi_config import ConfigError, KasumiConfig, load_config
     from version_metadata import check_versions, read_version, sync_versions
 
@@ -30,6 +32,8 @@ TARGETS = ("sdk", "example", "all")
 CONFIG_FILE = ROOT / "kasumi.config.json"
 PROTOCOL_COMMANDS_FILE = ROOT / "protocol" / "commands.json"
 DEV_PORT = 5173
+DEV_WATCH_INTERVAL_SECONDS = 0.4
+DEV_WATCH_DEBOUNCE_SECONDS = 0.4
 SHOWCASE_DIR = ROOT / "examples" / "showcase"
 WINDOWS_SDK_BUILD_ROOT = ROOT / "windows" / "build"
 WINDOWS_EXAMPLE_DIR = ROOT / "windows" / "examples" / "win32-host"
@@ -53,6 +57,12 @@ def run(
         check=True,
         env=env,
     )
+
+
+def windows_build_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    environment.setdefault("VSLANG", "1033")
+    return environment
 
 
 def codegen() -> None:
@@ -89,6 +99,27 @@ def validate_protocol() -> None:
 def resolve_config_path(value: str) -> Path:
     path = Path(value)
     return path if path.is_absolute() else ROOT / path
+
+
+def resolve_project_icon(
+    project_root: Path,
+    relative_path: str | None,
+    extension: str,
+    label: str,
+) -> Path | None:
+    if not relative_path:
+        return None
+    root = project_root.resolve()
+    candidate = (root / relative_path).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as error:
+        raise ConfigError(f"{label} must stay inside the project.") from error
+    if candidate.suffix.lower() != extension:
+        raise ConfigError(f"{label} must use the {extension} extension.")
+    if not candidate.is_file():
+        raise ConfigError(f"{label} does not exist: {relative_path}")
+    return candidate
 
 
 @lru_cache(maxsize=1)
@@ -415,6 +446,7 @@ def build_windows_sdk(
         "-B",
         str(build_directory),
         "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_DEPENDS_USE_COMPILER=OFF",
         f"-DCMAKE_INSTALL_PREFIX={install_directory}",
         f"-DKASUMI_BUNDLE_WEBVIEW2_LOADER={'ON' if bundle_webview2_loader else 'OFF'}",
         f"-DKASUMI_ENABLE_SMOKE_TEST={'ON' if enable_smoke_test else 'OFF'}",
@@ -424,7 +456,8 @@ def build_windows_sdk(
             build_directory,
         ),
     ]
-    run(configure)
+    environment = windows_build_environment()
+    run(configure, env=environment)
     run(
         [
             cmake_tool("cmake"),
@@ -434,7 +467,8 @@ def build_windows_sdk(
             "Release",
             "--target",
             "install",
-        ]
+        ],
+        env=environment,
     )
 
 
@@ -447,6 +481,18 @@ def build_windows_example(
     enable_smoke_test: bool = False,
 ) -> None:
     build_windows_sdk(bundle_webview2_loader, enable_smoke_test)
+    window_icon = resolve_project_icon(
+        ROOT,
+        (config.windows.icons or {}).get("window"),
+        ".ico",
+        "configuration.icons.window",
+    )
+    tray_icon = resolve_project_icon(
+        ROOT,
+        (config.windows.icons or {}).get("tray"),
+        ".ico",
+        "configuration.icons.tray",
+    )
     build_directory = windows_example_build_directory(bundle_webview2_loader)
     install_directory = windows_sdk_install_directory(bundle_webview2_loader)
     configure = [
@@ -456,6 +502,7 @@ def build_windows_example(
         "-B",
         str(build_directory),
         "-DCMAKE_BUILD_TYPE=Release",
+        "-DCMAKE_DEPENDS_USE_COMPILER=OFF",
         f"-DCMAKE_PREFIX_PATH={install_directory}",
         f"-DKASUMI_EXAMPLE_EXTERNAL_WEB={'ON' if external_web else 'OFF'}",
         f"-DKASUMI_EXAMPLE_MULTI_VIEW={'ON' if multi_view else 'OFF'}",
@@ -469,13 +516,44 @@ def build_windows_example(
         f"-DKASUMI_HTTP_ALLOWED_ORIGINS="
         f"{','.join(config.windows.http_allowed_origins)}",
         f"-DKASUMI_WINDOW_DECORATIONS={'ON' if config.windows.decorations else 'OFF'}",
+        f"-DKASUMI_WINDOW_BACKGROUND_COLOR="
+        f"{(config.windows.window or {}).get('backgroundColor', '').removeprefix('#')}",
+        f"-DKASUMI_WINDOW_WIDTH={(config.windows.window or {}).get('width', 1080)}",
+        f"-DKASUMI_WINDOW_HEIGHT={(config.windows.window or {}).get('height', 720)}",
+        f"-DKASUMI_WINDOW_MIN_WIDTH={(config.windows.window or {}).get('minWidth', 320)}",
+        f"-DKASUMI_WINDOW_MIN_HEIGHT={(config.windows.window or {}).get('minHeight', 240)}",
+        f"-DKASUMI_WINDOW_MAX_WIDTH={(config.windows.window or {}).get('maxWidth', 0)}",
+        f"-DKASUMI_WINDOW_MAX_HEIGHT={(config.windows.window or {}).get('maxHeight', 0)}",
+        f"-DKASUMI_WINDOW_RESIZABLE="
+        f"{'OFF' if not (config.windows.window or {}).get('resizable', True) else 'ON'}",
+        "-DKASUMI_ERROR_PAGE_BACKGROUND_COLOR="
+        f"{(config.windows.error_page or {}).get('backgroundColor', '').removeprefix('#')}",
+        "-DKASUMI_ERROR_PAGE_CARD_COLOR="
+        f"{(config.windows.error_page or {}).get('cardColor', '').removeprefix('#')}",
+        "-DKASUMI_ERROR_PAGE_BORDER_COLOR="
+        f"{(config.windows.error_page or {}).get('borderColor', '').removeprefix('#')}",
+        "-DKASUMI_ERROR_PAGE_TEXT_COLOR="
+        f"{(config.windows.error_page or {}).get('textColor', '').removeprefix('#')}",
+        "-DKASUMI_ERROR_PAGE_MUTED_TEXT_COLOR="
+        f"{(config.windows.error_page or {}).get('mutedTextColor', '').removeprefix('#')}",
+        "-DKASUMI_ERROR_PAGE_ACCENT_COLOR="
+        f"{(config.windows.error_page or {}).get('accentColor', '').removeprefix('#')}",
+        "-DKASUMI_ERROR_PAGE_ERROR_COLOR="
+        f"{(config.windows.error_page or {}).get('errorColor', '').removeprefix('#')}",
+        "-DKASUMI_ERROR_PAGE_TITLE="
+        f"{(config.windows.error_page or {}).get('title', '')}",
+        "-DKASUMI_ERROR_PAGE_HINT="
+        f"{(config.windows.error_page or {}).get('hint', '')}",
+        f"-DKASUMI_APP_ICON={window_icon.as_posix() if window_icon else ''}",
+        f"-DKASUMI_TRAY_ICON={tray_icon.as_posix() if tray_icon else ''}",
         *cmake_toolchain_arguments(
             bundle_webview2_loader,
             False,
             build_directory,
         ),
     ]
-    run(configure)
+    environment = windows_build_environment()
+    run(configure, env=environment)
     run(
         [
             cmake_tool("cmake"),
@@ -483,7 +561,8 @@ def build_windows_example(
             str(build_directory),
             "--config",
             "Release",
-        ]
+        ],
+        env=environment,
     )
     if stage_output:
         stage_windows_example_build(
@@ -512,6 +591,7 @@ def android_app_gradle_arguments(config: KasumiConfig) -> list[str]:
     webview = config.android.webview
     if webview is None:
         raise RuntimeError("android.webview is required for Android builds.")
+    launcher_icon = prepare_android_icon(config)
     return [
         f"-PksmPackageName={config.android.package_name}",
         f"-PksmVersion={config.android.version}",
@@ -526,7 +606,26 @@ def android_app_gradle_arguments(config: KasumiConfig) -> list[str]:
         f"{','.join(webview.development_entries)}",
         f"-PksmWebViewSupportedHtmlFiles="
         f"{','.join(webview.supported_html_files)}",
+        f"-PksmLauncherIcon={launcher_icon}",
     ]
+
+
+def prepare_android_icon(config: KasumiConfig) -> str:
+    project = ROOT / "examples" / "android-host"
+    icon = resolve_project_icon(
+        ROOT,
+        (config.android.icons or {}).get("android"),
+        ".png",
+        "configuration.icons.android",
+    )
+    resource_directory = project / ".ksm" / "android-res"
+    shutil.rmtree(resource_directory, ignore_errors=True)
+    if icon is None:
+        return "@android:drawable/sym_def_app_icon"
+    drawable_directory = resource_directory / "drawable"
+    drawable_directory.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(icon, drawable_directory / "ksm_launcher.png")
+    return "@drawable/ksm_launcher"
 
 
 def development_url(config: KasumiConfig) -> str:
@@ -1039,6 +1138,47 @@ def stop_dev_server(server: subprocess.Popen[bytes]) -> None:
         server.wait()
 
 
+def start_development_app(
+    executable: Path,
+    url: str,
+    multi_view: bool,
+) -> subprocess.Popen[bytes]:
+    arguments = [str(executable), "--url", url, "--dev"]
+    if multi_view:
+        arguments.append("--multi-view")
+    print(f"Windows development app is running against {url}")
+    return subprocess.Popen(arguments, cwd=executable.parent)
+
+
+def stop_development_app(process: subprocess.Popen[bytes] | None) -> None:
+    if process is None or process.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(
+            [
+                "taskkill",
+                "/pid",
+                str(process.pid),
+                "/T",
+                "/F",
+            ],
+            check=False,
+            capture_output=True,
+        )
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
 def install_android_apk(
     adb: str,
     apk: Path,
@@ -1071,26 +1211,120 @@ def install_android_apk(
 
 
 def dev_windows(
+    config_path: Path,
     config: KasumiConfig,
     bundle_webview2_loader: bool = False,
     multi_view: bool = False,
 ) -> None:
     build_windows_example(config, False, bundle_webview2_loader, multi_view)
-    server = start_dev_server(url)
     url = development_url(config)
-    try:
-        executable = (
-            windows_example_output_directory(bundle_webview2_loader)
-            / "kasumi_win32_example.exe"
+    server = start_dev_server(url)
+    executable = (
+        windows_example_output_directory(bundle_webview2_loader)
+        / "kasumi_win32_example.exe"
+    )
+    if not executable.is_file():
+        stop_dev_server(server)
+        raise FileNotFoundError(
+            f"Windows example executable not found: {executable}"
         )
-        if not executable.is_file():
-            raise FileNotFoundError(f"Windows example executable not found: {executable}")
-        print(f"Windows development app is running against {url}")
-        arguments = [str(executable), "--url", url, "--dev"]
-        if multi_view:
-            arguments.append("--multi-view")
-        run(arguments, cwd=executable.parent)
+    extension_paths = tuple(
+        (ROOT / extension["manifest"]).resolve()
+        for extension in config.extensions
+    )
+    snapshot = collect_snapshot(ROOT, config_path, extension_paths)
+    try:
+        config_label = config_path.relative_to(ROOT).as_posix()
+    except ValueError:
+        config_label = str(config_path)
+    app_process: subprocess.Popen[bytes] | None = None
+    try:
+        app_process = start_development_app(executable, url, multi_view)
+        print(
+            f"Watching {config_label}, windows/, examples/win32-host/, "
+            "and extensions/ for backend changes."
+        )
+        pending_changes: list[str] = []
+        pending_since: float | None = None
+        while app_process.poll() is None:
+            time.sleep(DEV_WATCH_INTERVAL_SECONDS)
+            current = collect_snapshot(ROOT, config_path, extension_paths)
+            changes = changed_files(snapshot, current, ROOT)
+            snapshot = current
+            if changes:
+                pending_changes = changes
+                pending_since = time.monotonic()
+                continue
+            if (
+                pending_since is None
+                or time.monotonic() - pending_since
+                < DEV_WATCH_DEBOUNCE_SECONDS
+            ):
+                continue
+            changes = pending_changes
+            pending_changes = []
+            pending_since = None
+            print(f"Backend change detected: {', '.join(changes)}")
+            try:
+                next_config = read_app_config(config_path)
+            except (ConfigError, OSError, ValueError) as error:
+                print(
+                    f"Configuration reload failed; keeping the current app. "
+                    f"{error}",
+                    file=sys.stderr,
+                )
+                continue
+
+            previous_executable = executable
+            stop_development_app(app_process)
+            app_process = None
+            try:
+                print("Rebuilding the Windows development host...")
+                build_windows_example(
+                    next_config,
+                    False,
+                    bundle_webview2_loader,
+                    multi_view,
+                )
+                executable = (
+                    windows_example_output_directory(
+                        bundle_webview2_loader
+                    )
+                    / "kasumi_win32_example.exe"
+                )
+                if not executable.is_file():
+                    raise FileNotFoundError(
+                        f"Windows example executable not found: {executable}"
+                    )
+                config = next_config
+                url = development_url(config)
+                app_process = start_development_app(
+                    executable,
+                    url,
+                    multi_view,
+                )
+                print("Windows development host reloaded.")
+            except Exception as error:
+                print(
+                    f"Windows rebuild failed; restoring the previous app. "
+                    f"{error}",
+                    file=sys.stderr,
+                )
+                try:
+                    app_process = start_development_app(
+                        previous_executable,
+                        url,
+                        multi_view,
+                    )
+                except OSError as restart_error:
+                    print(
+                        f"Could not restore the previous app. "
+                        f"{restart_error}",
+                        file=sys.stderr,
+                    )
+                    return
     finally:
+        stop_development_app(app_process)
         stop_dev_server(server)
 
 
@@ -1178,6 +1412,7 @@ def dev_android(config: KasumiConfig) -> None:
 
 def dev(
     platforms: tuple[str, ...],
+    config_path: Path,
     config: KasumiConfig,
     bundle_webview2_loader: bool = False,
     multi_view: bool = False,
@@ -1186,7 +1421,12 @@ def dev(
         raise RuntimeError("dev requires exactly one platform.")
     frontend_checks()
     if platforms[0] == "windows":
-        dev_windows(config, bundle_webview2_loader, multi_view)
+        dev_windows(
+            config_path,
+            config,
+            bundle_webview2_loader,
+            multi_view,
+        )
         return
     dev_android(config)
 
@@ -1375,9 +1615,11 @@ def start() -> None:
             args.multi_view,
         )
     else:
-        config = read_app_config(resolve_config_path(args.config))
+        config_path = resolve_config_path(args.config)
+        config = read_app_config(config_path)
         dev(
             resolve_platform_selection(args),
+            config_path,
             config,
             args.bundle_webview2_loader,
             args.multi_view,

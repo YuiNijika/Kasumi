@@ -68,6 +68,7 @@ import dev.kasumi.app.bridge.KSMSqlExecuteResult
 import dev.kasumi.app.bridge.KSMSqlQueryResult
 import dev.kasumi.app.bridge.KSMSqliteDriver
 import dev.kasumi.app.bridge.KSMVirtualPath
+import dev.kasumi.app.bridge.KSMWebViewRuntime
 import dev.kasumi.app.internal.KSMVersionMetadata
 import dev.kasumi.app.media.KSMMediaSessionRegistry
 import dev.kasumi.app.media.KSMMediaSessionService
@@ -76,7 +77,9 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.SocketTimeoutException
+import java.net.URL
 import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
@@ -194,6 +197,7 @@ class KSMAndroidHostServices(
     private var audioSource: String? = null
     private var audioVolume = 1.0
     private var audioSpeed = 1.0
+    private var audioDeviceId: String? = null
     private var audioTickTask: ScheduledFuture<*>? = null
 
     init {
@@ -597,6 +601,41 @@ class KSMAndroidHostServices(
         path: String,
         overwrite: Boolean,
         requestId: String?
+    ): KSMHttpDownloadResult? = downloadInternal(
+        url,
+        path,
+        overwrite,
+        requestId,
+        emptyList(),
+        emptyList(),
+        false
+    )
+
+    override fun downloadTrusted(
+        url: String,
+        path: String,
+        overwrite: Boolean,
+        requestId: String?,
+        headers: List<KSMHttpHeader>,
+        allowedHosts: List<String>
+    ): KSMHttpDownloadResult? = downloadInternal(
+        url,
+        path,
+        overwrite,
+        requestId,
+        headers,
+        allowedHosts,
+        true
+    )
+
+    private fun downloadInternal(
+        url: String,
+        path: String,
+        overwrite: Boolean,
+        requestId: String?,
+        headers: List<KSMHttpHeader>,
+        allowedHosts: List<String>,
+        trusted: Boolean
     ): KSMHttpDownloadResult? {
         val target = fileSystem?.resolveWritableFile(path)
             ?: throw KSMHostException(
@@ -616,7 +655,34 @@ class KSMAndroidHostServices(
         }
         var current = KSMHttpPolicy.parseHttpUrl(url, httpsOnly = true)
             ?: throw KSMHostException("INVALID_ARGS", "url must use HTTPS.")
-        if (!KSMHttpPolicy.isAllowedDownloadUrl(url, allowedHttpOrigins)) {
+        fun hostAllowed(candidate: URL): Boolean {
+            if (!trusted) {
+                return KSMHttpPolicy.isAllowedDownloadUrl(
+                    candidate.toString(),
+                    allowedHttpOrigins
+                )
+            }
+            val host = candidate.host.lowercase(Locale.ROOT)
+            return allowedHosts.any { entry ->
+                val suffix = entry.lowercase(Locale.ROOT)
+                host == suffix || host.endsWith(".$suffix")
+            }
+        }
+        headers.forEach { header ->
+            if (
+                header.name.isEmpty() ||
+                header.name.contains('\r') ||
+                header.name.contains('\n') ||
+                header.value.contains('\r') ||
+                header.value.contains('\n')
+            ) {
+                throw KSMHostException(
+                    "INVALID_ARGS",
+                    "The request headers are invalid."
+                )
+            }
+        }
+        if (!hostAllowed(current)) {
             throw KSMHostException(
                 "PERMISSION_DENIED",
                 "The URL origin is not allowlisted for downloads."
@@ -677,6 +743,9 @@ class KSMAndroidHostServices(
                 ).toInt()
                 opened.requestMethod = "GET"
                 opened.setRequestProperty("Accept", "*/*")
+                headers.forEach { header ->
+                    opened.setRequestProperty(header.name, header.value)
+                }
                 try {
                     val status = opened.responseCode
                     if (session.cancelled.get()) {
@@ -700,10 +769,7 @@ class KSMAndroidHostServices(
                                 "The redirect did not use HTTPS."
                             )
                         if (
-                            !KSMHttpPolicy.isAllowedDownloadUrl(
-                                current.toString(),
-                                allowedHttpOrigins
-                            ) ||
+                            !hostAllowed(current) ||
                             !KSMHttpPolicy.isPublicHost(current.host)
                         ) {
                             throw KSMHostException(
@@ -912,27 +978,57 @@ class KSMAndroidHostServices(
             if (request.method == "POST") {
                 connection.doOutput = true
             }
+            fun validateHeader(value: String) {
+                if (value.contains('\r') || value.contains('\n')) {
+                    throw KSMHostException(
+                        "INVALID_ARGS",
+                        "The request headers are invalid."
+                    )
+                }
+            }
             request.userAgent?.let {
+                validateHeader(it)
                 connection.setRequestProperty("User-Agent", it)
             }
             request.referer?.let {
+                validateHeader(it)
                 connection.setRequestProperty("Referer", it)
             }
+            val blockedHeaders = setOf(
+                "cookie",
+                "host",
+                "proxy-authorization",
+                "set-cookie",
+                "user-agent",
+                "referer"
+            )
             request.headers.forEach {
+                validateHeader(it.value)
+                if (it.name.lowercase(Locale.ROOT) in blockedHeaders) {
+                    throw KSMHostException(
+                        "PERMISSION_DENIED",
+                        "The header is controlled by the host."
+                    )
+                }
                 connection.setRequestProperty(it.name, it.value)
             }
             val jar = jarId?.let {
                 cookieJars.getOrPut(it) { mutableListOf() }
             }
-            jar?.let {
-                synchronized(jar) {
-                    val cookie = jar.joinToString("; ") { cookie ->
+            val jarCookie = jar?.let {
+                synchronized(it) {
+                    it.joinToString("; ") { cookie ->
                         "${cookie.name}=${cookie.value}"
                     }
-                    if (cookie.isNotEmpty()) {
-                        connection.setRequestProperty("Cookie", cookie)
-                    }
                 }
+            } ?: ""
+            val explicitCookie = request.cookieHeader.orEmpty()
+            validateHeader(explicitCookie)
+            val cookieHeader = listOf(jarCookie, explicitCookie)
+                .filter { it.isNotEmpty() }
+                .joinToString("; ")
+            if (cookieHeader.isNotEmpty()) {
+                connection.setRequestProperty("Cookie", cookieHeader)
             }
             try {
                 if (request.method == "POST") {
@@ -1000,14 +1096,15 @@ class KSMAndroidHostServices(
                 val target = fileSystem?.resolveWritableFile(stagedPath)
                 val body = ByteArrayOutputStream()
                 var total = 0L
+                var stagedOutput: OutputStream? = null
                 val buffer = ByteArray(8192)
                 val input = if (status in 200..299) {
                     connection.inputStream
                 } else {
                     connection.errorStream
                 }
-                input?.use { source ->
-                    target?.outputStream()?.use { output ->
+                try {
+                    input?.use { source ->
                         while (true) {
                             if (
                                 requestId?.let(::isRequestCancelled) == true ||
@@ -1034,15 +1131,35 @@ class KSMAndroidHostServices(
                                 MAX_INLINE_RESPONSE_BYTES
                             ) {
                                 body.write(buffer, 0, read)
+                            } else {
+                                if (stagedOutput == null) {
+                                    val file = target ?: throw KSMHostException(
+                                        "NOT_SUPPORTED",
+                                        "Large HTTP responses require a writable sandbox."
+                                    )
+                                    val parent = file.parentFile
+                                        ?: throw KSMHostException(
+                                            "IO_ERROR",
+                                            "The response directory is invalid."
+                                        )
+                                    if (!parent.exists() && !parent.mkdirs()) {
+                                        throw KSMHostException(
+                                            "IO_ERROR",
+                                            "The response directory could not be created."
+                                        )
+                                    }
+                                    stagedOutput = file.outputStream()
+                                    stagedOutput?.write(body.toByteArray())
+                                    body.reset()
+                                }
+                                stagedOutput?.write(buffer, 0, read)
                             }
-                            output.write(buffer, 0, read)
                         }
                     }
+                } finally {
+                    stagedOutput?.close()
                 }
-                val staged = if (
-                    total > MAX_INLINE_RESPONSE_BYTES &&
-                    target != null
-                ) {
+                val staged = if (stagedOutput != null) {
                     stagedPath
                 } else {
                     null
@@ -1092,7 +1209,8 @@ class KSMAndroidHostServices(
                         request.body,
                         request.jarId,
                         request.userAgent,
-                        request.referer
+                        request.referer,
+                        cookieHeader = request.cookieHeader
                     ),
                     requestId
                 ) ?: throw KSMHostException(
@@ -1366,7 +1484,12 @@ class KSMAndroidHostServices(
         }
     }
 
-    override fun openDevtools(enabled: Boolean): Boolean = false
+    override fun openDevtools(enabled: Boolean): Boolean {
+        activity.runOnUiThread {
+            KSMWebViewRuntime.setDebuggingEnabled(enabled)
+        }
+        return true
+    }
 
     override fun audioDevices(): List<KSMAudioDevice>? {
         val manager = activity.getSystemService(AudioManager::class.java)
@@ -1384,11 +1507,24 @@ class KSMAndroidHostServices(
     }
 
     override fun setAudioDevice(id: String): Boolean {
-        val available = audioDevices()?.any { it.id == id } == true
-        if (!available) {
+        if (id.isEmpty()) {
             return false
         }
-        return false
+        val manager = activity.getSystemService(AudioManager::class.java)
+            ?: return false
+        val device = if (id == "default") {
+            null
+        } else {
+            manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                .firstOrNull { it.id.toString() == id }
+                ?: return false
+        }
+        audioDeviceId = id.takeUnless { it == "default" }
+        runOnAudioThread {
+            audioPlayer.setPreferredAudioDevice(device)
+        }
+        dispatchAudioState()
+        return true
     }
     override fun setExclusiveAudioOutput(exclusive: Boolean): Boolean = false
     override fun setAudioEqualizer(gains: List<Double>): Boolean = false
@@ -1443,6 +1579,14 @@ class KSMAndroidHostServices(
             audioPlayer.setMediaItem(MediaItem.fromUri(uri))
             audioPlayer.setPlaybackSpeed(audioSpeed.toFloat())
             audioPlayer.volume = audioVolume.toFloat()
+            audioDeviceId
+                ?.toIntOrNull()
+                ?.let { id ->
+                    activity.getSystemService(AudioManager::class.java)
+                        ?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                        ?.firstOrNull { it.id == id }
+                }
+                ?.let(audioPlayer::setPreferredAudioDevice)
             audioPlayer.prepare()
         }
         dispatchAudioState()
@@ -1504,6 +1648,7 @@ class KSMAndroidHostServices(
                 volume = audioVolume,
                 speed = audioSpeed,
                 playback = playback,
+                deviceId = audioDeviceId,
                 source = audioSource
             )
         }

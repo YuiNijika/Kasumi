@@ -38,6 +38,8 @@
 #include <nlohmann/json.hpp>
 #include "../platform/ksm_virtual_path.h"
 #include "ksm_odbc_sql_driver.h"
+#include "ksm_window_frame.h"
+#include "ksm_window_registry.h"
 #include "ksm_sqlite_driver.h"
 
 namespace {
@@ -54,6 +56,30 @@ constexpr std::size_t kMaxRequestResponseBytes = 100 * 1024 * 1024;
 constexpr DWORD kTrayCallbackMessage = WM_APP + 0x4C;
 constexpr UINT kFirstHotkeyId = 0x4B60;
 constexpr wchar_t kAudioAlias[] = L"kasumi_audio";
+constexpr int kApplicationIconResource = 101;
+constexpr int kTrayIconResource = 102;
+
+HICON LoadSharedIconResource(HMODULE module, int resource_id) {
+    return static_cast<HICON>(LoadImageW(
+        module,
+        MAKEINTRESOURCEW(resource_id),
+        IMAGE_ICON,
+        0,
+        0,
+        LR_DEFAULTCOLOR | LR_SHARED
+    ));
+}
+
+HICON LoadTrayIcon() {
+    const HMODULE module = GetModuleHandleW(nullptr);
+    if (HICON icon = LoadSharedIconResource(module, kTrayIconResource)) {
+        return icon;
+    }
+    if (HICON icon = LoadSharedIconResource(module, kApplicationIconResource)) {
+        return icon;
+    }
+    return LoadIconW(nullptr, IDI_APPLICATION);
+}
 
 std::atomic<std::uint64_t> next_download_part{1};
 
@@ -191,6 +217,26 @@ std::string CookieHeader(
             result += "; ";
         }
         result += cookie.name + "=" + cookie.value;
+    }
+    return result;
+}
+
+std::optional<std::string> MergeCookieHeaders(
+    const std::string& jar_cookie,
+    const std::optional<std::string>& explicit_cookie
+) {
+    std::string result = jar_cookie;
+    if (explicit_cookie && !explicit_cookie->empty()) {
+        if (
+            explicit_cookie->find('\r') != std::string::npos ||
+            explicit_cookie->find('\n') != std::string::npos
+        ) {
+            return std::nullopt;
+        }
+        if (!result.empty()) {
+            result += "; ";
+        }
+        result += *explicit_cookie;
     }
     return result;
 }
@@ -384,44 +430,48 @@ bool IsPublicIpv6(const unsigned char* bytes) {
 }
 
 bool IsPublicHost(const std::string& host) {
-    PDNS_RECORD records = nullptr;
     const std::wstring wide_host = ToWide(host);
-    const DNS_STATUS status = DnsQuery_W(
-        wide_host.c_str(),
-        DNS_TYPE_ANY,
-        DNS_QUERY_STANDARD,
-        nullptr,
-        &records,
-        nullptr
-    );
-    if (status != ERROR_SUCCESS || !records) {
-        if (records) {
-            DnsRecordListFree(records, DnsFreeRecordList);
-        }
-        return false;
-    }
-
     bool has_address = false;
     bool is_public = true;
-    for (const DNS_RECORD* current = records; current && is_public;
-         current = current->pNext) {
-        if (current->wType == DNS_TYPE_A) {
-            has_address = true;
-            is_public = IsPublicIpv4(
-                reinterpret_cast<const unsigned char*>(
-                    &current->Data.A.IpAddress
-                )
-            );
-        } else if (current->wType == DNS_TYPE_AAAA) {
-            has_address = true;
-            is_public = IsPublicIpv6(
-                reinterpret_cast<const unsigned char*>(
-                    &current->Data.AAAA.Ip6Address
-                )
-            );
+    for (const WORD type : {DNS_TYPE_A, DNS_TYPE_AAAA}) {
+        PDNS_RECORD records = nullptr;
+        const DNS_STATUS status = DnsQuery_W(
+            wide_host.c_str(),
+            type,
+            DNS_QUERY_STANDARD,
+            nullptr,
+            &records,
+            nullptr
+        );
+        if (status != ERROR_SUCCESS || !records) {
+            if (records) {
+                DnsRecordListFree(records, DnsFreeRecordList);
+            }
+            continue;
         }
+        for (const DNS_RECORD* current = records; current && is_public;
+             current = current->pNext) {
+            if (type == DNS_TYPE_A && current->wType == DNS_TYPE_A) {
+                has_address = true;
+                is_public = IsPublicIpv4(
+                    reinterpret_cast<const unsigned char*>(
+                        &current->Data.A.IpAddress
+                    )
+                );
+            } else if (
+                type == DNS_TYPE_AAAA &&
+                current->wType == DNS_TYPE_AAAA
+            ) {
+                has_address = true;
+                is_public = IsPublicIpv6(
+                    reinterpret_cast<const unsigned char*>(
+                        &current->Data.AAAA.Ip6Address
+                    )
+                );
+            }
+        }
+        DnsRecordListFree(records, DnsFreeRecordList);
     }
-    DnsRecordListFree(records, DnsFreeRecordList);
     return has_address && is_public;
 }
 
@@ -559,7 +609,8 @@ KSMWindowsHostServices::KSMWindowsHostServices(
     std::vector<std::string> allowed_external_origins,
     std::shared_ptr<KSMFileSystem> file_system,
     std::string app_version,
-    std::string app_id
+    std::string app_id,
+    std::shared_ptr<KSMWindowRegistry> window_registry
 )
     : KSMWindowsHostServices(
           window,
@@ -567,7 +618,8 @@ KSMWindowsHostServices::KSMWindowsHostServices(
           {},
           std::move(file_system),
           std::move(app_version),
-          std::move(app_id)
+          std::move(app_id),
+          std::move(window_registry)
       ) {}
 
 KSMWindowsHostServices::KSMWindowsHostServices(
@@ -576,9 +628,11 @@ KSMWindowsHostServices::KSMWindowsHostServices(
     std::vector<std::string> allowed_http_origins,
     std::shared_ptr<KSMFileSystem> file_system,
     std::string app_version,
-    std::string app_id
+    std::string app_id,
+    std::shared_ptr<KSMWindowRegistry> window_registry
 )
     : window_(window),
+      window_registry_(std::move(window_registry)),
       file_system_(std::move(file_system)),
       app_version_(std::move(app_version)),
       app_id_(std::move(app_id)),
@@ -676,12 +730,18 @@ std::optional<KSMHttpResponse> KSMWindowsHostServices::HttpRequest(
             cookies = iterator->second;
         }
     }
-    const auto headers_value = BuildRequestHeaders(
+    const auto cookie_header = MergeCookieHeaders(
+        CookieHeader(cookies),
+        request.cookie_header
+    );
+    const auto headers_value = cookie_header
+        ? BuildRequestHeaders(
         request.headers,
         request.user_agent,
         request.referer,
-        CookieHeader(cookies)
-    );
+        *cookie_header
+    )
+        : std::nullopt;
     if (!headers_value) {
         throw KSMHostException(
             "INVALID_ARGS",
@@ -1083,7 +1143,8 @@ KSMWindowsHostServices::StartHttpTransfer(
                     request.body,
                     request.jar_id,
                     request.user_agent,
-                    request.referer
+                    request.referer,
+                    request.cookie_header
                 },
                 request_id
             );
@@ -1704,7 +1765,10 @@ std::optional<std::filesystem::path> KSMWindowsHostServices::ResolvePicked(
 std::optional<std::string> KSMWindowsHostServices::ReadPickedText(
     const std::string& path
 ) {
-    const auto resolved = ResolvePicked(path);
+    auto resolved = ResolvePicked(path);
+    if (!resolved) {
+        resolved = ResolveScopeFile(path);
+    }
     if (!resolved || !std::filesystem::is_regular_file(*resolved)) {
         return std::nullopt;
     }
@@ -1723,6 +1787,76 @@ std::optional<std::string> KSMWindowsHostServices::ReadPickedText(
     );
 }
 
+std::optional<std::vector<std::uint8_t>>
+KSMWindowsHostServices::ReadPickedBytes(const std::string& path) {
+    auto resolved = ResolvePicked(path);
+    if (!resolved) {
+        resolved = ResolveScopeFile(path);
+    }
+    if (!resolved || !std::filesystem::is_regular_file(*resolved)) {
+        return std::nullopt;
+    }
+    std::error_code size_error;
+    const auto size = std::filesystem::file_size(*resolved, size_error);
+    constexpr std::uintmax_t kMaxPickedBytes = 32 * 1024 * 1024;
+    if (size_error || size > kMaxPickedBytes) {
+        return std::nullopt;
+    }
+    std::ifstream input(*resolved, std::ios::binary);
+    if (!input) {
+        return std::nullopt;
+    }
+    std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
+    if (size > 0 && !input.read(
+            reinterpret_cast<char*>(bytes.data()),
+            static_cast<std::streamsize>(size)
+        )) {
+        return std::nullopt;
+    }
+    return bytes;
+}
+
+bool KSMWindowsHostServices::WritePickedBytes(
+    const std::string& path,
+    const std::vector<std::uint8_t>& bytes
+) {
+    constexpr std::size_t kMaxPickedBytes = 256 * 1024 * 1024;
+    if (bytes.size() > kMaxPickedBytes) {
+        return false;
+    }
+    auto resolved = ResolvePicked(path);
+    if (!resolved) {
+        resolved = ResolveScopeFile(path);
+    }
+    if (!resolved || std::filesystem::is_symlink(*resolved)) {
+        return false;
+    }
+    std::error_code error;
+    const auto parent = resolved->parent_path();
+    if (
+        parent.empty() ||
+        (!std::filesystem::exists(parent, error) &&
+         !std::filesystem::create_directories(parent, error)) ||
+        error
+    ) {
+        return false;
+    }
+    std::ofstream output(
+        *resolved,
+        std::ios::binary | std::ios::trunc
+    );
+    if (!output) {
+        return false;
+    }
+    if (!bytes.empty()) {
+        output.write(
+            reinterpret_cast<const char*>(bytes.data()),
+            static_cast<std::streamsize>(bytes.size())
+        );
+    }
+    return output.good();
+}
+
 bool KSMWindowsHostServices::WritePickedText(
     const std::string& path,
     const std::string& content
@@ -1730,7 +1864,10 @@ bool KSMWindowsHostServices::WritePickedText(
     if (content.size() > KSMFileSystem::kMaxTextBytes) {
         return false;
     }
-    const auto resolved = ResolvePicked(path);
+    auto resolved = ResolvePicked(path);
+    if (!resolved) {
+        resolved = ResolveScopeFile(path);
+    }
     if (!resolved) {
         return false;
     }
@@ -1743,14 +1880,20 @@ bool KSMWindowsHostServices::WritePickedText(
 }
 
 bool KSMWindowsHostServices::PickedExists(const std::string& path) {
-    const auto resolved = ResolvePicked(path);
+    auto resolved = ResolvePicked(path);
+    if (!resolved) {
+        resolved = ResolveScopeFile(path);
+    }
     return resolved.has_value() && std::filesystem::exists(*resolved);
 }
 
 std::optional<KSMFileMetadata> KSMWindowsHostServices::PickedStat(
     const std::string& path
 ) {
-    const auto resolved = ResolvePicked(path);
+    auto resolved = ResolvePicked(path);
+    if (!resolved) {
+        resolved = ResolveScopeFile(path);
+    }
     if (!resolved) {
         return std::nullopt;
     }
@@ -1896,6 +2039,14 @@ bool KSMWindowsHostServices::MaximizeWindow() {
     return true;
 }
 
+bool KSMWindowsHostServices::RestoreWindow() {
+    if (!window_) {
+        return false;
+    }
+    ShowWindow(window_, SW_RESTORE);
+    return true;
+}
+
 bool KSMWindowsHostServices::CloseWindow() {
     return window_ && PostMessageW(window_, WM_CLOSE, 0, 0) != FALSE;
 }
@@ -1955,10 +2106,74 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
     bool overwrite,
     const std::string& request_id
 ) {
+    return DownloadInternal(url, path, overwrite, request_id, {}, {}, false);
+}
+
+std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::DownloadTrusted(
+    const std::string& url,
+    const std::string& path,
+    bool overwrite,
+    const std::string& request_id,
+    const std::vector<KSMHttpHeader>& headers,
+    const std::vector<std::string>& allowed_hosts
+) {
+    return DownloadInternal(
+        url,
+        path,
+        overwrite,
+        request_id,
+        headers,
+        allowed_hosts,
+        true
+    );
+}
+
+std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::DownloadInternal(
+    const std::string& url,
+    const std::string& path,
+    bool overwrite,
+    const std::string& request_id,
+    const std::vector<KSMHttpHeader>& headers,
+    const std::vector<std::string>& allowed_hosts,
+    bool trusted
+) {
     if (!file_system_) {
         throw KSMHostException(
             "NOT_SUPPORTED",
             "The download service is not configured."
+        );
+    }
+    const auto host_allowed = [&](const std::string& candidate,
+                                  const KSMUrlPolicy::ParsedUrl& parsed) {
+        if (!trusted) {
+            return KSMUrlPolicy::IsAllowedDownloadUrl(
+                candidate,
+                allowed_http_origins_
+            );
+        }
+        const std::string host = LowerAscii(parsed.origin.host);
+        for (const auto& entry : allowed_hosts) {
+            const std::string suffix = LowerAscii(entry);
+            if (host == suffix || host.ends_with("." + suffix)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    std::wstring header_block;
+    for (const auto& header : headers) {
+        if (
+            header.name.empty() ||
+            header.name.find_first_of("\r\n") != std::string::npos ||
+            header.value.find_first_of("\r\n") != std::string::npos
+        ) {
+            throw KSMHostException(
+                "INVALID_ARGS",
+                "The request headers are invalid."
+            );
+        }
+        header_block += ToWide(
+            header.name + ": " + header.value + "\r\n"
         );
     }
     const std::string key = request_id.empty()
@@ -1995,20 +2210,17 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
             test_gate();
         }
 #endif
-        if (!KSMUrlPolicy::ParseHttpUrl(url, true)) {
+        const auto initial_url = KSMUrlPolicy::ParseHttpUrl(url, true);
+        if (!initial_url) {
             throw KSMHostException("INVALID_ARGS", "url must use HTTPS.");
         }
-        if (!KSMUrlPolicy::IsAllowedDownloadUrl(
-                url,
-                allowed_http_origins_
-            )) {
+        if (!host_allowed(url, *initial_url)) {
             throw KSMHostException(
                 "PERMISSION_DENIED",
                 "The URL origin is not allowlisted for downloads."
             );
         }
-        const auto initial_url = KSMUrlPolicy::ParseHttpUrl(url, true);
-        if (!initial_url || !IsPublicHost(initial_url->origin.host)) {
+        if (!IsPublicHost(initial_url->origin.host)) {
             throw KSMHostException(
                 "PERMISSION_DENIED",
                 "The download host is not a public network address."
@@ -2095,10 +2307,7 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
             if (!parsed) {
                 throw KSMHostException("IO_ERROR", "The redirect target is invalid.");
             }
-            if (!KSMUrlPolicy::IsAllowedDownloadUrl(
-                    current_url,
-                    allowed_http_origins_
-                )) {
+            if (!host_allowed(current_url, *parsed)) {
                 throw KSMHostException(
                     "PERMISSION_DENIED",
                     "The redirect origin is not allowlisted for downloads."
@@ -2190,8 +2399,12 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
             }
             if (!WinHttpSendRequest(
                 request,
-                WINHTTP_NO_ADDITIONAL_HEADERS,
-                0,
+                header_block.empty()
+                    ? WINHTTP_NO_ADDITIONAL_HEADERS
+                    : header_block.c_str(),
+                header_block.empty()
+                    ? 0
+                    : static_cast<DWORD>(-1),
                 WINHTTP_NO_REQUEST_DATA,
                 0,
                 0,
@@ -2267,10 +2480,7 @@ std::optional<KSMHttpDownloadResult> KSMWindowsHostServices::Download(
                 const auto next_url = KSMUrlPolicy::ParseHttpUrl(*next, true);
                 if (
                     !next_url ||
-                    !KSMUrlPolicy::IsAllowedDownloadUrl(
-                        *next,
-                        allowed_http_origins_
-                    ) ||
+                    !host_allowed(*next, *next_url) ||
                     !IsPublicHost(next_url->origin.host)
                 ) {
                     throw KSMHostException(
@@ -2481,7 +2691,7 @@ bool KSMWindowsHostServices::ConfigureTray(const KSMTrayConfig& config) {
     icon.uID = 1;
     icon.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     icon.uCallbackMessage = kTrayCallbackMessage;
-    icon.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    icon.hIcon = LoadTrayIcon();
     const std::wstring tooltip = config.tooltip
         ? ToWide(*config.tooltip)
         : L"Kasumi";
@@ -2511,7 +2721,7 @@ bool KSMWindowsHostServices::TrayShow() {
     icon.uID = 1;
     icon.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     icon.uCallbackMessage = kTrayCallbackMessage;
-    icon.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    icon.hIcon = LoadTrayIcon();
     wcscpy_s(icon.szTip, L"Kasumi");
     std::lock_guard lock(capability_mutex_);
     if (tray_visible_) {
@@ -2881,20 +3091,31 @@ std::optional<std::string> KSMWindowsHostServices::CreateWindowInstance(
     const std::string& route,
     const KSMWindowState& state
 ) {
-    (void)route;
-    (void)state;
-    return std::nullopt;
+    if (!window_registry_) {
+        return std::nullopt;
+    }
+    return window_registry_->Create(route, state);
 }
 
 bool KSMWindowsHostServices::ShowWindowById(
     const std::string& window_id,
     bool visible
 ) {
-    (void)window_id;
-    if (!window_) {
+    HWND target = window_;
+    if (!window_id.empty()) {
+        if (!window_registry_) {
+            return false;
+        }
+        const auto entry = window_registry_->Find(window_id);
+        if (!entry || !IsWindow(entry->window)) {
+            return false;
+        }
+        target = entry->window;
+    }
+    if (!target) {
         return false;
     }
-    return ShowWindow(window_, visible ? SW_SHOW : SW_HIDE) != FALSE;
+    return ShowWindow(target, visible ? SW_SHOW : SW_HIDE) != FALSE;
 }
 
 bool KSMWindowsHostServices::SetWindowPosition(
@@ -2902,12 +3123,22 @@ bool KSMWindowsHostServices::SetWindowPosition(
     int x,
     int y
 ) {
-    (void)window_id;
-    if (!window_) {
+    HWND target = window_;
+    if (!window_id.empty()) {
+        if (!window_registry_) {
+            return false;
+        }
+        const auto entry = window_registry_->Find(window_id);
+        if (!entry || !IsWindow(entry->window)) {
+            return false;
+        }
+        target = entry->window;
+    }
+    if (!target) {
         return false;
     }
     return SetWindowPos(
-        window_,
+        target,
         nullptr,
         x,
         y,
@@ -2921,12 +3152,22 @@ bool KSMWindowsHostServices::SetWindowAlwaysOnTop(
     const std::string& window_id,
     bool enabled
 ) {
-    (void)window_id;
-    if (!window_) {
+    HWND target = window_;
+    if (!window_id.empty()) {
+        if (!window_registry_) {
+            return false;
+        }
+        const auto entry = window_registry_->Find(window_id);
+        if (!entry || !IsWindow(entry->window)) {
+            return false;
+        }
+        target = entry->window;
+    }
+    if (!target) {
         return false;
     }
     return SetWindowPos(
-        window_,
+        target,
         enabled ? HWND_TOPMOST : HWND_NOTOPMOST,
         0,
         0,
@@ -2940,21 +3181,31 @@ bool KSMWindowsHostServices::SetWindowTransparent(
     const std::string& window_id,
     bool enabled
 ) {
-    (void)window_id;
-    if (!window_) {
+    HWND target = window_;
+    if (!window_id.empty()) {
+        if (!window_registry_) {
+            return false;
+        }
+        const auto entry = window_registry_->Find(window_id);
+        if (!entry || !IsWindow(entry->window)) {
+            return false;
+        }
+        target = entry->window;
+    }
+    if (!target) {
         return false;
     }
-    LONG style = GetWindowLongW(window_, GWL_EXSTYLE);
+    LONG style = GetWindowLongW(target, GWL_EXSTYLE);
     if (enabled) {
         style |= WS_EX_LAYERED;
-        SetWindowLongW(window_, GWL_EXSTYLE, style);
-        return SetLayeredWindowAttributes(window_, 0, 220, LWA_ALPHA)
+        SetWindowLongW(target, GWL_EXSTYLE, style);
+        return SetLayeredWindowAttributes(target, 0, 255, LWA_ALPHA)
             != FALSE;
     }
     style &= ~WS_EX_LAYERED;
-    SetWindowLongW(window_, GWL_EXSTYLE, style);
+    SetWindowLongW(target, GWL_EXSTYLE, style);
     return SetWindowPos(
-        window_,
+        target,
         nullptr,
         0,
         0,
@@ -2965,26 +3216,102 @@ bool KSMWindowsHostServices::SetWindowTransparent(
     ) != FALSE;
 }
 
+bool KSMWindowsHostServices::StartWindowDrag(const std::string& window_id) {
+    HWND target = window_;
+    if (!window_id.empty()) {
+        if (!window_registry_) {
+            return false;
+        }
+        const auto entry = window_registry_->Find(window_id);
+        if (!entry || !IsWindow(entry->window)) {
+            return false;
+        }
+        target = entry->window;
+    }
+    if (!target) {
+        return false;
+    }
+    return KSMWindowFrame::StartDrag(target);
+}
+
+bool KSMWindowsHostServices::StartWindowResize(
+    const std::string& window_id,
+    const std::string& direction
+) {
+    HWND target = window_;
+    if (!window_id.empty()) {
+        if (!window_registry_) {
+            return false;
+        }
+        const auto entry = window_registry_->Find(window_id);
+        if (!entry || !IsWindow(entry->window)) {
+            return false;
+        }
+        target = entry->window;
+    }
+    if (!target) {
+        return false;
+    }
+
+    KSMWindowResizeDirection parsed;
+    if (direction == "top") {
+        parsed = KSMWindowResizeDirection::Top;
+    } else if (direction == "bottom") {
+        parsed = KSMWindowResizeDirection::Bottom;
+    } else if (direction == "left") {
+        parsed = KSMWindowResizeDirection::Left;
+    } else if (direction == "right") {
+        parsed = KSMWindowResizeDirection::Right;
+    } else if (direction == "topLeft") {
+        parsed = KSMWindowResizeDirection::TopLeft;
+    } else if (direction == "topRight") {
+        parsed = KSMWindowResizeDirection::TopRight;
+    } else if (direction == "bottomLeft") {
+        parsed = KSMWindowResizeDirection::BottomLeft;
+    } else if (direction == "bottomRight") {
+        parsed = KSMWindowResizeDirection::BottomRight;
+    } else {
+        return false;
+    }
+    return KSMWindowFrame::StartResize(target, parsed);
+}
+
 std::optional<KSMWindowState> KSMWindowsHostServices::GetWindowState(
     const std::string& window_id
 ) const {
-    (void)window_id;
-    if (!window_) {
+    HWND target = window_;
+    if (!window_id.empty()) {
+        if (!window_registry_) {
+            return std::nullopt;
+        }
+        const auto entry = window_registry_->Find(window_id);
+        if (!entry || !IsWindow(entry->window)) {
+            return std::nullopt;
+        }
+        target = entry->window;
+    }
+    if (!target) {
         return std::nullopt;
     }
     RECT rect{};
-    if (!GetWindowRect(window_, &rect)) {
+    if (!GetWindowRect(target, &rect)) {
         return std::nullopt;
     }
-    const LONG style = GetWindowLongW(window_, GWL_EXSTYLE);
+    const LONG style = GetWindowLongW(target, GWL_EXSTYLE);
     KSMWindowState state;
-    state.visible = IsWindowVisible(window_) != FALSE;
+    state.visible = IsWindowVisible(target) != FALSE;
     state.always_on_top = (style & WS_EX_TOPMOST) != 0;
     state.transparent = (style & WS_EX_LAYERED) != 0;
+    state.maximized =
+        IsZoomed(target) != FALSE ||
+        (GetWindowLongW(target, GWL_STYLE) & WS_MAXIMIZE) != 0;
     state.x = rect.left;
     state.y = rect.top;
     state.width = rect.right - rect.left;
     state.height = rect.bottom - rect.top;
+    state.resizable = (GetWindowLongW(target, GWL_STYLE) & WS_THICKFRAME) != 0;
+    state.decorations = (GetWindowLongW(target, GWL_STYLE) & WS_CAPTION) != 0;
+    state.skip_taskbar = (style & WS_EX_TOOLWINDOW) != 0;
     return state;
 }
 
@@ -2993,7 +3320,13 @@ bool KSMWindowsHostServices::EmitWindowEvent(
     const std::string& event,
     const std::string& payload
 ) {
-    (void)window_id;
+    if (
+        !window_id.empty() &&
+        window_registry_ &&
+        window_registry_->Emit(window_id, event, payload)
+    ) {
+        return true;
+    }
     DispatchCapabilityEvent(event, payload);
     std::lock_guard lock(capability_mutex_);
     return static_cast<bool>(event_dispatcher_);

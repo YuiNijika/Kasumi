@@ -868,6 +868,7 @@ Json WindowStateJson(const KSMWindowState& state) {
         {"visible", state.visible},
         {"alwaysOnTop", state.always_on_top},
         {"transparent", state.transparent},
+        {"maximized", state.maximized},
         {"x", state.x},
         {"y", state.y},
         {"width", state.width},
@@ -880,10 +881,14 @@ KSMWindowState WindowState(const Json& args) {
     state.visible = args.value("visible", true);
     state.always_on_top = args.value("alwaysOnTop", false);
     state.transparent = args.value("transparent", false);
+    state.resizable = args.value("resizable", true);
+    state.decorations = args.value("decorations", true);
     state.x = args.value("x", 0);
     state.y = args.value("y", 0);
     state.width = args.value("width", 0);
     state.height = args.value("height", 0);
+    state.url = OptionalString(args, "url");
+    state.title = OptionalString(args, "title");
     return state;
 }
 

@@ -2,9 +2,12 @@
 
 #include <string>
 
+#include "ksm_virtual_path.h"
+
 namespace {
 
 constexpr char kAppLocalPrefix[] = "https://app.local";
+constexpr char kLocalFilePrefix[] = "https://app.local/__ksm_file";
 
 int HexValue(char value) {
   if (value >= '0' && value <= '9') {
@@ -19,11 +22,16 @@ int HexValue(char value) {
   return -1;
 }
 
-std::optional<std::string> DecodePath(const std::string &value) {
+std::optional<std::string> DecodeComponent(const std::string &value,
+                                           bool plus_as_space) {
   std::string result;
   result.reserve(value.size());
   for (std::size_t index = 0; index < value.size(); ++index) {
     const char current = value[index];
+    if (plus_as_space && current == '+') {
+      result.push_back(' ');
+      continue;
+    }
     if (current != '%') {
       result.push_back(current);
       continue;
@@ -44,6 +52,10 @@ std::optional<std::string> DecodePath(const std::string &value) {
     index += 2;
   }
   return result;
+}
+
+std::optional<std::string> DecodePath(const std::string &value) {
+  return DecodeComponent(value, false);
 }
 
 bool IsSafeResourcePath(const std::string &path) {
@@ -67,6 +79,13 @@ bool IsSafeResourcePath(const std::string &path) {
     start = end + 1;
   }
   return true;
+}
+
+bool IsReadableLocalFilePath(const std::string &path) {
+  return (path.starts_with("app://data/") ||
+          path.starts_with("app://cache/") ||
+          path.starts_with("app://tmp/")) &&
+         KSMVirtualPath::IsSafe(path);
 }
 
 } // namespace
@@ -103,4 +122,51 @@ KSMWebResourcePath::FromAppLocalUrl(const std::string &url) {
     return std::nullopt;
   }
   return path;
+}
+
+KSMWebLocalFileRequest
+KSMWebResourcePath::FromLocalFileUrl(const std::string &url) {
+  KSMWebLocalFileRequest result;
+  if (!url.starts_with(kLocalFilePrefix)) {
+    return result;
+  }
+  const std::size_t prefix_size = sizeof(kLocalFilePrefix) - 1;
+  if (url.size() == prefix_size || url[prefix_size] != '?') {
+    return result;
+  }
+
+  std::string query = url.substr(prefix_size + 1);
+  const std::size_t fragment = query.find('#');
+  if (fragment != std::string::npos) {
+    query.resize(fragment);
+  }
+
+  std::size_t start = 0;
+  while (start <= query.size()) {
+    const std::size_t end = query.find('&', start);
+    const std::size_t field_end =
+        end == std::string::npos ? query.size() : end;
+    const std::string field = query.substr(start, field_end - start);
+    const std::size_t separator = field.find('=');
+    if (separator != std::string::npos &&
+        field.substr(0, separator) == "path") {
+      const auto decoded =
+          DecodeComponent(field.substr(separator + 1), true);
+      if (!decoded) {
+        return result;
+      }
+      if (!IsReadableLocalFilePath(*decoded)) {
+        result.status = KSMWebLocalFileStatus::Forbidden;
+        return result;
+      }
+      result.status = KSMWebLocalFileStatus::Ok;
+      result.path = *decoded;
+      return result;
+    }
+    if (end == std::string::npos) {
+      break;
+    }
+    start = end + 1;
+  }
+  return result;
 }

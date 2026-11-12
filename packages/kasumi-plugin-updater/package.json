@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-updater",
-  "version": "26.11.7",
+  "version": "26.11.12",
   "description": "Update package checks and downloads for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

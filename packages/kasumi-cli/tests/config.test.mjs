@@ -3,6 +3,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   stat,
   writeFile
@@ -38,6 +39,7 @@ import {
   packageOutputDirectory
 } from '../src/output.mjs';
 import { commandInvocation } from '../src/process.mjs';
+import { resolveProjectIcon } from '../src/icons.mjs';
 import {
   cmakeCacheMatches,
   createVcpkgEnvironment,
@@ -1002,6 +1004,361 @@ test('accepts hidden Windows decorations', async () => {
     );
     const config = await readConfig(temporaryRoot, 'kasumi.config.json');
     assert.equal(config.windows.decorations, false);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('accepts a WebView2 fallback background color', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          window: { backgroundColor: '#0F1117' }
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        }
+      }),
+      'utf8'
+    );
+    const config = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.equal(config.windows.window.backgroundColor, '#0F1117');
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('accepts Windows error page customization', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          errorPage: {
+            backgroundColor: '#0B0B0D',
+            cardColor: '#15171D',
+            borderColor: '#2B2F38',
+            textColor: '#F5F6FA',
+            mutedTextColor: '#9CA3AF',
+            accentColor: '#8B5CF6',
+            errorColor: '#FF6B6B',
+            title: 'Music Storm 启动失败',
+            hint: '请检查网络、WebView2 运行时或应用配置后重试'
+          }
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        }
+      }),
+      'utf8'
+    );
+    const config = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.deepEqual(config.windows.errorPage, {
+      backgroundColor: '#0B0B0D',
+      cardColor: '#15171D',
+      borderColor: '#2B2F38',
+      textColor: '#F5F6FA',
+      mutedTextColor: '#9CA3AF',
+      accentColor: '#8B5CF6',
+      errorColor: '#FF6B6B',
+      title: 'Music Storm 启动失败',
+      hint: '请检查网络、WebView2 运行时或应用配置后重试'
+    });
+    assert.deepEqual(config.android.errorPage, undefined);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('rejects unsafe Windows error page customization', async () => {
+  const invalidErrorPages = [
+    { backgroundColor: '#12' },
+    { title: '失败"提示' },
+    { hint: '第一行\n第二行' },
+    { unknown: '#FFFFFF' }
+  ];
+  for (const errorPage of invalidErrorPages) {
+    const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+    try {
+      await writeFile(
+        path.join(temporaryRoot, 'kasumi.config.json'),
+        JSON.stringify({
+          windows: {
+            packageName: 'sample-app',
+            version: '0.1.0',
+            commands: ['ping', 'capabilities.query'],
+            errorPage
+          },
+          android: {
+            packageName: 'dev.kasumi.sample',
+            version: '0.1.0',
+            commands: ['ping', 'capabilities.query']
+          }
+        }),
+        'utf8'
+      );
+      await assert.rejects(
+        readConfig(temporaryRoot, 'kasumi.config.json'),
+        /errorPage|safe characters|RRGGBB|unknown fields/
+      );
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  }
+});
+
+test('rejects an invalid WebView2 fallback background color', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    await writeFile(
+      path.join(temporaryRoot, 'kasumi.config.json'),
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          window: { backgroundColor: '#12' }
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        }
+      }),
+      'utf8'
+    );
+    await assert.rejects(
+      readConfig(temporaryRoot, 'kasumi.config.json'),
+      /backgroundColor must be #RRGGBB or #AARRGGBB/
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('accepts Windows window size limits', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    await writeFile(
+      path.join(temporaryRoot, 'kasumi.config.json'),
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          window: {
+            width: 1280,
+            height: 800,
+            minWidth: 960,
+            minHeight: 600,
+            maxWidth: 1600,
+            maxHeight: 1000
+          }
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        }
+      }),
+      'utf8'
+    );
+    const config = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.deepEqual(
+      {
+        width: config.windows.window.width,
+        height: config.windows.window.height,
+        minWidth: config.windows.window.minWidth,
+        minHeight: config.windows.window.minHeight,
+        maxWidth: config.windows.window.maxWidth,
+        maxHeight: config.windows.window.maxHeight
+      },
+      {
+        width: 1280,
+        height: 800,
+        minWidth: 960,
+        minHeight: 600,
+        maxWidth: 1600,
+        maxHeight: 1000
+      }
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('rejects inconsistent Windows window size limits', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    await writeFile(
+      path.join(temporaryRoot, 'kasumi.config.json'),
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          window: {
+            width: 900,
+            height: 700,
+            minWidth: 960,
+            minHeight: 600,
+            maxWidth: 900,
+            maxHeight: 800
+          }
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        }
+      }),
+      'utf8'
+    );
+    await assert.rejects(
+      readConfig(temporaryRoot, 'kasumi.config.json'),
+      /maxWidth must be greater than or equal to minWidth/
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('honors window.decorations with a top-level override', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          window: { decorations: false, width: 1280 }
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        }
+      }),
+      'utf8'
+    );
+    const hidden = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.equal(hidden.windows.decorations, false);
+    assert.equal(hidden.windows.window.width, 1280);
+
+    const payload = JSON.parse(await readFile(configPath, 'utf8'));
+    payload.windows.decorations = true;
+    await writeFile(configPath, JSON.stringify(payload), 'utf8');
+    const visible = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.equal(visible.windows.decorations, true);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('merges root icons into platform configuration', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-test-'));
+  try {
+    const configPath = path.join(temporaryRoot, 'kasumi.config.json');
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        icons: {
+          window: 'icons/app.ico',
+          tray: 'icons/tray.ico',
+          android: 'icons/android.png'
+        },
+        windows: {
+          packageName: 'sample-app',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query'],
+          icons: { tray: 'icons/windows-tray.ico' }
+        },
+        android: {
+          packageName: 'dev.kasumi.sample',
+          version: '0.1.0',
+          commands: ['ping', 'capabilities.query']
+        }
+      }),
+      'utf8'
+    );
+    const config = await readConfig(temporaryRoot, 'kasumi.config.json');
+    assert.deepEqual(config.windows.icons, {
+      window: 'icons/app.ico',
+      tray: 'icons/windows-tray.ico',
+      android: 'icons/android.png'
+    });
+    assert.deepEqual(config.android.icons, {
+      window: 'icons/app.ico',
+      tray: 'icons/tray.ico',
+      android: 'icons/android.png'
+    });
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test('resolves project icons and rejects unsafe paths', async () => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'kasumi-cli-icon-'));
+  try {
+    const icon = path.join(temporaryRoot, 'icon.ico');
+    const png = path.join(temporaryRoot, 'icon.png');
+    await writeFile(icon, 'icon', 'utf8');
+    await writeFile(png, 'png', 'utf8');
+    assert.equal(
+      await resolveProjectIcon(
+        temporaryRoot,
+        'icon.ico',
+        '.ico',
+        'configuration.icons.window'
+      ),
+      await realpath(icon)
+    );
+    await assert.rejects(
+      resolveProjectIcon(
+        temporaryRoot,
+        'icon.png',
+        '.ico',
+        'configuration.icons.window'
+      ),
+      /must use the \.ico extension/
+    );
+    await assert.rejects(
+      resolveProjectIcon(
+        temporaryRoot,
+        'missing.ico',
+        '.ico',
+        'configuration.icons.window'
+      ),
+      /does not exist/
+    );
+    await assert.rejects(
+      resolveProjectIcon(
+        temporaryRoot,
+        '../outside.ico',
+        '.ico',
+        'configuration.icons.window'
+      ),
+      /must stay inside the project/
+    );
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }

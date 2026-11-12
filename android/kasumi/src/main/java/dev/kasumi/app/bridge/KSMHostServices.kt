@@ -23,7 +23,8 @@ data class KSMHttpRequestSpec(
     val body: String = "",
     val jarId: String? = null,
     val userAgent: String? = null,
-    val referer: String? = null
+    val referer: String? = null,
+    val cookieHeader: String? = null
 )
 
 data class KSMHttpResponse(
@@ -43,7 +44,8 @@ data class KSMHttpTransferSpec(
     val jarId: String? = null,
     val userAgent: String? = null,
     val referer: String? = null,
-    val overwrite: Boolean = false
+    val overwrite: Boolean = false,
+    val cookieHeader: String? = null
 )
 
 data class KSMCookie(
@@ -126,6 +128,7 @@ data class KSMWindowState(
     val visible: Boolean = true,
     val alwaysOnTop: Boolean = false,
     val transparent: Boolean = false,
+    val maximized: Boolean = false,
     val x: Int = 0,
     val y: Int = 0,
     val width: Int = 0,
@@ -173,6 +176,14 @@ interface KSMHostServices {
         path: String,
         overwrite: Boolean,
         requestId: String? = null
+    ): KSMHttpDownloadResult? = null
+    fun downloadTrusted(
+        url: String,
+        path: String,
+        overwrite: Boolean,
+        requestId: String?,
+        headers: List<KSMHttpHeader>,
+        allowedHosts: List<String>
     ): KSMHttpDownloadResult? = null
     fun isHttpRequestUrlAllowed(url: String): Boolean = false
     fun httpRequest(

@@ -14,7 +14,16 @@ import {
   applicationOutputDirectory,
   packageOutputDirectory
 } from './output.mjs';
-import { exists, findCommand, run } from './process.mjs';
+import {
+  exists,
+  findCommand,
+  run,
+  spawnLongRunning,
+  terminateProcessTree,
+  waitForProcessExit,
+  waitForProcessSpawn
+} from './process.mjs';
+import { resolveProjectIcon } from './icons.mjs';
 
 export async function buildWindows(projectRoot, config, options = {}) {
   const sdkDirectory = path.join(projectRoot, 'vendor', 'windows', 'kasumi');
@@ -30,12 +39,29 @@ export async function buildWindows(projectRoot, config, options = {}) {
   }
   const buildDirectory = windowsBuildDirectory(projectRoot, options);
   const supportsDevMode = await supportsWindowsDevMode(projectRoot);
+  const manifestMode = await exists(
+    path.join(projectRoot, 'windows', 'vcpkg.json')
+  );
+  await resetManifestModeMismatch(buildDirectory, manifestMode);
+  const windowIcon = await resolveProjectIcon(
+    projectRoot,
+    config.icons?.window,
+    '.ico',
+    'configuration.icons.window'
+  );
+  const trayIcon = await resolveProjectIcon(
+    projectRoot,
+    config.icons?.tray,
+    '.ico',
+    'configuration.icons.tray'
+  );
   const args = [
     '-S',
     path.join(projectRoot, 'windows'),
     '-B',
     buildDirectory,
     '-DCMAKE_BUILD_TYPE=Release',
+    '-DCMAKE_DEPENDS_USE_COMPILER=OFF',
     `-DCMAKE_PREFIX_PATH=${sdkDirectory}`,
     `-DKASUMI_APP_PACKAGE_NAME=${config.packageName}`,
     `-DKASUMI_APP_VERSION=${config.version}`,
@@ -44,12 +70,31 @@ export async function buildWindows(projectRoot, config, options = {}) {
     `-DKASUMI_SHELL_ALLOWED_ORIGINS=${config.shell.allowedOrigins.join(',')}`,
     `-DKASUMI_HTTP_ALLOWED_ORIGINS=${config.http.allowedOrigins.join(',')}`,
     `-DKASUMI_WINDOW_DECORATIONS=${config.decorations === false ? 'OFF' : 'ON'}`,
+    `-DKASUMI_WINDOW_BACKGROUND_COLOR=${(config.window.backgroundColor ?? '').replace(/^#/, '')}`,
+    `-DKASUMI_WINDOW_WIDTH=${config.window.width ?? 1080}`,
+    `-DKASUMI_WINDOW_HEIGHT=${config.window.height ?? 720}`,
+    `-DKASUMI_WINDOW_MIN_WIDTH=${config.window.minWidth ?? 320}`,
+    `-DKASUMI_WINDOW_MIN_HEIGHT=${config.window.minHeight ?? 240}`,
+    `-DKASUMI_WINDOW_MAX_WIDTH=${config.window.maxWidth ?? 0}`,
+    `-DKASUMI_WINDOW_MAX_HEIGHT=${config.window.maxHeight ?? 0}`,
+    `-DKASUMI_WINDOW_RESIZABLE=${config.window.resizable === false ? 'OFF' : 'ON'}`,
+    `-DKASUMI_ERROR_PAGE_BACKGROUND_COLOR=${(config.errorPage?.backgroundColor ?? '').replace(/^#/, '')}`,
+    `-DKASUMI_ERROR_PAGE_CARD_COLOR=${(config.errorPage?.cardColor ?? '').replace(/^#/, '')}`,
+    `-DKASUMI_ERROR_PAGE_BORDER_COLOR=${(config.errorPage?.borderColor ?? '').replace(/^#/, '')}`,
+    `-DKASUMI_ERROR_PAGE_TEXT_COLOR=${(config.errorPage?.textColor ?? '').replace(/^#/, '')}`,
+    `-DKASUMI_ERROR_PAGE_MUTED_TEXT_COLOR=${(config.errorPage?.mutedTextColor ?? '').replace(/^#/, '')}`,
+    `-DKASUMI_ERROR_PAGE_ACCENT_COLOR=${(config.errorPage?.accentColor ?? '').replace(/^#/, '')}`,
+    `-DKASUMI_ERROR_PAGE_ERROR_COLOR=${(config.errorPage?.errorColor ?? '').replace(/^#/, '')}`,
+    `-DKASUMI_ERROR_PAGE_TITLE=${config.errorPage?.title ?? ''}`,
+    `-DKASUMI_ERROR_PAGE_HINT=${config.errorPage?.hint ?? ''}`,
     `-DKASUMI_EXTERNAL_WEB=${options.externalWeb ? 'ON' : 'OFF'}`,
     `-DKASUMI_BUNDLE_WEBVIEW2_LOADER=${options.bundleWebview2Loader ? 'ON' : 'OFF'}`
   ];
   if (supportsDevMode) {
     args.push(`-DKASUMI_DEV_MODE=${options.devMode ? 'ON' : 'OFF'}`);
   }
+  args.push(`-DKASUMI_APP_ICON=${cmakePath(windowIcon)}`);
+  args.push(`-DKASUMI_TRAY_ICON=${cmakePath(trayIcon)}`);
   if (
     visualStudio &&
     !process.env.CMAKE_GENERATOR &&
@@ -66,6 +111,7 @@ export async function buildWindows(projectRoot, config, options = {}) {
   }
   const vcpkgEnvironment = await createVcpkgEnvironment(projectRoot);
   args.push(`-DCMAKE_TOOLCHAIN_FILE=${toolchain}`);
+  args.push(`-DVCPKG_MANIFEST_MODE=${manifestMode ? 'ON' : 'OFF'}`);
   args.push(`-DVCPKG_INSTALLED_DIR=${vcpkgEnvironment.installed}`);
   args.push(
     `-DVCPKG_TARGET_TRIPLET=${
@@ -209,6 +255,12 @@ export async function createWindowsInstaller(
   installerType,
   options = {}
 ) {
+  const installerIcon = await resolveProjectIcon(
+    projectRoot,
+    config.icons?.installer,
+    '.ico',
+    'configuration.icons.installer'
+  );
   const staging = path.join(
     projectRoot,
     '.ksm',
@@ -243,6 +295,12 @@ export async function createWindowsInstaller(
         `!define APP_VERSION ${JSON.stringify(version)}`,
         `!define APP_EXE ${JSON.stringify(appExe)}`,
         `OutFile ${JSON.stringify(output)}`,
+        ...(installerIcon
+          ? [
+              `Icon ${JSON.stringify(installerIcon)}`,
+              `UninstallIcon ${JSON.stringify(installerIcon)}`
+            ]
+          : []),
         'InstallDir "$PROGRAMFILES64\\Kasumi\\' + appName + '"',
         'RequestExecutionLevel admin',
         '',
@@ -292,6 +350,14 @@ export async function createWindowsInstaller(
         '           Version="' + config.version + '" Manufacturer="Kasumi"',
         '           UpgradeCode="00000000-0000-0000-0000-000000000000">',
         '    <Package InstallerVersion="200" Compressed="yes" />',
+        ...(installerIcon
+          ? [
+              '    <Icon Id="ProductIcon" SourceFile="' +
+                xmlEscape(installerIcon) +
+                '" />',
+              '    <Property Id="ARPPRODUCTICON" Value="ProductIcon" />'
+            ]
+          : []),
         '    <Directory Id="TARGETDIR" Name="SourceDir">',
         '      <Directory Id="ProgramFiles64Folder" Name="PFiles">',
         '        <Directory Id="INSTALLFOLDER" Name="Kasumi">',
@@ -382,6 +448,18 @@ function shellQuote(value) {
   return `"${String(value).replaceAll('"', '\\"')}"`;
 }
 
+function cmakePath(value) {
+  return value ? value.replaceAll('\\', '/') : '';
+}
+
+function xmlEscape(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
 async function visualStudioEnvironment() {
   if (process.platform !== 'win32') {
     return undefined;
@@ -470,14 +548,29 @@ async function hasCMakeCache(buildDirectory) {
   return exists(path.join(buildDirectory, 'CMakeCache.txt'));
 }
 
+async function resetManifestModeMismatch(buildDirectory, manifestMode) {
+  const cache = await readText(path.join(buildDirectory, 'CMakeCache.txt'));
+  if (!cache) {
+    return;
+  }
+  const match = cache.match(
+    /^Z_VCPKG_CHECK_MANIFEST_MODE:INTERNAL=(ON|OFF)$/m
+  );
+  if (!match || (match[1] === 'ON') === manifestMode) {
+    return;
+  }
+  await rm(buildDirectory, { recursive: true, force: true });
+}
+
 async function runCMake(command, args, cwd, visualStudio, env) {
+  const environment = { ...env, VSLANG: '1033' };
   if (!visualStudio) {
-    await run(command, args, { cwd, env });
+    await run(command, args, { cwd, env: environment });
     return;
   }
   const buildEnvironment = await visualStudioBuildEnvironment(
     visualStudio.vcvars,
-    env,
+    environment,
     cwd
   );
   await run(
@@ -545,13 +638,29 @@ export async function runWindowsDevelopment(
   server,
   options = {}
 ) {
+  const host = await startWindowsDevelopment(
+    projectRoot,
+    config,
+    server,
+    options
+  );
+  await host.waitForExit();
+}
+
+export async function startWindowsDevelopment(
+  projectRoot,
+  config,
+  server,
+  options = {}
+) {
   const buildDirectory = windowsBuildDirectory(projectRoot, {
     devMode: true
   });
-  const executable = await findWindowsExecutable(buildDirectory);
+  const executable =
+    options.executable ?? await findWindowsExecutable(buildDirectory);
   const webviewData = path.join(projectRoot, '.ksm', 'dev', 'webview2');
   await mkdir(webviewData, { recursive: true });
-  await run(
+  const child = spawnLongRunning(
     executable,
     [
       '--url',
@@ -562,9 +671,28 @@ export async function runWindowsDevelopment(
     ],
     {
       cwd: path.dirname(executable),
-      onSpawn: options.onSpawn
+      env: options.env
     }
   );
+  const exit = new Promise((resolve) => {
+    child.once('exit', (code, signal) => resolve({ code, signal }));
+  });
+  await waitForProcessSpawn(child);
+  options.onSpawn?.(child);
+  return {
+    child,
+    executable,
+    waitForExit() {
+      return exit;
+    },
+    async stop(timeoutMs = 5000) {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        return;
+      }
+      terminateProcessTree(child.pid);
+      await waitForProcessExit(child, timeoutMs).catch(() => undefined);
+    }
+  };
 }
 
 async function configureWindows(

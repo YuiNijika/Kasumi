@@ -87,6 +87,44 @@ export function spawnLongRunning(command, args, options = {}) {
   });
 }
 
+export function waitForProcessSpawn(child) {
+  if (child.pid) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const onSpawn = () => {
+      child.removeListener('error', onError);
+      resolve();
+    };
+    const onError = (error) => {
+      child.removeListener('spawn', onSpawn);
+      reject(error);
+    };
+    child.once('spawn', onSpawn);
+    child.once('error', onError);
+  });
+}
+
+export function waitForProcessExit(child, timeoutMs = 5000) {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve({
+      code: child.exitCode,
+      signal: child.signalCode
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const onExit = (code, signal) => {
+      clearTimeout(timer);
+      resolve({ code, signal });
+    };
+    const timer = setTimeout(() => {
+      child.removeListener('exit', onExit);
+      reject(new Error(`Process ${child.pid ?? 'unknown'} did not exit.`));
+    }, timeoutMs);
+    child.once('exit', onExit);
+  });
+}
+
 export function terminateProcessTree(pid) {
   if (!Number.isInteger(pid) || pid <= 0) {
     return;

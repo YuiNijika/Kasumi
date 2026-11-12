@@ -19,6 +19,7 @@
 #include "ksm_version.h"
 
 class KSMFileSystem;
+class KSMWindowRegistry;
 
 class KSMWindowsHostServices final : public KSMHostServices {
 public:
@@ -27,7 +28,8 @@ public:
         std::vector<std::string> allowed_external_origins = {},
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
         std::string app_version = KASUMI_VERSION_STRING,
-        std::string app_id = {}
+        std::string app_id = {},
+        std::shared_ptr<KSMWindowRegistry> window_registry = nullptr
     );
     KSMWindowsHostServices(
         HWND window,
@@ -35,7 +37,8 @@ public:
         std::vector<std::string> allowed_http_origins,
         std::shared_ptr<KSMFileSystem> file_system = nullptr,
         std::string app_version = KASUMI_VERSION_STRING,
-        std::string app_id = {}
+        std::string app_id = {},
+        std::shared_ptr<KSMWindowRegistry> window_registry = nullptr
     );
     ~KSMWindowsHostServices() override;
 
@@ -52,6 +55,13 @@ public:
     ) override;
     std::optional<std::string> ReadPickedText(
         const std::string& path
+    ) override;
+    std::optional<std::vector<std::uint8_t>> ReadPickedBytes(
+        const std::string& path
+    ) override;
+    bool WritePickedBytes(
+        const std::string& path,
+        const std::vector<std::uint8_t>& bytes
     ) override;
     bool WritePickedText(
         const std::string& path,
@@ -71,6 +81,7 @@ public:
     bool SetWindowTitle(const std::string& title) override;
     bool MinimizeWindow() override;
     bool MaximizeWindow() override;
+    bool RestoreWindow() override;
     bool CloseWindow() override;
     bool ExitApp() override;
     std::optional<KSMHttpDownloadResult> Download(
@@ -78,6 +89,14 @@ public:
         const std::string& path,
         bool overwrite,
         const std::string& request_id
+    ) override;
+    std::optional<KSMHttpDownloadResult> DownloadTrusted(
+        const std::string& url,
+        const std::string& path,
+        bool overwrite,
+        const std::string& request_id,
+        const std::vector<KSMHttpHeader>& headers,
+        const std::vector<std::string>& allowed_hosts
     ) override;
     bool IsHttpRequestUrlAllowed(const std::string& url) const override;
     std::optional<KSMHttpResponse> HttpRequest(
@@ -194,6 +213,11 @@ public:
         const std::string& window_id,
         bool enabled
     ) override;
+    bool StartWindowDrag(const std::string& window_id) override;
+    bool StartWindowResize(
+        const std::string& window_id,
+        const std::string& direction
+    ) override;
     std::optional<KSMWindowState> GetWindowState(
         const std::string& window_id
     ) const override;
@@ -222,6 +246,16 @@ public:
 #endif
 
 private:
+    std::optional<KSMHttpDownloadResult> DownloadInternal(
+        const std::string& url,
+        const std::string& path,
+        bool overwrite,
+        const std::string& request_id,
+        const std::vector<KSMHttpHeader>& headers,
+        const std::vector<std::string>& allowed_hosts,
+        bool trusted
+    );
+
     struct DownloadState {
         std::mutex mutex;
         HINTERNET session = nullptr;
@@ -275,6 +309,7 @@ private:
     );
 
     HWND window_;
+    std::shared_ptr<KSMWindowRegistry> window_registry_;
     std::shared_ptr<KSMFileSystem> file_system_;
     std::string app_version_;
     std::string app_id_;

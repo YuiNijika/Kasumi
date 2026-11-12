@@ -29,6 +29,8 @@ export const KSM_COMMANDS = [
   "window.minimize",
   "window.maximize",
   "window.setSize",
+  "window.startDragging",
+  "window.startResizing",
   "window.close",
   "shell.openExternal",
   "shell.openPath",
@@ -136,6 +138,8 @@ export const KSM_WINDOWS_COMMANDS = [
   "window.minimize",
   "window.maximize",
   "window.setSize",
+  "window.startDragging",
+  "window.startResizing",
   "window.close",
   "shell.openExternal",
   "shell.openPath",
@@ -281,6 +285,7 @@ export const KSM_ANDROID_COMMANDS = [
   "media.ffmpeg.validate",
   "audio.devices.list",
   "audio.devices.set",
+  "audio.output.getMode",
   "audio.eq.set",
   "audio.speed.set",
   "audio.probe",
@@ -559,6 +564,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "window.minimize",
       "window.maximize",
       "window.setSize",
+      "window.startDragging",
+      "window.startResizing",
       "window.close",
       "window.create",
       "window.show",
@@ -948,6 +955,8 @@ export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = 
     "window.minimize",
     "window.maximize",
     "window.setSize",
+    "window.startDragging",
+    "window.startResizing",
     "window.close",
     "window.create",
     "window.show",
@@ -1087,6 +1096,8 @@ export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {
   "window.minimize": "window",
   "window.maximize": "window",
   "window.setSize": "window",
+  "window.startDragging": "window",
+  "window.startResizing": "window",
   "window.close": "window",
   "window.create": "window",
   "window.show": "window",
@@ -1238,6 +1249,12 @@ export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>
   "window.setSize": [
     "window.control"
   ],
+  "window.startDragging": [
+    "window.control"
+  ],
+  "window.startResizing": [
+    "window.control"
+  ],
   "window.close": [
     "window.control"
   ],
@@ -1365,13 +1382,13 @@ export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>
     "media.read"
   ],
   "audio.devices.list": [
-    "media.control"
+    "media.read"
   ],
   "audio.devices.set": [
     "media.control"
   ],
   "audio.output.getMode": [
-    "media.control"
+    "media.read"
   ],
   "audio.output.setExclusive": [
     "media.control"
@@ -1841,6 +1858,41 @@ const KSM_ARG_SCHEMAS: Readonly<Record<string, KSMValueSchema>> = {
     "required": [
       "width",
       "height"
+    ],
+    "additionalProperties": false
+  },
+  "window.startDragging": {
+    "type": "object",
+    "properties": {
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "window.startResizing": {
+    "type": "object",
+    "properties": {
+      "direction": {
+        "type": "string",
+        "enum": [
+          "top",
+          "bottom",
+          "left",
+          "right",
+          "topLeft",
+          "topRight",
+          "bottomLeft",
+          "bottomRight"
+        ]
+      },
+      "windowId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "direction"
     ],
     "additionalProperties": false
   },

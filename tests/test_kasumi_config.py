@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from cli.kasumi_config import ConfigError, load_config
-from cli.ksm import read_app_config
+from cli.ksm import read_app_config, resolve_project_icon
 
 
 class KasumiConfigTest(unittest.TestCase):
@@ -69,6 +69,275 @@ class KasumiConfigTest(unittest.TestCase):
         config = load_config(path)
 
         self.assertFalse(config.windows.decorations)
+
+    def test_accepts_windows_background_color(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "window": {"backgroundColor": "#0F1117"},
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        config = load_config(path)
+
+        self.assertEqual(
+            config.windows.window["backgroundColor"],
+            "#0F1117",
+        )
+
+    def test_accepts_windows_error_page_customization(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "errorPage": {
+                        "backgroundColor": "#0B0B0D",
+                        "cardColor": "#15171D",
+                        "borderColor": "#2B2F38",
+                        "textColor": "#F5F6FA",
+                        "mutedTextColor": "#9CA3AF",
+                        "accentColor": "#8B5CF6",
+                        "errorColor": "#FF6B6B",
+                        "title": "Music Storm 启动失败",
+                        "hint": "请检查网络、WebView2 运行时或应用配置后重试",
+                    },
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        config = load_config(path)
+
+        self.assertEqual(
+            config.windows.error_page,
+            {
+                "backgroundColor": "#0B0B0D",
+                "cardColor": "#15171D",
+                "borderColor": "#2B2F38",
+                "textColor": "#F5F6FA",
+                "mutedTextColor": "#9CA3AF",
+                "accentColor": "#8B5CF6",
+                "errorColor": "#FF6B6B",
+                "title": "Music Storm 启动失败",
+                "hint": "请检查网络、WebView2 运行时或应用配置后重试",
+            },
+        )
+        self.assertIsNone(config.android.error_page)
+
+    def test_rejects_unsafe_windows_error_page_customization(self) -> None:
+        invalid_error_pages = (
+            {"backgroundColor": "#12"},
+            {"title": '失败"提示'},
+            {"hint": "第一行\n第二行"},
+            {"unknown": "#FFFFFF"},
+        )
+        for error_page in invalid_error_pages:
+            with self.subTest(error_page=error_page):
+                path = self.write_config(
+                    {
+                        "windows": {
+                            "packageName": "kasumi-win32-example",
+                            "version": "1.2.3",
+                            "commands": ["ping", "capabilities.query"],
+                            "errorPage": error_page,
+                        },
+                        "android": {
+                            "packageName": "dev.kasumi.example",
+                            "version": "1.2.3",
+                            "commands": ["ping", "capabilities.query"],
+                        },
+                    }
+                )
+                with self.assertRaisesRegex(
+                    ConfigError,
+                    "errorPage|safe characters|RRGGBB|unknown fields",
+                ):
+                    load_config(path)
+
+    def test_rejects_invalid_windows_background_color(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "window": {"backgroundColor": "#12"},
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        with self.assertRaisesRegex(
+            ConfigError,
+            "backgroundColor must be #RRGGBB or #AARRGGBB",
+        ):
+            load_config(path)
+
+    def test_accepts_windows_window_size_limits(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "window": {
+                        "width": 1280,
+                        "height": 800,
+                        "minWidth": 960,
+                        "minHeight": 600,
+                        "maxWidth": 1920,
+                        "maxHeight": 1200,
+                    },
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        config = load_config(path)
+
+        self.assertEqual(config.windows.window["width"], 1280)
+        self.assertEqual(config.windows.window["height"], 800)
+        self.assertEqual(config.windows.window["minWidth"], 960)
+        self.assertEqual(config.windows.window["minHeight"], 600)
+        self.assertEqual(config.windows.window["maxWidth"], 1920)
+        self.assertEqual(config.windows.window["maxHeight"], 1200)
+
+    def test_rejects_inconsistent_windows_window_size_limits(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "window": {
+                        "width": 1280,
+                        "height": 800,
+                        "minWidth": 960,
+                        "minHeight": 600,
+                        "maxWidth": 900,
+                        "maxHeight": 1200,
+                    },
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        with self.assertRaisesRegex(ConfigError, "maxWidth must be greater"):
+            load_config(path)
+
+    def test_window_decorations_and_top_level_override(self) -> None:
+        path = self.write_config(
+            {
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "window": {"decorations": False, "width": 1280},
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        config = load_config(path)
+
+        self.assertFalse(config.windows.decorations)
+        self.assertEqual(config.windows.window["width"], 1280)
+
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["windows"]["decorations"] = True
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        self.assertTrue(load_config(path).windows.decorations)
+
+    def test_merges_root_icons_into_platforms(self) -> None:
+        path = self.write_config(
+            {
+                "icons": {
+                    "window": "icons/app.ico",
+                    "tray": "icons/tray.ico",
+                    "android": "icons/android.png",
+                },
+                "windows": {
+                    "packageName": "kasumi-win32-example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                    "icons": {"tray": "icons/windows-tray.ico"},
+                },
+                "android": {
+                    "packageName": "dev.kasumi.example",
+                    "version": "1.2.3",
+                    "commands": ["ping", "capabilities.query"],
+                },
+            }
+        )
+
+        config = load_config(path)
+
+        self.assertEqual(config.windows.icons["tray"], "icons/windows-tray.ico")
+        self.assertEqual(config.windows.icons["window"], "icons/app.ico")
+        self.assertEqual(config.android.icons["android"], "icons/android.png")
+        self.assertEqual(config.android.icons["tray"], "icons/tray.ico")
+
+    def test_resolves_project_icons_safely(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        icon = root / "icon.ico"
+        icon.write_bytes(b"icon")
+
+        self.assertEqual(
+            resolve_project_icon(
+                root,
+                "icon.ico",
+                ".ico",
+                "configuration.icons.window",
+            ),
+            icon.resolve(),
+        )
+        with self.assertRaisesRegex(ConfigError, "must use the .ico extension"):
+            resolve_project_icon(
+                root,
+                "icon.png",
+                ".ico",
+                "configuration.icons.window",
+            )
+        with self.assertRaisesRegex(ConfigError, "must stay inside the project"):
+            resolve_project_icon(
+                root,
+                "../outside.ico",
+                ".ico",
+                "configuration.icons.window",
+            )
 
     def test_rejects_invalid_windows_decorations(self) -> None:
         path = self.write_config(
@@ -148,8 +417,27 @@ class KasumiConfigTest(unittest.TestCase):
 
         config = load_config(path)
 
-        self.assertEqual(len(config.windows.commands), 102)
-        self.assertEqual(len(config.android.commands), 86)
+        protocol = json.loads(
+            (
+                Path(__file__).resolve().parent.parent
+                / "protocol"
+                / "commands.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            len(config.windows.commands),
+            sum(
+                "windows" in command["platforms"]
+                for command in protocol["commands"].values()
+            ),
+        )
+        self.assertEqual(
+            len(config.android.commands),
+            sum(
+                "android" in command["platforms"]
+                for command in protocol["commands"].values()
+            ),
+        )
         self.assertNotIn("device.getInfo", config.windows.commands)
         self.assertIn("device.getInfo", config.android.commands)
 

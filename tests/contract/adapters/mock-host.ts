@@ -532,6 +532,38 @@ export class MockHost {
       send(this.ok(id, { updated: true }));
       return;
     }
+    if (request.cmd === 'window.startDragging') {
+      if (this.platform !== 'windows') {
+        send(this.error(id, 'NOT_SUPPORTED', 'The command is not supported.'));
+        return;
+      }
+      send(this.ok(id, { dragging: true }));
+      return;
+    }
+    if (request.cmd === 'window.startResizing') {
+      if (this.platform !== 'windows') {
+        send(this.error(id, 'NOT_SUPPORTED', 'The command is not supported.'));
+        return;
+      }
+      const direction = this.stringArg(request.args, 'direction');
+      if (
+        ![
+          'top',
+          'bottom',
+          'left',
+          'right',
+          'topLeft',
+          'topRight',
+          'bottomLeft',
+          'bottomRight'
+        ].includes(direction)
+      ) {
+        send(this.error(id, 'INVALID_ARGS', 'direction is not supported.'));
+        return;
+      }
+      send(this.ok(id, { resizing: true }));
+      return;
+    }
     if (request.cmd === 'window.close') {
       send(this.ok(id, { closed: true }));
       return;

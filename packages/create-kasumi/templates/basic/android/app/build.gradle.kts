@@ -40,6 +40,9 @@ val ksmWebViewSupportedHtmlFiles = csvProperty(
     "ksmWebViewSupportedHtmlFiles",
     "index.html"
 )
+val ksmLauncherIcon = providers.gradleProperty("ksmLauncherIcon")
+    .orElse("@android:drawable/sym_def_app_icon")
+    .get()
 val releaseKeystore = System.getenv("KASUMI_ANDROID_KEYSTORE")
     ?.takeIf { it.isNotBlank() }
     ?.let { file(it) }
@@ -63,6 +66,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = ksmVersion
+        manifestPlaceholders["ksmLauncherIcon"] = ksmLauncherIcon
         buildConfigField(
             "String[]",
             "KSM_COMMANDS",
@@ -138,6 +142,7 @@ android {
     sourceSets {
         getByName("main") {
             assets.srcDir("../../frontend/dist")
+            res.srcDir("../../.ksm/android-res")
         }
     }
 }

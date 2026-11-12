@@ -47,7 +47,7 @@ class KSMWebViewHost(
     webViewConfig: KSMWebViewConfig = KSMWebViewConfig.default(),
     private val debug: Boolean = false,
     private val onNativeEvent: ((String) -> Unit)? = null,
-    private val fullscreen: Boolean = true,
+    private val fullscreen: Boolean = false,
     plugins: Collection<KSMPlugin> = emptyList(),
     val windowId: String = nextWindowId()
 ) : Closeable {

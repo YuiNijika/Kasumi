@@ -108,12 +108,11 @@ class KSMRouter(
     private val grantedPermissions = ConcurrentHashMap.newKeySet<String>().apply {
         addAll(allowedPermissions.filter { it in knownPermissions })
     }
-    private val unsupportedGeneratedCommands =
-        KSMGeneratedContract.commands.toSet() -
-            KSMCommandRegistry.supportedCommands.toSet()
     private val pluginCommands = pluginRegistry.commands.filter { command ->
-        (KSMCapabilityNames.isCapabilityCommand(command) ||
-            command !in unsupportedGeneratedCommands) &&
+        (
+            !KSMGeneratedContract.isKnownCommand(command) ||
+                command in KSMCommandRegistry.supportedCommands
+            ) &&
             command in allowedCommandNames
     }
     val supportedCommands: List<String> = (
@@ -193,10 +192,20 @@ class KSMRouter(
                     )
                 }
                 if (command !in supportedCommands) {
+                    val supportedOnPlatform = when {
+                        generatedCommand ->
+                            command in KSMCommandRegistry.supportedCommands
+                        capabilityCommand || pluginRegistry.owns(command) -> true
+                        else -> false
+                    }
                     return errorResponse(
                         id,
                         "NOT_SUPPORTED",
-                        "The command is disabled by application configuration."
+                        if (supportedOnPlatform) {
+                            "The command is disabled by application configuration."
+                        } else {
+                            "The command is not supported on this platform."
+                        }
                     )
                 }
                 val validArgs = if (generatedCommand) {
@@ -252,7 +261,7 @@ class KSMRouter(
                         id,
                         JSONObject()
                             .put("platform", "android")
-                            .put("commands", capabilityCommands)
+                            .put("commands", JSONArray(capabilityCommands))
                             .put("permissions", JSONArray(grantedPermissions.toList()))
                             .put("appId", hostServices?.appId() ?: "")
                             .put("plugins", capabilityPluginObjects())

@@ -26,9 +26,25 @@ struct KSMWebView2ViewOptions {
   RECT bounds{};
   bool fill_parent = true;
   bool append_smoke_query = true;
+  bool transparent = false;
+  std::uint64_t window_id = 0;
   std::vector<std::string> allowed_commands = {};
   std::vector<std::string> allowed_permissions = {};
 };
+
+struct KSMWebView2ErrorPageOptions {
+  std::string background_color;
+  std::string card_color;
+  std::string border_color;
+  std::string text_color;
+  std::string muted_text_color;
+  std::string accent_color;
+  std::string error_color;
+  std::string title;
+  std::string hint;
+};
+
+std::uint64_t AllocateKSMWindowId();
 
 class KSMWebView2Host {
 public:
@@ -47,7 +63,9 @@ public:
                   bool decorations = true,
                   std::vector<std::shared_ptr<KSMPlugin>> plugins = {},
                   std::vector<std::string> allowed_permissions = {},
-                  std::vector<std::string> allowed_http_origins = {});
+                  std::vector<std::string> allowed_http_origins = {},
+                  std::string background_color = {},
+                  KSMWebView2ErrorPageOptions error_page = {});
   ~KSMWebView2Host();
 
   KSMWebView2Host(const KSMWebView2Host &) = delete;
@@ -63,6 +81,8 @@ public:
 
   std::uint64_t window_id() const noexcept;
   std::size_t view_count() const noexcept;
+  std::string last_error() const;
+  std::string last_log_path() const;
 
   static bool IsRuntimeAvailable();
   static std::string RuntimeVersion();
@@ -90,6 +110,7 @@ public:
   bool SetBounds(const RECT &bounds);
   bool FillParent();
   bool SetVisible(bool visible);
+  void PrepareParentResize(int width, int height);
   void Focus();
   bool Navigate(const std::wstring &url);
   bool Reload();

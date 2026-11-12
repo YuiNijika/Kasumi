@@ -21,8 +21,10 @@ object KSMWebViewRuntime {
     private val timerLock = Any()
     private var pausedTimerLeases = 0
 
-    fun prepareWindow(activity: Activity, fullscreen: Boolean = true) {
+    fun prepareWindow(activity: Activity, fullscreen: Boolean = false) {
         activity.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        // Older generated manifests may miss Theme.Kasumi.Fullscreen.
+        activity.actionBar?.hide()
         if (!fullscreen) {
             return
         }
@@ -76,7 +78,11 @@ object KSMWebViewRuntime {
                 true
             )
         }
-        WebView.setWebContentsDebuggingEnabled(debug)
+        setDebuggingEnabled(debug)
+    }
+
+    fun setDebuggingEnabled(enabled: Boolean) {
+        WebView.setWebContentsDebuggingEnabled(enabled)
     }
 
     fun pause(webView: WebView) {

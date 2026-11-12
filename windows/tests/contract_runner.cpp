@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -28,8 +29,10 @@
 #include "../src/platform/ksm_sql_driver.h"
 #include "../src/platform/ksm_sqlite_driver.h"
 #include "../src/platform/ksm_url_policy.h"
+#include "../src/platform/ksm_web_resource.h"
 #include "../src/platform/ksm_webview_security.h"
 #include "../src/platform/ksm_webview_host.h"
+#include "../src/platform/ksm_window_frame.h"
 #include "../src/platform/ksm_windows_host_services.h"
 #include "../src/plugins/ksm_log_plugin.h"
 #include "../src/plugins/ksm_capability_plugin.h"
@@ -240,6 +243,10 @@ public:
     }
 
     bool MaximizeWindow() override {
+        return true;
+    }
+
+    bool RestoreWindow() override {
         return true;
     }
 
@@ -1944,6 +1951,445 @@ void TestWindowsHostVersion() {
     }
 }
 
+struct WindowInteractionState {
+    std::mutex mutex;
+    std::condition_variable cv;
+    bool drag_received = false;
+    WPARAM drag_hit_test = 0;
+    bool resize_received = false;
+    WPARAM resize_hit_test = 0;
+    HWND child = nullptr;
+};
+
+LRESULT CALLBACK WindowInteractionProc(
+    HWND window,
+    UINT message,
+    WPARAM wparam,
+    LPARAM lparam
+) {
+    auto* state = reinterpret_cast<WindowInteractionState*>(
+        GetWindowLongPtrW(window, GWLP_USERDATA)
+    );
+    if (message == WM_NCLBUTTONDOWN && state) {
+        {
+            std::lock_guard lock(state->mutex);
+            if (wparam == HTCAPTION) {
+                state->drag_received = true;
+                state->drag_hit_test = wparam;
+            } else {
+                state->resize_received = true;
+                state->resize_hit_test = wparam;
+            }
+        }
+        state->cv.notify_all();
+        return 0;
+    }
+    if (message == WM_DESTROY) {
+        PostQuitMessage(0);
+        return 0;
+    }
+    return DefWindowProcW(window, message, wparam, lparam);
+}
+
+void TestFramelessWindowInteraction() {
+    constexpr wchar_t kClassName[] = L"KasumiWindowInteractionTest";
+    WindowInteractionState state;
+    std::promise<HWND> ready;
+    std::thread ui_thread([&] {
+        WNDCLASSEXW window_class{};
+        window_class.cbSize = sizeof(window_class);
+        window_class.hInstance = GetModuleHandleW(nullptr);
+        window_class.lpfnWndProc = WindowInteractionProc;
+        window_class.lpszClassName = kClassName;
+        window_class.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        if (!RegisterClassExW(&window_class)) {
+            ready.set_value(nullptr);
+            return;
+        }
+        HWND window = CreateWindowExW(
+            0,
+            kClassName,
+            L"Kasumi window interaction test",
+            WS_OVERLAPPEDWINDOW,
+            100,
+            100,
+            400,
+            300,
+            nullptr,
+            nullptr,
+            window_class.hInstance,
+            nullptr
+        );
+        if (!window) {
+            UnregisterClassW(kClassName, window_class.hInstance);
+            ready.set_value(nullptr);
+            return;
+        }
+        SetWindowLongPtrW(
+            window,
+            GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(&state)
+        );
+        if (!KSMWindowFrame::Configure(window, false)) {
+            DestroyWindow(window);
+            UnregisterClassW(kClassName, window_class.hInstance);
+            ready.set_value(nullptr);
+            return;
+        }
+        state.child = CreateWindowExW(
+            0,
+            L"STATIC",
+            L"",
+            WS_CHILD | WS_VISIBLE,
+            0,
+            0,
+            200,
+            200,
+            window,
+            nullptr,
+            window_class.hInstance,
+            nullptr
+        );
+        KSMWindowFrame::RefreshResizeHitTesting(window);
+        ready.set_value(window);
+        MSG message{};
+        while (GetMessageW(&message, nullptr, 0, 0) > 0) {
+            TranslateMessage(&message);
+            DispatchMessageW(&message);
+        }
+        UnregisterClassW(kClassName, window_class.hInstance);
+    });
+
+    HWND window = ready.get_future().get();
+    if (!window) {
+        ui_thread.join();
+        throw std::runtime_error("The frameless test window could not start.");
+    }
+
+    RECT bounds{};
+    const LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
+    if (
+        !GetWindowRect(window, &bounds) ||
+        (style & WS_THICKFRAME) == 0 ||
+        (style & WS_CAPTION) != 0
+    ) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "The frameless window did not expose resize capabilities."
+        );
+    }
+    if (SendMessageW(window, WM_ERASEBKGND, 0, 0) != 1) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "The frameless window still paints a native background."
+        );
+    }
+    if (GetClassLongPtrW(window, GCLP_HBRBACKGROUND) != 0) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "The frameless window class still exposes a background brush."
+        );
+    }
+
+    constexpr DWORD kDwmWindowCornerPreference = 33;
+    constexpr int kDwmWindowCornerRound = 2;
+    using DwmGetWindowAttributeFn = HRESULT(WINAPI *)(
+        HWND,
+        DWORD,
+        PVOID,
+        DWORD
+    );
+    const HMODULE dwmapi = LoadLibraryW(L"dwmapi.dll");
+    const auto get_attribute = dwmapi
+        ? reinterpret_cast<DwmGetWindowAttributeFn>(
+              GetProcAddress(dwmapi, "DwmGetWindowAttribute")
+          )
+        : nullptr;
+    int corner_preference = 0;
+    const bool has_dwm_corners =
+        get_attribute != nullptr &&
+        SUCCEEDED(
+            get_attribute(
+                window,
+                kDwmWindowCornerPreference,
+                &corner_preference,
+                sizeof(corner_preference)
+            )
+        );
+    if (has_dwm_corners) {
+        if (corner_preference != kDwmWindowCornerRound) {
+            PostMessageW(window, WM_CLOSE, 0, 0);
+            ui_thread.join();
+            throw std::runtime_error(
+                "The frameless window DWM corner preference is invalid."
+            );
+        }
+    } else {
+        HRGN region = CreateRectRgn(0, 0, 0, 0);
+        const int region_type = region ? GetWindowRgn(window, region) : 0;
+        if (region) {
+            DeleteObject(region);
+        }
+        if (region_type == ERROR || region_type == NULLREGION) {
+            PostMessageW(window, WM_CLOSE, 0, 0);
+            ui_thread.join();
+            throw std::runtime_error(
+                "The frameless window has no rounded corner fallback."
+            );
+        }
+    }
+    if (dwmapi) {
+        FreeLibrary(dwmapi);
+    }
+
+    const LPARAM top_left = MAKELPARAM(bounds.left + 1, bounds.top + 1);
+    const LPARAM bottom_right = MAKELPARAM(bounds.right - 1, bounds.bottom - 1);
+    const LPARAM center = MAKELPARAM(
+        bounds.left + (bounds.right - bounds.left) / 2,
+        bounds.top + (bounds.bottom - bounds.top) / 2
+    );
+    if (
+        SendMessageW(window, WM_NCHITTEST, 0, top_left) != HTTOPLEFT ||
+        SendMessageW(window, WM_NCHITTEST, 0, bottom_right) != HTBOTTOMRIGHT ||
+        SendMessageW(window, WM_NCHITTEST, 0, center) != HTCLIENT
+    ) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "The frameless window resize hit testing is invalid."
+        );
+    }
+    const LRESULT child_top_left = state.child
+        ? SendMessageW(state.child, WM_NCHITTEST, 0, top_left)
+        : 0;
+    const LRESULT child_bottom_right = state.child
+        ? SendMessageW(state.child, WM_NCHITTEST, 0, bottom_right)
+        : 0;
+    const LRESULT child_center = state.child
+        ? SendMessageW(state.child, WM_NCHITTEST, 0, center)
+        : 0;
+    if (
+        !state.child ||
+        child_top_left != HTTOPLEFT ||
+        child_bottom_right != HTBOTTOMRIGHT ||
+        (child_center != HTCLIENT && child_center != HTTRANSPARENT)
+    ) {
+        std::cerr
+            << "child hit test: child=" << state.child
+            << " top_left=" << child_top_left
+            << " bottom_right=" << child_bottom_right
+            << " center=" << child_center
+            << std::endl;
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "The frameless child resize hit testing is invalid."
+        );
+    }
+
+    KSMWindowsHostServices services(window, {}, nullptr, "test", {}, nullptr);
+    if (!services.StartWindowDrag("")) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error("StartWindowDrag rejected the main window.");
+    }
+    {
+        std::unique_lock lock(state.mutex);
+        if (!state.cv.wait_for(lock, std::chrono::seconds(2), [&] {
+                return state.drag_received;
+            })) {
+            PostMessageW(window, WM_CLOSE, 0, 0);
+            ui_thread.join();
+            throw std::runtime_error(
+                "StartWindowDrag did not reach the window thread."
+            );
+        }
+    }
+    if (state.drag_hit_test != HTCAPTION) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "StartWindowDrag did not request caption dragging."
+        );
+    }
+
+    const struct {
+        const char* direction;
+        WPARAM hit_test;
+    } resize_cases[] = {
+        {"top", HTTOP},
+        {"bottom", HTBOTTOM},
+        {"left", HTLEFT},
+        {"right", HTRIGHT},
+        {"topLeft", HTTOPLEFT},
+        {"topRight", HTTOPRIGHT},
+        {"bottomLeft", HTBOTTOMLEFT},
+        {"bottomRight", HTBOTTOMRIGHT},
+    };
+    for (const auto& resize_case : resize_cases) {
+        {
+            std::lock_guard lock(state.mutex);
+            state.resize_received = false;
+            state.resize_hit_test = 0;
+        }
+        if (!services.StartWindowResize("", resize_case.direction)) {
+            PostMessageW(window, WM_CLOSE, 0, 0);
+            ui_thread.join();
+            throw std::runtime_error(
+                "StartWindowResize rejected a supported direction."
+            );
+        }
+        {
+            std::unique_lock lock(state.mutex);
+            if (!state.cv.wait_for(lock, std::chrono::seconds(2), [&] {
+                    return state.resize_received;
+                })) {
+                PostMessageW(window, WM_CLOSE, 0, 0);
+                ui_thread.join();
+                throw std::runtime_error(
+                    "StartWindowResize did not reach the window thread."
+                );
+            }
+        }
+        if (state.resize_hit_test != resize_case.hit_test) {
+            PostMessageW(window, WM_CLOSE, 0, 0);
+            ui_thread.join();
+            throw std::runtime_error(
+                "StartWindowResize requested an invalid resize edge."
+            );
+        }
+    }
+    if (services.StartWindowResize("", "diagonal")) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "StartWindowResize accepted an unsupported direction."
+        );
+    }
+    PostMessageW(window, WM_CLOSE, 0, 0);
+    ui_thread.join();
+}
+
+void TestNonResizableFramelessWindow() {
+    constexpr wchar_t kClassName[] = L"KasumiWindowNonResizableTest";
+    std::promise<HWND> ready;
+    std::thread ui_thread([&] {
+        WNDCLASSEXW window_class{};
+        window_class.cbSize = sizeof(window_class);
+        window_class.hInstance = GetModuleHandleW(nullptr);
+        window_class.lpfnWndProc = WindowInteractionProc;
+        window_class.lpszClassName = kClassName;
+        window_class.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        if (!RegisterClassExW(&window_class)) {
+            ready.set_value(nullptr);
+            return;
+        }
+        HWND window = CreateWindowExW(
+            0,
+            kClassName,
+            L"Kasumi non-resizable window test",
+            WS_OVERLAPPEDWINDOW,
+            100,
+            100,
+            300,
+            200,
+            nullptr,
+            nullptr,
+            window_class.hInstance,
+            nullptr
+        );
+        if (!window) {
+            UnregisterClassW(kClassName, window_class.hInstance);
+            ready.set_value(nullptr);
+            return;
+        }
+        if (!KSMWindowFrame::Configure(
+                window, false, false, 160, 80, 640, 480
+            )) {
+            DestroyWindow(window);
+            UnregisterClassW(kClassName, window_class.hInstance);
+            ready.set_value(nullptr);
+            return;
+        }
+        ready.set_value(window);
+        MSG message{};
+        while (GetMessageW(&message, nullptr, 0, 0) > 0) {
+            TranslateMessage(&message);
+            DispatchMessageW(&message);
+        }
+        UnregisterClassW(kClassName, window_class.hInstance);
+    });
+
+    HWND window = ready.get_future().get();
+    if (!window) {
+        ui_thread.join();
+        throw std::runtime_error(
+            "The non-resizable frameless test window could not start."
+        );
+    }
+
+    const LONG_PTR style = GetWindowLongPtrW(window, GWL_STYLE);
+    if ((style & WS_THICKFRAME) != 0 || (style & WS_CAPTION) != 0) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "The non-resizable frameless window still exposes a frame."
+        );
+    }
+    RECT bounds{};
+    if (!GetWindowRect(window, &bounds)) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "The non-resizable frameless window bounds are unavailable."
+        );
+    }
+    const LPARAM top_left = MAKELPARAM(bounds.left + 1, bounds.top + 1);
+    const LPARAM bottom_right = MAKELPARAM(bounds.right - 1, bounds.bottom - 1);
+    if (
+        SendMessageW(window, WM_NCHITTEST, 0, top_left) != HTCLIENT ||
+        SendMessageW(window, WM_NCHITTEST, 0, bottom_right) != HTCLIENT
+    ) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "The non-resizable frameless window returned resize hit tests."
+        );
+    }
+    MINMAXINFO limits{};
+    SendMessageW(
+        window,
+        WM_GETMINMAXINFO,
+        0,
+        reinterpret_cast<LPARAM>(&limits)
+    );
+    if (
+        limits.ptMinTrackSize.x != 160 ||
+        limits.ptMinTrackSize.y != 80 ||
+        limits.ptMaxTrackSize.x != 640 ||
+        limits.ptMaxTrackSize.y != 480
+    ) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "The frameless window size limits were not applied."
+        );
+    }
+    KSMWindowsHostServices services(window, {}, nullptr, "test", {}, nullptr);
+    if (services.StartWindowResize("", "right")) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        ui_thread.join();
+        throw std::runtime_error(
+            "A non-resizable window accepted a resize request."
+        );
+    }
+    PostMessageW(window, WM_CLOSE, 0, 0);
+    ui_thread.join();
+}
+
 void TestDuplicateDownloadRequest(
     const std::shared_ptr<KSMFileSystem>& file_system
 ) {
@@ -2241,6 +2687,84 @@ void TestPluginEventResponse(
     }
 }
 
+void TestLocalFileUrlParsing() {
+    const auto expect = [](
+        const std::string& url,
+        KSMWebLocalFileStatus status,
+        const std::string& path = {}
+    ) {
+        const auto parsed = KSMWebResourcePath::FromLocalFileUrl(url);
+        if (parsed.status != status || parsed.path != path) {
+            throw std::runtime_error(
+                "Unexpected local file URL result for " + url + "."
+            );
+        }
+    };
+
+    expect(
+        "https://app.local/__ksm_file?path=app%3A%2F%2Fcache%2Fcovers%2F"
+        "be6d.jpg&windowId=",
+        KSMWebLocalFileStatus::Ok,
+        "app://cache/covers/be6d.jpg"
+    );
+    expect(
+        "https://app.local/__ksm_file?windowId=1&path=app%3A%2F%2Fdata%2F"
+        "cover+art.png",
+        KSMWebLocalFileStatus::Ok,
+        "app://data/cover art.png"
+    );
+    expect(
+        "https://app.local/__ksm_file?path=app%3A%2F%2Ftmp%2Fpreview%2F"
+        "track.flac&windowId=2",
+        KSMWebLocalFileStatus::Ok,
+        "app://tmp/preview/track.flac"
+    );
+
+    expect(
+        "https://app.local/__ksm_file?path=app%3A%2F%2Fpicked%2Ftoken",
+        KSMWebLocalFileStatus::Forbidden
+    );
+    expect(
+        "https://app.local/__ksm_file?path=app%3A%2F%2Fcache%2F..%2Fsecret",
+        KSMWebLocalFileStatus::Forbidden
+    );
+    expect(
+        "https://app.local/__ksm_file?path=app%3A%2F%2Fcache%2F%2e%2e%2F"
+        "secret",
+        KSMWebLocalFileStatus::Forbidden
+    );
+    expect(
+        "https://app.local/__ksm_file?path=C%3A%5CUsers%5Csecret.jpg",
+        KSMWebLocalFileStatus::Forbidden
+    );
+    expect(
+        "https://app.local/__ksm_file?path=app%3A%2F%2Fres%2Fcover.jpg",
+        KSMWebLocalFileStatus::Forbidden
+    );
+
+    expect(
+        "https://app.local/__ksm_file?windowId=1",
+        KSMWebLocalFileStatus::BadRequest
+    );
+    expect(
+        "http://app.local/__ksm_file?path=app%3A%2F%2Fcache%2Fcover.jpg",
+        KSMWebLocalFileStatus::BadRequest
+    );
+    expect(
+        "https://example.local/__ksm_file?path=app%3A%2F%2Fcache%2Fcover.jpg",
+        KSMWebLocalFileStatus::BadRequest
+    );
+    expect(
+        "https://app.local/__ksm_file/extra?path=app%3A%2F%2Fcache%2F"
+        "cover.jpg",
+        KSMWebLocalFileStatus::BadRequest
+    );
+    expect(
+        "https://app.local/__ksm_file?path=app%3A%2F%2Fcache%2F%E0%A4%A",
+        KSMWebLocalFileStatus::BadRequest
+    );
+}
+
 }
 
 int main() {
@@ -2274,6 +2798,8 @@ int main() {
     );
 
     try {
+        TestLocalFileUrlParsing();
+
         const auto ping = Invoke(router, "ping", Json::object());
         ExpectOk(ping);
         if (ping.at("data").at("pong") != true) {
@@ -2568,6 +3094,8 @@ int main() {
         TestHostShutdownDropsResponses(file_system);
         TestKsmRoot(file_system);
         TestWindowsHostVersion();
+        TestFramelessWindowInteraction();
+        TestNonResizableFramelessWindow();
         TestDuplicateDownloadRequest(file_system);
         TestWebViewSecurity();
         TestUrlPolicy();

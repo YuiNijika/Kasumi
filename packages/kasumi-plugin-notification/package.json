@@ -1,6 +1,6 @@
 {
   "name": "kasumi-plugin-notification",
-  "version": "26.11.7",
+  "version": "26.11.12",
   "description": "System notification plugin API for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

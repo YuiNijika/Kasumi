@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import {
@@ -6,6 +6,7 @@ import {
   packageOutputDirectory
 } from './output.mjs';
 import { exists, findCommand, run } from './process.mjs';
+import { resolveProjectIcon } from './icons.mjs';
 
 export async function buildAndroid(projectRoot, config) {
   const repository = path.join(projectRoot, 'vendor', 'android', 'repo');
@@ -17,6 +18,7 @@ export async function buildAndroid(projectRoot, config) {
   const gradle = await findGradle(projectRoot);
   const unixDomainDirectory = path.join(projectRoot, '.ksm', 'afunix');
   await mkdir(unixDomainDirectory, { recursive: true });
+  const launcherIcon = await prepareAndroidIcon(projectRoot, config);
   const args = [
     '-p',
     path.join(projectRoot, 'android'),
@@ -29,6 +31,7 @@ export async function buildAndroid(projectRoot, config) {
     `-PksmWebViewProductionEntry=${config.webview.productionEntry}`,
     `-PksmWebViewDevelopmentEntries=${config.webview.developmentEntries.join(',')}`,
     `-PksmWebViewSupportedHtmlFiles=${config.webview.supportedHtmlFiles.join(',')}`,
+    `-PksmLauncherIcon=${launcherIcon ?? '@android:drawable/sym_def_app_icon'}`,
     'assembleDebug'
   ];
   await run(gradle.command, [...gradle.prefix, ...args], {
@@ -63,6 +66,7 @@ export async function packageAndroid(projectRoot, config) {
   const gradle = await findGradle(projectRoot);
   const unixDomainDirectory = path.join(projectRoot, '.ksm', 'afunix');
   await mkdir(unixDomainDirectory, { recursive: true });
+  const launcherIcon = await prepareAndroidIcon(projectRoot, config);
   await run(
     gradle.command,
     [
@@ -78,6 +82,7 @@ export async function packageAndroid(projectRoot, config) {
       `-PksmWebViewProductionEntry=${config.webview.productionEntry}`,
       `-PksmWebViewDevelopmentEntries=${config.webview.developmentEntries.join(',')}`,
       `-PksmWebViewSupportedHtmlFiles=${config.webview.supportedHtmlFiles.join(',')}`,
+      `-PksmLauncherIcon=${launcherIcon ?? '@android:drawable/sym_def_app_icon'}`,
       'assembleRelease'
     ],
     {
@@ -294,6 +299,24 @@ function gradleEnvironment(unixDomainDirectory) {
 
 function adbEnvironment() {
   return { ...process.env };
+}
+
+async function prepareAndroidIcon(projectRoot, config) {
+  const icon = await resolveProjectIcon(
+    projectRoot,
+    config.icons?.android,
+    '.png',
+    'configuration.icons.android'
+  );
+  const resourceDirectory = path.join(projectRoot, '.ksm', 'android-res');
+  await rm(resourceDirectory, { recursive: true, force: true });
+  if (!icon) {
+    return null;
+  }
+  const drawableDirectory = path.join(resourceDirectory, 'drawable');
+  await mkdir(drawableDirectory, { recursive: true });
+  await copyFile(icon, path.join(drawableDirectory, 'ksm_launcher.png'));
+  return '@drawable/ksm_launcher';
 }
 
 function runCapture(command, args, environment) {

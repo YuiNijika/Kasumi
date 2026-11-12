@@ -66,11 +66,36 @@ pnpm ksm build --all
 ```json
 {
   "$schema": "./protocol/kasumi.config.schema.json",
+  "icons": {
+    "window": "icons/icon.ico",
+    "tray": "icons/icon.ico",
+    "installer": "icons/icon.ico",
+    "android": "icons/android.png"
+  },
   "windows": {
     "packageName": "my-app",
     "version": "0.1.0",
     "commands": "all",
-    "decorations": true
+    "decorations": true,
+    "window": {
+      "width": 1280,
+      "height": 800,
+      "minWidth": 960,
+      "minHeight": 600,
+      "maxWidth": 1920,
+      "maxHeight": 1200
+    },
+    "errorPage": {
+      "backgroundColor": "#0B0B0D",
+      "cardColor": "#15171D",
+      "borderColor": "#2B2F38",
+      "textColor": "#F5F6FA",
+      "mutedTextColor": "#9CA3AF",
+      "accentColor": "#8B5CF6",
+      "errorColor": "#FF6B6B",
+      "title": "应用启动失败",
+      "hint": "请检查网络、WebView2 Runtime 或应用配置后重试"
+    }
   },
   "android": {
     "packageName": "dev.kasumi.my_app",
@@ -99,6 +124,20 @@ pnpm ksm build --all
 系统标题栏会隐藏，但窗口边框、拖动边缘、最小尺寸和工作区约束仍然保留。Kasumi 不会
 自动生成最小化、最大化和关闭按钮，页面需要自行提供这些控件并调用
 `KSM.window.minimize()`、`KSM.window.maximize()` 和 `KSM.window.close()`。
+同样的设置也可写在 `windows.window.decorations`，顶层 `windows.decorations` 优先。
+`windows.window` 的 `width` / `height` 设置初始窗口尺寸，`minWidth` / `minHeight`
+设置可拖动的最小尺寸，`maxWidth` / `maxHeight` 设置最大尺寸；`0` 最大尺寸表示不限制，
+尺寸单位为 DIP。
+
+`windows.errorPage` 自定义 WebView2 初始化失败或导航失败面板的颜色、标题与提示。颜色接受
+`#RRGGBB` 或 `#AARRGGBB`，省略时按窗口背景自动选择浅色或深色配色。初始化加载态仍使用
+窗口背景对应的默认表面；失败面板会显示错误原因、URL 和日志路径，并隐藏底层 WebView2
+原生错误页。
+
+`icons` 使用项目内相对路径。`window`、`tray`、`installer` 必须是 `.ico`，`android`
+必须是方形 `.png`。`window` 同时写入 EXE 版本资源、窗口标题栏和任务栏；`tray` 用于
+托盘图标，未配置时回退到 `window`；`installer` 用于 NSIS/MSI 安装包；`android` 会
+复制为 Android 启动器图标。路径越界、扩展名不匹配或文件缺失时构建会直接失败。
 
 自定义标题栏需要声明可拖拽区域，并把交互控件排除在拖拽区域之外：
 
@@ -242,6 +281,9 @@ await KSM.log.write({
 | `pnpm test:packages` | 测试 CLI、初始化器、桥接和全部插件包 |
 | `pnpm test:tarballs` | 安装真实 npm tarball 并构建五套模板 |
 | `pnpm pack:packages` | 生成 CLI、初始化器、桥接和全部插件 npm tarball |
+
+Windows 开发模式会监听 `kasumi.config.json`、`windows/` 和 `extensions/`。保存后端
+源码或配置后，CLI 自动重建并重启开发宿主；前端页面由开发服务器继续热更新。
 
 ## 平台要求
 

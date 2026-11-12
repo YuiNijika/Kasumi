@@ -52,6 +52,85 @@ set(
     CACHE STRING
     "Comma-separated exact HTTPS download origins"
 )
+set(
+    KASUMI_WINDOW_BACKGROUND_COLOR
+    ""
+    CACHE STRING
+    "WebView2 fallback background color as RRGGBB or AARRGGBB"
+)
+set(
+    KASUMI_ERROR_PAGE_BACKGROUND_COLOR
+    ""
+    CACHE STRING
+    "Error page background color as RRGGBB or AARRGGBB"
+)
+set(
+    KASUMI_ERROR_PAGE_CARD_COLOR
+    ""
+    CACHE STRING
+    "Error page card color as RRGGBB or AARRGGBB"
+)
+set(
+    KASUMI_ERROR_PAGE_BORDER_COLOR
+    ""
+    CACHE STRING
+    "Error page border color as RRGGBB or AARRGGBB"
+)
+set(
+    KASUMI_ERROR_PAGE_TEXT_COLOR
+    ""
+    CACHE STRING
+    "Error page primary text color as RRGGBB or AARRGGBB"
+)
+set(
+    KASUMI_ERROR_PAGE_MUTED_TEXT_COLOR
+    ""
+    CACHE STRING
+    "Error page secondary text color as RRGGBB or AARRGGBB"
+)
+set(
+    KASUMI_ERROR_PAGE_ACCENT_COLOR
+    ""
+    CACHE STRING
+    "Error page accent color as RRGGBB or AARRGGBB"
+)
+set(
+    KASUMI_ERROR_PAGE_ERROR_COLOR
+    ""
+    CACHE STRING
+    "Error page error indicator color as RRGGBB or AARRGGBB"
+)
+set(
+    KASUMI_ERROR_PAGE_TITLE
+    ""
+    CACHE STRING
+    "Error page title text"
+)
+set(
+    KASUMI_ERROR_PAGE_HINT
+    ""
+    CACHE STRING
+    "Error page footer hint text"
+)
+set(KASUMI_WINDOW_WIDTH 1080 CACHE STRING "Initial client width in DIP")
+set(KASUMI_WINDOW_HEIGHT 720 CACHE STRING "Initial client height in DIP")
+set(KASUMI_WINDOW_MIN_WIDTH 320 CACHE STRING "Minimum client width in DIP")
+set(KASUMI_WINDOW_MIN_HEIGHT 240 CACHE STRING "Minimum client height in DIP")
+set(KASUMI_WINDOW_MAX_WIDTH 0 CACHE STRING "Maximum client width in DIP; 0 means unlimited")
+set(KASUMI_WINDOW_MAX_HEIGHT 0 CACHE STRING "Maximum client height in DIP; 0 means unlimited")
+option(KASUMI_WINDOW_RESIZABLE "Allow the user to resize the window" ON)
+set(
+    KASUMI_APP_ICON
+    ""
+    CACHE FILEPATH
+    "Path to the .ico file used for the application window and executable"
+)
+set(
+    KASUMI_TRAY_ICON
+    ""
+    CACHE FILEPATH
+    "Path to the .ico file used for the Windows tray icon"
+)
 
 if(NOT KASUMI_APP_PACKAGE_NAME MATCHES "^[A-Za-z0-9][A-Za-z0-9._-]*$")
     message(FATAL_ERROR "KASUMI_APP_PACKAGE_NAME has an invalid format.")
@@ -86,10 +165,90 @@ option(
     "Show the native Windows title bar"
     ON
 )
+if(
+    KASUMI_WINDOW_BACKGROUND_COLOR AND
+    NOT KASUMI_WINDOW_BACKGROUND_COLOR MATCHES
+    "^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$" AND
+    NOT KASUMI_WINDOW_BACKGROUND_COLOR MATCHES
+    "^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$"
+)
+    message(
+        FATAL_ERROR
+        "KASUMI_WINDOW_BACKGROUND_COLOR must be RRGGBB or AARRGGBB."
+    )
+endif()
+foreach(
+    variable
+    KASUMI_ERROR_PAGE_BACKGROUND_COLOR
+    KASUMI_ERROR_PAGE_CARD_COLOR
+    KASUMI_ERROR_PAGE_BORDER_COLOR
+    KASUMI_ERROR_PAGE_TEXT_COLOR
+    KASUMI_ERROR_PAGE_MUTED_TEXT_COLOR
+    KASUMI_ERROR_PAGE_ACCENT_COLOR
+    KASUMI_ERROR_PAGE_ERROR_COLOR
+)
+    if(
+        NOT "${${variable}}" STREQUAL "" AND
+        NOT "${${variable}}" MATCHES
+        "^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$" AND
+        NOT "${${variable}}" MATCHES
+        "^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$"
+    )
+        message(FATAL_ERROR "${variable} must be RRGGBB or AARRGGBB.")
+    endif()
+endforeach()
+foreach(variable KASUMI_ERROR_PAGE_TITLE KASUMI_ERROR_PAGE_HINT)
+    if(NOT "${${variable}}" STREQUAL "")
+        foreach(character "\"" "\\" ";" "\r" "\n")
+            string(FIND "${${variable}}" "${character}" unsafe_position)
+            if(NOT unsafe_position EQUAL -1)
+                message(
+                    FATAL_ERROR
+                    "${variable} contains characters that are not allowed."
+                )
+            endif()
+        endforeach()
+        string(LENGTH "${${variable}}" value_length)
+        if(
+            ("${variable}" STREQUAL "KASUMI_ERROR_PAGE_TITLE" AND value_length GREATER 80) OR
+            ("${variable}" STREQUAL "KASUMI_ERROR_PAGE_HINT" AND value_length GREATER 240)
+        )
+            message(FATAL_ERROR "${variable} is too long.")
+        endif()
+    endif()
+endforeach()
+foreach(
+    variable
+    KASUMI_WINDOW_WIDTH
+    KASUMI_WINDOW_HEIGHT
+    KASUMI_WINDOW_MIN_WIDTH
+    KASUMI_WINDOW_MIN_HEIGHT
+    KASUMI_WINDOW_MAX_WIDTH
+    KASUMI_WINDOW_MAX_HEIGHT
+)
+    if(NOT ${variable} MATCHES "^[0-9]+$")
+        message(FATAL_ERROR "${variable} must be a non-negative integer.")
+    endif()
+endforeach()
+if(KASUMI_WINDOW_MAX_WIDTH GREATER 0 AND KASUMI_WINDOW_MAX_WIDTH LESS KASUMI_WINDOW_MIN_WIDTH)
+    message(FATAL_ERROR "KASUMI_WINDOW_MAX_WIDTH must be >= KASUMI_WINDOW_MIN_WIDTH.")
+endif()
+if(KASUMI_WINDOW_MAX_HEIGHT GREATER 0 AND KASUMI_WINDOW_MAX_HEIGHT LESS KASUMI_WINDOW_MIN_HEIGHT)
+    message(FATAL_ERROR "KASUMI_WINDOW_MAX_HEIGHT must be >= KASUMI_WINDOW_MIN_HEIGHT.")
+endif()
+if(KASUMI_WINDOW_MAX_WIDTH GREATER 0 AND KASUMI_WINDOW_WIDTH GREATER KASUMI_WINDOW_MAX_WIDTH)
+    message(FATAL_ERROR "KASUMI_WINDOW_WIDTH must be <= KASUMI_WINDOW_MAX_WIDTH.")
+endif()
+if(KASUMI_WINDOW_MAX_HEIGHT GREATER 0 AND KASUMI_WINDOW_HEIGHT GREATER KASUMI_WINDOW_MAX_HEIGHT)
+    message(FATAL_ERROR "KASUMI_WINDOW_HEIGHT must be <= KASUMI_WINDOW_MAX_HEIGHT.")
+endif()
 
 find_package(Kasumi CONFIG REQUIRED)
 
 add_executable(kasumi_app WIN32 main.cpp)
+if(MSVC)
+    target_compile_options(kasumi_app PRIVATE /utf-8)
+endif()
 target_compile_features(kasumi_app PRIVATE cxx_std_20)
 
 get_target_property(
@@ -145,6 +304,31 @@ string(
 set(KASUMI_APP_VERSION_MAJOR "${CMAKE_MATCH_1}")
 set(KASUMI_APP_VERSION_MINOR "${CMAKE_MATCH_2}")
 set(KASUMI_APP_VERSION_PATCH "${CMAKE_MATCH_3}")
+
+set(KASUMI_APP_ICON_RESOURCE "")
+if(KASUMI_APP_ICON)
+    if(NOT EXISTS "${KASUMI_APP_ICON}")
+        message(FATAL_ERROR "KASUMI_APP_ICON does not exist: ${KASUMI_APP_ICON}")
+    endif()
+    if(NOT KASUMI_APP_ICON MATCHES "\\.[iI][cC][oO]$")
+        message(FATAL_ERROR "KASUMI_APP_ICON must use the .ico extension.")
+    endif()
+    file(TO_CMAKE_PATH "${KASUMI_APP_ICON}" KASUMI_APP_ICON_RESOURCE_PATH)
+    set(KASUMI_APP_ICON_RESOURCE "101 ICON \"${KASUMI_APP_ICON_RESOURCE_PATH}\"")
+endif()
+
+set(KASUMI_TRAY_ICON_RESOURCE "")
+if(KASUMI_TRAY_ICON)
+    if(NOT EXISTS "${KASUMI_TRAY_ICON}")
+        message(FATAL_ERROR "KASUMI_TRAY_ICON does not exist: ${KASUMI_TRAY_ICON}")
+    endif()
+    if(NOT KASUMI_TRAY_ICON MATCHES "\\.[iI][cC][oO]$")
+        message(FATAL_ERROR "KASUMI_TRAY_ICON must use the .ico extension.")
+    endif()
+    file(TO_CMAKE_PATH "${KASUMI_TRAY_ICON}" KASUMI_TRAY_ICON_RESOURCE_PATH)
+    set(KASUMI_TRAY_ICON_RESOURCE "102 ICON \"${KASUMI_TRAY_ICON_RESOURCE_PATH}\"")
+endif()
+
 set(KASUMI_APP_VERSION_RC "${KASUMI_GENERATED_DIR}/app_version.rc")
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/app_version.rc.in"
@@ -162,7 +346,35 @@ target_compile_definitions(
         KASUMI_SHELL_ALLOWED_ORIGINS="${KASUMI_SHELL_ALLOWED_ORIGINS}"
         KASUMI_HTTP_ALLOWED_ORIGINS="${KASUMI_HTTP_ALLOWED_ORIGINS}"
         KASUMI_WINDOW_DECORATIONS=$<BOOL:${KASUMI_WINDOW_DECORATIONS}>
+        KASUMI_WINDOW_BACKGROUND_COLOR="${KASUMI_WINDOW_BACKGROUND_COLOR}"
+        KASUMI_WINDOW_WIDTH=${KASUMI_WINDOW_WIDTH}
+        KASUMI_WINDOW_HEIGHT=${KASUMI_WINDOW_HEIGHT}
+        KASUMI_WINDOW_MIN_WIDTH=${KASUMI_WINDOW_MIN_WIDTH}
+        KASUMI_WINDOW_MIN_HEIGHT=${KASUMI_WINDOW_MIN_HEIGHT}
+        KASUMI_WINDOW_MAX_WIDTH=${KASUMI_WINDOW_MAX_WIDTH}
+        KASUMI_WINDOW_MAX_HEIGHT=${KASUMI_WINDOW_MAX_HEIGHT}
+        KASUMI_WINDOW_RESIZABLE=$<BOOL:${KASUMI_WINDOW_RESIZABLE}>
 )
+foreach(
+    variable
+    KASUMI_ERROR_PAGE_BACKGROUND_COLOR
+    KASUMI_ERROR_PAGE_CARD_COLOR
+    KASUMI_ERROR_PAGE_BORDER_COLOR
+    KASUMI_ERROR_PAGE_TEXT_COLOR
+    KASUMI_ERROR_PAGE_MUTED_TEXT_COLOR
+    KASUMI_ERROR_PAGE_ACCENT_COLOR
+    KASUMI_ERROR_PAGE_ERROR_COLOR
+    KASUMI_ERROR_PAGE_TITLE
+    KASUMI_ERROR_PAGE_HINT
+)
+    if(NOT "${${variable}}" STREQUAL "")
+        target_compile_definitions(
+            kasumi_app
+            PRIVATE
+                ${variable}="${${variable}}"
+        )
+    endif()
+endforeach()
 
 if(KASUMI_DEV_MODE)
     target_compile_definitions(kasumi_app PRIVATE KASUMI_DEV_MODE=1)

@@ -31,7 +31,7 @@
 | `src/platform/ksm_web_resource.h` | 内嵌 Web 资源提供器接口和 URL 到资源路径解析 |
 | `src/platform/ksm_win32_resource_provider.h` | 从 Win32 `RCDATA` 读取页面、样式和脚本 |
 | `src/platform/ksm_webview_host.h` | 共享命令线程池、单 timer scheduler、超时、取消、单响应和事件投递 |
-| `src/platform/ksm_window_frame.h` | 无标题栏窗口样式、缩放边框、最小尺寸和工作区处理 |
+| `src/platform/ksm_window_frame.h` | 无标题栏窗口样式、缩放边框、最小/最大尺寸和工作区处理 |
 | `src/platform/ksm_webview2_host.h` | 共享 WebView2 Environment、窗口级会话、多个独立 WebView 视图和 UI 线程回投 |
 | `tests/contract_runner.cpp` | Windows 契约、安全策略和生命周期测试 |
 | `examples/win32-host/` | 独立 Win32 + WebView2 示例工程 |
@@ -43,8 +43,8 @@ Windows 返回 `NOT_SUPPORTED`。
 
 Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageName`、
 `windows.version`、`windows.commands`、`windows.permissions`，以及可选的
-`windows.decorations`、`windows.shell.allowedOrigins` 和
-`windows.http.allowedOrigins`：
+`windows.decorations`、`windows.window`、`windows.errorPage`、
+`windows.shell.allowedOrigins` 和 `windows.http.allowedOrigins`：
 
 ```json
 {
@@ -59,6 +59,26 @@ Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageNam
     ],
     "permissions": ["http.download"],
     "decorations": true,
+    "window": {
+      "width": 1280,
+      "height": 800,
+      "minWidth": 960,
+      "minHeight": 600,
+      "maxWidth": 1920,
+      "maxHeight": 1200,
+      "backgroundColor": "#0B0B0D"
+    },
+    "errorPage": {
+      "backgroundColor": "#0B0B0D",
+      "cardColor": "#15171D",
+      "borderColor": "#2B2F38",
+      "textColor": "#F5F6FA",
+      "mutedTextColor": "#9CA3AF",
+      "accentColor": "#8B5CF6",
+      "errorColor": "#FF6B6B",
+      "title": "应用启动失败",
+      "hint": "请检查网络、WebView2 Runtime 或应用配置后重试"
+    },
     "shell": {
       "allowedOrigins": ["https://example.com"]
     },
@@ -80,10 +100,82 @@ Windows 示例从仓库根目录 `kasumi.config.json` 读取 `windows.packageNam
 精确 `https` origin。两者默认拒绝，不支持通配符或用户名密码，每一跳下载重定向都要重新匹配。
 `pnpm ksm` 构建与打包默认读取该文件，也可用 `--config <path>` 指定其他配置。
 
+`windows.window` 设置窗口初始标题、位置、尺寸边界、是否可缩放、是否透明、是否置顶、
+是否居中以及创建时是否可见：
+
+| 字段 | 默认值 | 作用 |
+| --- | --- | --- |
+| `width` / `height` | `1080` / `720` | 初始窗口尺寸，单位为 DIP；`0` 回退默认值 |
+| `minWidth` / `minHeight` | `320` / `240` | 可拖动的最小窗口尺寸；`0` 回退默认值 |
+| `maxWidth` / `maxHeight` | `0` / `0` | 可拖动的最大窗口尺寸；`0` 表示不限制 |
+
+尺寸边界通过 `WM_GETMINMAXINFO` 同时应用到有边框和无边框窗口；最大化时也会夹取到配置的
+最大尺寸。`maxWidth` / `maxHeight` 必须大于等于对应的最小值，初始尺寸也不能超过最大值。
+直接使用 CMake 时对应变量是 `KASUMI_WINDOW_WIDTH`、`KASUMI_WINDOW_HEIGHT`、
+`KASUMI_WINDOW_MIN_WIDTH`、`KASUMI_WINDOW_MIN_HEIGHT`、`KASUMI_WINDOW_MAX_WIDTH` 与
+`KASUMI_WINDOW_MAX_HEIGHT`。
+
+`backgroundColor` 接受 `#RRGGBB` 或 `#AARRGGBB`，会写入 WebView2 Controller 的默认背景色。
+拖动或缩放时 WebView2 尚未重绘的区域会短暂显示该颜色，因此应与页面背景保持一致，避免
+出现白色闪边。透明窗口固定使用 `#00000000`，忽略该值。省略时 WebView2 使用不透明白色。
+
+### WebView2 初始化与错误页
+
+`windows.errorPage` 自定义原生 WebView2 初始化失败或导航失败后的错误面板。初始化加载态
+仍根据 `windows.window.backgroundColor` 使用默认浅色或深色表面；WebView2 Runtime 缺失、
+初始化失败、导航失败或 DNS 解析失败时，错误面板会显示错误原因、URL 与日志路径，并保持
+底层 WebView2 原生错误页隐藏。
+
+| 字段 | 作用 |
+| --- | --- |
+| `backgroundColor` | 表面渐变背景色 |
+| `cardColor` | 信息卡片背景色 |
+| `borderColor` | 卡片边框色 |
+| `textColor` | 主标题和错误信息颜色 |
+| `mutedTextColor` | 辅助文字、URL 和日志路径颜色 |
+| `accentColor` | 加载指示器与图标强调色 |
+| `errorColor` | 失败状态错误标记颜色 |
+| `title` | 失败面板标题，长度 1-80 |
+| `hint` | 失败面板底部提示，长度 1-240 |
+
+所有颜色字段接受 `#RRGGBB` 或 `#AARRGGBB`，原生 GDI 绘制会忽略 alpha。省略字段时沿用
+根据 `windows.window.backgroundColor` 自动选择的浅色或深色默认配色。`title` 与 `hint`
+是纯文本，不支持 HTML/CSS；为保证 CMake 宏安全，不能包含双引号、反斜杠、分号或控制字符。
+直接使用 CMake 时对应变量是 `KASUMI_ERROR_PAGE_BACKGROUND_COLOR`、
+`KASUMI_ERROR_PAGE_CARD_COLOR`、`KASUMI_ERROR_PAGE_BORDER_COLOR`、
+`KASUMI_ERROR_PAGE_TEXT_COLOR`、`KASUMI_ERROR_PAGE_MUTED_TEXT_COLOR`、
+`KASUMI_ERROR_PAGE_ACCENT_COLOR`、`KASUMI_ERROR_PAGE_ERROR_COLOR`、
+`KASUMI_ERROR_PAGE_TITLE` 与 `KASUMI_ERROR_PAGE_HINT`。
+
+### 应用图标
+
+根级 `icons.window`、`icons.tray` 与 `icons.installer` 使用项目内的 `.ico` 文件。
+CLI 会把窗口图标和托盘图标传给 CMake，并生成到版本资源中：
+
+```powershell
+cmake -S windows `
+  -B build `
+  -DKASUMI_APP_ICON=C:/project/icons/icon.ico `
+  -DKASUMI_TRAY_ICON=C:/project/icons/tray.ico
+```
+
+窗口图标使用资源 ID `101`，同时用于窗口类、任务栏和 `WM_SETICON`；托盘图标使用资源
+ID `102`，未提供时托盘回退到资源 `101`，再回退到系统默认图标。`icons.installer`
+会写入 NSIS 的 `Icon`/`UninstallIcon` 或 MSI 的 `ARPPRODUCTICON`。
+
 ### 隐藏系统标题栏
 
 `decorations` 默认是 `true`。设置为 `false` 后，Win32 宿主保留可缩放边框、最小尺寸和
 工作区约束，只隐藏系统标题栏。Kasumi 不会自动绘制窗口按钮，页面需要自行实现标题栏：
+
+无边框窗口默认使用 12 DIP 圆角。Windows 11 通过 DWM 原生圆角，Windows 10 使用窗口区域
+回退；最大化或最小化时自动恢复直角。圆角由宿主处理，页面不需要额外 CSS，也不需要开启
+窗口透明。
+
+顶层 HWND 仍然存在，用于 DWM、任务栏、缩放和命中测试。Kasumi 拦截 `WM_ERASEBKGND`
+并把窗口类背景刷设为空，客户区由 WebView2 子窗口独占绘制，不会先绘制一块原生白色窗口。
+WebView2 控制器与首个页面导航完成前，宿主还会绘制一张原生初始化表面，显示应用名、
+渐变背景、品牌标记和“WebView2 正在初始化”状态，避免露出未初始化的原生空窗口。
 
 ```tsx
 import { KSM } from "kasumi-bridge";
@@ -162,7 +254,7 @@ const std::string response = KSM::Invoke(
 | 通知 | `KSM::Notification` | `ShowNotification` |
 | 权限 | `KSM::Permission` | 生成的权限清单 |
 | 窗口 | `KSM::Window` | 标题、最小化、最大化、尺寸和关闭 |
-| HTTP | `KSM::Http` | `Download` |
+| HTTP | `KSM::Http` | `Download`；插件专用 `DownloadTrusted` 可按显式主机后缀与请求头缓存媒体 |
 | Shell | `KSM::Shell` | `OpenExternal` |
 | 设备 | `KSM::Device` | `GetInfo`，Windows 返回空 |
 | 虚拟路径 | `KSM::Path` | `Dirs`、`Join`、`Normalize`、`Dirname`、`Basename`、`Extname`、`IsAbsolute` |
@@ -327,6 +419,9 @@ cmake --build windows/examples/win32-host/build --config Release
 .\windows\examples\win32-host\build\Release\kasumi_win32_example.exe
 ```
 
+`pnpm ksm dev` 会监听 `windows/`、示例宿主目录和 `kasumi.config.json`；保存 C++ 源码
+或窗口配置后自动重建并重启示例。前端展示页仍由开发服务器负责热更新。
+
 示例要求 Evergreen WebView2 Runtime。缺失时显示安装提示并退出，不内置 Fixed Version
 Runtime。默认使用静态 WebView2 Loader，不生成 `WebView2Loader.dll`。只有显式传入
 `--with-webview2-loader` 或设置 `KASUMI_BUNDLE_WEBVIEW2_LOADER=ON` 时，才会改用动态
@@ -354,14 +449,32 @@ cmake -S windows/examples/win32-host `
 可选用户数据目录、可选资源提供器和应用版本。初始化时：
 
 1. 检测 Evergreen WebView2 Runtime。
-2. 创建一个窗口级 WebView2 Environment。
-3. 创建默认 WebView 子窗口、Controller 和 CoreWebView2。
-4. `web_root` 为空时通过 `WebResourceRequested` 返回 EXE 内嵌资源；非空时把
+2. 在默认视图客户区绘制原生初始化表面，按 `windows.window.backgroundColor` 自动选择
+   浅色或深色视觉，并按 DPI 缩放；透明窗口和 smoke test 跳过该表面。
+3. 创建一个窗口级 WebView2 Environment。
+4. 创建默认 WebView 子窗口、Controller 和 CoreWebView2。
+5. 把 Controller 的默认背景色设为配置的 `windows.window.backgroundColor`；透明窗口
+   使用完全透明色。该颜色覆盖 WebView2 在缩放、首次导航和页面重绘间隙暴露的默认白色。
+6. `web_root` 为空时通过 `WebResourceRequested` 返回 EXE 内嵌资源；非空时把
    `https://app.local` 映射到该目录。
-5. 关闭 DevTools、默认上下文菜单和状态栏。
-6. 校验消息来源，拦截非 `app.local` 或开发 origin 的导航和 `window.open`。
-7. 通过 `PostMessageAsJson` 回到 UI 线程发送响应。
-8. 每个 View 在自身子窗口 `WM_SIZE` 时发送物理内容区尺寸的 `window.resized` 事件。
+7. 关闭 DevTools、默认上下文菜单和状态栏。
+8. 校验消息来源，拦截非 `app.local` 或开发 origin 的导航和 `window.open`。
+9. 通过 `PostMessageAsJson` 回到 UI 线程发送响应。
+10. 每个 View 在自身子窗口 `WM_SIZE` 时发送物理内容区尺寸的 `window.resized` 事件。
+
+初始化表面完全由框架绘制，不需要页面 CSS 或 JavaScript。首个 `NavigationCompleted`
+后自动撤下；初始化失败、窗口关闭或视图销毁时也会同步清理。宿主应在
+`KSMWebView2Host::Initialize()` 返回 `true` 后再显示顶层窗口，让用户看到的是初始化
+画面而不是原生窗口背景。多视图会话仍建议等所有 `CreateView()` 完成后再显示窗口。
+
+初始化或首个页面导航失败时，框架会把初始化表面切换为错误面板，显示失败原因、目标
+URL 和日志路径，并隐藏底层的 WebView2 错误页。日志追加写入
+`%LOCALAPPDATA%\Kasumi\Logs\<executable-name>.log`，使用 UTF-16，包含时间、错误
+描述、WebView2 Runtime 版本和 URL。宿主可以通过 `last_error()` 与
+`last_log_path()` 读取最近一次失败信息，用于对话框或诊断页面。
+
+失败回调触发后不要立即销毁窗口；保留窗口可以让用户看到错误面板和日志路径。窗口仍
+可正常缩放，错误面板会跟随客户区更新。
 
 `user_data_folder` 为空时使用
 `%LOCALAPPDATA%\Kasumi\WebView2\<executable-name>`，不会让 WebView2 在 EXE 旁创建
@@ -472,6 +585,13 @@ View。尺寸边界会夹取到父窗口客户区；创建参数和 `SetBounds()
 `window.setSize` 接受逻辑外框像素，最小 `320 × 240`。实现使用 `GetDpiForWindow`、
 `MulDiv`、`MonitorFromWindow`、`GetMonitorInfo` 和 `SetWindowPos`；最大化、最小化和
 全屏返回 `NOT_SUPPORTED`。`window.resized` 仍使用物理内容区尺寸。
+
+`window.startDragging` 进入系统 `HTCAPTION` 移动循环；`window.startResizing` 接受
+`top` / `bottom` / `left` / `right` / `topLeft` / `topRight` / `bottomLeft` /
+`bottomRight`，进入系统缩放循环。无边框窗口按 8 DIP 边缘处理 `WM_NCHITTEST`；
+WebView2 的 Chromium 输入窗口可能位于独立线程，跨线程子类化不生效，因此框架会在窗口
+前台时轮询鼠标边角并作为原生兜底。自定义标题栏在边缘 8px 内应先调用
+`window.startResizing`，否则标题栏 JS 拖动会先于原生缩放执行。
 
 ## 测试
 

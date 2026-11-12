@@ -1,6 +1,6 @@
 {
   "name": "kasumi-bridge",
-  "version": "26.11.7",
+  "version": "26.11.12",
   "description": "TypeScript frontend bridge for Kasumi applications",
   "type": "module",
   "main": "./dist/index.js",

@@ -1176,6 +1176,83 @@
       ],
       "since": "1.1.0"
     },
+    "window.startDragging": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "dragging": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dragging"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "window.control"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.12"
+    },
+    "window.startResizing": {
+      "args": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "top",
+              "bottom",
+              "left",
+              "right",
+              "topLeft",
+              "topRight",
+              "bottomLeft",
+              "bottomRight"
+            ]
+          },
+          "windowId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "direction"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "resizing": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "resizing"
+        ],
+        "additionalProperties": false
+      },
+      "permissions": [
+        "window.control"
+      ],
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.12"
+    },
     "window.close": {
       "args": {
         "type": "object",
@@ -3110,7 +3187,7 @@
         "additionalProperties": false
       },
       "permissions": [
-        "media.control"
+        "media.read"
       ],
       "platforms": [
         "windows",
@@ -3176,10 +3253,11 @@
         "additionalProperties": false
       },
       "permissions": [
-        "media.control"
+        "media.read"
       ],
       "platforms": [
-        "windows"
+        "windows",
+        "android"
       ],
       "since": "26.11.5"
     },
@@ -3883,12 +3961,13 @@
  "visible": {"type": "boolean"},
  "alwaysOnTop": {"type": "boolean"},
  "transparent": {"type": "boolean"},
+ "maximized": {"type": "boolean"},
  "width": {"type": "number"},
  "height": {"type": "number"},
  "x": {"type": ["number", "null"]},
  "y": {"type": ["number", "null"]}
  },
- "required": ["windowId", "visible", "alwaysOnTop", "transparent", "width", "height", "x", "y"],
+  "required": ["windowId", "visible", "alwaysOnTop", "transparent", "maximized", "width", "height", "x", "y"],
  "additionalProperties": false
       },
       "permissions": [

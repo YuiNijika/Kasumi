@@ -675,6 +675,7 @@ internal class KSMCapabilityPlugin : KSMPlugin {
                     args.optBoolean("visible", true),
                     args.optBoolean("alwaysOnTop", false),
                     args.optBoolean("transparent", false),
+                    false,
                     args.optInt("x", 0),
                     args.optInt("y", 0),
                     args.optInt("width", 0),
@@ -690,6 +691,7 @@ internal class KSMCapabilityPlugin : KSMPlugin {
                 .put("visible", state.visible)
                 .put("alwaysOnTop", state.alwaysOnTop)
                 .put("transparent", state.transparent)
+                .put("maximized", state.maximized)
                 .put("x", state.x)
                 .put("y", state.y)
                 .put("width", state.width)

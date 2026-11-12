@@ -99,6 +99,8 @@ export interface KSMWindowApi {
   minimize(): Promise<{ updated: boolean }>;
   maximize(): Promise<{ updated: boolean }>;
   setSize(args: KSMWindowSize): Promise<{ updated: boolean }>;
+  startDragging(args?: KSMWindowTargetArgs): Promise<{ dragging: boolean }>;
+  startResizing(args: KSMWindowResizeArgs): Promise<{ resizing: boolean }>;
   close(): Promise<{ closed: boolean }>;
   create(args: KSMWindowCreateOptions): Promise<KSMWindowState>;
   show(args?: KSMWindowTargetArgs): Promise<{ shown: boolean }>;
@@ -781,6 +783,20 @@ export interface KSMWindowTargetArgs {
   windowId?: string;
 }
 
+export type KSMWindowResizeDirection =
+  | 'top'
+  | 'bottom'
+  | 'left'
+  | 'right'
+  | 'topLeft'
+  | 'topRight'
+  | 'bottomLeft'
+  | 'bottomRight';
+
+export interface KSMWindowResizeArgs extends KSMWindowTargetArgs {
+  direction: KSMWindowResizeDirection;
+}
+
 export interface KSMWindowPositionArgs extends KSMWindowTargetArgs {
   x: number;
   y: number;
@@ -795,6 +811,7 @@ export interface KSMWindowState {
   visible: boolean;
   alwaysOnTop: boolean;
   transparent: boolean;
+  maximized: boolean;
   width: number;
   height: number;
   x: number | null;

@@ -12,6 +12,8 @@ const WINDOWS_PACKAGE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const ANDROID_PACKAGE_PATTERN = /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
 const COMMAND_PATTERN = /^[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$/;
 const PERMISSION_PATTERN = COMMAND_PATTERN;
+const ERROR_PAGE_COLOR_PATTERN = /^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/;
+const ERROR_PAGE_TEXT_PATTERN = /^[^"\\;\u0000-\u001F\u007F]+$/;
 const DEVELOPMENT_ORIGIN = 'http://localhost:5173';
 const DEFAULT_WEBVIEW_CONFIG = Object.freeze({
   productionEntry: 'https://app.local/index.html',
@@ -49,7 +51,17 @@ export async function readConfig(projectRoot, configPath) {
   }
  rejectUnknown(
  payload,
- new Set(['$schema', 'appId', 'windows', 'android', 'extensions']),
+ new Set([
+   '$schema',
+   'appId',
+   'windows',
+   'android',
+   'extensions',
+   'icons',
+   'resources',
+   'signing',
+   'bundle'
+ ]),
  'configuration'
  );
   if (!('windows' in payload) || !('android' in payload)) {
@@ -82,26 +94,30 @@ export async function readConfig(projectRoot, configPath) {
   ]) {
     root[key] = parser(payload[key], `configuration.${key}`);
   }
+  const windows = parsePlatform(
+    payload.windows,
+    'configuration.windows',
+    WINDOWS_PACKAGE_PATTERN,
+    [...commandData.windows, ...extensions.windowsCommands],
+    [...commandData.permissions, ...extensions.permissions],
+    true
+  );
+  const android = parsePlatform(
+    payload.android,
+    'configuration.android',
+    ANDROID_PACKAGE_PATTERN,
+    [...commandData.android, ...extensions.androidCommands],
+    [...commandData.permissions, ...extensions.permissions],
+    false,
+    androidWebView
+  );
+  windows.icons = { ...root.icons, ...windows.icons };
+  android.icons = { ...root.icons, ...android.icons };
   return {
     ...root,
- extensions: extensions.extensions,
- windows: parsePlatform(
-      payload.windows,
-      'configuration.windows',
-      WINDOWS_PACKAGE_PATTERN,
- [...commandData.windows, ...extensions.windowsCommands],
- [...commandData.permissions, ...extensions.permissions],
-      true
-    ),
-    android: parsePlatform(
-      payload.android,
-      'configuration.android',
-      ANDROID_PACKAGE_PATTERN,
- [...commandData.android, ...extensions.androidCommands],
- [...commandData.permissions, ...extensions.permissions],
-      false,
-      androidWebView
-    )
+    extensions: extensions.extensions,
+    windows,
+    android
   };
 }
 
@@ -433,12 +449,17 @@ function parsePlatform(
     'commands',
     'permissions',
     'shell',
-    'http'
+    'http',
+    'icons',
+    'resources',
+    'signing',
+    'bundle'
   ]);
   if (allowDecorations) {
     allowedFields.add('decorations');
     allowedFields.add('window');
     allowedFields.add('tray');
+    allowedFields.add('errorPage');
   }
   if (webviewConfig !== undefined) {
     allowedFields.add('webview');
@@ -476,6 +497,11 @@ function parsePlatform(
       throw new ConfigError(`${location}.commands must include core command: ${required}.`);
     }
   }
+  const window = parseWindow(
+    value.window,
+    `${location}.window`,
+    allowDecorations
+  );
   const result = {
     packageName: value.packageName,
     version: value.version,
@@ -495,7 +521,7 @@ function parsePlatform(
         new Set(['https:'])
       )
     },
-    window: parseWindow(value.window, `${location}.window`, allowDecorations),
+    window,
     tray: parseTray(value.tray, `${location}.tray`),
     icons: parseIcons(value.icons, `${location}.icons`),
     resources: parseStringArray(value.resources, `${location}.resources`),
@@ -503,7 +529,11 @@ function parsePlatform(
     bundle: parseBundle(value.bundle, `${location}.bundle`)
   };
   if (allowDecorations) {
-    result.decorations = value.decorations ?? true;
+    result.decorations = value.decorations ?? window.decorations ?? true;
+    result.errorPage = parseErrorPage(
+      value.errorPage,
+      `${location}.errorPage`
+    );
   }
   if (webviewConfig !== undefined) {
     result.webview = webviewConfig;
@@ -649,6 +679,65 @@ function parseHtmlFiles(value, location) {
   return htmlFiles;
 }
 
+function parseErrorPage(value, location) {
+  if (value === undefined) {
+    return {};
+  }
+  if (!isObject(value)) {
+    throw new ConfigError(`${location} must be an object.`);
+  }
+  const colorFields = [
+    'backgroundColor',
+    'cardColor',
+    'borderColor',
+    'textColor',
+    'mutedTextColor',
+    'accentColor',
+    'errorColor'
+  ];
+  const textFields = {
+    title: 80,
+    hint: 240
+  };
+  rejectUnknown(
+    value,
+    new Set([...colorFields, ...Object.keys(textFields)]),
+    location
+  );
+  const result = {};
+  for (const key of colorFields) {
+    if (!(key in value)) {
+      continue;
+    }
+    if (
+      typeof value[key] !== 'string' ||
+      !ERROR_PAGE_COLOR_PATTERN.test(value[key])
+    ) {
+      throw new ConfigError(
+        `${location}.${key} must be #RRGGBB or #AARRGGBB.`
+      );
+    }
+    result[key] = value[key];
+  }
+  for (const [key, maxLength] of Object.entries(textFields)) {
+    if (!(key in value)) {
+      continue;
+    }
+    if (
+      typeof value[key] !== 'string' ||
+      value[key].length === 0 ||
+      value[key].length > maxLength ||
+      !ERROR_PAGE_TEXT_PATTERN.test(value[key])
+    ) {
+      throw new ConfigError(
+        `${location}.${key} must be 1-${maxLength} safe characters.`
+      );
+    }
+    result[key] = value[key];
+  }
+  return result;
+}
+
 function parseWindow(value, location, allowWindowControl) {
   if (value === undefined) {
     return {};
@@ -662,6 +751,7 @@ function parseWindow(value, location, allowWindowControl) {
       'title',
       'decorations',
       'transparent',
+      'backgroundColor',
       'alwaysOnTop',
       'center',
       'width',
@@ -680,6 +770,7 @@ function parseWindow(value, location, allowWindowControl) {
         title: '',
         decorations: true,
         transparent: false,
+        backgroundColor: '',
         alwaysOnTop: false,
         center: true,
         width: 1080,
@@ -719,6 +810,17 @@ function parseWindow(value, location, allowWindowControl) {
       throw new ConfigError(`${location}.${key} must be a boolean.`);
     }
   }
+  if (
+    typeof result.backgroundColor !== 'string' ||
+    (
+      result.backgroundColor !== '' &&
+      !/^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(result.backgroundColor)
+    )
+  ) {
+    throw new ConfigError(
+      `${location}.backgroundColor must be #RRGGBB or #AARRGGBB.`
+    );
+  }
   for (const key of [
     'width',
     'height',
@@ -731,11 +833,25 @@ function parseWindow(value, location, allowWindowControl) {
       throw new ConfigError(`${location}.${key} must be a non-negative integer.`);
     }
   }
-  if (result.maxWidth === 0) {
-    result.maxWidth = 0;
+  if (result.maxWidth > 0 && result.maxWidth < result.minWidth) {
+    throw new ConfigError(
+      `${location}.maxWidth must be greater than or equal to minWidth.`
+    );
   }
-  if (result.maxHeight === 0) {
-    result.maxHeight = 0;
+  if (result.maxHeight > 0 && result.maxHeight < result.minHeight) {
+    throw new ConfigError(
+      `${location}.maxHeight must be greater than or equal to minHeight.`
+    );
+  }
+  if (result.maxWidth > 0 && result.width > result.maxWidth) {
+    throw new ConfigError(
+      `${location}.width must be less than or equal to maxWidth.`
+    );
+  }
+  if (result.maxHeight > 0 && result.height > result.maxHeight) {
+    throw new ConfigError(
+      `${location}.height must be less than or equal to maxHeight.`
+    );
   }
   return result;
 }
@@ -795,9 +911,13 @@ function parseIcons(value, location) {
   if (!isObject(value)) {
     throw new ConfigError(`${location} must be an object.`);
   }
-  rejectUnknown(value, new Set(['window', 'tray', 'installer']), location);
+  rejectUnknown(
+    value,
+    new Set(['window', 'tray', 'installer', 'android']),
+    location
+  );
   const result = {};
-  for (const key of ['window', 'tray', 'installer']) {
+  for (const key of ['window', 'tray', 'installer', 'android']) {
     if (key in value) {
       if (typeof value[key] !== 'string' || value[key].length === 0) {
         throw new ConfigError(`${location}.${key} must be a non-empty string.`);

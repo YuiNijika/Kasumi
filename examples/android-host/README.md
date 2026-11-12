@@ -57,7 +57,8 @@ CLI 会通过 `-PksmPackageName`、`-PksmVersion`、`-PksmCommands` 和 `-PksmWe
 - 文件选择器只向前端返回 `app://picked/<id>`。
 - 设备信息不包含任何持久设备标识。
 - `KSMWebViewHost` 负责 WebView 设置、消息桥、导航拦截、命令取消和资源释放。
-- 默认使用 `Theme.Kasumi.Fullscreen` 并进入沉浸式全屏，隐藏标题栏、状态栏和导航栏。
+- 默认使用 `Theme.Kasumi.Fullscreen` 移除标题栏，同时保留系统状态栏和导航栏。
+- 传入 `fullscreen = true` 后进入沉浸式全屏，隐藏状态栏和导航栏。
 - 应用进入后台时暂停 WebView 定时器；低内存时清理内存缓存并释放可回收内存，保留磁盘缓存。
 - Android O 及以上允许系统在 WebView 不可见时 waive 渲染进程优先级。
 
@@ -74,5 +75,5 @@ CLI 会通过 `-PksmPackageName`、`-PksmVersion`、`-PksmCommands` 和 `-PksmWe
 6. 生命周期异常：确认旧 Activity 销毁后不再投递迟到响应。
 7. 返回应用后页面定时器不恢复：确认 `onResume` 调用了 `KSMWebViewHost.onResume`。
 8. 返回应用后内存仍偏高：检查是否存在额外 WebView，当前 Android 宿主只管理一个实例。
-9. 状态栏重新出现：确认 Activity 转发 `onWindowFocusChanged`，或重新调用
+9. 沉浸式模式下状态栏重新出现：确认 Activity 转发 `onWindowFocusChanged`，或重新调用
    `KSMWebViewRuntime.applyFullscreen(activity)`。
