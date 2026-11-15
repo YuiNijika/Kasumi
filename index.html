@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="./logo.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+      name="description"
+      content="KirakiraDokidoki 是一套渐进式 WebView 应用框架，用 Web 前端构建 Windows 与 Android 应用。"
+    >
+    <meta name="theme-color" id="theme-color" content="#080808">
+    <meta name="color-scheme" content="dark light">
+    <title>Kasumi · 渐进式 WebView 应用框架</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem('kasumi-theme')
+          const theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark'
+          document.documentElement.dataset.theme = theme
+          document.documentElement.style.colorScheme = theme
+          document
+            .getElementById('theme-color')
+            ?.setAttribute('content', theme === 'light' ? '#f7f5f0' : '#080808')
+        } catch {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
+    <script type="module" crossorigin src="./assets/index-D1KjtQAV.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-1BpDccDB.css">
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>
