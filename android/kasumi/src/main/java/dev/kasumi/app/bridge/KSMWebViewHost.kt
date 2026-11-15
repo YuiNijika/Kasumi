@@ -49,7 +49,9 @@ class KSMWebViewHost(
     private val onNativeEvent: ((String) -> Unit)? = null,
     private val fullscreen: Boolean = false,
     plugins: Collection<KSMPlugin> = emptyList(),
-    val windowId: String = nextWindowId()
+    val windowId: String = nextWindowId(),
+    frameworkPlugins: Collection<String> = emptyList(),
+    requiredAppPlugins: Collection<String> = emptyList()
 ) : Closeable {
     private class ActiveCommand {
         private val cancelled = AtomicBoolean(false)
@@ -94,6 +96,8 @@ class KSMWebViewHost(
             dispatchWebEvent(event)
         },
         plugins = plugins,
+        frameworkPlugins = frameworkPlugins,
+        requiredAppPlugins = requiredAppPlugins,
         requestScope = windowId,
         eventBroadcaster = { event, payload ->
             KSM.broadcastEvent(event, payload)
@@ -266,6 +270,7 @@ class KSMWebViewHost(
             KSMWebViewRuntime.resume(webView)
         }
         KSM.unregisterWindow(windowId)
+        router.close()
         WebViewCompat.removeWebMessageListener(webView, MESSAGE_CHANNEL)
         webView.removeOnLayoutChangeListener(layoutListener)
         KSMWebViewRuntime.destroy(webView)

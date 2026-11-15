@@ -12,9 +12,10 @@
 | `commands.schema.json`    | 命令、事件和参数结构的 JSON Schema 校验规则 |
 | `plugins.json`            | 内置插件清单、归属命令和插件版本            |
 | `plugins.schema.json`     | 插件清单的 JSON Schema 校验规则             |
+| `app-plugin.schema.json`  | 应用插件 manifest 的 JSON Schema 校验规则   |
 | `errors.json`             | 双端共用的错误码全集                        |
 | `permissions.schema.json` | 权限声明                                    |
-| `kasumi.config.schema.json` | 应用配置、包名、版本、命令与权限 allowlist、origin 白名单和 Windows 标题栏开关 |
+| `kasumi.config.schema.json` | 应用配置、框架/应用插件、命令与权限 allowlist、origin 白名单和 Windows 标题栏开关 |
 | `../version.json`         | 框架产品版本唯一事实源                      |
 | `kasumi.version.schema.json` | 版本元数据 JSON Schema                   |
 
@@ -22,15 +23,15 @@ Windows、Android 和前端实现都必须以这些文件为准。协议字符�
 
 ## 当前规模
 
-`commands.json` 当前定义 **48 个命令和 3 个事件**，`plugins.json` 将全部命令
-归入 **14 个内置插件**。产品版本由根目录 `version.json` 管理，SQL 插件的新增命令
+`commands.json` 当前定义 **108 个命令和 20 个事件**，`plugins.json` 将全部命令
+归入 **21 个框架插件**。产品版本由根目录 `version.json` 管理，SQL 插件的新增命令
 使用 `since: "1.2.0"`，路径、存储、系统和日志插件使用 `since: "1.3.0"`。
 
 | 平台    | 适用命令 | 说明                                 |
 | ------- | -------: | ------------------------------------ |
-| Windows |       47 | 不包含仅 Android 的 `device.getInfo` |
-| Android |       44 | 不包含 Windows 专属窗口命令          |
-| 全集    |       48 | 宿主按平台矩阵过滤                   |
+| Windows |      104 | 不包含仅 Android 的 `device.getInfo`、`mediaSession.*` |
+| Android |       87 | 不包含 Windows 专属窗口、托盘、全局快捷键和更新器命令 |
+| 全集    |      108 | 宿主按平台矩阵过滤                   |
 
 `ping` 与 `capabilities.query` 是最小通路。其余命令覆盖文件、对话框、剪贴板、通知、
 权限、事件、窗口、下载、外部链接、设备信息和数据库访问。
@@ -86,36 +87,45 @@ Windows 可额外设置 `decorations` 布尔值，默认 `true`。设为 `false`
 `frontendPackage`、`platforms`、`permissions` 和 `defaultPermissions`。校验器要求
 权限与平台字段精确等于其命令集合的并集，避免清单和协议漂移。
 
-| 插件 | 前端包 | 职责 | 命令数 |
-| --- | --- | --- | ---: |
-| `core` | `kasumi-bridge` | 应用生命周期、权限、事件和能力发现 | 7 |
-| `fs` | `kasumi-plugin-fs` | 沙箱虚拟文件系统 | 7 |
-| `dialog` | `kasumi-plugin-dialog` | 系统消息框、确认框和文件选择器 | 4 |
-| `clipboard` | `kasumi-plugin-clipboard` | 系统剪贴板文本 | 2 |
-| `notification` | `kasumi-plugin-notification` | 系统通知 | 1 |
-| `window` | `kasumi-plugin-window` | 窗口标题、尺寸和生命周期 | 5 |
-| `http` | `kasumi-plugin-http` | HTTPS 下载 | 1 |
-| `shell` | `kasumi-plugin-shell` | 白名单外部链接 | 1 |
-| `device` | `kasumi-plugin-device` | 非持久设备信息，仅 Android | 1 |
-| `sql` | `kasumi-plugin-sql` | 数据库连接和参数化语句 | 5 |
-| `path` | `kasumi-plugin-path` | 虚拟路径检查、拼接和规范化 | 7 |
-| `store` | `kasumi-plugin-store` | 应用数据目录内的 JSON 键值存储 | 5 |
-| `os` | `kasumi-plugin-os` | 非持久系统与运行时信息 | 1 |
-| `log` | `kasumi-plugin-log` | 平台调试日志 | 1 |
+| 插件 | 平台 | 前端包 | 职责 | 命令数 |
+| --- | --- | --- | --- | ---: |
+| `core` | 双端 | `kasumi-bridge` | 应用生命周期、权限、事件和能力发现 | 9 |
+| `fs` | 双端 | `kasumi-plugin-fs` | 沙箱虚拟文件系统 | 14 |
+| `dialog` | 双端 | `kasumi-plugin-dialog` | 系统消息框、确认框和文件选择器 | 6 |
+| `clipboard` | 双端 | `kasumi-plugin-clipboard` | 系统剪贴板文本 | 2 |
+| `notification` | 双端 | `kasumi-plugin-notification` | 系统通知 | 1 |
+| `window` | 双端 | `kasumi-plugin-window` | 窗口标题、尺寸、拖拽缩放和生命周期 | 15 |
+| `http` | 双端 | `kasumi-plugin-http` | HTTPS 下载、传输、Cookie 和请求 | 7 |
+| `shell` | 双端 | `kasumi-plugin-shell` | 白名单外部链接和路径打开 | 3 |
+| `device` | Android | `kasumi-plugin-device` | 非持久设备信息 | 1 |
+| `sql` | 双端 | `kasumi-plugin-sql` | 数据库连接和参数化语句 | 5 |
+| `path` | 双端 | `kasumi-plugin-path` | 虚拟路径检查、拼接和规范化 | 7 |
+| `store` | 双端 | `kasumi-plugin-store` | 应用数据目录内的 JSON 键值存储 | 5 |
+| `os` | 双端 | `kasumi-plugin-os` | 非持久系统与运行时信息 | 1 |
+| `log` | 双端 | `kasumi-plugin-log` | 平台调试日志 | 1 |
+| `appInstance` | 双端 | `kasumi-bridge` | 单实例状态和主窗口聚焦 | 2 |
+| `updater` | 双端 | `kasumi-plugin-updater` | 更新检查、下载和安装 | 3 |
+| `globalShortcut` | Windows | `kasumi-plugin-global-shortcut` | 全局快捷键注册与注销 | 2 |
+| `tray` | Windows | `kasumi-plugin-tray` | 系统托盘显示、隐藏和菜单 | 3 |
+| `media` | 双端 | `kasumi-plugin-media` | 媒体元数据、外部工具和虚拟媒体域 | 5 |
+| `audio` | 双端 | `kasumi-plugin-audio` | 音频播放、设备、效果和状态 | 14 |
+| `mediaSession` | Android | `kasumi-plugin-media-session` | 系统媒体会话元数据和传输控制 | 2 |
 
-Windows 的 `KSMRouter` 与 Android 的 `KSMRouter` 先派发原生插件，只有 `core` 生命
-周期命令仍由路由层处理。宿主可以注册自定义 `KSMPlugin` 实现；除 `core` 外的生成插件
-ID 都可以用同 ID 插件显式替换，但替换实现必须完整声明该 ID 的全部生成命令。自定义插件
-不得抢占其他生成命令。插件自己声明的命令会被加入 `capabilities.query`。插件命令若不在
-`commands.json` 中，由插件自己的参数校验器负责校验，不绕过宿主权限检查。
+`plugins.json` 只描述框架插件。应用插件是另一层扩展：在 `kasumi.config.json` 顶层
+`appPlugins`（兼容旧字段 `extensions`）中声明 manifest，由平台配置的
+`frameworkPlugins` 决定启用哪些框架插件。`frameworkPlugins` 支持 `"all"` 或显式数组；
+省略 `commands` 时 CLI 会按启用的框架插件和应用插件命令推导命令白名单。应用插件必须
+声明独立命名空间、命令、权限、事件和平台，不能占用任何框架插件 ID、框架命令或框架事件，
+框架插件也不能反向依赖应用插件。缺失 `requiredAppPlugins` 实现时宿主启动失败。
 
-Windows 默认注册 `fs`、`dialog`、`clipboard`、`notification`、`window`、`http`、
-`shell`、`sql`、`path`、`store`、`os` 和 `log`；Android 默认注册这些插件并额外注册
-`device`。插件上下文携带当前请求 ID，`http.download` 使用它连接宿主取消链路。
+Windows 与 Android 分别维护 `KSMFrameworkPluginRegistry` 和 `KSMAppPluginRegistry`；
+两者生命周期、冲突校验和能力上报完全独立。`capabilities.query` 返回
+`frameworkPlugins` 与 `appPlugins` 两组对象，并保留只含框架插件的兼容字段 `plugins`。
+应用插件监听框架事件必须通过 `frameworkEvents` 显式声明。
 
-代码生成会输出 `KSM_PLUGIN_METADATA`、C++ `PluginMetadata()` 和 Kotlin
-`pluginMetadata`。前端插件包只重新导出对应模块 API，原生权限、参数和来源校验仍在
-Windows 或 Android 宿主执行。
+代码生成会输出 `KSM_PLUGINS`、`KSM_PLUGIN_EVENTS`、`KSM_EVENT_PLUGINS`，
+C++ `PluginMetadata()` 和 Kotlin `pluginMetadata`。前端插件包只重新导出对应模块 API，
+原生权限、参数和来源校验仍在 Windows 或 Android 宿主执行。
 
 ## SQL 插件
 

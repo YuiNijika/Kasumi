@@ -30,6 +30,7 @@ const plugins = [
     'show'
   ]],
   ['audio', ['load', 'play', 'pause', 'stop', 'onTick']],
+  ['media', ['probe', 'detectFfmpeg', 'validateFfmpeg', 'setFfmpegPath', 'pickFfmpegExecutable']],
   ['media-session', 'mediaSession', ['update', 'clear', 'onCommand']],
   ['sql', ['close', 'drivers', 'execute', 'open', 'query']],
   ['path', ['basename', 'dirname', 'dirs', 'extname', 'isAbsolute', 'join', 'normalize']],

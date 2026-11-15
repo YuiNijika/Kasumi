@@ -188,10 +188,12 @@ val response = KSM.invoke(
 
 ## 插件与 SQL
 
-Android 默认插件由 `ksmDefaultPlugins()` 创建，包括 `fs`、`dialog`、`clipboard`、
-`notification`、`window`、`http`、`shell`、`device`、`sql`、`path`、`store`、`os` 和
-`log`。`core` 由路由层实现。
-自定义插件实现 `KSMPlugin` 并通过 `KSMWebViewHost` 的 `plugins` 参数注册：
+Android 把框架插件和应用插件分开注册。框架插件由 `ksmDefaultFrameworkPlugins()` 创建，
+`KSMRouter` 根据 `frameworkPlugins` 过滤并启动 `KSMFrameworkPluginRegistry`；应用插件
+通过 `KSMWebViewHost` 的 `plugins` 参数注册，由 `KSMAppPluginRegistry` 承载。两者 ID、
+命令、权限和事件不能互相冲突，应用插件也不能使用同 ID 替换框架插件。
+应用插件必须实现 `id`、`commands`、`permissions`、`events`、`validateArgs` 和 `handle`，
+并通过 `frameworkEvents` 声明要接收的框架事件：
 
 ```kotlin
 val plugin = object : KSMPlugin {
@@ -219,13 +221,17 @@ val webViewHost = KSMWebViewHost(
     fileSystem = fileSystem,
     hostServices = hostServices,
     entryUrl = "https://app.local/index.html",
-    plugins = listOf(plugin)
+    plugins = listOf(plugin),
+    frameworkPlugins = listOf("core", "fs", "store", "appInstance"),
+    requiredAppPlugins = listOf("com.example.echo")
 )
 ```
 
-除 `core` 外的内置插件都可以用同 ID 插件替换，但必须完整声明该插件的全部生成命令。
-插件不得抢占其他生成命令。插件命令不在 `protocol/commands.json` 时，`validateArgs`
-必须自己拒绝非法参数。插件上下文携带 `requestId`，下载插件用它连接宿主取消和超时链路。
+`frameworkPlugins` 支持显式数组或 `"all"`；省略 `commands` 时 CLI 会按启用的框架插件和
+应用插件推导命令白名单。`device` 和 `mediaSession` 只在 Android 注册，`tray` 和
+`globalShortcut` 只在 Windows 注册。应用插件命令不在 `protocol/commands.json` 时，
+`validateArgs` 必须自己拒绝非法参数。插件上下文携带 `requestId`，下载插件用它连接宿主
+取消和超时链路。
 
 SQL 默认注册 `KSMSqliteDriver`。需要 MySQL、PostgreSQL 或 MongoDB 时，实现
 `KSMSqlDriver` / `KSMSqlConnection`，然后调用：

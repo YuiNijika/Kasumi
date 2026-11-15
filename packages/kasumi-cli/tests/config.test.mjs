@@ -809,7 +809,7 @@ test('rejects an extension command that exceeds its declared platforms', async (
  );
  await assert.rejects(
  readConfig(temporaryRoot, 'kasumi.config.json'),
- /platforms exceeds the extension platform list/
+ /platforms exceeds the app plugin platform list/
  );
  } finally {
  await rm(temporaryRoot, { recursive: true, force: true });

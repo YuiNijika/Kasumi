@@ -300,11 +300,11 @@ KSM::Log::Write(
 
 ## 插件与 SQL
 
-Windows 宿主默认加载 `fs`、`dialog`、`clipboard`、`notification`、`window`、`http`、
-`shell`、`sql`、`path`、`store`、`os` 和 `log` 插件。`core` 仍由路由层实现，
-`device` 仅 Android 注册。插件接口位于
-`include/kasumi/plugins/ksm_plugin.h`，消费方可以通过 `KSMWebView2Host` 构造函数传入
-额外插件：
+Windows 宿主把框架插件和应用插件分开注册。框架插件来自 `protocol/plugins.json`，
+由 `KSMFrameworkPluginRegistry` 承载；应用插件通过 `KSMWebView2Host` 构造函数的
+`plugins` 参数注册，由 `KSMAppPluginRegistry` 承载。两者 ID、命令、权限和事件不能
+互相冲突，应用插件也不能使用同 ID 替换框架插件。插件接口位于
+`include/kasumi/plugins/ksm_plugin.h`：
 
 ```cpp
 #include <memory>
@@ -327,14 +327,21 @@ auto host = std::make_shared<KSMWebView2Host>(
     true,
     std::vector<std::shared_ptr<KSMPlugin>>{
         std::make_shared<MyPlugin>()
-    }
+    },
+    {"fs.read", "store"},
+    {"https://api.example.com"},
+    {},
+    {},
+    {"fs", "store", "appInstance"},
+    {"example.analytics"}
 );
 ```
 
-除 `core` 外的内置插件都可以用同 ID 自定义插件替换，但替换插件必须完整声明该 ID 在
-`protocol/plugins.json` 中的全部命令。自定义插件不得抢占其他生成命令。自定义命令不在
-`protocol/commands.json` 时，插件必须实现自己的参数校验。插件上下文携带请求 ID，
-下载插件用它连接 `KSMHostServices::CancelRequest`。
+`frameworkPlugins` 支持显式数组或 `"all"`；省略 `commands` 时 CLI 会按启用的框架插件
+和应用插件推导命令白名单。应用插件必须实现 `Id`、`Commands`、`Permissions`、
+`Events`、`ValidateArgs` 和 `Handle`，并通过 `FrameworkEvents` 声明要接收的框架事件。
+应用插件命令不在 `protocol/commands.json` 时，必须自行校验参数并返回协议错误码。
+插件上下文携带请求 ID，下载插件用它连接 `KSMHostServices::CancelRequest`。
 
 SQL 驱动实现 `KSMSqlDriver` 和 `KSMSqlConnection`，然后注册到宿主服务：
 
@@ -384,7 +391,9 @@ cmake --build windows/build/sdk --config Release --target install
 ```text
 windows/build/sdk/install/
 ├─ include/kasumi/
-├─ lib/kasumi_windows_bridge.lib
+├─ lib/kasumi_windows_bridge_core.lib
+├─ lib/kasumi_windows_bridge_plugins.lib
+├─ lib/kasumi_windows_bridge_runtime.lib
 ├─ lib/cmake/Kasumi/
 └─ README.md
 ```
@@ -394,6 +403,12 @@ C++ 实现文件。依赖通过 `vcpkg.json` 固定为 `nlohmann-json` 与 `webv
 默认构建使用 `x64-windows-static-md` triplet；只有启用动态 Loader 时才使用
 `x64-windows`。`cli/ksm.py` 会分别使用 `.tmp/vcpkg-installed` 和
 `.tmp/vcpkg-installed-webview2-loader`，避免两种模式互相清理依赖。
+
+MSVC 静态库需要保留完整的 COFF 符号字符串表。`nlohmann/json` 的模板实例化会让
+单个聚合库膨胀到约 65 MiB，其中约 40 MiB 是符号名，不是 WebView2 Loader、PDB
+或源码。SDK 因此按依赖方向拆为 `core`、`plugins`、`runtime` 三个静态库，并用
+`Kasumi::kasumi_windows_bridge` 聚合链接；消费者 API 和链接命令不需要变化。
+拆分后的单库约 15 / 27 / 24 MiB，均低于 GitHub 建议的 50 MiB 单文件上限。
 
 ## 独立示例
 

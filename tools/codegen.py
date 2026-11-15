@@ -86,6 +86,16 @@ def kotlin_permission_map(values: dict[str, list[str]]) -> str:
     return "mapOf(\n" + ",\n".join(entries) + "\n    )"
 
 
+def kotlin_string_map(values: dict[str, str]) -> str:
+    if not values:
+        return "emptyMap()"
+    entries = [
+        f'        "{name}" to "{value}"'
+        for name, value in values.items()
+    ]
+    return "mapOf(\n" + ",\n".join(entries) + "\n    )"
+
+
 def commands_for(contract: dict[str, Any], platform: str) -> list[str]:
     return [
         name
@@ -116,6 +126,7 @@ def plugin_metadata(plugins: dict[str, Any]) -> dict[str, Any]:
             "permissions": definition["permissions"],
             "defaultPermissions": definition["defaultPermissions"],
             "commands": definition["commands"],
+            "events": definition["events"],
         }
         for name, definition in plugins["plugins"].items()
     }
@@ -145,10 +156,19 @@ def generate_frontend(
         name: definition["commands"]
         for name, definition in plugins["plugins"].items()
     }
+    plugin_events = {
+        name: definition["events"]
+        for name, definition in plugins["plugins"].items()
+    }
     command_plugin = {
         command: name
         for name, definition in plugins["plugins"].items()
         for command in definition["commands"]
+    }
+    event_plugin = {
+        event: name
+        for name, definition in plugins["plugins"].items()
+        for event in definition["events"]
     }
     command_permission_map = command_permissions(contract)
     metadata = plugin_metadata(plugins)
@@ -169,10 +189,13 @@ export interface KSMPluginMetadata {{
   permissions: readonly string[];
   defaultPermissions: readonly string[];
   commands: readonly string[];
+  events: readonly string[];
 }}
 export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = {json_text(metadata)};
 export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = {json_text(plugin_commands)};
+export const KSM_PLUGIN_EVENTS: Readonly<Record<string, readonly string[]>> = {json_text(plugin_events)};
 export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {json_text(command_plugin)};
+export const KSM_EVENT_PLUGINS: Readonly<Record<string, string>> = {json_text(event_plugin)};
 export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {json_text(command_permission_map)};
 
 export type KSMCommandName = (typeof KSM_COMMANDS)[number];
@@ -311,6 +334,15 @@ def generate_windows(
         name: definition["commands"]
         for name, definition in plugins["plugins"].items()
     }
+    plugin_events = {
+        name: definition["events"]
+        for name, definition in plugins["plugins"].items()
+    }
+    event_plugin = {
+        event: name
+        for name, definition in plugins["plugins"].items()
+        for event in definition["events"]
+    }
     command_permission_map = command_permissions(contract)
     metadata = plugin_metadata(plugins)
     schema_json = json_text(arg_schemas(contract)).replace(
@@ -428,6 +460,8 @@ public:
     static const std::vector<std::string>& Plugins();
     static const nlohmann::json& PluginMetadata();
     static const nlohmann::json& PluginCommands();
+    static const nlohmann::json& PluginEvents();
+    static const nlohmann::json& EventPlugins();
     static const nlohmann::json& CommandPermissions();
     static bool ValidateArgs(const std::string& command, const nlohmann::json& args);
 }};
@@ -488,6 +522,20 @@ inline const nlohmann::json& KSMGeneratedContract::PluginCommands() {{
     return value;
 }}
 
+inline const nlohmann::json& KSMGeneratedContract::PluginEvents() {{
+    static const nlohmann::json value = nlohmann::json::parse(
+        R"KSMPLUGINEVENTS({json_text(plugin_events)})KSMPLUGINEVENTS"
+    );
+    return value;
+}}
+
+inline const nlohmann::json& KSMGeneratedContract::EventPlugins() {{
+    static const nlohmann::json value = nlohmann::json::parse(
+        R"KSMEVENTPLUGINS({json_text(event_plugin)})KSMEVENTPLUGINS"
+    );
+    return value;
+}}
+
 inline const nlohmann::json& KSMGeneratedContract::CommandPermissions() {{
     static const nlohmann::json value = nlohmann::json::parse(
         R"KSMPERMISSIONS({json_text(command_permission_map)})KSMPERMISSIONS"
@@ -530,6 +578,15 @@ def generate_android(
         name: definition["commands"]
         for name, definition in plugins["plugins"].items()
     }
+    plugin_events = {
+        name: definition["events"]
+        for name, definition in plugins["plugins"].items()
+    }
+    event_plugin = {
+        event: name
+        for name, definition in plugins["plugins"].items()
+        for event in definition["events"]
+    }
     command_permission_map = command_permissions(contract)
     metadata = plugin_metadata(plugins)
     schema_json = json_text(arg_schemas(contract))
@@ -554,6 +611,10 @@ object KSMGeneratedContract {{
     val pluginMetadata: JSONObject = JSONObject(\"\"\"{json_text(metadata)}\"\"\")
 
     val pluginCommands: Map<String, List<String>> = {kotlin_plugin_command_map(plugin_commands)}
+
+    val pluginEvents: Map<String, List<String>> = {kotlin_plugin_command_map(plugin_events)}
+
+    val eventPlugins: Map<String, String> = {kotlin_string_map(event_plugin)}
 
     val commandPermissions: Map<String, List<String>> = {kotlin_permission_map(command_permission_map)}
 
@@ -667,12 +728,15 @@ object KSMGeneratedContract {{
 
 def generate_cli_data(
     contract: dict[str, Any],
+    plugins: dict[str, Any],
     permission_schema: dict[str, Any],
 ) -> None:
     payload = {
         "permissions": permissions_for(permission_schema),
         "windows": commands_for(contract, "windows"),
         "android": commands_for(contract, "android"),
+        "events": contract["events"],
+        "plugins": plugin_metadata(plugins),
     }
     content = json_text(payload) + "\n"
     for target in (CLI_DATA, CREATE_DATA):
@@ -688,7 +752,7 @@ def main() -> None:
     generate_frontend(contract, plugins, permission_schema, errors)
     generate_windows(contract, plugins, permission_schema, errors)
     generate_android(contract, plugins, permission_schema, errors)
-    generate_cli_data(contract, permission_schema)
+    generate_cli_data(contract, plugins, permission_schema)
 
 
 if __name__ == "__main__":

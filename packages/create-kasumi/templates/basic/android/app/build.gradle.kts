@@ -26,6 +26,8 @@ fun stringArrayLiteral(values: List<String>): String =
     }
 
 val ksmCommands = csvProperty("ksmCommands", "__ANDROID_COMMANDS_CSV__")
+val ksmFrameworkPlugins = csvProperty("ksmFrameworkPlugins", "")
+val ksmAppPlugins = csvProperty("ksmAppPlugins", "")
 val ksmPermissions = csvProperty("ksmPermissions", "")
 val ksmShellAllowedOrigins = csvProperty("ksmShellAllowedOrigins", "")
 val ksmHttpAllowedOrigins = csvProperty("ksmHttpAllowedOrigins", "")
@@ -71,6 +73,16 @@ android {
             "String[]",
             "KSM_COMMANDS",
             stringArrayLiteral(ksmCommands)
+        )
+        buildConfigField(
+            "String[]",
+            "KSM_FRAMEWORK_PLUGINS",
+            stringArrayLiteral(ksmFrameworkPlugins)
+        )
+        buildConfigField(
+            "String[]",
+            "KSM_APP_PLUGINS",
+            stringArrayLiteral(ksmAppPlugins)
         )
         buildConfigField(
             "String[]",

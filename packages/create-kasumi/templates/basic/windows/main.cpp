@@ -17,6 +17,8 @@
 #include <kasumi/platform/ksm_webview2_host.h>
 #include <kasumi/platform/ksm_win32_resource_provider.h>
 
+#include "app_plugins.h"
+
 #if !defined(KASUMI_EXTERNAL_WEB) && !defined(KASUMI_DEV_MODE)
 #include "web_resources.h"
 #endif
@@ -147,6 +149,14 @@ std::vector<std::string> ConfiguredCommands() {
 
 std::vector<std::string> ConfiguredPermissions() {
   return ConfiguredValues(KASUMI_APP_PERMISSIONS);
+}
+
+std::vector<std::string> ConfiguredFrameworkPlugins() {
+  return ConfiguredValues(KASUMI_FRAMEWORK_PLUGINS);
+}
+
+std::vector<std::string> ConfiguredAppPlugins() {
+  return ConfiguredValues(KASUMI_APP_PLUGINS);
 }
 
 std::vector<std::string> ConfiguredShellOrigins() {
@@ -429,9 +439,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show_command) {
  window, file_system, ConfiguredShellOrigins(),
  web_root, webview_data, smoke_test, web_resources, start_url, dev_mode,
  KASUMI_APP_VERSION, ConfiguredCommands(), kWindowDecorations,
- std::vector<std::shared_ptr<KSMPlugin>>{},
+ KasumiAppPlugins(),
  ConfiguredPermissions(), ConfiguredHttpOrigins(),
- ConfiguredWindowBackgroundColor(), ConfiguredErrorPageOptions()));
+ ConfiguredWindowBackgroundColor(), ConfiguredErrorPageOptions(),
+ ConfiguredFrameworkPlugins(), ConfiguredAppPlugins()));
 
   KSMWebView2Host *host_pointer = host.get();
   if (!host->Initialize(

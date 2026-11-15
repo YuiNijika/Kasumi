@@ -91,6 +91,9 @@ def derived_versions(root: Path = ROOT) -> dict[str, str]:
         "packages/kasumi-plugin-audio/package.json": _json_version(
             root / "packages" / "kasumi-plugin-audio" / "package.json"
         ),
+        "packages/kasumi-plugin-media/package.json": _json_version(
+            root / "packages" / "kasumi-plugin-media" / "package.json"
+        ),
         "packages/kasumi-plugin-media-session/package.json": _json_version(
             root / "packages" / "kasumi-plugin-media-session" / "package.json"
         ),
@@ -177,6 +180,7 @@ def sync_versions(root: Path = ROOT) -> list[str]:
         root / "packages" / "kasumi-plugin-dialog" / "package.json",
         root / "packages" / "kasumi-plugin-clipboard" / "package.json",
         root / "packages" / "kasumi-plugin-audio" / "package.json",
+        root / "packages" / "kasumi-plugin-media" / "package.json",
         root / "packages" / "kasumi-plugin-media-session" / "package.json",
         root / "packages" / "kasumi-plugin-notification" / "package.json",
         root / "packages" / "kasumi-plugin-window" / "package.json",

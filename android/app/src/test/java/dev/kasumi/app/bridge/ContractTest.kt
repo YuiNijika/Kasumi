@@ -276,27 +276,39 @@ class ContractTest {
         }
     }
 
-    private class ReplacementClipboardPlugin : KSMPlugin {
-        override val id: String = "clipboard"
-        override val commands: Set<String> = setOf(
-            "clipboard.readText",
-            "clipboard.writeText"
-        )
-        override val permissions: Set<String> = setOf(
-            "clipboard.read",
-            "clipboard.write"
-        )
+    private class LifecyclePlugin : KSMPlugin {
+        override val id: String = "contract.lifecycle"
+        override val commands: Set<String> = setOf("contract.lifecycle")
+        override val events: Set<String> = setOf("contract.lifecycle.event")
+        override val frameworkEvents: Set<String> =
+            setOf("webview.navigated")
+
+        var started = false
+        var stopped = false
+        var frameworkEvent = ""
+
+        override fun start(context: KSMPluginContext) {
+            started = true
+        }
+
+        override fun stop() {
+            stopped = true
+        }
+
+        override fun onFrameworkEvent(event: String, payload: JSONObject) {
+            frameworkEvent = event
+        }
+
+        override fun validateArgs(command: String, args: JSONObject): Boolean {
+            return command == "contract.lifecycle"
+        }
 
         override fun handle(
             command: String,
             args: JSONObject,
             context: KSMPluginContext
         ): Any {
-            return if (command == "clipboard.readText") {
-                JSONObject().put("text", "replacement")
-            } else {
-                JSONObject().put("written", true)
-            }
+            return JSONObject().put("started", started)
         }
     }
 
@@ -310,6 +322,20 @@ class ContractTest {
             context: KSMPluginContext
         ): Any {
             return JSONObject().put("exists", false)
+        }
+    }
+
+    private class FrameworkEventHijackPlugin : KSMPlugin {
+        override val id: String = "contract.event-hijack"
+        override val commands: Set<String> = setOf("contract.event-hijack")
+        override val events: Set<String> = setOf("window.resized")
+
+        override fun handle(
+            command: String,
+            args: JSONObject,
+            context: KSMPluginContext
+        ): Any {
+            return JSONObject()
         }
     }
 
@@ -1386,38 +1412,15 @@ class ContractTest {
             File(root, "tmp")
         )
         try {
-            val replacement = KSMRouter(
-                fileSystem,
-                null,
-                allowedCommands = KSMCommandRegistry.supportedCommands,
-                allowedPermissions = KSMGeneratedContract.permissions,
-                plugins = listOf(ReplacementFileSystemPlugin())
-            )
-            val exists = invoke(
-                replacement,
-                "fs.exists",
-                JSONObject().put("path", "app://data/plugin.txt")
-            )
-            assertTrue(exists.getBoolean("ok"))
-            assertTrue(exists.getJSONObject("data").getBoolean("exists"))
-
-            val clipboard = KSMRouter(
-                fileSystem,
-                null,
-                allowedCommands = KSMCommandRegistry.supportedCommands,
-                allowedPermissions = KSMGeneratedContract.permissions,
-                plugins = listOf(ReplacementClipboardPlugin())
-            )
-            val clipboardText = invoke(
-                clipboard,
-                "clipboard.readText",
-                JSONObject()
-            )
-            assertTrue(clipboardText.getBoolean("ok"))
-            assertEquals(
-                "replacement",
-                clipboardText.getJSONObject("data").getString("text")
-            )
+            assertThrows(IllegalArgumentException::class.java) {
+                KSMRouter(
+                    fileSystem,
+                    null,
+                    allowedCommands = KSMCommandRegistry.supportedCommands,
+                    allowedPermissions = KSMGeneratedContract.permissions,
+                    plugins = listOf(ReplacementFileSystemPlugin())
+                )
+            }
 
             assertThrows(IllegalArgumentException::class.java) {
                 KSMRouter(
@@ -1426,6 +1429,27 @@ class ContractTest {
                     allowedCommands = KSMCommandRegistry.supportedCommands,
                     allowedPermissions = KSMGeneratedContract.permissions,
                     plugins = listOf(GeneratedCommandHijackPlugin())
+                )
+            }
+
+            assertThrows(IllegalArgumentException::class.java) {
+                KSMRouter(
+                    fileSystem,
+                    null,
+                    allowedCommands = KSMCommandRegistry.supportedCommands,
+                    allowedPermissions = KSMGeneratedContract.permissions,
+                    plugins = listOf(FrameworkEventHijackPlugin())
+                )
+            }
+
+            assertThrows(IllegalArgumentException::class.java) {
+                KSMRouter(
+                    fileSystem,
+                    null,
+                    allowedCommands = KSMCommandRegistry.supportedCommands,
+                    allowedPermissions = KSMGeneratedContract.permissions,
+                    plugins = emptyList(),
+                    requiredAppPlugins = listOf("contract.missing")
                 )
             }
         } finally {
@@ -1465,14 +1489,41 @@ class ContractTest {
                 "capabilities.query",
                 JSONObject()
             )
-            val plugins = capabilities.getJSONObject("data")
+            val data = capabilities.getJSONObject("data")
+            val frameworkPlugins = data
+                .getJSONArray("frameworkPlugins")
+                .let { values ->
+                    List(values.length()) { index ->
+                        values.getJSONObject(index)
+                    }
+                }
+            val appPlugins = data
+                .getJSONArray("appPlugins")
+                .let { values ->
+                    List(values.length()) { index ->
+                        values.getJSONObject(index)
+                    }
+                }
+            val legacyPlugins = data
                 .getJSONArray("plugins")
                 .let { values ->
                     List(values.length()) { index ->
                         values.getJSONObject(index)
                     }
                 }
-            assertTrue(plugins.any { it.getString("id") == "contract.echo" })
+            assertTrue(
+                appPlugins.any { it.getString("id") == "contract.echo" }
+            )
+            assertFalse(
+                legacyPlugins.any { it.getString("id") == "contract.echo" }
+            )
+            assertTrue(
+                frameworkPlugins.any { it.getString("id") == "core" }
+            )
+            assertEquals(
+                frameworkPlugins.map { it.getString("id") },
+                legacyPlugins.map { it.getString("id") }
+            )
         } finally {
             root.deleteRecursively()
         }
@@ -1522,6 +1573,85 @@ class ContractTest {
                     JSONObject().put("value", "event")
                 )
             )
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun frameworkPluginFilter() {
+        val root = Files.createTempDirectory("kasumi-plugin-filter").toFile()
+        val data = File(root, "data").apply { mkdirs() }
+        File(data, "filter.txt").writeText("filter")
+        val fileSystem = KSMFileSystem(
+            data,
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        val router = KSMRouter(
+            fileSystem,
+            null,
+            allowedCommands = listOf(
+                "capabilities.query",
+                "fs.readText",
+                "clipboard.readText"
+            ),
+            allowedPermissions = KSMGeneratedContract.permissions,
+            frameworkPlugins = listOf("fs")
+        )
+        try {
+            val capabilities = invoke(
+                router,
+                "capabilities.query",
+                JSONObject()
+            )
+            val frameworkPlugins = capabilities.getJSONObject("data")
+                .getJSONArray("frameworkPlugins")
+                .let { values ->
+                    List(values.length()) { index ->
+                        values.getJSONObject(index)
+                            .getString("id")
+                    }
+                }
+            assertEquals(listOf("fs"), frameworkPlugins)
+
+            val text = invoke(
+                router,
+                "fs.readText",
+                JSONObject().put("path", "app://data/filter.txt")
+            )
+            assertTrue(text.getBoolean("ok"))
+            assertEquals("filter", text.getString("data"))
+        } finally {
+            router.close()
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun appPluginLifecycle() {
+        val root = Files.createTempDirectory("kasumi-plugin-lifecycle").toFile()
+        val fileSystem = KSMFileSystem(
+            File(root, "data"),
+            File(root, "cache"),
+            File(root, "tmp")
+        )
+        val plugin = LifecyclePlugin()
+        val router = KSMRouter(
+            fileSystem,
+            null,
+            allowedCommands = listOf(
+                "capabilities.query",
+                "contract.lifecycle"
+            ),
+            plugins = listOf(plugin)
+        )
+        try {
+            assertTrue(plugin.started)
+            router.emitSystemEvent("webview.navigated", JSONObject())
+            assertEquals("webview.navigated", plugin.frameworkEvent)
+            router.close()
+            assertTrue(plugin.stopped)
         } finally {
             root.deleteRecursively()
         }

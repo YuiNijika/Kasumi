@@ -8,6 +8,12 @@ import java.io.ByteArrayInputStream
 object KSMLocalResourceHandler {
     private const val APP_DOMAIN = "app.local"
     private const val FILE_PATH = "/__ksm_file"
+    private val corsHeaders = mapOf(
+        "Access-Control-Allow-Origin" to "*",
+        "Access-Control-Allow-Methods" to "GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers" to "Range",
+        "Access-Control-Expose-Headers" to "Content-Length, Content-Range"
+    )
 
     fun responseFor(
         url: Uri,
@@ -38,6 +44,9 @@ object KSMLocalResourceHandler {
             WebResourceResponse(
                 mimeTypeFor(path),
                 null,
+                200,
+                "OK",
+                corsHeaders,
                 file.inputStream()
             )
         } catch (_: Exception) {
@@ -51,7 +60,7 @@ object KSMLocalResourceHandler {
             "UTF-8",
             status,
             message,
-            mapOf("Cache-Control" to "no-store"),
+            corsHeaders + mapOf("Cache-Control" to "no-store"),
             ByteArrayInputStream(message.toByteArray(Charsets.UTF_8))
         )
     }

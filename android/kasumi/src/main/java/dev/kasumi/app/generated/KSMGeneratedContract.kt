@@ -423,6 +423,12 @@ object KSMGeneratedContract {
       "event.unsubscribe",
       "app.openDevtools",
       "app.deepLink.getPending"
+    ],
+    "events": [
+      "webview.navigated",
+      "webview.reloaded",
+      "app.deepLink.received",
+      "app.secondInstance.received"
     ]
   },
   "fs": {
@@ -459,7 +465,8 @@ object KSMGeneratedContract {
       "fs.stat",
       "fs.walk",
       "fs.scope.release"
-    ]
+    ],
+    "events": []
   },
   "dialog": {
     "name": "Dialog",
@@ -483,7 +490,8 @@ object KSMGeneratedContract {
       "dialog.saveFile",
       "dialog.openFolder",
       "dialog.openFiles"
-    ]
+    ],
+    "events": []
   },
   "clipboard": {
     "name": "Clipboard",
@@ -505,7 +513,8 @@ object KSMGeneratedContract {
     "commands": [
       "clipboard.readText",
       "clipboard.writeText"
-    ]
+    ],
+    "events": []
   },
   "notification": {
     "name": "Notification",
@@ -524,7 +533,8 @@ object KSMGeneratedContract {
     ],
     "commands": [
       "notification.show"
-    ]
+    ],
+    "events": []
   },
   "window": {
     "name": "Window",
@@ -559,6 +569,11 @@ object KSMGeneratedContract {
       "window.setTransparent",
       "window.getState",
       "event.emit"
+    ],
+    "events": [
+      "window.resized",
+      "window.visibilityChanged",
+      "window.stateChanged"
     ]
   },
   "http": {
@@ -588,6 +603,11 @@ object KSMGeneratedContract {
       "http.cookies.get",
       "http.cookies.set",
       "http.cookies.clear"
+    ],
+    "events": [
+      "http.transfer.progress",
+      "http.transfer.completed",
+      "http.transfer.failed"
     ]
   },
   "shell": {
@@ -609,7 +629,8 @@ object KSMGeneratedContract {
       "shell.openExternal",
       "shell.openPath",
       "shell.showInFolder"
-    ]
+    ],
+    "events": []
   },
   "device": {
     "name": "Device",
@@ -627,7 +648,8 @@ object KSMGeneratedContract {
     ],
     "commands": [
       "device.getInfo"
-    ]
+    ],
+    "events": []
   },
   "sql": {
     "name": "SQL",
@@ -650,7 +672,8 @@ object KSMGeneratedContract {
       "sql.query",
       "sql.execute",
       "sql.close"
-    ]
+    ],
+    "events": []
   },
   "path": {
     "name": "Path",
@@ -671,7 +694,8 @@ object KSMGeneratedContract {
       "path.basename",
       "path.extname",
       "path.isAbsolute"
-    ]
+    ],
+    "events": []
   },
   "store": {
     "name": "Store",
@@ -694,7 +718,8 @@ object KSMGeneratedContract {
       "store.delete",
       "store.clear",
       "store.keys"
-    ]
+    ],
+    "events": []
   },
   "os": {
     "name": "OS",
@@ -713,7 +738,8 @@ object KSMGeneratedContract {
     ],
     "commands": [
       "os.getInfo"
-    ]
+    ],
+    "events": []
   },
   "log": {
     "name": "Log",
@@ -732,7 +758,8 @@ object KSMGeneratedContract {
     ],
     "commands": [
       "log.write"
-    ]
+    ],
+    "events": []
   },
   "appInstance": {
     "name": "App Instance",
@@ -748,7 +775,8 @@ object KSMGeneratedContract {
     "commands": [
       "app.singleInstance.state",
       "app.singleInstance.focus"
-    ]
+    ],
+    "events": []
   },
   "updater": {
     "name": "Updater",
@@ -771,6 +799,10 @@ object KSMGeneratedContract {
       "updater.check",
       "updater.download",
       "updater.install"
+    ],
+    "events": [
+      "updater.progress",
+      "updater.status"
     ]
   },
   "globalShortcut": {
@@ -790,6 +822,9 @@ object KSMGeneratedContract {
     "commands": [
       "globalShortcut.register",
       "globalShortcut.unregister"
+    ],
+    "events": [
+      "globalShortcut.triggered"
     ]
   },
   "tray": {
@@ -812,6 +847,10 @@ object KSMGeneratedContract {
       "tray.show",
       "tray.hide",
       "tray.configure"
+    ],
+    "events": [
+      "tray.action",
+      "tray.click"
     ]
   },
   "media": {
@@ -835,7 +874,8 @@ object KSMGeneratedContract {
       "media.ffmpeg.validate",
       "media.ffmpeg.setPath",
       "media.ffmpeg.pickExecutable"
-    ]
+    ],
+    "events": []
   },
   "audio": {
     "name": "Audio",
@@ -869,6 +909,12 @@ object KSMGeneratedContract {
       "audio.seek",
       "audio.volume.set",
       "audio.state.get"
+    ],
+    "events": [
+      "audio.tick",
+      "audio.ended",
+      "audio.stateChanged",
+      "audio.error"
     ]
   },
   "mediaSession": {
@@ -888,6 +934,9 @@ object KSMGeneratedContract {
     "commands": [
       "mediaSession.update",
       "mediaSession.clear"
+    ],
+    "events": [
+      "mediaSession.command"
     ]
   }
 }""")
@@ -1043,6 +1092,81 @@ object KSMGeneratedContract {
             "mediaSession.update",
             "mediaSession.clear"
         )
+    )
+
+    val pluginEvents: Map<String, List<String>> = mapOf(
+        "core" to listOf(
+            "webview.navigated",
+            "webview.reloaded",
+            "app.deepLink.received",
+            "app.secondInstance.received"
+        ),
+        "fs" to emptyList(),
+        "dialog" to emptyList(),
+        "clipboard" to emptyList(),
+        "notification" to emptyList(),
+        "window" to listOf(
+            "window.resized",
+            "window.visibilityChanged",
+            "window.stateChanged"
+        ),
+        "http" to listOf(
+            "http.transfer.progress",
+            "http.transfer.completed",
+            "http.transfer.failed"
+        ),
+        "shell" to emptyList(),
+        "device" to emptyList(),
+        "sql" to emptyList(),
+        "path" to emptyList(),
+        "store" to emptyList(),
+        "os" to emptyList(),
+        "log" to emptyList(),
+        "appInstance" to emptyList(),
+        "updater" to listOf(
+            "updater.progress",
+            "updater.status"
+        ),
+        "globalShortcut" to listOf(
+            "globalShortcut.triggered"
+        ),
+        "tray" to listOf(
+            "tray.action",
+            "tray.click"
+        ),
+        "media" to emptyList(),
+        "audio" to listOf(
+            "audio.tick",
+            "audio.ended",
+            "audio.stateChanged",
+            "audio.error"
+        ),
+        "mediaSession" to listOf(
+            "mediaSession.command"
+        )
+    )
+
+    val eventPlugins: Map<String, String> = mapOf(
+        "webview.navigated" to "core",
+        "webview.reloaded" to "core",
+        "app.deepLink.received" to "core",
+        "app.secondInstance.received" to "core",
+        "window.resized" to "window",
+        "window.visibilityChanged" to "window",
+        "window.stateChanged" to "window",
+        "http.transfer.progress" to "http",
+        "http.transfer.completed" to "http",
+        "http.transfer.failed" to "http",
+        "updater.progress" to "updater",
+        "updater.status" to "updater",
+        "globalShortcut.triggered" to "globalShortcut",
+        "tray.action" to "tray",
+        "tray.click" to "tray",
+        "audio.tick" to "audio",
+        "audio.ended" to "audio",
+        "audio.stateChanged" to "audio",
+        "audio.error" to "audio",
+        "mediaSession.command" to "mediaSession"
     )
 
     val commandPermissions: Map<String, List<String>> = mapOf(

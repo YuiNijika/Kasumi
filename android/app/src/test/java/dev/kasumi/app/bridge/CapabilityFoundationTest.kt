@@ -151,7 +151,7 @@ class CapabilityFoundationTest {
     }
 
     private fun allPermissions(): List<String> {
-        val capabilityPlugin = ksmDefaultPlugins().first {
+        val capabilityPlugin = ksmDefaultFrameworkPlugins().first {
             it.id == "capabilities"
         }
         return (
@@ -161,7 +161,7 @@ class CapabilityFoundationTest {
     }
 
     private fun capabilityCommands(): List<String> {
-        val capabilityPlugin = ksmDefaultPlugins().first {
+        val capabilityPlugin = ksmDefaultFrameworkPlugins().first {
             it.id == "capabilities"
         }
         return (

@@ -304,7 +304,10 @@ object KSM {
             .orEmpty()
         val plugins = data.optJSONArray("plugins")
             ?.let { values ->
-                List(values.length()) { index -> values.getString(index) }
+                List(values.length()) { index ->
+                    values.optJSONObject(index)?.optString("id")
+                        ?: values.optString(index)
+                }.filter { it.isNotEmpty() }
             }
             .orEmpty()
         return KSMCapabilities(

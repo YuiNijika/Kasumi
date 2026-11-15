@@ -51,6 +51,11 @@ constexpr wchar_t kSecondaryWindowClass[] = L"KasumiSecondaryWindow";
 constexpr wchar_t kLoadingWindowClass[] = L"KasumiWebView2Loading";
 constexpr wchar_t kLocalFileFilter[] = L"https://app.local/__ksm_file*";
 constexpr char kLocalFileUrlPrefix[] = "https://app.local/__ksm_file";
+constexpr wchar_t kLocalFileCorsHeaders[] =
+    L"Access-Control-Allow-Origin: *\r\n"
+    L"Access-Control-Allow-Methods: GET, HEAD, OPTIONS\r\n"
+    L"Access-Control-Allow-Headers: Range\r\n"
+    L"Access-Control-Expose-Headers: Content-Length, Content-Range\r\n";
 constexpr UINT_PTR kLoadingTimerId = 0x4B4D;
 constexpr UINT kLoadingTimerIntervalMs = 40;
 constexpr int kLoadingCardMaxWidthDip = 380;
@@ -1552,6 +1557,8 @@ struct KSMWebView2View::Impl
        std::vector<std::string> allowed_commands,
        std::vector<std::shared_ptr<KSMPlugin>> plugins,
        std::vector<std::string> allowed_permissions, bool decorations,
+       std::vector<std::string> framework_plugins,
+       std::vector<std::string> required_app_plugins,
        KSMWebView2ViewOptions options,
        std::shared_ptr<KSMWindowRegistry> window_registry,
        std::function<void(const std::string &, const std::string &)>
@@ -1590,7 +1597,9 @@ struct KSMWebView2View::Impl
             [this](std::function<void()> task) { PostToUi(std::move(task)); },
             std::move(allowed_commands), dev_mode, std::move(plugins),
             std::move(allowed_permissions),
-            std::to_string(window_id_value)) {
+            std::to_string(window_id_value),
+            std::move(framework_plugins),
+            std::move(required_app_plugins)) {
     if (this->window_registry) {
       this->window_registry->Register(
           std::to_string(window_id_value), parent,
@@ -1958,11 +1967,14 @@ struct KSMWebView2View::Impl
                       return;
                     }
                     ComPtr<ICoreWebView2WebResourceResponse> response;
+                    std::wstring headers =
+                        L"Content-Type: text/plain; charset=utf-8\r\n"
+                        L"Cache-Control: no-store\r\n";
+                    headers += kLocalFileCorsHeaders;
                     if (SUCCEEDED(
                             self->environment->CreateWebResourceResponse(
                                 content.Get(), status, reason,
-                                L"Content-Type: text/plain; charset=utf-8\r\n"
-                                L"Cache-Control: no-store\r\n",
+                                headers.c_str(),
                                 &response))) {
                       args->put_Response(response.Get());
                     }
@@ -2029,6 +2041,7 @@ struct KSMWebView2View::Impl
               headers += L"Content-Length: " + std::to_wstring(size) +
                          L"\r\n";
               headers += L"Cache-Control: no-cache\r\n";
+              headers += kLocalFileCorsHeaders;
               ComPtr<ICoreWebView2WebResourceResponse> response;
               if (SUCCEEDED(
                       self->environment->CreateWebResourceResponse(
@@ -2499,7 +2512,9 @@ struct KSMWebView2Host::Impl
        std::vector<std::shared_ptr<KSMPlugin>> plugins,
        std::vector<std::string> allowed_permissions, bool decorations,
        std::string background_color,
-       KSMWebView2ErrorPageOptions error_page)
+       KSMWebView2ErrorPageOptions error_page,
+       std::vector<std::string> framework_plugins,
+       std::vector<std::string> required_app_plugins)
  : window(window), file_system(std::move(file_system)),
  allowed_origins(std::move(allowed_origins)),
  allowed_http_origins(std::move(allowed_http_origins)),
@@ -2511,6 +2526,8 @@ struct KSMWebView2Host::Impl
  allowed_commands(std::move(allowed_commands)),
  allowed_permissions(std::move(allowed_permissions)),
  plugins(std::move(plugins)),
+ framework_plugins(std::move(framework_plugins)),
+ required_app_plugins(std::move(required_app_plugins)),
  decorations(decorations),
  background_color(ParseBackgroundColor(background_color)),
  error_page_style_(BuildErrorStyle(error_page)) {
@@ -2659,7 +2676,8 @@ struct KSMWebView2Host::Impl
         plugins,
         options.allowed_permissions.empty() ? allowed_permissions
                                             : options.allowed_permissions,
-        decorations, options, window_registry_, std::move(failure_reporter),
+        decorations, framework_plugins, required_app_plugins,
+        options, window_registry_, std::move(failure_reporter),
         error_page_style_, background_color);
   }
 
@@ -3133,6 +3151,8 @@ struct KSMWebView2Host::Impl
   std::vector<std::string> allowed_commands;
   std::vector<std::string> allowed_permissions;
   std::vector<std::shared_ptr<KSMPlugin>> plugins;
+  std::vector<std::string> framework_plugins;
+  std::vector<std::string> required_app_plugins;
   bool decorations = true;
   COREWEBVIEW2_COLOR background_color{255, 255, 255, 255};
   KSMWebViewErrorStyle error_page_style_;
@@ -3229,7 +3249,9 @@ KSMWebView2Host::KSMWebView2Host(
     std::vector<std::string> allowed_permissions,
     std::vector<std::string> allowed_http_origins,
     std::string background_color,
-    KSMWebView2ErrorPageOptions error_page)
+    KSMWebView2ErrorPageOptions error_page,
+    std::vector<std::string> framework_plugins,
+    std::vector<std::string> required_app_plugins)
     : impl_(std::make_shared<Impl>(
           window, std::move(file_system), std::move(allowed_external_origins),
           std::move(allowed_http_origins), std::move(web_root),
@@ -3238,7 +3260,8 @@ KSMWebView2Host::KSMWebView2Host(
           std::move(app_version), std::move(allowed_commands),
           std::move(plugins), std::move(allowed_permissions),
           decorations, std::move(background_color),
-          std::move(error_page))) {}
+          std::move(error_page), std::move(framework_plugins),
+          std::move(required_app_plugins))) {}
 
 KSMWebView2Host::~KSMWebView2Host() = default;
 

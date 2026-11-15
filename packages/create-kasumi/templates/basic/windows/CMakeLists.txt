@@ -41,6 +41,18 @@ set(
     "Comma-separated application permission allowlist"
 )
 set(
+    KASUMI_FRAMEWORK_PLUGINS
+    ""
+    CACHE STRING
+    "Comma-separated enabled framework plugin IDs"
+)
+set(
+    KASUMI_APP_PLUGINS
+    ""
+    CACHE STRING
+    "Comma-separated required application plugin IDs"
+)
+set(
     KASUMI_SHELL_ALLOWED_ORIGINS
     ""
     CACHE STRING
@@ -245,7 +257,7 @@ endif()
 
 find_package(Kasumi CONFIG REQUIRED)
 
-add_executable(kasumi_app WIN32 main.cpp)
+add_executable(kasumi_app WIN32 main.cpp app_plugins.cpp)
 if(MSVC)
     target_compile_options(kasumi_app PRIVATE /utf-8)
 endif()
@@ -342,6 +354,8 @@ target_compile_definitions(
         KASUMI_APP_PACKAGE_NAME="${KASUMI_APP_PACKAGE_NAME}"
         KASUMI_APP_VERSION="${KASUMI_APP_VERSION}"
         KASUMI_APP_COMMANDS="${KASUMI_APP_COMMANDS}"
+        KASUMI_FRAMEWORK_PLUGINS="${KASUMI_FRAMEWORK_PLUGINS}"
+        KASUMI_APP_PLUGINS="${KASUMI_APP_PLUGINS}"
         KASUMI_APP_PERMISSIONS="${KASUMI_APP_PERMISSIONS}"
         KASUMI_SHELL_ALLOWED_ORIGINS="${KASUMI_SHELL_ALLOWED_ORIGINS}"
         KASUMI_HTTP_ALLOWED_ORIGINS="${KASUMI_HTTP_ALLOWED_ORIGINS}"

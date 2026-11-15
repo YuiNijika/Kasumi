@@ -18,6 +18,7 @@ __pycache__/
 *.egg-info/
 .venv/
 /node_modules/
+packages/*/node_modules/
 packages/kasumi-bridge/dist/
 *.tgz
 local.properties

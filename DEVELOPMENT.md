@@ -6,15 +6,15 @@
 
 | 模块 | 入口 | 负责内容 |
 | --- | --- | --- |
-| 应用配置 | `kasumi.config.json` | 两端包名、版本、命令 allowlist 和 Windows 标题栏开关 |
+| 应用配置 | `kasumi.config.json` | 两端包名、版本、框架插件、应用插件、命令 allowlist 和 Windows 标题栏开关 |
 | 协议 | `protocol/commands.json` | 命令、事件、参数、返回结构、权限和平台能力 |
-| 插件清单 | `protocol/plugins.json` | 内置插件归属、版本和命令所有权 |
+| 插件清单 | `protocol/plugins.json` | 框架插件归属、版本、命令和事件所有权 |
 | 版本元数据 | `version.json` | 框架产品版本、Release 标签和所有构建产物的版本来源 |
 | 代码生成 | `tools/codegen.py` | 生成 TypeScript、C++、Kotlin 契约常量与参数校验器 |
 | 前端 | `frontend/src/index.ts` | `KSM` 根入口、事件总线和 API 封装 |
 | Windows 根入口 | `windows/src/commands/ksm_phase1.h` | 宿主侧 `KSM` 生命周期、统一调用和原生事件 |
 | Windows 路由 | `windows/src/bridge/ksm_router.h` | 请求校验、权限检查和命令分发 |
-| Windows 插件运行时 | `windows/src/plugins/ksm_plugin.h` | 插件 ID、命令归属、参数校验和宿主上下文 |
+| Windows 插件运行时 | `windows/src/plugins/ksm_plugin.h` | 框架/应用插件注册表、ID、命令归属、参数校验、生命周期和宿主上下文 |
 | Windows 内置插件 | `windows/src/plugins/ksm_*_plugin.*` | 文件、对话框、剪贴板、通知、窗口、网络、SQL、路径、存储、系统和日志 |
 | Windows SQL 驱动 | `windows/src/platform/ksm_sql_driver.h` | 连接注册表、驱动 SPI 和 SQLite 内置实现 |
 | Windows 远程 SQL | `windows/src/platform/ksm_odbc_sql_driver.h` | 系统 ODBC 发现、MySQL / PostgreSQL 参数化连接 |
@@ -23,7 +23,7 @@
 | Windows SDK 包 | `windows/CMakeLists.txt` | 静态库、公共头文件、CMake package config 和 CPack |
 | Windows 示例 | `windows/examples/win32-host/` | 独立消费者工程，使用已安装 SDK |
 | Android SDK | `android/kasumi/` | AAR、宿主服务、路由、生成契约和公开 API |
-| Android 插件运行时 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMPlugin.kt` | 插件注册表、默认插件和自定义插件入口 |
+| Android 插件运行时 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMPlugin.kt` | 框架/应用插件注册表、默认框架插件和自定义应用插件入口 |
 | Android 内置插件 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSM*Plugin.kt` | 与 Windows 对齐的命令插件和宿主服务适配 |
 | Android SQL 驱动 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMSqlDriver.kt` | 驱动 SPI、连接生命周期和 SQLite 内置实现 |
 | Android WebView 适配 | `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMWebViewHost.kt` | 消息桥、命令并发、导航、生命周期和资源释放 |
@@ -44,7 +44,7 @@ SDK 与示例必须分开构建。消费者只接收静态库、公共头文件�
 
 ## 当前进度
 
-当前协议基线为 **48 个命令、3 个事件、14 个内置插件**。产品版本只维护在根目录
+当前协议基线为 **108 个命令、20 个事件、21 个框架插件**。产品版本只维护在根目录
 `version.json`。SQL 插件新增命令使用 `since: "1.2.0"`，`path`、`store`、`os` 和
 `log` 使用 `since: "1.3.0"`，命令名和参数以
 `protocol/commands.json` 为准。
@@ -222,18 +222,24 @@ allowlist。JSON Schema 位于 `protocol/kasumi.config.schema.json`。
 | 参数校验 | 生成的 schema | `KSMPlugin::ValidateArgs` | `KSMPlugin.validateArgs` |
 | 宿主上下文 | 无 | `KSMPluginContext` | `KSMPluginContext` |
 
-除 `core` 外，插件清单中的模块都由原生插件运行时注册，并各自发布为
-`kasumi-plugin-<id>` 前端包。插件包只重新导出 `kasumi-bridge` 的模块入口，不复制原生
-实现。自定义插件通过 `KSMWebView2Host` / `KSMWebViewHost` 的 `plugins` 参数注册；除
-`core` 外的生成插件 ID 都允许用同 ID 插件显式替换，但必须完整声明该 ID 的全部生成命令。
-自定义插件不得抢占其他生成命令。自定义插件命令不在 `commands.json` 时，必须由插件
-自己校验参数并返回协议错误码。
+框架插件与应用插件是两层独立扩展，不共用清单、注册表、ID、命令或事件。框架插件来自
+`protocol/plugins.json`，由 `KSMFrameworkPluginRegistry` 承载；应用插件来自
+`kasumi.config.json` 的顶层 `appPlugins`，由 `KSMAppPluginRegistry` 承载。应用插件
+manifest 使用 `protocol/app-plugin.schema.json` 校验，必须声明独立命名空间、命令、
+权限、事件、平台和可选的 `frameworkEvents`。应用插件 ID 不得与框架插件冲突，也不得
+占用任何框架命令或框架事件；缺失 `requiredAppPlugins` 实现时宿主启动失败。
 
-`core` 仍由路由层承载，因为应用生命周期、权限和事件需要访问路由器内部状态。`device`
-只在 Android 注册，Windows 对 `device.getInfo` 返回 `NOT_SUPPORTED`。`path`、`store`、
-`os` 和 `log` 在两端注册，其中 `store` 固定写入
-`app://data/.kasumi/store.json`，`os.getInfo` 不采集持久设备标识。插件上下文包含当前
-请求 ID，下载插件把它传给宿主，确保取消消息可以中止活动网络请求。
+`frameworkPlugins` 决定启用哪些框架插件，支持 `"all"` 或显式数组；省略 `commands`
+时 CLI 按启用的框架插件和应用插件命令推导白名单。`device` 只在 Android 注册，
+Windows 对 `device.getInfo` 返回 `NOT_SUPPORTED`；`mediaSession` 只在 Android 注册；
+`tray` 和 `globalShortcut` 只在 Windows 注册。`path`、`store`、`os` 和 `log` 在两端
+注册，其中 `store` 固定写入 `app://data/.kasumi/store.json`，`os.getInfo` 不采集持久
+设备标识。插件上下文包含当前请求 ID，下载插件把它传给宿主，确保取消消息可以中止活动
+网络请求。
+
+Windows 与 Android 的 `capabilities.query` 会分别返回 `frameworkPlugins` 和
+`appPlugins` 两组对象，并保留只含框架插件的兼容字段 `plugins`。应用插件只能通过
+`frameworkEvents` 接收框架事件，不能直接订阅其他插件的内部事件。
 
 Windows 插件实现入口为 `windows/src/plugins/ksm_plugin.h`；Android 入口为
 `android/kasumi/src/main/java/dev/kasumi/app/bridge/KSMPlugin.kt`。插件不得直接读取
@@ -383,7 +389,8 @@ await KSM.window.setSize({ width: 960, height: 720 });
 - `windows/` 只构建 SDK；`windows/examples/win32-host/` 是独立消费者，加载 `https://app.local/index.html`。
 - 默认构建把 `examples/showcase/` 编译进 EXE，输出目录不包含 `web/`；WebView2 Loader 静态链接，用户数据写入 `%LOCALAPPDATA%\Kasumi\Example\WebView2`。
 - `KASUMI_EXAMPLE_EXTERNAL_WEB=ON` 切换为外置 `web/`，命令行等价参数为 `--external-web`；运行时可用 `--web-root` 和 `--user-data-folder` 覆盖路径。
-- SDK 安装目录包含 `include/kasumi/`、`kasumi_windows_bridge.lib` 和 `lib/cmake/Kasumi/`。
+- SDK 安装目录包含 `include/kasumi/`、`kasumi_windows_bridge_{core,plugins,runtime}.lib`
+  和 `lib/cmake/Kasumi/`；消费者仍只链接聚合目标 `Kasumi::kasumi_windows_bridge`。
 - 示例依赖系统 Evergreen WebView2 Runtime，缺失时显示安装提示并退出；默认不生成 `WebView2Loader.dll` 或 `kasumi_win32_example.exe.WebView2`，ZIP 也不内置 Fixed Version Runtime。
 - `--with-webview2-loader` 或 `KASUMI_BUNDLE_WEBVIEW2_LOADER=ON` 才会使用动态 Loader 并在输出目录生成、打包 `WebView2Loader.dll`。
 - 标签发布工作流要求 Authenticode 证书，使用 SHA-256 时间戳签名并执行 `signtool verify /pa /all`。
@@ -624,6 +631,7 @@ Windows SDK ZIP 使用扁平布局，解压后直接得到 `include/`、`lib/` �
 | `kasumi-plugin-fs` | 文件系统插件前端入口 |
 | `kasumi-plugin-dialog` | 对话框插件前端入口 |
 | `kasumi-plugin-clipboard` | 剪贴板插件前端入口 |
+| `kasumi-plugin-media` | 媒体探测与 FFmpeg 发现插件前端入口 |
 | `kasumi-plugin-audio` | 音频播放与设备插件前端入口 |
 | `kasumi-plugin-media-session` | 系统媒体会话插件前端入口 |
 | `kasumi-plugin-notification` | 通知插件前端入口 |
@@ -658,6 +666,7 @@ pnpm --filter create-kasumi pack
 pnpm --filter kasumi-plugin-fs pack
 pnpm --filter kasumi-plugin-dialog pack
 pnpm --filter kasumi-plugin-clipboard pack
+pnpm --filter kasumi-plugin-media pack
 pnpm --filter kasumi-plugin-audio pack
 pnpm --filter kasumi-plugin-media-session pack
 pnpm --filter kasumi-plugin-notification pack

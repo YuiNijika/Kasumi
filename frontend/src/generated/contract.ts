@@ -408,6 +408,7 @@ export interface KSMPluginMetadata {
   permissions: readonly string[];
   defaultPermissions: readonly string[];
   commands: readonly string[];
+  events: readonly string[];
 }
 export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = {
   "core": {
@@ -439,6 +440,12 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "event.unsubscribe",
       "app.openDevtools",
       "app.deepLink.getPending"
+    ],
+    "events": [
+      "webview.navigated",
+      "webview.reloaded",
+      "app.deepLink.received",
+      "app.secondInstance.received"
     ]
   },
   "fs": {
@@ -475,7 +482,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "fs.stat",
       "fs.walk",
       "fs.scope.release"
-    ]
+    ],
+    "events": []
   },
   "dialog": {
     "name": "Dialog",
@@ -499,7 +507,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "dialog.saveFile",
       "dialog.openFolder",
       "dialog.openFiles"
-    ]
+    ],
+    "events": []
   },
   "clipboard": {
     "name": "Clipboard",
@@ -521,7 +530,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "commands": [
       "clipboard.readText",
       "clipboard.writeText"
-    ]
+    ],
+    "events": []
   },
   "notification": {
     "name": "Notification",
@@ -540,7 +550,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     ],
     "commands": [
       "notification.show"
-    ]
+    ],
+    "events": []
   },
   "window": {
     "name": "Window",
@@ -575,6 +586,11 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "window.setTransparent",
       "window.getState",
       "event.emit"
+    ],
+    "events": [
+      "window.resized",
+      "window.visibilityChanged",
+      "window.stateChanged"
     ]
   },
   "http": {
@@ -604,6 +620,11 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "http.cookies.get",
       "http.cookies.set",
       "http.cookies.clear"
+    ],
+    "events": [
+      "http.transfer.progress",
+      "http.transfer.completed",
+      "http.transfer.failed"
     ]
   },
   "shell": {
@@ -625,7 +646,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "shell.openExternal",
       "shell.openPath",
       "shell.showInFolder"
-    ]
+    ],
+    "events": []
   },
   "device": {
     "name": "Device",
@@ -643,7 +665,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     ],
     "commands": [
       "device.getInfo"
-    ]
+    ],
+    "events": []
   },
   "sql": {
     "name": "SQL",
@@ -666,7 +689,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "sql.query",
       "sql.execute",
       "sql.close"
-    ]
+    ],
+    "events": []
   },
   "path": {
     "name": "Path",
@@ -687,7 +711,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "path.basename",
       "path.extname",
       "path.isAbsolute"
-    ]
+    ],
+    "events": []
   },
   "store": {
     "name": "Store",
@@ -710,7 +735,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "store.delete",
       "store.clear",
       "store.keys"
-    ]
+    ],
+    "events": []
   },
   "os": {
     "name": "OS",
@@ -729,7 +755,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     ],
     "commands": [
       "os.getInfo"
-    ]
+    ],
+    "events": []
   },
   "log": {
     "name": "Log",
@@ -748,7 +775,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     ],
     "commands": [
       "log.write"
-    ]
+    ],
+    "events": []
   },
   "appInstance": {
     "name": "App Instance",
@@ -764,7 +792,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "commands": [
       "app.singleInstance.state",
       "app.singleInstance.focus"
-    ]
+    ],
+    "events": []
   },
   "updater": {
     "name": "Updater",
@@ -787,6 +816,10 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "updater.check",
       "updater.download",
       "updater.install"
+    ],
+    "events": [
+      "updater.progress",
+      "updater.status"
     ]
   },
   "globalShortcut": {
@@ -806,6 +839,9 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "commands": [
       "globalShortcut.register",
       "globalShortcut.unregister"
+    ],
+    "events": [
+      "globalShortcut.triggered"
     ]
   },
   "tray": {
@@ -828,6 +864,10 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "tray.show",
       "tray.hide",
       "tray.configure"
+    ],
+    "events": [
+      "tray.action",
+      "tray.click"
     ]
   },
   "media": {
@@ -851,7 +891,8 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "media.ffmpeg.validate",
       "media.ffmpeg.setPath",
       "media.ffmpeg.pickExecutable"
-    ]
+    ],
+    "events": []
   },
   "audio": {
     "name": "Audio",
@@ -885,6 +926,12 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
       "audio.seek",
       "audio.volume.set",
       "audio.state.get"
+    ],
+    "events": [
+      "audio.tick",
+      "audio.ended",
+      "audio.stateChanged",
+      "audio.error"
     ]
   },
   "mediaSession": {
@@ -904,6 +951,9 @@ export const KSM_PLUGIN_METADATA: Readonly<Record<string, KSMPluginMetadata>> = 
     "commands": [
       "mediaSession.update",
       "mediaSession.clear"
+    ],
+    "events": [
+      "mediaSession.command"
     ]
   }
 };
@@ -1059,6 +1109,57 @@ export const KSM_PLUGIN_COMMANDS: Readonly<Record<string, readonly string[]>> = 
     "mediaSession.clear"
   ]
 };
+export const KSM_PLUGIN_EVENTS: Readonly<Record<string, readonly string[]>> = {
+  "core": [
+    "webview.navigated",
+    "webview.reloaded",
+    "app.deepLink.received",
+    "app.secondInstance.received"
+  ],
+  "fs": [],
+  "dialog": [],
+  "clipboard": [],
+  "notification": [],
+  "window": [
+    "window.resized",
+    "window.visibilityChanged",
+    "window.stateChanged"
+  ],
+  "http": [
+    "http.transfer.progress",
+    "http.transfer.completed",
+    "http.transfer.failed"
+  ],
+  "shell": [],
+  "device": [],
+  "sql": [],
+  "path": [],
+  "store": [],
+  "os": [],
+  "log": [],
+  "appInstance": [],
+  "updater": [
+    "updater.progress",
+    "updater.status"
+  ],
+  "globalShortcut": [
+    "globalShortcut.triggered"
+  ],
+  "tray": [
+    "tray.action",
+    "tray.click"
+  ],
+  "media": [],
+  "audio": [
+    "audio.tick",
+    "audio.ended",
+    "audio.stateChanged",
+    "audio.error"
+  ],
+  "mediaSession": [
+    "mediaSession.command"
+  ]
+};
 export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {
   "ping": "core",
   "capabilities.query": "core",
@@ -1168,6 +1269,28 @@ export const KSM_COMMAND_PLUGINS: Readonly<Record<string, string>> = {
   "audio.state.get": "audio",
   "mediaSession.update": "mediaSession",
   "mediaSession.clear": "mediaSession"
+};
+export const KSM_EVENT_PLUGINS: Readonly<Record<string, string>> = {
+  "webview.navigated": "core",
+  "webview.reloaded": "core",
+  "app.deepLink.received": "core",
+  "app.secondInstance.received": "core",
+  "window.resized": "window",
+  "window.visibilityChanged": "window",
+  "window.stateChanged": "window",
+  "http.transfer.progress": "http",
+  "http.transfer.completed": "http",
+  "http.transfer.failed": "http",
+  "updater.progress": "updater",
+  "updater.status": "updater",
+  "globalShortcut.triggered": "globalShortcut",
+  "tray.action": "tray",
+  "tray.click": "tray",
+  "audio.tick": "audio",
+  "audio.ended": "audio",
+  "audio.stateChanged": "audio",
+  "audio.error": "audio",
+  "mediaSession.command": "mediaSession"
 };
 export const KSM_COMMAND_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
   "ping": [],

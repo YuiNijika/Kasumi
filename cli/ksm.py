@@ -510,6 +510,9 @@ def build_windows_example(
         f"-DKASUMI_APP_PACKAGE_NAME={config.windows.package_name}",
         f"-DKASUMI_APP_VERSION={config.windows.version}",
         f"-DKASUMI_APP_COMMANDS={','.join(config.windows.commands)}",
+        f"-DKASUMI_FRAMEWORK_PLUGINS="
+        f"{','.join(config.windows.framework_plugins)}",
+        f"-DKASUMI_APP_PLUGINS={','.join(config.windows.app_plugins)}",
         f"-DKASUMI_APP_PERMISSIONS={','.join(config.windows.permissions)}",
         f"-DKASUMI_SHELL_ALLOWED_ORIGINS="
         f"{','.join(config.windows.shell_allowed_origins)}",
@@ -596,6 +599,9 @@ def android_app_gradle_arguments(config: KasumiConfig) -> list[str]:
         f"-PksmPackageName={config.android.package_name}",
         f"-PksmVersion={config.android.version}",
         f"-PksmCommands={','.join(config.android.commands)}",
+        f"-PksmFrameworkPlugins="
+        f"{','.join(config.android.framework_plugins)}",
+        f"-PksmAppPlugins={','.join(config.android.app_plugins)}",
         f"-PksmPermissions={','.join(config.android.permissions)}",
         f"-PksmShellAllowedOrigins="
         f"{','.join(config.android.shell_allowed_origins)}",

@@ -469,6 +469,59 @@ public:
     }
 };
 
+class ContractLifecyclePlugin final : public KSMPlugin {
+public:
+    const std::string& Id() const override {
+        static const std::string id = "contract.lifecycle";
+        return id;
+    }
+
+    const std::vector<std::string>& Commands() const override {
+        static const std::vector<std::string> commands = {
+            "contract.lifecycle"
+        };
+        return commands;
+    }
+
+    const std::vector<std::string>& FrameworkEvents() const override {
+        static const std::vector<std::string> events = {
+            "webview.navigated"
+        };
+        return events;
+    }
+
+    void Start(const KSMPluginContext&) override {
+        started = true;
+    }
+
+    void Stop() override {
+        stopped = true;
+    }
+
+    void OnFrameworkEvent(
+        const std::string& event,
+        const Json&
+    ) override {
+        framework_event = event;
+    }
+
+    Json Handle(
+        const std::string&,
+        const Json&,
+        const KSMPluginContext&
+    ) override {
+        return Json{{"started", started}};
+    }
+
+    static bool started;
+    static bool stopped;
+    static std::string framework_event;
+};
+
+bool ContractLifecyclePlugin::started = false;
+bool ContractLifecyclePlugin::stopped = false;
+std::string ContractLifecyclePlugin::framework_event;
+
 class ReplacementClipboardPlugin final : public KSMPlugin {
 public:
     const std::string& Id() const override {
@@ -522,6 +575,36 @@ public:
         const KSMPluginContext&
     ) override {
         return Json{{"exists", false}};
+    }
+};
+
+class FrameworkEventHijackPlugin final : public KSMPlugin {
+public:
+    const std::string& Id() const override {
+        static const std::string id = "contract.event-hijack";
+        return id;
+    }
+
+    const std::vector<std::string>& Commands() const override {
+        static const std::vector<std::string> commands = {
+            "contract.event-hijack"
+        };
+        return commands;
+    }
+
+    const std::vector<std::string>& Events() const override {
+        static const std::vector<std::string> events = {
+            "window.resized"
+        };
+        return events;
+    }
+
+    Json Handle(
+        const std::string&,
+        const Json&,
+        const KSMPluginContext&
+    ) override {
+        return Json::object();
     }
 };
 
@@ -1814,7 +1897,7 @@ void TestCustomPlugin(
     );
     ExpectOk(capabilities);
     bool found_custom_plugin = false;
-    for (const auto& plugin : capabilities.at("data").at("plugins")) {
+    for (const auto& plugin : capabilities.at("data").at("appPlugins")) {
         if (plugin.is_object() && plugin.at("id") == "contract.echo") {
             found_custom_plugin = true;
         }
@@ -1829,21 +1912,23 @@ void TestCustomPlugin(
 void TestPluginRules(
     const std::shared_ptr<KSMFileSystem>& file_system
 ) {
-    KSMRouter replacement(
-        file_system,
-        nullptr,
-        {"fs.exists"},
-        {"fs.read"},
-        {std::make_shared<ReplacementFileSystemPlugin>()}
-    );
-    const auto exists = Invoke(
-        replacement,
-        "fs.exists",
-        Json{{"path", "app://data/plugin.txt"}}
-    );
-    ExpectOk(exists);
-    if (exists.at("data").at("exists") != true) {
-        throw std::runtime_error("The replacement filesystem was not used.");
+    bool framework_id_rejected = false;
+    try {
+        KSMRouter invalid(
+            file_system,
+            nullptr,
+            {"fs.exists"},
+            {"fs.read"},
+            {std::make_shared<ReplacementFileSystemPlugin>()}
+        );
+        (void)invalid;
+    } catch (const std::invalid_argument&) {
+        framework_id_rejected = true;
+    }
+    if (!framework_id_rejected) {
+        throw std::runtime_error(
+            "An application plugin replaced a framework plugin ID."
+        );
     }
 
     bool hijack_rejected = false;
@@ -1861,26 +1946,130 @@ void TestPluginRules(
     }
     if (!hijack_rejected) {
         throw std::runtime_error(
-            "A custom plugin hijacked a generated command."
+            "An application plugin hijacked a framework command."
         );
     }
 
-    KSMRouter clipboard(
+    bool clipboard_id_rejected = false;
+    try {
+        KSMRouter invalid(
+            file_system,
+            nullptr,
+            {"clipboard.readText"},
+            {"clipboard.read"},
+            {std::make_shared<ReplacementClipboardPlugin>()}
+        );
+        (void)invalid;
+    } catch (const std::invalid_argument&) {
+        clipboard_id_rejected = true;
+    }
+    if (!clipboard_id_rejected) {
+        throw std::runtime_error(
+            "An application plugin replaced the framework clipboard plugin."
+        );
+    }
+
+    bool event_hijack_rejected = false;
+    try {
+        KSMRouter invalid(
+            file_system,
+            nullptr,
+            {"capabilities.query"},
+            {},
+            {std::make_shared<FrameworkEventHijackPlugin>()}
+        );
+        (void)invalid;
+    } catch (const std::invalid_argument&) {
+        event_hijack_rejected = true;
+    }
+    if (!event_hijack_rejected) {
+        throw std::runtime_error(
+            "An application plugin hijacked a framework event."
+        );
+    }
+
+    bool missing_plugin_rejected = false;
+    try {
+        KSMRouter invalid(
+            file_system,
+            nullptr,
+            {"ping"},
+            {},
+            {},
+            "",
+            {},
+            {"contract.missing"}
+        );
+        (void)invalid;
+    } catch (const std::invalid_argument&) {
+        missing_plugin_rejected = true;
+    }
+    if (!missing_plugin_rejected) {
+        throw std::runtime_error(
+            "A missing required application plugin was not rejected."
+        );
+    }
+}
+
+void TestFrameworkPluginFilter(
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    KSMRouter router(
         file_system,
         nullptr,
-        {"clipboard.readText"},
-        {"clipboard.read"},
-        {std::make_shared<ReplacementClipboardPlugin>()}
+        {"capabilities.query", "fs.readText", "clipboard.readText"},
+        {"fs.read", "clipboard.read"},
+        {},
+        "",
+        {"fs"}
     );
-    const auto clipboard_text = Invoke(
-        clipboard,
-        "clipboard.readText",
+    const auto capabilities = Invoke(
+        router,
+        "capabilities.query",
         Json::object()
     );
-    ExpectOk(clipboard_text);
-    if (clipboard_text.at("data").at("text") != "replacement") {
+    ExpectOk(capabilities);
+    const auto& plugins = capabilities.at("data").at("frameworkPlugins");
+    if (plugins.size() != 1 || plugins.at(0).at("id") != "fs") {
         throw std::runtime_error(
-            "The replacement clipboard plugin was not used."
+            "frameworkPlugins did not filter the framework registry."
+        );
+    }
+}
+
+void TestAppPluginLifecycle(
+    const std::shared_ptr<KSMFileSystem>& file_system
+) {
+    ContractLifecyclePlugin::started = false;
+    ContractLifecyclePlugin::stopped = false;
+    ContractLifecyclePlugin::framework_event.clear();
+    {
+        KSMRouter router(
+            file_system,
+            nullptr,
+            {"capabilities.query", "contract.lifecycle"},
+            {},
+            {std::make_shared<ContractLifecyclePlugin>()}
+        );
+        if (!ContractLifecyclePlugin::started) {
+            throw std::runtime_error(
+                "The application plugin was not started."
+            );
+        }
+        router.EmitSystemEvent(
+            "webview.navigated",
+            "{}",
+            [](const std::string&) {}
+        );
+        if (ContractLifecyclePlugin::framework_event != "webview.navigated") {
+            throw std::runtime_error(
+                "The application plugin did not receive a framework event."
+            );
+        }
+    }
+    if (!ContractLifecyclePlugin::stopped) {
+        throw std::runtime_error(
+            "The application plugin was not stopped."
         );
     }
 }
@@ -3109,6 +3298,8 @@ int main() {
         TestSqlCancellation();
         TestCustomPlugin(file_system);
         TestPluginRules(file_system);
+        TestFrameworkPluginFilter(file_system);
+        TestAppPluginLifecycle(file_system);
         TestCommandAllowlist(file_system);
         TestCapabilityPermissionFilter(file_system);
         TestPluginEventResponse(file_system);

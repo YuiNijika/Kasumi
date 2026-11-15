@@ -1,6 +1,6 @@
 {
   "name": "create-kasumi",
-  "version": "26.11.12",
+  "version": "26.11.15",
   "description": "Create a Kasumi application",
   "type": "module",
   "bin": {

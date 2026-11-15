@@ -226,5 +226,950 @@
     "updater.install",
     "app.openDevtools",
     "app.deepLink.getPending"
-  ]
+  ],
+  "events": {
+    "webview.navigated": {
+      "payload": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "1.2.0"
+    },
+    "webview.reloaded": {
+      "payload": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "1.0.0"
+    },
+    "window.resized": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "width",
+          "height"
+        ],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "1.0.0"
+    },
+    "http.transfer.progress": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "number"
+          },
+          "totalBytes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "http.transfer.completed": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "http.transfer.failed": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "transferId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.tick": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "positionMs": {
+            "type": "number"
+          },
+          "durationMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.ended": {
+      "payload": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.stateChanged": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "object"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "audio.error": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "mediaSession.command": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "positionMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "window.visibilityChanged": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          },
+          "visible": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "window.stateChanged": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "object"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "tray.action": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "checked": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "tray.click": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "button": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "globalShortcut.triggered": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "shortcut": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows"
+      ],
+      "since": "26.11.5"
+    },
+    "updater.progress": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "phase": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "totalBytes": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "updater.status": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "app.deepLink.received": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "android"
+      ],
+      "since": "26.11.5"
+    },
+    "app.secondInstance.received": {
+      "payload": {
+        "type": "object",
+        "properties": {
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "since": "26.11.5"
+    }
+  },
+  "plugins": {
+    "core": {
+      "name": "Core",
+      "version": "1.0.0",
+      "description": "Application lifecycle, permissions, events and capability discovery.",
+      "frontendPackage": "kasumi-bridge",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "app.deepLink",
+        "app.devtools",
+        "window.control"
+      ],
+      "defaultPermissions": [
+        "app.deepLink",
+        "app.devtools",
+        "window.control"
+      ],
+      "commands": [
+        "ping",
+        "capabilities.query",
+        "app.getInfo",
+        "app.exit",
+        "permission.request",
+        "event.subscribe",
+        "event.unsubscribe",
+        "app.openDevtools",
+        "app.deepLink.getPending"
+      ],
+      "events": [
+        "webview.navigated",
+        "webview.reloaded",
+        "app.deepLink.received",
+        "app.secondInstance.received"
+      ]
+    },
+    "fs": {
+      "name": "Filesystem",
+      "version": "1.0.0",
+      "description": "Sandboxed virtual filesystem access.",
+      "frontendPackage": "kasumi-plugin-fs",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "fs.read",
+        "fs.remove",
+        "fs.write"
+      ],
+      "defaultPermissions": [
+        "fs.read",
+        "fs.remove",
+        "fs.write"
+      ],
+      "commands": [
+        "fs.readText",
+        "fs.writeText",
+        "fs.appendText",
+        "fs.copy",
+        "fs.move",
+        "fs.readBytes",
+        "fs.writeBytes",
+        "fs.exists",
+        "fs.remove",
+        "fs.readDir",
+        "fs.mkdir",
+        "fs.stat",
+        "fs.walk",
+        "fs.scope.release"
+      ],
+      "events": []
+    },
+    "dialog": {
+      "name": "Dialog",
+      "version": "1.0.0",
+      "description": "Native message, confirmation and file picker dialogs.",
+      "frontendPackage": "kasumi-plugin-dialog",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "dialog"
+      ],
+      "defaultPermissions": [
+        "dialog"
+      ],
+      "commands": [
+        "dialog.message",
+        "dialog.confirm",
+        "dialog.openFile",
+        "dialog.saveFile",
+        "dialog.openFolder",
+        "dialog.openFiles"
+      ],
+      "events": []
+    },
+    "clipboard": {
+      "name": "Clipboard",
+      "version": "1.0.0",
+      "description": "System clipboard text access.",
+      "frontendPackage": "kasumi-plugin-clipboard",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "clipboard.read",
+        "clipboard.write"
+      ],
+      "defaultPermissions": [
+        "clipboard.read",
+        "clipboard.write"
+      ],
+      "commands": [
+        "clipboard.readText",
+        "clipboard.writeText"
+      ],
+      "events": []
+    },
+    "notification": {
+      "name": "Notification",
+      "version": "1.0.0",
+      "description": "Native system notifications.",
+      "frontendPackage": "kasumi-plugin-notification",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "notification.show"
+      ],
+      "defaultPermissions": [
+        "notification.show"
+      ],
+      "commands": [
+        "notification.show"
+      ],
+      "events": []
+    },
+    "window": {
+      "name": "Window",
+      "version": "1.0.0",
+      "description": "Window title, size, lifecycle and application exit controls.",
+      "frontendPackage": "kasumi-plugin-window",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "window.control",
+        "window.manage"
+      ],
+      "defaultPermissions": [
+        "window.control",
+        "window.manage"
+      ],
+      "commands": [
+        "window.setTitle",
+        "window.minimize",
+        "window.maximize",
+        "window.setSize",
+        "window.startDragging",
+        "window.startResizing",
+        "window.close",
+        "window.create",
+        "window.show",
+        "window.hide",
+        "window.setPosition",
+        "window.setAlwaysOnTop",
+        "window.setTransparent",
+        "window.getState",
+        "event.emit"
+      ],
+      "events": [
+        "window.resized",
+        "window.visibilityChanged",
+        "window.stateChanged"
+      ]
+    },
+    "http": {
+      "name": "HTTP",
+      "version": "1.0.0",
+      "description": "HTTPS downloads into the virtual filesystem.",
+      "frontendPackage": "kasumi-plugin-http",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "http.cookies",
+        "http.download",
+        "http.request"
+      ],
+      "defaultPermissions": [
+        "http.cookies",
+        "http.download",
+        "http.request"
+      ],
+      "commands": [
+        "http.download",
+        "http.request",
+        "http.transfer.start",
+        "http.transfer.cancel",
+        "http.cookies.get",
+        "http.cookies.set",
+        "http.cookies.clear"
+      ],
+      "events": [
+        "http.transfer.progress",
+        "http.transfer.completed",
+        "http.transfer.failed"
+      ]
+    },
+    "shell": {
+      "name": "Shell",
+      "version": "1.4.0",
+      "description": "Allowlisted external URL launching.",
+      "frontendPackage": "kasumi-plugin-shell",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "shell.open"
+      ],
+      "defaultPermissions": [
+        "shell.open"
+      ],
+      "commands": [
+        "shell.openExternal",
+        "shell.openPath",
+        "shell.showInFolder"
+      ],
+      "events": []
+    },
+    "device": {
+      "name": "Device",
+      "version": "1.0.0",
+      "description": "Non-identifying Android device information.",
+      "frontendPackage": "kasumi-plugin-device",
+      "platforms": [
+        "android"
+      ],
+      "permissions": [
+        "device.info"
+      ],
+      "defaultPermissions": [
+        "device.info"
+      ],
+      "commands": [
+        "device.getInfo"
+      ],
+      "events": []
+    },
+    "sql": {
+      "name": "SQL",
+      "version": "1.2.0",
+      "description": "Database connections and parameterised SQL statements.",
+      "frontendPackage": "kasumi-plugin-sql",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "sql"
+      ],
+      "defaultPermissions": [
+        "sql"
+      ],
+      "commands": [
+        "sql.drivers",
+        "sql.open",
+        "sql.query",
+        "sql.execute",
+        "sql.close"
+      ],
+      "events": []
+    },
+    "path": {
+      "name": "Path",
+      "version": "1.3.0",
+      "description": "Virtual application path inspection and construction.",
+      "frontendPackage": "kasumi-plugin-path",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [],
+      "defaultPermissions": [],
+      "commands": [
+        "path.dirs",
+        "path.join",
+        "path.normalize",
+        "path.dirname",
+        "path.basename",
+        "path.extname",
+        "path.isAbsolute"
+      ],
+      "events": []
+    },
+    "store": {
+      "name": "Store",
+      "version": "1.3.0",
+      "description": "Persistent JSON key-value storage inside application data.",
+      "frontendPackage": "kasumi-plugin-store",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "store"
+      ],
+      "defaultPermissions": [
+        "store"
+      ],
+      "commands": [
+        "store.get",
+        "store.set",
+        "store.delete",
+        "store.clear",
+        "store.keys"
+      ],
+      "events": []
+    },
+    "os": {
+      "name": "OS",
+      "version": "1.3.0",
+      "description": "Non-identifying operating system and runtime information.",
+      "frontendPackage": "kasumi-plugin-os",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "os.info"
+      ],
+      "defaultPermissions": [
+        "os.info"
+      ],
+      "commands": [
+        "os.getInfo"
+      ],
+      "events": []
+    },
+    "log": {
+      "name": "Log",
+      "version": "1.3.0",
+      "description": "Platform logger access with bounded messages.",
+      "frontendPackage": "kasumi-plugin-log",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "log.write"
+      ],
+      "defaultPermissions": [
+        "log.write"
+      ],
+      "commands": [
+        "log.write"
+      ],
+      "events": []
+    },
+    "appInstance": {
+      "name": "App Instance",
+      "version": "1.4.0",
+      "description": "Single instance state and focus coordination.",
+      "frontendPackage": "kasumi-bridge",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [],
+      "defaultPermissions": [],
+      "commands": [
+        "app.singleInstance.state",
+        "app.singleInstance.focus"
+      ],
+      "events": []
+    },
+    "updater": {
+      "name": "Updater",
+      "version": "1.4.0",
+      "description": "Check and download application update packages.",
+      "frontendPackage": "kasumi-plugin-updater",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "updater",
+        "updater.install"
+      ],
+      "defaultPermissions": [
+        "updater",
+        "updater.install"
+      ],
+      "commands": [
+        "updater.check",
+        "updater.download",
+        "updater.install"
+      ],
+      "events": [
+        "updater.progress",
+        "updater.status"
+      ]
+    },
+    "globalShortcut": {
+      "name": "Global Shortcut",
+      "version": "1.4.0",
+      "description": "Register and unregister global keyboard shortcuts.",
+      "frontendPackage": "kasumi-plugin-global-shortcut",
+      "platforms": [
+        "windows"
+      ],
+      "permissions": [
+        "globalShortcut"
+      ],
+      "defaultPermissions": [
+        "globalShortcut"
+      ],
+      "commands": [
+        "globalShortcut.register",
+        "globalShortcut.unregister"
+      ],
+      "events": [
+        "globalShortcut.triggered"
+      ]
+    },
+    "tray": {
+      "name": "Tray",
+      "version": "1.4.0",
+      "description": "Show and hide the system tray icon.",
+      "frontendPackage": "kasumi-plugin-tray",
+      "platforms": [
+        "windows"
+      ],
+      "permissions": [
+        "tray",
+        "tray.configure"
+      ],
+      "defaultPermissions": [
+        "tray",
+        "tray.configure"
+      ],
+      "commands": [
+        "tray.show",
+        "tray.hide",
+        "tray.configure"
+      ],
+      "events": [
+        "tray.action",
+        "tray.click"
+      ]
+    },
+    "media": {
+      "name": "Media",
+      "version": "1.5.0",
+      "description": "Media metadata, external tool discovery, and virtual media scopes.",
+      "frontendPackage": "kasumi-plugin-media",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "media.read"
+      ],
+      "defaultPermissions": [
+        "media.read"
+      ],
+      "commands": [
+        "media.probe",
+        "media.ffmpeg.detect",
+        "media.ffmpeg.validate",
+        "media.ffmpeg.setPath",
+        "media.ffmpeg.pickExecutable"
+      ],
+      "events": []
+    },
+    "audio": {
+      "name": "Audio",
+      "version": "1.5.0",
+      "description": "Audio playback, device selection, effects, and state.",
+      "frontendPackage": "kasumi-plugin-audio",
+      "platforms": [
+        "windows",
+        "android"
+      ],
+      "permissions": [
+        "media.control",
+        "media.read"
+      ],
+      "defaultPermissions": [
+        "media.control",
+        "media.read"
+      ],
+      "commands": [
+        "audio.devices.list",
+        "audio.devices.set",
+        "audio.output.getMode",
+        "audio.output.setExclusive",
+        "audio.eq.set",
+        "audio.speed.set",
+        "audio.probe",
+        "audio.load",
+        "audio.play",
+        "audio.pause",
+        "audio.stop",
+        "audio.seek",
+        "audio.volume.set",
+        "audio.state.get"
+      ],
+      "events": [
+        "audio.tick",
+        "audio.ended",
+        "audio.stateChanged",
+        "audio.error"
+      ]
+    },
+    "mediaSession": {
+      "name": "Media Session",
+      "version": "1.5.0",
+      "description": "System media session metadata and transport commands.",
+      "frontendPackage": "kasumi-plugin-media-session",
+      "platforms": [
+        "android"
+      ],
+      "permissions": [
+        "mediaSession"
+      ],
+      "defaultPermissions": [
+        "mediaSession"
+      ],
+      "commands": [
+        "mediaSession.update",
+        "mediaSession.clear"
+      ],
+      "events": [
+        "mediaSession.command"
+      ]
+    }
+  }
 }

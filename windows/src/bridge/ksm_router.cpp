@@ -20,8 +20,6 @@
 #include "../platform/ksm_url_policy.h"
 #include "../platform/ksm_virtual_path.h"
 #include "../plugins/ksm_dialog_plugin.h"
-#include "../plugins/ksm_capability_plugin.h"
-#include "../plugins/ksm_filesystem_plugin.h"
 #include "../plugins/ksm_sql_plugin.h"
 #include "ksm_version.h"
 #include "ksm_command_registry.h"
@@ -150,102 +148,54 @@ void AppendUnique(
     }
 }
 
-std::vector<std::shared_ptr<KSMPlugin>> BuildPlugins(
+std::vector<std::shared_ptr<KSMPlugin>> BuildAppPlugins(
     std::vector<std::shared_ptr<KSMPlugin>> additional
 ) {
-    const auto& generated_ids = KSMGeneratedContract::Plugins();
-    std::set<std::string> replaceable_ids;
-    for (const auto& plugin_id : generated_ids) {
-        if (plugin_id != "core") {
-            replaceable_ids.insert(plugin_id);
-        }
-    }
-    std::set<std::string> seen;
-    std::set<std::string> overridden_ids;
+    std::set<std::string> seen_ids;
+    std::set<std::string> seen_commands;
+    std::set<std::string> seen_events;
     for (const auto& plugin : additional) {
         if (!plugin) {
             throw std::invalid_argument("A Kasumi plugin cannot be null.");
         }
+        if (plugin->Id().empty()) {
+            throw std::invalid_argument("A Kasumi plugin must have an ID.");
+        }
         if (
-            !seen.insert(plugin->Id()).second ||
-            (
-                Contains(generated_ids, plugin->Id()) &&
-                !replaceable_ids.contains(plugin->Id())
-            )
+            !seen_ids.insert(plugin->Id()).second ||
+            Contains(KSMGeneratedContract::Plugins(), plugin->Id())
         ) {
             throw std::invalid_argument(
-                "The custom Kasumi plugin ID conflicts with a built-in plugin."
+                "An application plugin ID cannot conflict with a framework "
+                "plugin."
             );
         }
-        const auto& commands = plugin->Commands();
-        if (replaceable_ids.contains(plugin->Id())) {
-            const auto& generated_commands = KSMGeneratedContract::PluginCommands()
-                .at(plugin->Id());
-            const std::set<std::string> expected(
-                generated_commands.begin(),
-                generated_commands.end()
-            );
-            const std::set<std::string> actual(
-                commands.begin(),
-                commands.end()
-            );
-            if (actual != expected) {
+        for (const auto& command : plugin->Commands()) {
+            if (
+                command.empty() ||
+                !seen_commands.insert(command).second ||
+                Contains(KSMGeneratedContract::Commands(), command)
+            ) {
                 throw std::invalid_argument(
-                    "A replacement built-in plugin must own exactly the "
-                    "generated commands for its plugin ID."
+                    "An application plugin command cannot conflict with a "
+                    "framework command."
                 );
             }
-        } else {
-            for (const auto& command : commands) {
-                if (Contains(KSMGeneratedContract::Commands(), command)) {
-                    throw std::invalid_argument(
-                        "A custom Kasumi plugin cannot take ownership of a "
-                        "generated command."
-                    );
-                }
+        }
+        for (const auto& event : plugin->Events()) {
+            if (
+                event.empty() ||
+                !seen_events.insert(event).second ||
+                Contains(KSMGeneratedContract::Events(), event)
+            ) {
+                throw std::invalid_argument(
+                    "An application plugin event cannot conflict with a "
+                    "framework event."
+                );
             }
         }
-        overridden_ids.insert(plugin->Id());
     }
-
-    auto plugins = KSMDefaultPlugins();
-    plugins.erase(
-        std::remove_if(
-            plugins.begin(),
-            plugins.end(),
-            [&overridden_ids](const std::shared_ptr<KSMPlugin>& plugin) {
-                return overridden_ids.contains(plugin->Id());
-            }
-        ),
-        plugins.end()
-    );
-    plugins.insert(
-        plugins.end(),
-        std::make_move_iterator(additional.begin()),
-        std::make_move_iterator(additional.end())
-    );
-    std::set<std::string> owned_commands;
-    for (const auto& plugin : plugins) {
-        const auto& commands = plugin->Commands();
-        owned_commands.insert(commands.begin(), commands.end());
-    }
-    auto capability_commands = KSMCapabilityCommands();
-    capability_commands.erase(
-        std::remove_if(
-            capability_commands.begin(),
-            capability_commands.end(),
-            [&owned_commands](const std::string& command) {
-                return owned_commands.contains(command);
-            }
-        ),
-        capability_commands.end()
-    );
-    plugins.push_back(
-        std::make_shared<KSMCapabilityPlugin>(
-            std::move(capability_commands)
-        )
-    );
-    return plugins;
+    return additional;
 }
 
 }
@@ -270,12 +220,28 @@ KSMRouter::KSMRouter(
     std::vector<std::string> allowed_commands,
     std::vector<std::string> allowed_permissions,
     std::vector<std::shared_ptr<KSMPlugin>> plugins,
-    std::string window_id
+    std::string window_id,
+    std::vector<std::string> framework_plugins,
+    std::vector<std::string> required_app_plugins
 )
     : file_system_(std::move(file_system)),
       host_services_(std::move(host_services)),
-      window_id_(std::move(window_id)),
-      plugin_registry_(BuildPlugins(std::move(plugins))) {
+      framework_registry_(
+          KSMDefaultFrameworkPlugins(
+              allowed_commands,
+              framework_plugins
+          )
+      ),
+      app_plugin_registry_(BuildAppPlugins(std::move(plugins))),
+      window_id_(std::move(window_id)) {
+    for (const auto& plugin_id : required_app_plugins) {
+        if (!app_plugin_registry_.KnowsPlugin(plugin_id)) {
+            throw std::invalid_argument(
+                "Application plugin implementation is missing: " +
+                plugin_id
+            );
+        }
+    }
     supported_commands_ = KSMCommandRegistry::SupportedCommands(
         allowed_commands
     );
@@ -283,31 +249,52 @@ KSMRouter::KSMRouter(
         allowed_commands.begin(),
         allowed_commands.end()
     );
-    for (const auto& command : plugin_registry_.Commands()) {
-        if (
-            Contains(KSMGeneratedContract::Commands(), command) &&
-            !Contains(KSMGeneratedContract::WindowsCommands(), command)
-        ) {
-            continue;
+    const auto add_plugin_commands = [&](
+        const std::vector<std::string>& commands
+    ) {
+        for (const auto& command : commands) {
+            if (
+                Contains(KSMGeneratedContract::Commands(), command) &&
+                !Contains(KSMGeneratedContract::WindowsCommands(), command)
+            ) {
+                continue;
+            }
+            if (requested.contains(command)) {
+                AppendUnique(supported_commands_, command);
+            }
         }
-        if (requested.contains(command)) {
-            AppendUnique(supported_commands_, command);
+    };
+    add_plugin_commands(framework_registry_.Commands());
+    add_plugin_commands(app_plugin_registry_.Commands());
+
+    capability_events_ = KSMGeneratedContract::Events();
+    for (const auto& events : {
+             framework_registry_.Events(),
+             app_plugin_registry_.Events()
+         }) {
+        for (const auto& event : events) {
+            AppendUnique(capability_events_, event);
         }
     }
-    capability_events_ = KSMCapabilityEvents();
     const std::set<std::string> available_permissions(
         KSMGeneratedContract::Permissions().begin(),
         KSMGeneratedContract::Permissions().end()
     );
-    const auto& plugin_permissions = plugin_registry_.Permissions();
+    const auto& framework_permissions = framework_registry_.Permissions();
+    const auto& app_permissions = app_plugin_registry_.Permissions();
     for (const auto& permission : allowed_permissions) {
         if (
             available_permissions.contains(permission) ||
             std::find(
-                plugin_permissions.begin(),
-                plugin_permissions.end(),
+                framework_permissions.begin(),
+                framework_permissions.end(),
                 permission
-            ) != plugin_permissions.end()
+            ) != framework_permissions.end() ||
+            std::find(
+                app_permissions.begin(),
+                app_permissions.end(),
+                permission
+            ) != app_permissions.end()
         ) {
             granted_permissions_.insert(permission);
         }
@@ -329,7 +316,7 @@ KSMRouter::KSMRouter(
                 .get<std::vector<std::string>>();
         } else {
             required_permissions =
-                plugin_registry_.PermissionsForCommand(command);
+                app_plugin_registry_.PermissionsForCommand(command);
         }
         const bool permitted = std::all_of(
             required_permissions.begin(),
@@ -342,14 +329,41 @@ KSMRouter::KSMRouter(
             continue;
         }
         capability_commands_.push_back(command);
-        const std::string plugin_id =
-            plugin_registry_.PluginIdForCommand(command);
-        AppendUnique(
-            plugin_ids_,
-            plugin_id.empty() ? "core" : plugin_id
-        );
     }
+
+    framework_registry_.Start(KSMPluginContext{
+        .file_system = file_system_,
+        .host_services = host_services_,
+        .has_permission = [this](const std::string& permission) {
+            return HasPermission(permission);
+        },
+        .request_id = {},
+        .window_id = window_id_.empty() ? "default" : window_id_,
+        .emit_event = [this](
+            const std::string& event,
+            const Json& payload
+        ) {
+            return EmitPluginEvent(event, payload);
+        }
+    });
+    app_plugin_registry_.Start(KSMPluginContext{
+        .file_system = file_system_,
+        .host_services = host_services_,
+        .has_permission = [this](const std::string& permission) {
+            return HasPermission(permission);
+        },
+        .request_id = {},
+        .window_id = window_id_.empty() ? "default" : window_id_,
+        .emit_event = [this](
+            const std::string& event,
+            const Json& payload
+        ) {
+            return EmitPluginEvent(event, payload);
+        }
+    });
 }
+
+KSMRouter::~KSMRouter() = default;
 
 const std::vector<std::string>& KSMRouter::SupportedCommands() const {
     return supported_commands_;
@@ -381,6 +395,7 @@ void KSMRouter::EmitEvent(
     if (payload.is_discarded()) {
         payload = Json::object();
     }
+    app_plugin_registry_.OnFrameworkEvent(event, payload);
     send_response(Json{
         {"type", "event"},
         {"event", event},
@@ -396,6 +411,7 @@ bool KSMRouter::EmitPluginEvent(
     const std::string& event,
     const Json& payload
 ) const {
+    app_plugin_registry_.OnFrameworkEvent(event, payload);
     {
         std::lock_guard lock(state_mutex_);
         if (subscribed_events_.find(event) == subscribed_events_.end()) {
@@ -422,6 +438,7 @@ void KSMRouter::EmitSystemEvent(
     if (payload.is_discarded()) {
         payload = Json::object();
     }
+    app_plugin_registry_.OnFrameworkEvent(event, payload);
     send_response(Json{
         {"type", "event"},
         {"event", event},
@@ -487,11 +504,10 @@ void KSMRouter::HandleMessage(
 
         const auto& known_commands = KSMGeneratedContract::Commands();
         const bool generated_command = Contains(known_commands, command);
-        const bool capability_command = KSMIsCapabilityCommand(command);
+        const bool app_command = app_plugin_registry_.OwnsCommand(command);
         if (
             !generated_command &&
-            !capability_command &&
-            !plugin_registry_.OwnsCommand(command)
+            !app_command
         ) {
             SendError(
                 id,
@@ -513,8 +529,7 @@ void KSMRouter::HandleMessage(
                       KSMGeneratedContract::WindowsCommands(),
                       command
                   )
-                : capability_command ||
-                      plugin_registry_.OwnsCommand(command);
+                : app_command;
             SendError(
                 id,
                 "NOT_SUPPORTED",
@@ -527,7 +542,7 @@ void KSMRouter::HandleMessage(
         }
         const bool valid_args = generated_command
             ? KSMGeneratedContract::ValidateArgs(command, args)
-            : plugin_registry_.ValidateArgs(command, args);
+            : app_plugin_registry_.ValidateArgs(command, args);
         if (!valid_args) {
             SendError(
                 id,
@@ -556,15 +571,26 @@ void KSMRouter::HandleMessage(
                 }
             }
             const auto& metadata = KSMGeneratedContract::PluginMetadata();
-            Json plugins = Json::array();
-            for (const auto& plugin_id : plugin_ids_) {
+            Json framework_plugins = Json::array();
+            for (const auto& plugin_id : framework_registry_.PluginIds()) {
                 const Json meta = metadata.contains(plugin_id)
                     ? metadata.at(plugin_id)
                     : Json::object();
-                plugins.push_back(Json{
+                framework_plugins.push_back(Json{
                     {"id", plugin_id},
                     {"name", meta.value("name", plugin_id)},
                     {"version", meta.value("version", "1.0.0")},
+                    {"description", meta.value("description", "")},
+                    {"enabled", true}
+                });
+            }
+            Json app_plugins = Json::array();
+            for (const auto& plugin_id : app_plugin_registry_.PluginIds()) {
+                app_plugins.push_back(Json{
+                    {"id", plugin_id},
+                    {"name", app_plugin_registry_.NameForPlugin(plugin_id)},
+                    {"version", app_plugin_registry_.VersionForPlugin(plugin_id)},
+                    {"description", app_plugin_registry_.DescriptionForPlugin(plugin_id)},
                     {"enabled", true}
                 });
             }
@@ -578,7 +604,9 @@ void KSMRouter::HandleMessage(
                     {"appId", app_id},
                     {"commands", capability_commands_},
                     {"permissions", permissions},
-                    {"plugins", plugins}
+                    {"plugins", framework_plugins},
+                    {"frameworkPlugins", framework_plugins},
+                    {"appPlugins", app_plugins}
                 },
                 send_response
             );
@@ -631,7 +659,8 @@ void KSMRouter::HandleMessage(
             const std::string permission = args.at("permission").get<std::string>();
             const bool known =
                 Contains(KSMGeneratedContract::Permissions(), permission) ||
-                plugin_registry_.KnowsPermission(permission);
+                framework_registry_.KnowsPermission(permission) ||
+                app_plugin_registry_.KnowsPermission(permission);
             if (!known) {
                 SendError(
                     id,
@@ -662,7 +691,8 @@ void KSMRouter::HandleMessage(
                 event
             ) != known_events.end() ||
                 Contains(capability_events_, event) ||
-                plugin_registry_.KnowsEvent(event);
+                framework_registry_.KnowsEvent(event) ||
+                app_plugin_registry_.KnowsEvent(event);
             if (!known) {
                 SendError(id, "INVALID_ARGS", "event is not registered.", send_response);
                 return;
@@ -826,28 +856,30 @@ void KSMRouter::HandleMessage(
             return;
         }
 
-        if (plugin_registry_.OwnsCommand(command)) {
-            const auto data = plugin_registry_.Handle(
-                command,
-                args,
-                KSMPluginContext{
-                    .file_system = file_system_,
-                    .host_services = host_services_,
-                    .has_permission = [this](const std::string& permission) {
-                        return HasPermission(permission);
-                    },
-                    .request_id = id.is_string()
-                        ? id.get<std::string>()
-                        : std::string(),
-                    .window_id = window_id_.empty() ? "default" : window_id_,
-                    .emit_event = [this](
-                        const std::string& event,
-                        const Json& payload
-                    ) {
-                        return EmitPluginEvent(event, payload);
-                    }
+        if (
+            framework_registry_.OwnsCommand(command) ||
+            app_plugin_registry_.OwnsCommand(command)
+        ) {
+            const KSMPluginContext context{
+                .file_system = file_system_,
+                .host_services = host_services_,
+                .has_permission = [this](const std::string& permission) {
+                    return HasPermission(permission);
+                },
+                .request_id = id.is_string()
+                    ? id.get<std::string>()
+                    : std::string(),
+                .window_id = window_id_.empty() ? "default" : window_id_,
+                .emit_event = [this](
+                    const std::string& event,
+                    const Json& payload
+                ) {
+                    return EmitPluginEvent(event, payload);
                 }
-            );
+            };
+            const auto data = framework_registry_.OwnsCommand(command)
+                ? framework_registry_.Handle(command, args, context)
+                : app_plugin_registry_.Handle(command, args, context);
             if (data) {
                 SendSuccess(id, *data, send_response);
                 return;

@@ -65,7 +65,9 @@ public:
                   std::vector<std::string> allowed_permissions = {},
                   std::vector<std::string> allowed_http_origins = {},
                   std::string background_color = {},
-                  KSMWebView2ErrorPageOptions error_page = {});
+                  KSMWebView2ErrorPageOptions error_page = {},
+                  std::vector<std::string> framework_plugins = {},
+                  std::vector<std::string> required_app_plugins = {});
   ~KSMWebView2Host();
 
   KSMWebView2Host(const KSMWebView2Host &) = delete;

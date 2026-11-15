@@ -5,20 +5,7 @@
 #include <string>
 #include <utility>
 
-#include "ksm_clipboard_plugin.h"
-#include "ksm_dialog_plugin.h"
-#include "ksm_filesystem_plugin.h"
-#include "ksm_http_plugin.h"
-#include "ksm_log_plugin.h"
-#include "ksm_notification_plugin.h"
-#include "ksm_os_plugin.h"
-#include "ksm_path_plugin.h"
-#include "ksm_shell_plugin.h"
-#include "ksm_sql_plugin.h"
-#include "ksm_store_plugin.h"
-#include "ksm_window_plugin.h"
-
-KSMPluginRegistry::KSMPluginRegistry(
+KSMAppPluginRegistry::KSMAppPluginRegistry(
     std::vector<std::shared_ptr<KSMPlugin>> plugins
 ) : plugins_(std::move(plugins)) {
     for (const auto& plugin : plugins_) {
@@ -73,10 +60,65 @@ KSMPluginRegistry::KSMPluginRegistry(
             }
             events_.push_back(event);
         }
+        for (const auto& event : plugin->FrameworkEvents()) {
+            if (
+                event.empty() ||
+                std::find(
+                    framework_events_.begin(),
+                    framework_events_.end(),
+                    event
+                ) == framework_events_.end()
+            ) {
+                framework_events_.push_back(event);
+            }
+        }
     }
 }
 
-std::optional<nlohmann::json> KSMPluginRegistry::Handle(
+KSMAppPluginRegistry::~KSMAppPluginRegistry() {
+    Stop();
+}
+
+void KSMAppPluginRegistry::Start(const KSMPluginContext& context) {
+    if (!started_.empty()) {
+        return;
+    }
+    try {
+        for (const auto& plugin : plugins_) {
+            plugin->Start(context);
+            started_.push_back(plugin);
+        }
+    } catch (...) {
+        Stop();
+        throw;
+    }
+}
+
+void KSMAppPluginRegistry::Stop() noexcept {
+    for (auto iterator = started_.rbegin(); iterator != started_.rend(); ++iterator) {
+        try {
+            (*iterator)->Stop();
+        } catch (...) {
+        }
+    }
+    started_.clear();
+}
+
+void KSMAppPluginRegistry::OnFrameworkEvent(
+    const std::string& event,
+    const nlohmann::json& payload
+) const {
+    for (const auto& plugin : plugins_) {
+        const auto& watched = plugin->FrameworkEvents();
+        if (
+            std::find(watched.begin(), watched.end(), event) != watched.end()
+        ) {
+            plugin->OnFrameworkEvent(event, payload);
+        }
+    }
+}
+
+std::optional<nlohmann::json> KSMAppPluginRegistry::Handle(
     const std::string& command,
     const nlohmann::json& args,
     const KSMPluginContext& context
@@ -88,11 +130,21 @@ std::optional<nlohmann::json> KSMPluginRegistry::Handle(
     return entry->second.plugin->Handle(command, args, context);
 }
 
-bool KSMPluginRegistry::OwnsCommand(const std::string& command) const {
+bool KSMAppPluginRegistry::OwnsCommand(const std::string& command) const {
     return commands_.contains(command);
 }
 
-bool KSMPluginRegistry::KnowsPermission(
+bool KSMAppPluginRegistry::KnowsPlugin(
+    const std::string& plugin_id
+) const {
+    return std::find(
+        plugin_ids_.begin(),
+        plugin_ids_.end(),
+        plugin_id
+    ) != plugin_ids_.end();
+}
+
+bool KSMAppPluginRegistry::KnowsPermission(
     const std::string& permission
 ) const {
     return std::find(
@@ -102,18 +154,18 @@ bool KSMPluginRegistry::KnowsPermission(
     ) != permissions_.end();
 }
 
-bool KSMPluginRegistry::KnowsEvent(const std::string& event) const {
+bool KSMAppPluginRegistry::KnowsEvent(const std::string& event) const {
     return std::find(events_.begin(), events_.end(), event) != events_.end();
 }
 
-std::string KSMPluginRegistry::PluginIdForCommand(
+std::string KSMAppPluginRegistry::PluginIdForCommand(
     const std::string& command
 ) const {
     const auto entry = commands_.find(command);
     return entry == commands_.end() ? std::string() : entry->second.plugin->Id();
 }
 
-const std::vector<std::string>& KSMPluginRegistry::PermissionsForCommand(
+const std::vector<std::string>& KSMAppPluginRegistry::PermissionsForCommand(
     const std::string& command
 ) const {
     static const std::vector<std::string> empty;
@@ -123,7 +175,7 @@ const std::vector<std::string>& KSMPluginRegistry::PermissionsForCommand(
         : entry->second.plugin->Permissions();
 }
 
-bool KSMPluginRegistry::ValidateArgs(
+bool KSMAppPluginRegistry::ValidateArgs(
     const std::string& command,
     const nlohmann::json& args
 ) const {
@@ -132,31 +184,56 @@ bool KSMPluginRegistry::ValidateArgs(
         entry->second.plugin->ValidateArgs(command, args);
 }
 
-const std::vector<std::string>& KSMPluginRegistry::PluginIds() const {
+const std::vector<std::string>& KSMAppPluginRegistry::PluginIds() const {
     return plugin_ids_;
 }
 
-const std::vector<std::string>& KSMPluginRegistry::Commands() const {
+const std::vector<std::string>& KSMAppPluginRegistry::Commands() const {
     return command_names_;
 }
 
-const std::vector<std::string>& KSMPluginRegistry::Permissions() const {
+const std::vector<std::string>& KSMAppPluginRegistry::Permissions() const {
     return permissions_;
 }
 
-std::vector<std::shared_ptr<KSMPlugin>> KSMDefaultPlugins() {
-    return {
-        std::make_shared<KSMFileSystemPlugin>(),
-        std::make_shared<KSMDialogPlugin>(),
-        std::make_shared<KSMClipboardPlugin>(),
-        std::make_shared<KSMNotificationPlugin>(),
-        std::make_shared<KSMWindowPlugin>(),
-        std::make_shared<KSMHttpPlugin>(),
-        std::make_shared<KSMShellPlugin>(),
-        std::make_shared<KSMSqlPlugin>(),
-        std::make_shared<KSMPathPlugin>(),
-        std::make_shared<KSMStorePlugin>(),
-        std::make_shared<KSMOperatingSystemPlugin>(),
-        std::make_shared<KSMLogPlugin>()
-    };
+const std::vector<std::string>& KSMAppPluginRegistry::Events() const {
+    return events_;
+}
+
+const std::vector<std::string>&
+KSMAppPluginRegistry::FrameworkEvents() const {
+    return framework_events_;
+}
+
+std::string KSMAppPluginRegistry::NameForPlugin(
+    const std::string& plugin_id
+) const {
+    for (const auto& plugin : plugins_) {
+        if (plugin->Id() == plugin_id) {
+            return plugin->Name();
+        }
+    }
+    return plugin_id;
+}
+
+std::string KSMAppPluginRegistry::VersionForPlugin(
+    const std::string& plugin_id
+) const {
+    for (const auto& plugin : plugins_) {
+        if (plugin->Id() == plugin_id) {
+            return plugin->Version();
+        }
+    }
+    return "1.0.0";
+}
+
+std::string KSMAppPluginRegistry::DescriptionForPlugin(
+    const std::string& plugin_id
+) const {
+    for (const auto& plugin : plugins_) {
+        if (plugin->Id() == plugin_id) {
+            return plugin->Description();
+        }
+    }
+    return {};
 }

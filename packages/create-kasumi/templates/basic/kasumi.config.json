@@ -3,13 +3,8 @@
   "windows": {
     "packageName": "__WINDOWS_PACKAGE_NAME__",
     "version": "__KASUMI_VERSION__",
-    "commands": [
-      "ping",
-      "capabilities.query",
-      "app.getInfo",
-      "event.subscribe",
-      "event.unsubscribe",
-      "app.exit"
+    "frameworkPlugins": [
+      "core"
     ],
     "permissions": [],
     "decorations": true
@@ -17,13 +12,8 @@
   "android": {
     "packageName": "__ANDROID_PACKAGE_NAME__",
     "version": "__KASUMI_VERSION__",
-    "commands": [
-      "ping",
-      "capabilities.query",
-      "app.getInfo",
-      "event.subscribe",
-      "event.unsubscribe",
-      "app.exit"
+    "frameworkPlugins": [
+      "core"
     ],
     "permissions": [],
     "webview": {
@@ -37,5 +27,6 @@
         "index.html"
       ]
     }
-  }
+  },
+  "appPlugins": []
 }

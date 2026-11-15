@@ -208,18 +208,17 @@ test('initializes a source-only project without framework source', async () => {
     assert.equal(config.windows.version, kasumiVersion);
     assert.equal(config.android.packageName, 'dev.kasumi.my_app');
     assert.equal(config.android.version, kasumiVersion);
-    assert.deepEqual(config.windows.commands, [
-      'ping',
-      'capabilities.query',
-      'app.getInfo',
-      'event.subscribe',
-      'event.unsubscribe',
-      'app.exit'
-    ]);
+    assert.deepEqual(config.windows.frameworkPlugins, ['core']);
+    assert.equal(config.windows.commands, undefined);
     assert.deepEqual(config.windows.permissions, []);
     assert.equal(config.windows.decorations, true);
-    assert.deepEqual(config.android.commands, config.windows.commands);
+    assert.deepEqual(
+      config.android.frameworkPlugins,
+      config.windows.frameworkPlugins
+    );
+    assert.equal(config.android.commands, undefined);
     assert.deepEqual(config.android.permissions, []);
+    assert.deepEqual(config.appPlugins, []);
     assert.deepEqual(config.android.webview, {
       productionEntry: 'https://app.local/index.html',
       developmentEntries: [
@@ -259,6 +258,10 @@ test('initializes a source-only project without framework source', async () => {
     assert.match(
       mainActivitySource,
       /webViewConfig = webViewConfig/
+    );
+    assert.match(
+      mainActivitySource,
+      /frameworkPlugins = BuildConfig\.KSM_FRAMEWORK_PLUGINS/
     );
     assert.equal(mainActivitySource.includes('/index.html'), false);
     const androidBuildGradle = await readFile(

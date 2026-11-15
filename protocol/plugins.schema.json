@@ -22,7 +22,8 @@
           "platforms",
           "permissions",
           "defaultPermissions",
-          "commands"
+          "commands",
+          "events"
         ],
         "properties": {
           "name": {
@@ -69,6 +70,14 @@
           "commands": {
             "type": "array",
             "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "events": {
+            "type": "array",
             "uniqueItems": true,
             "items": {
               "type": "string",

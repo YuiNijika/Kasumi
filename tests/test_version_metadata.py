@@ -56,6 +56,7 @@ class VersionMetadataTest(unittest.TestCase):
             self.assertIn("packages/kasumi-plugin-fs/package.json", changed)
             self.assertIn("packages/kasumi-plugin-dialog/package.json", changed)
             self.assertIn("packages/kasumi-plugin-audio/package.json", changed)
+            self.assertIn("packages/kasumi-plugin-media/package.json", changed)
             self.assertIn(
                 "packages/kasumi-plugin-media-session/package.json",
                 changed,
@@ -98,6 +99,7 @@ class VersionMetadataTest(unittest.TestCase):
             root / "packages" / "kasumi-plugin-dialog" / "package.json",
             root / "packages" / "kasumi-plugin-clipboard" / "package.json",
             root / "packages" / "kasumi-plugin-audio" / "package.json",
+            root / "packages" / "kasumi-plugin-media" / "package.json",
             root / "packages" / "kasumi-plugin-media-session" / "package.json",
             root / "packages" / "kasumi-plugin-notification" / "package.json",
             root / "packages" / "kasumi-plugin-window" / "package.json",

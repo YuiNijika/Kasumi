@@ -33,6 +33,7 @@ const packages = [
   'kasumi-plugin-updater',
   'kasumi-plugin-global-shortcut',
   'kasumi-plugin-tray',
+  'kasumi-plugin-media',
   'kasumi-plugin-audio',
   'kasumi-plugin-media-session',
   'kasumi-cli',

@@ -47,69 +47,10 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-add_library(
-    kasumi_windows_bridge
-    STATIC
-    src/bridge/ksm_command_registry.cpp
-    src/bridge/ksm_router.cpp
-    src/commands/ksm_phase1.cpp
-    src/commands/ksm_filesystem.cpp
-    src/platform/ksm_virtual_path.cpp
-    src/platform/ksm_window_frame.cpp
-    src/platform/ksm_webview_host.cpp
-    src/platform/ksm_webview_security.cpp
-    src/platform/ksm_url_policy.cpp
-    src/platform/ksm_web_resource.cpp
-    src/platform/ksm_webview2_host.cpp
-    src/platform/ksm_win32_resource_provider.cpp
-    src/platform/ksm_odbc_sql_driver.cpp
-    src/platform/ksm_sql_driver.cpp
-    src/platform/ksm_sqlite_driver.cpp
-    src/platform/ksm_windows_host_services.cpp
-    src/plugins/ksm_clipboard_plugin.cpp
-    src/plugins/ksm_capability_plugin.cpp
-    src/plugins/ksm_dialog_plugin.cpp
-    src/plugins/ksm_filesystem_plugin.cpp
-    src/plugins/ksm_http_plugin.cpp
-    src/plugins/ksm_log_plugin.cpp
-    src/plugins/ksm_notification_plugin.cpp
-    src/plugins/ksm_os_plugin.cpp
-    src/plugins/ksm_path_plugin.cpp
-    src/plugins/ksm_plugin_registry.cpp
-    src/plugins/ksm_shell_plugin.cpp
-    src/plugins/ksm_sql_plugin.cpp
-    src/plugins/ksm_store_plugin.cpp
-    src/plugins/ksm_window_plugin.cpp
-)
-
-target_compile_features(kasumi_windows_bridge PUBLIC cxx_std_20)
-
-target_include_directories(
-    kasumi_windows_bridge
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated/include>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-)
-
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
-target_link_libraries(
-    kasumi_windows_bridge
-    PUBLIC
-        nlohmann_json::nlohmann_json
-        unofficial::sqlite3::sqlite3
-)
 
-if (WIN32)
-    target_compile_definitions(
-        kasumi_windows_bridge
-        PUBLIC
-            UNICODE
-            _UNICODE
-            KASUMI_ENABLE_SMOKE_TEST=$<BOOL:${KASUMI_ENABLE_SMOKE_TEST}>
-    )
-
+if(WIN32)
     find_package(unofficial-webview2 CONFIG REQUIRED)
     get_target_property(
         KASUMI_WEBVIEW2_LOADER_TYPE
@@ -134,32 +75,140 @@ if (WIN32)
             )
         endif()
     endif()
-    target_link_libraries(
-        kasumi_windows_bridge
-        PUBLIC
-            comdlg32
-            comctl32
-            gdi32
-            msimg32
-            odbc32
-            ole32
-            shell32
-            shlwapi
-            user32
-            winmm
-            winhttp
-            dnsapi
-            unofficial::webview2::webview2
-    )
 endif()
+
+function(kasumi_configure_windows_bridge_target target)
+    target_compile_features(${target} PUBLIC cxx_std_20)
+    target_include_directories(
+        ${target}
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated/include>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    )
+    target_link_libraries(
+        ${target}
+        PUBLIC
+            nlohmann_json::nlohmann_json
+            unofficial::sqlite3::sqlite3
+    )
+
+    if(WIN32)
+        target_compile_definitions(
+            ${target}
+            PUBLIC
+                UNICODE
+                _UNICODE
+                KASUMI_ENABLE_SMOKE_TEST=$<BOOL:${KASUMI_ENABLE_SMOKE_TEST}>
+        )
+        target_link_libraries(
+            ${target}
+            PUBLIC
+                comdlg32
+                comctl32
+                gdi32
+                msimg32
+                odbc32
+                ole32
+                shell32
+                shlwapi
+                user32
+                winmm
+                winhttp
+                dnsapi
+                unofficial::webview2::webview2
+        )
+    endif()
+endfunction()
+
+# The SDK is split by dependency direction rather than by feature count:
+# core services -> concrete plugins -> router/WebView runtime. Keeping the
+# aggregate target preserves the public Kasumi::kasumi_windows_bridge API while
+# preventing a single MSVC archive from exceeding GitHub's 50 MiB file limit.
+add_library(
+    kasumi_windows_bridge_core
+    STATIC
+    src/bridge/ksm_command_registry.cpp
+    src/commands/ksm_filesystem.cpp
+    src/platform/ksm_virtual_path.cpp
+    src/platform/ksm_window_frame.cpp
+    src/platform/ksm_webview_security.cpp
+    src/platform/ksm_url_policy.cpp
+    src/platform/ksm_web_resource.cpp
+    src/platform/ksm_win32_resource_provider.cpp
+    src/platform/ksm_odbc_sql_driver.cpp
+    src/platform/ksm_sql_driver.cpp
+    src/platform/ksm_sqlite_driver.cpp
+    src/platform/ksm_windows_host_services.cpp
+    src/plugins/ksm_framework_plugin.cpp
+    src/plugins/ksm_framework_plugin_registry.cpp
+    src/plugins/ksm_plugin_registry.cpp
+)
+kasumi_configure_windows_bridge_target(kasumi_windows_bridge_core)
+
+add_library(
+    kasumi_windows_bridge_plugins
+    STATIC
+    src/plugins/ksm_clipboard_plugin.cpp
+    src/plugins/ksm_capability_plugin.cpp
+    src/plugins/ksm_dialog_plugin.cpp
+    src/plugins/ksm_filesystem_plugin.cpp
+    src/plugins/ksm_http_plugin.cpp
+    src/plugins/ksm_log_plugin.cpp
+    src/plugins/ksm_notification_plugin.cpp
+    src/plugins/ksm_os_plugin.cpp
+    src/plugins/ksm_path_plugin.cpp
+    src/plugins/ksm_shell_plugin.cpp
+    src/plugins/ksm_sql_plugin.cpp
+    src/plugins/ksm_store_plugin.cpp
+    src/plugins/ksm_window_plugin.cpp
+)
+kasumi_configure_windows_bridge_target(kasumi_windows_bridge_plugins)
+target_link_libraries(
+    kasumi_windows_bridge_plugins
+    PUBLIC
+        kasumi_windows_bridge_core
+)
+
+add_library(
+    kasumi_windows_bridge_runtime
+    STATIC
+    src/bridge/ksm_default_plugins.cpp
+    src/bridge/ksm_router.cpp
+    src/commands/ksm_phase1.cpp
+    src/platform/ksm_webview_host.cpp
+    src/platform/ksm_webview2_host.cpp
+)
+kasumi_configure_windows_bridge_target(kasumi_windows_bridge_runtime)
+target_link_libraries(
+    kasumi_windows_bridge_runtime
+    PUBLIC
+        kasumi_windows_bridge_plugins
+)
+
+add_library(kasumi_windows_bridge INTERFACE)
+target_link_libraries(
+    kasumi_windows_bridge
+    INTERFACE
+        kasumi_windows_bridge_runtime
+        kasumi_windows_bridge_plugins
+        kasumi_windows_bridge_core
+)
 
 include(CTest)
 if (BUILD_TESTING)
-    target_compile_definitions(
-        kasumi_windows_bridge
-        PRIVATE
-            KASUMI_ENABLE_TEST_HOOKS=1
+    foreach(
+        target
+        kasumi_windows_bridge_core
+        kasumi_windows_bridge_plugins
+        kasumi_windows_bridge_runtime
     )
+        target_compile_definitions(
+            ${target}
+            PRIVATE
+                KASUMI_ENABLE_TEST_HOOKS=1
+        )
+    endforeach()
     add_executable(
         kasumi_contract_runner
         tests/contract_runner.cpp
@@ -181,10 +230,18 @@ if (BUILD_TESTING)
 endif()
 
 install(
-    TARGETS kasumi_windows_bridge
+    TARGETS
+        kasumi_windows_bridge_core
+        kasumi_windows_bridge_plugins
+        kasumi_windows_bridge_runtime
     EXPORT kasumiWindowsTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(
+    TARGETS kasumi_windows_bridge
+    EXPORT kasumiWindowsTargets
 )
 
 install(

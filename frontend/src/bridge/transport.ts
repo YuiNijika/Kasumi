@@ -5,6 +5,7 @@ import type {
 } from './types.js';
 
 export const MAX_MESSAGE_BYTES = 64 * 1024;
+export const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 interface KSMWebView {
   postMessage(message: string): void;
@@ -59,7 +60,7 @@ export class KSMWebMessageTransport implements KSMTransport {
       if (typeof data !== 'string') {
         return;
       }
-      if (new TextEncoder().encode(data).byteLength > MAX_MESSAGE_BYTES) {
+      if (new TextEncoder().encode(data).byteLength > MAX_RESPONSE_BYTES) {
         return;
       }
       try {

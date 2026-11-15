@@ -15,6 +15,8 @@ class KSMRouter(
     allowedPermissions: Collection<String> = emptyList(),
     private val eventSender: (String) -> Unit = {},
     plugins: Collection<KSMPlugin> = emptyList(),
+    private val frameworkPlugins: Collection<String> = emptyList(),
+    requiredAppPlugins: Collection<String> = emptyList(),
     private val requestScope: String = "",
     private val eventBroadcaster:
         ((String, JSONObject) -> Boolean)? = null
@@ -23,76 +25,36 @@ class KSMRouter(
         private const val MAX_INLINE_TEXT_BYTES = 64 * 1024
     }
 
-    private val pluginRegistry = KSMPluginRegistry(
-        (ksmDefaultPlugins().filterNot { defaultPlugin ->
-            plugins.any { it.id == defaultPlugin.id }
-        } + plugins).map { plugin ->
-            if (plugin.id != "capabilities") {
-                plugin
-            } else {
-                val ownedCommands = plugins
-                    .filterNot { it.id == "capabilities" }
-                    .flatMap { it.commands }
-                    .toSet()
-                object : KSMPlugin {
-                    override val id = plugin.id
-                    override val commands =
-                        plugin.commands - ownedCommands
-                    override val permissions = plugin.permissions
-
-                    override fun validateArgs(
-                        command: String,
-                        args: JSONObject
-                    ): Boolean = plugin.validateArgs(command, args)
-
-                    override fun handle(
-                        command: String,
-                        args: JSONObject,
-                        context: KSMPluginContext
-                    ): Any = plugin.handle(command, args, context)
-                }
-            }
-        }
+    private val frameworkRegistry = KSMAppPluginRegistry(
+        enabledFrameworkPlugins(frameworkPlugins)
     )
+    private val appPluginRegistry = KSMAppPluginRegistry(plugins)
 
     init {
-        val replaceable = KSMGeneratedContract.plugins
-            .filterNot { it == "core" }
-            .toSet()
-        val reserved = KSMGeneratedContract.plugins
-            .filterNot { it in replaceable }
-            .toSet()
         for (plugin in plugins) {
-            require(plugin.id !in reserved) {
-                "The custom Kasumi plugin ID conflicts with a built-in plugin."
+            require(
+                plugin.id !in KSMGeneratedContract.plugins &&
+                    plugin.id != "capabilities"
+            ) {
+                "The application plugin ID conflicts with a framework plugin."
             }
-            val generatedCommandsForPlugin =
-                KSMGeneratedContract.pluginCommands[plugin.id]
-            if (plugin.id in replaceable) {
-                val capabilityCommands = ksmDefaultPlugins()
-                    .firstOrNull { it.id == "capabilities" }
-                    ?.commands
-                    .orEmpty()
-                require(
-                    plugin.commands ==
-                        generatedCommandsForPlugin
-                            .orEmpty()
-                            .filterNot { it in capabilityCommands }
-                            .toSet()
-                ) {
-                    "A replacement built-in plugin must own exactly the " +
-                        "generated commands for its plugin ID."
-                }
-            } else {
-                require(
-                    plugin.commands.none {
-                        it in KSMGeneratedContract.commands
-                    }
-                ) {
-                    "A custom Kasumi plugin cannot take ownership of a " +
-                        "generated command."
-                }
+            require(
+                plugin.commands.none { it in KSMGeneratedContract.commands }
+            ) {
+                "An application plugin cannot own a framework command."
             }
+            require(
+                plugin.events.none { it in KSMGeneratedContract.events }
+            ) {
+                "An application plugin cannot own a framework event."
+            }
+        }
+        val missing = requiredAppPlugins.filter {
+            it !in appPluginRegistry.ids
+        }
+        require(missing.isEmpty()) {
+            "Application plugin implementations are missing: " +
+                missing.joinToString(", ")
         }
     }
 
@@ -103,12 +65,16 @@ class KSMRouter(
             it in allowedCommandNames
         }
     private val knownPermissions = (
-        KSMCommandRegistry.permissions + pluginRegistry.permissions
+        KSMCommandRegistry.permissions +
+            frameworkRegistry.permissions +
+            appPluginRegistry.permissions
     ).toSet()
     private val grantedPermissions = ConcurrentHashMap.newKeySet<String>().apply {
         addAll(allowedPermissions.filter { it in knownPermissions })
     }
-    private val pluginCommands = pluginRegistry.commands.filter { command ->
+    private val pluginCommands = (
+        frameworkRegistry.commands + appPluginRegistry.commands
+    ).filter { command ->
         (
             !KSMGeneratedContract.isKnownCommand(command) ||
                 command in KSMCommandRegistry.supportedCommands
@@ -124,13 +90,43 @@ class KSMRouter(
             val required = if (KSMGeneratedContract.isKnownCommand(command)) {
                 KSMGeneratedContract.commandPermissions[command].orEmpty()
             } else {
-                pluginRegistry.permissionsForCommand(command)
+                appPluginRegistry.permissionsForCommand(command)
             }
             required.all { permission -> permission in grantedPermissions }
         }
-    val supportedPlugins: List<String> = capabilityPlugins()
+    val supportedPlugins: List<String> = frameworkPluginIds()
+
+    init {
+        frameworkRegistry.start(
+            KSMPluginContext(
+                fileSystem = fileSystem,
+                hostServices = hostServices,
+                hasPermission = { permission ->
+                    permission in grantedPermissions
+                },
+                windowId = requestScope.ifEmpty { null },
+                emitEvent = { event, payload ->
+                    emitEvent(event, payload)
+                }
+            )
+        )
+        appPluginRegistry.start(
+            KSMPluginContext(
+                fileSystem = fileSystem,
+                hostServices = hostServices,
+                hasPermission = { permission ->
+                    permission in grantedPermissions
+                },
+                windowId = requestScope.ifEmpty { null },
+                emitEvent = { event, payload ->
+                    emitEvent(event, payload)
+                }
+            )
+        )
+    }
 
     fun emitEvent(event: String, payload: JSONObject): Boolean {
+        appPluginRegistry.notifyFrameworkEvent(event, payload)
         if (event !in subscribedEvents) {
             return false
         }
@@ -145,6 +141,7 @@ class KSMRouter(
     }
 
     fun emitSystemEvent(event: String, payload: JSONObject) {
+        appPluginRegistry.notifyFrameworkEvent(event, payload)
         eventSender(
             JSONObject()
                 .put("type", "event")
@@ -152,6 +149,11 @@ class KSMRouter(
                 .put("payload", payload)
                 .toString()
         )
+    }
+
+    fun close() {
+        appPluginRegistry.stop()
+        frameworkRegistry.stop()
     }
 
     fun handleMessage(message: String): String {
@@ -183,8 +185,9 @@ class KSMRouter(
                 val args = request.getJSONObject("args")
                 val command = request.getString("cmd")
                 val generatedCommand = KSMGeneratedContract.isKnownCommand(command)
-                val capabilityCommand = KSMCapabilityNames.isCapabilityCommand(command)
-                if (!generatedCommand && !capabilityCommand && !pluginRegistry.owns(command)) {
+                val frameworkCommand = frameworkRegistry.owns(command)
+                val appCommand = appPluginRegistry.owns(command)
+                if (!generatedCommand && !frameworkCommand && !appCommand) {
                     return errorResponse(
                         id,
                         "UNKNOWN_COMMAND",
@@ -195,7 +198,7 @@ class KSMRouter(
                     val supportedOnPlatform = when {
                         generatedCommand ->
                             command in KSMCommandRegistry.supportedCommands
-                        capabilityCommand || pluginRegistry.owns(command) -> true
+                        frameworkCommand || appCommand -> true
                         else -> false
                     }
                     return errorResponse(
@@ -208,10 +211,12 @@ class KSMRouter(
                         }
                     )
                 }
-                val validArgs = if (generatedCommand) {
+                val validArgs = if (frameworkCommand) {
+                    frameworkRegistry.validateArgs(command, args)
+                } else if (appCommand) {
+                    appPluginRegistry.validateArgs(command, args)
+                } else if (generatedCommand) {
                     KSMGeneratedContract.validateArgs(command, args)
-                } else if (capabilityCommand || pluginRegistry.owns(command)) {
-                    pluginRegistry.validateArgs(command, args)
                 } else {
                     false
                 }
@@ -222,13 +227,18 @@ class KSMRouter(
                         "Arguments do not match the command schema."
                     )
                 }
-                if (capabilityCommand || pluginRegistry.owns(command)) {
+                if (frameworkCommand || appCommand) {
                     val rawRequestId = id as? String
                     val scopedRequestId = rawRequestId
                         ?.takeIf { requestScope.isNotEmpty() }
                         ?.let { "$requestScope:$it" }
                         ?: rawRequestId
-                    val data = pluginRegistry.handle(
+                    val registry = if (frameworkCommand) {
+                        frameworkRegistry
+                    } else {
+                        appPluginRegistry
+                    }
+                    val data = registry.handle(
                         command,
                         args,
                         KSMPluginContext(
@@ -265,6 +275,11 @@ class KSMRouter(
                             .put("permissions", JSONArray(grantedPermissions.toList()))
                             .put("appId", hostServices?.appId() ?: "")
                             .put("plugins", capabilityPluginObjects())
+                            .put(
+                                "frameworkPlugins",
+                                capabilityPluginObjects()
+                            )
+                            .put("appPlugins", appPluginObjects())
                     )
                     "app.getInfo" -> successResponse(
                         id,
@@ -292,7 +307,8 @@ class KSMRouter(
                             val permission = args.getString("permission")
                             val known =
                                 permission in KSMGeneratedContract.permissions ||
-                                pluginRegistry.knows(permission)
+                                frameworkRegistry.knows(permission) ||
+                                appPluginRegistry.knows(permission)
                             if (!known) {
                                 return errorResponse(
                                     id,
@@ -336,8 +352,8 @@ class KSMRouter(
                             errorResponse(id, "INVALID_ARGS", "event is required.")
                         } else if (
                             event !in KSMGeneratedContract.events &&
-                            event !in KSMCapabilityNames.events &&
-                            !pluginRegistry.knowsEvent(event)
+                            !frameworkRegistry.knowsEvent(event) &&
+                            !appPluginRegistry.knowsEvent(event)
                         ) {
                             errorResponse(id, "INVALID_ARGS", "event is not registered.")
                         } else {
@@ -351,8 +367,8 @@ class KSMRouter(
                             errorResponse(id, "INVALID_ARGS", "event is required.")
                         } else if (
                             event !in KSMGeneratedContract.events &&
-                            event !in KSMCapabilityNames.events &&
-                            !pluginRegistry.knowsEvent(event)
+                            !frameworkRegistry.knowsEvent(event) &&
+                            !appPluginRegistry.knowsEvent(event)
                         ) {
                             errorResponse(id, "INVALID_ARGS", "event is not registered.")
                         } else {
@@ -1175,15 +1191,48 @@ class KSMRouter(
         return permission in grantedPermissions
     }
 
-    private fun capabilityPlugins(): List<String> {
-        return capabilityCommands.map { command ->
-            pluginRegistry.pluginIdForCommand(command) ?: "core"
+    private fun frameworkPluginIds(): List<String> {
+        val owners = linkedMapOf<String, String>()
+        for ((pluginId, pluginCommands) in
+            KSMGeneratedContract.pluginCommands) {
+            for (command in pluginCommands) {
+                owners[command] = pluginId
+            }
+        }
+        val derived = capabilityCommands.mapNotNull { command ->
+            owners[command]
         }.distinct()
+        if (frameworkPlugins.isEmpty()) {
+            return derived
+        }
+        val requested = frameworkPlugins.toSet()
+        return derived.filter { pluginId -> pluginId in requested }
+    }
+
+    private fun enabledFrameworkPlugins(
+        pluginIds: Collection<String>
+    ): List<KSMPlugin> {
+        val available = ksmDefaultFrameworkPlugins()
+        if (pluginIds.isEmpty()) {
+            return available
+        }
+        val requested = pluginIds.toSet()
+        val enabledCommands = KSMGeneratedContract.pluginCommands
+            .filterKeys { pluginId -> pluginId in requested }
+            .values
+            .flatten()
+            .toSet()
+        if (enabledCommands.isEmpty()) {
+            return available
+        }
+        return available.filter { plugin ->
+            plugin.commands.any { command -> command in enabledCommands }
+        }
     }
 
     private fun capabilityPluginObjects(): JSONArray {
         return JSONArray().apply {
-            capabilityPlugins().forEach { id ->
+            frameworkPluginIds().forEach { id ->
                 val metadata = KSMGeneratedContract.pluginMetadata
                     .optJSONObject(id)
                 put(
@@ -1191,6 +1240,28 @@ class KSMRouter(
                         .put("id", id)
                         .put("name", metadata?.optString("name", id) ?: id)
                         .put("version", metadata?.optString("version", "0.0.0") ?: "0.0.0")
+                        .put(
+                            "description",
+                            metadata?.optString("description", "") ?: ""
+                        )
+                        .put("enabled", true)
+                )
+            }
+        }
+    }
+
+    private fun appPluginObjects(): JSONArray {
+        return JSONArray().apply {
+            appPluginRegistry.ids.forEach { id ->
+                put(
+                    JSONObject()
+                        .put("id", id)
+                        .put("name", appPluginRegistry.pluginName(id))
+                        .put("version", appPluginRegistry.pluginVersion(id))
+                        .put(
+                            "description",
+                            appPluginRegistry.pluginDescription(id)
+                        )
                         .put("enabled", true)
                 )
             }

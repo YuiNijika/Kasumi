@@ -144,6 +144,7 @@ def validate_object_schema(schema: Any, label: str) -> None:
 def validate_plugins(
     plugins: Any,
     commands: dict[str, Any],
+    events: dict[str, Any],
     known_permissions: set[str],
 ) -> None:
     plugins = require_object(plugins, "plugins.json")
@@ -151,6 +152,7 @@ def validate_plugins(
         raise ValueError("plugins.json must contain only plugins.")
     definitions = require_object(plugins["plugins"], "plugins")
     assigned: dict[str, str] = {}
+    event_owners: dict[str, str] = {}
     for name, definition in definitions.items():
         if not isinstance(name, str) or not NAME_PATTERN.fullmatch(name):
             raise ValueError(f"Invalid plugin name: {name}")
@@ -164,6 +166,7 @@ def validate_plugins(
             "permissions",
             "defaultPermissions",
             "commands",
+            "events",
         }
         if set(definition) != required_fields:
             raise ValueError(
@@ -212,6 +215,11 @@ def validate_plugins(
             f"plugins.{name}.platforms",
             ALLOWED_PLATFORMS,
         )
+        plugin_events = validate_string_list(
+            definition["events"],
+            f"plugins.{name}.events",
+            allow_empty=True,
+        )
         expected_permissions: set[str] = set()
         expected_platforms: set[str] = set()
         for command in plugin_commands:
@@ -233,10 +241,32 @@ def validate_plugins(
             raise ValueError(
                 f"Plugin {name}.platforms must match its command platforms."
             )
+        for event in plugin_events:
+            event_definition = events.get(event)
+            if event_definition is None:
+                raise ValueError(
+                    f"Plugin {name} references unknown event {event}."
+                )
+            owner = event_owners.get(event)
+            if owner is not None:
+                raise ValueError(
+                    f"Event {event} belongs to both {owner} and {name}."
+                )
+            if not set(event_definition["platforms"]) <= set(plugin_platforms):
+                raise ValueError(
+                    f"Plugin {name}.platforms must include event {event} platforms."
+                )
+            event_owners[event] = name
     unassigned = set(commands) - set(assigned)
     if unassigned:
         raise ValueError(
             "Every command must belong to a plugin: " + ", ".join(sorted(unassigned))
+        )
+    unassigned_events = set(events) - set(event_owners)
+    if unassigned_events:
+        raise ValueError(
+            "Every event must belong to a plugin: "
+            + ", ".join(sorted(unassigned_events))
         )
 
 
@@ -325,7 +355,12 @@ def validate_contract(
         ):
             raise ValueError(f"{name}.since must use semantic versioning.")
 
-    validate_plugins(plugins, commands, set(permission_properties))
+    validate_plugins(
+        plugins,
+        commands,
+        events,
+        set(permission_properties),
+    )
 
     errors = require_object(errors, "errors.json")
     if not REQUIRED_ERROR_CODES.issubset(errors):

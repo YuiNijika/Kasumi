@@ -45,6 +45,9 @@ class MainActivity : Activity() {
             ),
             allowedCommands = BuildConfig.KSM_COMMANDS.toList(),
             allowedPermissions = BuildConfig.KSM_PERMISSIONS.toList(),
+            plugins = KasumiAppPlugins.plugins,
+            frameworkPlugins = BuildConfig.KSM_FRAMEWORK_PLUGINS.toList(),
+            requiredAppPlugins = BuildConfig.KSM_APP_PLUGINS.toList(),
             webViewConfig = webViewConfig,
             debug = BuildConfig.DEBUG
         )

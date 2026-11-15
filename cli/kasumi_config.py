@@ -24,6 +24,9 @@ PROTOCOL_COMMANDS_FILE = (
 PROTOCOL_PERMISSIONS_FILE = (
     Path(__file__).resolve().parent.parent / "protocol" / "permissions.schema.json"
 )
+PROTOCOL_PLUGINS_FILE = (
+    Path(__file__).resolve().parent.parent / "protocol" / "plugins.json"
+)
 PERMISSION_PATTERN = re.compile(
     r"^[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$"
 )
@@ -39,11 +42,14 @@ HTML_FILE_PATTERN = re.compile(
 WINDOW_BACKGROUND_PATTERN = re.compile(r"^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$")
 ERROR_PAGE_TEXT_PATTERN = re.compile(r'^[^"\\;\u0000-\u001F\u007F]+$')
 EXTENSION_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-EXTENSION_NAME_PATTERN = re.compile(
+APP_PLUGIN_VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+APP_PLUGIN_COMMAND_PATTERN = re.compile(
     r"^app\.[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$"
 )
+APP_PLUGIN_PERMISSION_PATTERN = re.compile(
+    r"^[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$"
+)
 EXTENSION_PLATFORMS = ("windows", "android")
-RESERVED_EXTENSION_PREFIXES = ("core", "ksm")
 DEFAULT_WEBVIEW = {
     "productionEntry": "https://app.local/index.html",
     "developmentEntries": (
@@ -72,6 +78,8 @@ class PlatformConfig:
     version: str
     commands: tuple[str, ...]
     permissions: tuple[str, ...]
+    framework_plugins: tuple[str, ...] = ()
+    app_plugins: tuple[str, ...] = ()
     decorations: bool = True
     shell_allowed_origins: tuple[str, ...] = ()
     http_allowed_origins: tuple[str, ...] = ()
@@ -94,6 +102,7 @@ class KasumiConfig:
     resources: tuple[str, ...] = ()
     signing: dict[str, str] | None = None
     bundle: dict[str, Any] | None = None
+    app_plugins: tuple[dict[str, Any], ...] = ()
     extensions: tuple[dict[str, Any], ...] = ()
 
 
@@ -129,6 +138,7 @@ def _platform_config(
     allow_webview: bool = False,
     extension_commands: tuple[str, ...] = (),
     extension_permissions: tuple[str, ...] = (),
+    app_plugin_definitions: tuple[dict[str, Any], ...] = (),
 ) -> PlatformConfig:
     location = platform
     data = _expect_object(value, location)
@@ -136,6 +146,7 @@ def _platform_config(
         "packageName",
         "version",
         "commands",
+        "frameworkPlugins",
         "permissions",
         "shell",
         "http",
@@ -160,8 +171,10 @@ def _platform_config(
         raise ConfigError(f"{location}.packageName is required.")
     if "version" not in data:
         raise ConfigError(f"{location}.version is required.")
-    if "commands" not in data:
-        raise ConfigError(f"{location}.commands is required.")
+    if "commands" not in data and "frameworkPlugins" not in data:
+        raise ConfigError(
+            f"{location} must define commands or frameworkPlugins."
+        )
 
     package_name = _expect_string(
         data["packageName"],
@@ -191,14 +204,71 @@ def _platform_config(
             )
         decorations = data["decorations"]
 
-    commands = _parse_commands(
-        data["commands"],
+    framework_plugin_mode = "frameworkPlugins" in data
+    framework_plugins = _resolve_framework_plugins(
+        data.get("frameworkPlugins"),
         platform_name,
-        location,
-        extension_commands,
+        data.get("commands"),
+        f"{location}.frameworkPlugins",
     )
+    enabled_app_plugins = tuple(
+        plugin["id"]
+        for plugin in app_plugin_definitions
+        if plugin.get("enabled", True)
+        and platform_name in plugin["platforms"]
+    )
+    if framework_plugin_mode:
+        base_commands = _plugin_commands_for_platform(
+            framework_plugins,
+            enabled_app_plugins,
+            platform_name,
+            app_plugin_definitions,
+        )
+        raw_commands = data.get("commands")
+        if raw_commands is None or raw_commands == "all":
+            commands = base_commands
+        else:
+            parsed_commands = _parse_commands(
+                raw_commands,
+                platform_name,
+                location,
+                extension_commands,
+            )
+            outside = [
+                command for command in parsed_commands
+                if command not in base_commands
+            ]
+            if outside:
+                raise ConfigError(
+                    f"{location}.commands contains a command outside enabled plugins: "
+                    f"{outside[0]}."
+                )
+            commands = tuple(
+                dict.fromkeys(
+                    [
+                        *parsed_commands,
+                        "ping",
+                        "capabilities.query",
+                    ]
+                )
+            )
+        default_permissions = _default_plugin_permissions(
+            framework_plugins,
+            enabled_app_plugins,
+            app_plugin_definitions,
+        )
+    else:
+        commands = _parse_commands(
+            data["commands"],
+            platform_name,
+            location,
+            extension_commands,
+        )
+        default_permissions = ()
     permissions = _parse_permissions(
-        data.get("permissions"),
+        data.get("permissions")
+        if "permissions" in data
+        else default_permissions,
         f"{location}.permissions",
         extension_permissions,
     )
@@ -208,6 +278,8 @@ def _platform_config(
         version=version,
         commands=commands,
         permissions=permissions,
+        framework_plugins=framework_plugins,
+        app_plugins=enabled_app_plugins,
         decorations=decorations,
         shell_allowed_origins=_parse_origins(
             data.get("shell"),
@@ -668,7 +740,7 @@ def _parse_permissions(
         return available
     if value is None:
         return ()
-    if not isinstance(value, list):
+    if not isinstance(value, (list, tuple)):
         raise ConfigError(
             f"{location} must be \"all\" or an array."
         )
@@ -690,6 +762,109 @@ def _parse_permissions(
                 f"{location} contains an unknown permission: {permission}."
             )
         permissions.append(permission)
+    return tuple(permissions)
+
+
+def _resolve_framework_plugins(
+    value: Any,
+    platform: str,
+    commands: Any,
+    location: str,
+) -> tuple[str, ...]:
+    definitions = _available_plugins()
+    platform_ids = [
+        plugin_id
+        for plugin_id, definition in definitions.items()
+        if platform in definition.get("platforms", [])
+    ]
+    if value is None:
+        if commands == "all":
+            return tuple(platform_ids)
+        if not isinstance(commands, list):
+            raise ConfigError(
+                f"{location} requires frameworkPlugins when commands is absent."
+            )
+        selected = {
+            plugin_id
+            for plugin_id in platform_ids
+            if plugin_id == "core"
+            or any(
+                command in commands
+                for command in definitions[plugin_id].get("commands", [])
+            )
+        }
+        return tuple(
+            plugin_id for plugin_id in platform_ids if plugin_id in selected
+        )
+    if value == "all":
+        return tuple(platform_ids)
+    if not isinstance(value, list) or not value:
+        raise ConfigError(f"{location} must be \"all\" or a non-empty array.")
+    selected = {"core"}
+    for index, plugin_id in enumerate(value):
+        plugin_id = _expect_string(
+            plugin_id,
+            f"{location}[{index}]",
+        )
+        if plugin_id != "core" and plugin_id in selected:
+            raise ConfigError(f"{location} contains a duplicate: {plugin_id}.")
+        definition = definitions.get(plugin_id)
+        if definition is None:
+            raise ConfigError(
+                f"{location} contains an unknown plugin: {plugin_id}."
+            )
+        if platform not in definition.get("platforms", []):
+            raise ConfigError(
+                f"{location} contains a plugin unsupported on {platform}: "
+                f"{plugin_id}."
+            )
+        selected.add(plugin_id)
+    return tuple(
+        plugin_id for plugin_id in platform_ids if plugin_id in selected
+    )
+
+
+def _plugin_commands_for_platform(
+    framework_plugins: tuple[str, ...],
+    app_plugins: tuple[str, ...],
+    platform: str,
+    app_plugin_definitions: tuple[dict[str, Any], ...],
+) -> tuple[str, ...]:
+    definitions = _available_plugins()
+    commands = ["ping", "capabilities.query"]
+    for plugin_id in framework_plugins:
+        for command in definitions[plugin_id].get("commands", []):
+            if command not in commands:
+                commands.append(command)
+    for plugin in app_plugin_definitions:
+        if plugin["id"] not in app_plugins:
+            continue
+        for command in plugin.get("commands", []):
+            if (
+                platform in command["platforms"]
+                and command["name"] not in commands
+            ):
+                commands.append(command["name"])
+    return tuple(commands)
+
+
+def _default_plugin_permissions(
+    framework_plugins: tuple[str, ...],
+    app_plugins: tuple[str, ...],
+    app_plugin_definitions: tuple[dict[str, Any], ...],
+) -> tuple[str, ...]:
+    definitions = _available_plugins()
+    permissions: list[str] = []
+    for plugin_id in framework_plugins:
+        for permission in definitions[plugin_id].get("defaultPermissions", []):
+            if permission not in permissions:
+                permissions.append(permission)
+    for plugin in app_plugin_definitions:
+        if plugin["id"] not in app_plugins:
+            continue
+        for permission in plugin.get("defaultPermissions", []):
+            if permission not in permissions:
+                permissions.append(permission)
     return tuple(permissions)
 
 
@@ -775,7 +950,33 @@ def _available_permissions() -> tuple[str, ...]:
     )
 
 
-def _parse_extensions(
+@lru_cache(maxsize=1)
+def _available_plugins() -> dict[str, dict[str, Any]]:
+    payload = json.loads(PROTOCOL_PLUGINS_FILE.read_text(encoding="utf-8"))
+    plugins = payload.get("plugins")
+    if not isinstance(plugins, dict):
+        raise RuntimeError("protocol/plugins.json has no plugins object.")
+    return {
+        name: definition
+        for name, definition in plugins.items()
+        if isinstance(name, str) and isinstance(definition, dict)
+    }
+
+
+@lru_cache(maxsize=1)
+def _available_events() -> dict[str, dict[str, Any]]:
+    payload = json.loads(PROTOCOL_COMMANDS_FILE.read_text(encoding="utf-8"))
+    events = payload.get("events")
+    if not isinstance(events, dict):
+        raise RuntimeError("protocol/commands.json has no events object.")
+    return {
+        name: definition
+        for name, definition in events.items()
+        if isinstance(name, str) and isinstance(definition, dict)
+    }
+
+
+def _parse_app_plugins(
     value: Any,
     project_root: Path,
     location: str,
@@ -791,13 +992,14 @@ def _parse_extensions(
         raise ConfigError(f"{location} must be an array.")
 
     root = project_root.resolve()
+    framework_plugins = _available_plugins()
     ids: set[str] = set()
     used_commands = set(_available_commands("windows")) | set(
         _available_commands("android")
     )
-    used_events: set[str] = set()
+    used_events = set(_available_events())
     known_permissions = set(_available_permissions())
-    extensions: list[dict[str, Any]] = []
+    app_plugins: list[dict[str, Any]] = []
     windows_commands: list[str] = []
     android_commands: list[str] = []
     custom_permissions: list[str] = []
@@ -807,20 +1009,28 @@ def _parse_extensions(
         data = _expect_object(entry, item_location)
         _reject_unknown_keys(
             data,
-            {"id", "manifest", "platforms"},
+            {"id", "manifest", "platforms", "enabled"},
             item_location,
         )
-        extension_id = _expect_string(
+        app_id = _expect_string(
             data.get("id"),
             f"{item_location}.id",
         )
-        if not EXTENSION_ID_PATTERN.fullmatch(extension_id):
+        if not EXTENSION_ID_PATTERN.fullmatch(app_id):
             raise ConfigError(f"{item_location}.id has an invalid format.")
-        if extension_id in ids:
+        if app_id in ids:
             raise ConfigError(
-                f"{item_location}.id is duplicated: {extension_id}."
+                f"{item_location}.id is duplicated: {app_id}."
             )
-        ids.add(extension_id)
+        if app_id in framework_plugins:
+            raise ConfigError(
+                f"{item_location}.id conflicts with a framework plugin: "
+                f"{app_id}."
+            )
+        enabled = data.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise ConfigError(f"{item_location}.enabled must be a boolean.")
+        ids.add(app_id)
         platforms = _parse_extension_platforms(
             data.get("platforms"),
             f"{item_location}.platforms",
@@ -849,38 +1059,36 @@ def _parse_extensions(
         parsed = _parse_extension_manifest(
             manifest,
             manifest_relative,
-            extension_id,
+            app_id,
             platforms,
             used_commands,
             used_events,
             known_permissions,
         )
-        for command in parsed["commands"]:
-            used_commands.add(command["name"])
-            if "windows" in command["platforms"]:
-                windows_commands.append(command["name"])
-            if "android" in command["platforms"]:
-                android_commands.append(command["name"])
-            for permission in command["permissions"]:
-                if (
-                    permission not in known_permissions
-                    and permission not in custom_permissions
-                ):
-                    custom_permissions.append(permission)
-        for event in parsed["events"]:
-            used_events.add(event["name"])
-        extensions.append(
+        if enabled:
+            for command in parsed["commands"]:
+                if "windows" in command["platforms"]:
+                    windows_commands.append(command["name"])
+                if "android" in command["platforms"]:
+                    android_commands.append(command["name"])
+                for permission in command["permissions"]:
+                    if (
+                        permission not in known_permissions
+                        and permission not in custom_permissions
+                    ):
+                        custom_permissions.append(permission)
+        app_plugins.append(
             {
-                "id": extension_id,
+                "id": app_id,
                 "manifest": manifest_relative,
                 "platforms": platforms,
-                "commands": tuple(parsed["commands"]),
-                "events": tuple(parsed["events"]),
+                "enabled": enabled,
+                **parsed,
             }
         )
 
     return (
-        tuple(extensions),
+        tuple(app_plugins),
         {
             "windows": tuple(windows_commands),
             "android": tuple(android_commands),
@@ -907,38 +1115,95 @@ def _parse_extension_platforms(value: Any, location: str) -> tuple[str, ...]:
 def _parse_extension_manifest(
     value: Any,
     location: str,
-    extension_id: str,
+    app_id: str,
     platforms: tuple[str, ...],
     used_commands: set[str],
     used_events: set[str],
     known_permissions: set[str],
-) -> dict[str, list[dict[str, Any]]]:
+) -> dict[str, Any]:
     data = _expect_object(value, location)
-    _reject_unknown_keys(data, {"id", "commands", "events"}, location)
-    if data.get("id") != extension_id:
+    _reject_unknown_keys(
+        data,
+        {
+            "id",
+            "name",
+            "version",
+            "description",
+            "commands",
+            "events",
+            "defaultPermissions",
+            "frameworkEvents",
+        },
+        location,
+    )
+    if data.get("id") != app_id:
         raise ConfigError(
-            f"{location}.id must match configuration extension id."
+            f"{location}.id must match configuration app plugin id."
         )
+    name = (
+        _expect_string(data.get("name"), f"{location}.name")
+        if "name" in data
+        else app_id
+    )
+    version = (
+        _expect_string(data.get("version"), f"{location}.version")
+        if "version" in data
+        else "1.0.0"
+    )
+    if not APP_PLUGIN_VERSION_PATTERN.fullmatch(version):
+        raise ConfigError(f"{location}.version must use semantic versioning.")
+    description = (
+        _expect_string(data.get("description"), f"{location}.description")
+        if "description" in data
+        else app_id
+    )
+    commands = _parse_extension_commands(
+        data.get("commands"),
+        f"{location}.commands",
+        app_id,
+        platforms,
+        used_commands,
+        known_permissions,
+    )
+    events = _parse_extension_events(
+        data.get("events"),
+        f"{location}.events",
+        app_id,
+        platforms,
+        used_events,
+    )
+    command_permissions = {
+        permission
+        for command in commands
+        for permission in command["permissions"]
+    }
+    default_permissions = _parse_app_plugin_permissions(
+        data.get("defaultPermissions"),
+        f"{location}.defaultPermissions",
+        app_id,
+        known_permissions,
+        command_permissions,
+    )
+    framework_events = _parse_app_framework_events(
+        data.get("frameworkEvents"),
+        f"{location}.frameworkEvents",
+        platforms,
+    )
     return {
-        "commands": _parse_extension_commands(
-            data.get("commands"),
-            f"{location}.commands",
-            platforms,
-            used_commands,
-            known_permissions,
-        ),
-        "events": _parse_extension_events(
-            data.get("events"),
-            f"{location}.events",
-            platforms,
-            used_events,
-        ),
+        "name": name,
+        "version": version,
+        "description": description,
+        "commands": tuple(commands),
+        "events": tuple(events),
+        "defaultPermissions": default_permissions,
+        "frameworkEvents": framework_events,
     }
 
 
 def _parse_extension_commands(
     value: Any,
     location: str,
+    app_id: str,
     platforms: tuple[str, ...],
     used_commands: set[str],
     known_permissions: set[str],
@@ -959,13 +1224,16 @@ def _parse_extension_commands(
         )
         name = _expect_string(data.get("name"), f"{item_location}.name")
         if (
-            not EXTENSION_NAME_PATTERN.fullmatch(name)
-            or any(name.startswith(f"{prefix}.") for prefix in RESERVED_EXTENSION_PREFIXES)
+            not APP_PLUGIN_COMMAND_PATTERN.fullmatch(name)
+            or not name.startswith(f"app.{app_id}.")
         ):
-            raise ConfigError(f"{item_location}.name has an invalid format.")
+            raise ConfigError(
+                f"{item_location}.name must use the app.{app_id}.* namespace."
+            )
         if name in seen or name in used_commands:
             raise ConfigError(f"{item_location}.name conflicts: {name}.")
         seen.add(name)
+        used_commands.add(name)
         declared = _parse_extension_platforms(
             data.get("platforms"),
             f"{item_location}.platforms",
@@ -987,7 +1255,7 @@ def _parse_extension_commands(
                     f"{item_location}.permissions[{permission_index}]",
                 )
                 if (
-                    not PERMISSION_PATTERN.fullmatch(permission)
+                    not APP_PLUGIN_PERMISSION_PATTERN.fullmatch(permission)
                     or (
                         permission not in known_permissions
                         and not _extension_permission_matches(
@@ -1016,6 +1284,7 @@ def _parse_extension_commands(
 def _parse_extension_events(
     value: Any,
     location: str,
+    app_id: str,
     platforms: tuple[str, ...],
     used_events: set[str],
 ) -> list[dict[str, Any]]:
@@ -1035,13 +1304,16 @@ def _parse_extension_events(
         )
         name = _expect_string(data.get("name"), f"{item_location}.name")
         if (
-            not EXTENSION_NAME_PATTERN.fullmatch(name)
-            or any(name.startswith(f"{prefix}.") for prefix in RESERVED_EXTENSION_PREFIXES)
+            not APP_PLUGIN_COMMAND_PATTERN.fullmatch(name)
+            or not name.startswith(f"app.{app_id}.")
         ):
-            raise ConfigError(f"{item_location}.name has an invalid format.")
+            raise ConfigError(
+                f"{item_location}.name must use the app.{app_id}.* namespace."
+            )
         if name in seen or name in used_events:
             raise ConfigError(f"{item_location}.name is duplicated: {name}.")
         seen.add(name)
+        used_events.add(name)
         declared = _parse_extension_platforms(
             data.get("platforms"),
             f"{item_location}.platforms",
@@ -1058,6 +1330,65 @@ def _parse_extension_events(
             }
         )
     return events
+
+
+def _parse_app_plugin_permissions(
+    value: Any,
+    location: str,
+    app_id: str,
+    known_permissions: set[str],
+    command_permissions: set[str],
+) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ConfigError(f"{location} must be an array.")
+    permissions: list[str] = []
+    for index, raw_permission in enumerate(value):
+        permission = _expect_string(raw_permission, f"{location}[{index}]")
+        if (
+            not APP_PLUGIN_PERMISSION_PATTERN.fullmatch(permission)
+            or (
+                permission not in known_permissions
+                and not permission.startswith(f"app.{app_id}")
+            )
+        ):
+            raise ConfigError(f"{location} contains an unknown permission.")
+        if permission not in command_permissions:
+            raise ConfigError(
+                f"{location} must belong to the plugin command permissions."
+            )
+        if permission not in permissions:
+            permissions.append(permission)
+    return tuple(permissions)
+
+
+def _parse_app_framework_events(
+    value: Any,
+    location: str,
+    platforms: tuple[str, ...],
+) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ConfigError(f"{location} must be an array.")
+    definitions = _available_events()
+    events: list[str] = []
+    for index, event in enumerate(value):
+        event_name = _expect_string(event, f"{location}[{index}]")
+        definition = definitions.get(event_name)
+        if definition is None:
+            raise ConfigError(
+                f"{location} contains an unknown framework event."
+            )
+        event_platforms = definition.get("platforms", [])
+        if not any(platform in platforms for platform in event_platforms):
+            raise ConfigError(
+                f"{location} event has no platform overlap with the app plugin."
+            )
+        if event_name not in events:
+            events.append(event_name)
+    return tuple(events)
 
 
 def _extension_permission_matches(permission: str, command: str) -> bool:
@@ -1086,6 +1417,7 @@ def load_config(path: Path) -> KasumiConfig:
             "$schema",
             "windows",
             "android",
+            "appPlugins",
             "extensions",
             "appId",
             "icons",
@@ -1099,11 +1431,20 @@ def load_config(path: Path) -> KasumiConfig:
         raise ConfigError("configuration.windows is required.")
     if "android" not in data:
         raise ConfigError("configuration.android is required.")
+    if "appPlugins" in data and "extensions" in data:
+        raise ConfigError(
+            "configuration.appPlugins and configuration.extensions "
+            "cannot be used together."
+        )
 
-    extensions, extension_commands, extension_permissions = _parse_extensions(
-        data.get("extensions"),
+    app_plugins, extension_commands, extension_permissions = _parse_app_plugins(
+        data["appPlugins"] if "appPlugins" in data else data.get("extensions"),
         path.parent,
-        "configuration.extensions",
+        (
+            "configuration.appPlugins"
+            if "appPlugins" in data
+            else "configuration.extensions"
+        ),
     )
 
     root_icons = _parse_icons(data.get("icons"), "configuration.icons")
@@ -1115,6 +1456,7 @@ def load_config(path: Path) -> KasumiConfig:
         True,
         extension_commands["windows"],
         extension_permissions,
+        app_plugins,
     )
     android = _platform_config(
         data["android"],
@@ -1124,6 +1466,7 @@ def load_config(path: Path) -> KasumiConfig:
         allow_webview=True,
         extension_commands=extension_commands["android"],
         extension_permissions=extension_permissions,
+        app_plugin_definitions=app_plugins,
     )
     windows = replace(
         windows,
@@ -1146,5 +1489,6 @@ def load_config(path: Path) -> KasumiConfig:
         bundle=_parse_bundle(data.get("bundle"), "configuration.bundle"),
         windows=windows,
         android=android,
-        extensions=extensions,
+        app_plugins=app_plugins,
+        extensions=app_plugins,
     )

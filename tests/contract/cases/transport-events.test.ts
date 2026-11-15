@@ -1,5 +1,8 @@
 import { KSMWebMessageTransport } from '../../../frontend/src/bridge/transport';
-import type { KSMEvent } from '../../../frontend/src/bridge/types';
+import type {
+  KSMEvent,
+  KSMResponse
+} from '../../../frontend/src/bridge/types';
 
 type MessageListener<T> = (event: MessageEvent<T>) => void;
 
@@ -60,9 +63,12 @@ export function runTransportEventCases(): void {
   try {
     const transport = new KSMWebMessageTransport(webView);
     const received: KSMEvent[] = [];
+    const responses: KSMResponse<unknown>[] = [];
     const unsubscribe = transport.onMessage((message) => {
       if (message.type === 'event') {
         received.push(message);
+      } else {
+        responses.push(message);
       }
     });
     const event: KSMEvent = {
@@ -84,6 +90,30 @@ export function runTransportEventCases(): void {
     if (received.length !== 1 || received[0]?.event !== event.event) {
       throw new Error('The transport did not isolate same-window events.');
     }
+
+    const largeText = 'x'.repeat(200 * 1024);
+    windowMessages.dispatch({
+      data: JSON.stringify({
+        type: 'response',
+        id: 'large-result',
+        ok: true,
+        data: { text: largeText }
+      }),
+      source: windowMessages
+    } as unknown as MessageEvent<unknown>);
+    const largeResponse = responses[0];
+    const largeData =
+      largeResponse?.ok === true
+        ? (largeResponse.data as { text?: string })
+        : undefined;
+    if (
+      responses.length !== 1 ||
+      largeResponse?.ok !== true ||
+      largeData?.text !== largeText
+    ) {
+      throw new Error('The transport rejected a valid large response.');
+    }
+
     unsubscribe();
     if (
       webViewMessages.listenerCount() !== 0 ||

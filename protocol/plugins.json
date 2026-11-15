@@ -29,6 +29,12 @@
         "event.unsubscribe",
         "app.openDevtools",
         "app.deepLink.getPending"
+      ],
+      "events": [
+        "webview.navigated",
+        "webview.reloaded",
+        "app.deepLink.received",
+        "app.secondInstance.received"
       ]
     },
     "fs": {
@@ -65,6 +71,8 @@
         "fs.stat",
         "fs.walk",
         "fs.scope.release"
+      ],
+      "events": [
       ]
     },
     "dialog": {
@@ -89,6 +97,8 @@
         "dialog.saveFile",
         "dialog.openFolder",
         "dialog.openFiles"
+      ],
+      "events": [
       ]
     },
     "clipboard": {
@@ -111,6 +121,8 @@
       "commands": [
         "clipboard.readText",
         "clipboard.writeText"
+      ],
+      "events": [
       ]
     },
     "notification": {
@@ -130,6 +142,8 @@
       ],
       "commands": [
         "notification.show"
+      ],
+      "events": [
       ]
     },
     "window": {
@@ -165,6 +179,11 @@
         "window.setTransparent",
         "window.getState",
         "event.emit"
+      ],
+      "events": [
+        "window.resized",
+        "window.visibilityChanged",
+        "window.stateChanged"
       ]
     },
     "http": {
@@ -194,6 +213,11 @@
         "http.cookies.get",
         "http.cookies.set",
         "http.cookies.clear"
+      ],
+      "events": [
+        "http.transfer.progress",
+        "http.transfer.completed",
+        "http.transfer.failed"
       ]
     },
     "shell": {
@@ -215,6 +239,8 @@
         "shell.openExternal",
         "shell.openPath",
         "shell.showInFolder"
+      ],
+      "events": [
       ]
     },
     "device": {
@@ -233,6 +259,8 @@
       ],
       "commands": [
         "device.getInfo"
+      ],
+      "events": [
       ]
     },
     "sql": {
@@ -256,6 +284,8 @@
         "sql.query",
         "sql.execute",
         "sql.close"
+      ],
+      "events": [
       ]
     },
     "path": {
@@ -277,6 +307,8 @@
         "path.basename",
         "path.extname",
         "path.isAbsolute"
+      ],
+      "events": [
       ]
     },
     "store": {
@@ -300,6 +332,8 @@
         "store.delete",
         "store.clear",
         "store.keys"
+      ],
+      "events": [
       ]
     },
     "os": {
@@ -319,6 +353,8 @@
       ],
       "commands": [
         "os.getInfo"
+      ],
+      "events": [
       ]
     },
     "log": {
@@ -338,6 +374,8 @@
       ],
       "commands": [
         "log.write"
+      ],
+      "events": [
       ]
     },
     "appInstance": {
@@ -354,6 +392,8 @@
       "commands": [
         "app.singleInstance.state",
         "app.singleInstance.focus"
+      ],
+      "events": [
       ]
     },
     "updater": {
@@ -377,6 +417,10 @@
         "updater.check",
         "updater.download",
         "updater.install"
+      ],
+      "events": [
+        "updater.progress",
+        "updater.status"
       ]
     },
     "globalShortcut": {
@@ -396,6 +440,9 @@
       "commands": [
         "globalShortcut.register",
         "globalShortcut.unregister"
+      ],
+      "events": [
+        "globalShortcut.triggered"
       ]
     },
     "tray": {
@@ -418,6 +465,10 @@
         "tray.show",
         "tray.hide",
         "tray.configure"
+      ],
+      "events": [
+        "tray.action",
+        "tray.click"
       ]
     },
     "media": {
@@ -441,6 +492,8 @@
         "media.ffmpeg.validate",
         "media.ffmpeg.setPath",
         "media.ffmpeg.pickExecutable"
+      ],
+      "events": [
       ]
     },
     "audio": {
@@ -475,6 +528,12 @@
         "audio.seek",
         "audio.volume.set",
         "audio.state.get"
+      ],
+      "events": [
+        "audio.tick",
+        "audio.ended",
+        "audio.stateChanged",
+        "audio.error"
       ]
     },
     "mediaSession": {
@@ -494,6 +553,9 @@
       "commands": [
         "mediaSession.update",
         "mediaSession.clear"
+      ],
+      "events": [
+        "mediaSession.command"
       ]
     }
   }

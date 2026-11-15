@@ -99,17 +99,61 @@
  "items": {
  "enum": ["windows", "android"]
  }
+  },
+  "enabled": {
+  "type": "boolean",
+  "default": true
  }
  }
  }
  },
+    "appPlugins": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Application-owned backend plugins. Mutually exclusive with the legacy extensions alias.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "manifest", "platforms"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "manifest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*\\.\\.).+\\.json$"
+          },
+          "platforms": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": ["windows", "android"]
+            }
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      }
+    },
     "windows": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "packageName",
-        "version",
-        "commands"
+        "version"
+      ],
+      "anyOf": [
+        {
+          "required": ["commands"]
+        },
+        {
+          "required": ["frameworkPlugins"]
+        }
       ],
       "properties": {
         "packageName": {
@@ -133,6 +177,23 @@
               "items": {
                 "type": "string",
                 "pattern": "^[a-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*)*$"
+              }
+            }
+          ]
+        },
+        "frameworkPlugins": {
+          "description": "Framework capability plugins enabled on Windows. core is always enabled.",
+          "oneOf": [
+            {
+              "const": "all"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9]*$"
               }
             }
           ]
@@ -368,8 +429,15 @@
       "additionalProperties": false,
       "required": [
         "packageName",
-        "version",
-        "commands"
+        "version"
+      ],
+      "anyOf": [
+        {
+          "required": ["commands"]
+        },
+        {
+          "required": ["frameworkPlugins"]
+        }
       ],
       "properties": {
         "packageName": {
@@ -393,6 +461,23 @@
               "items": {
                 "type": "string",
                 "pattern": "^[a-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*)*$"
+              }
+            }
+          ]
+        },
+        "frameworkPlugins": {
+          "description": "Framework capability plugins enabled on Android. core is always enabled.",
+          "oneOf": [
+            {
+              "const": "all"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9]*$"
               }
             }
           ]

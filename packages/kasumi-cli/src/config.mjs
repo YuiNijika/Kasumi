@@ -56,6 +56,7 @@ export async function readConfig(projectRoot, configPath) {
    'appId',
    'windows',
    'android',
+   'appPlugins',
    'extensions',
    'icons',
    'resources',
@@ -67,10 +68,17 @@ export async function readConfig(projectRoot, configPath) {
   if (!('windows' in payload) || !('android' in payload)) {
     throw new ConfigError('configuration.windows and configuration.android are required.');
   }
- const extensions = await parseExtensions(
- payload.extensions,
+ if (payload.appPlugins !== undefined && payload.extensions !== undefined) {
+   throw new ConfigError(
+     'configuration.appPlugins and configuration.extensions cannot be used together.'
+   );
+ }
+ const appPlugins = await parseAppPlugins(
+ payload.appPlugins ?? payload.extensions,
  projectRoot,
- 'configuration.extensions',
+ payload.appPlugins !== undefined
+   ? 'configuration.appPlugins'
+   : 'configuration.extensions',
  commandData
  );
  const root = {
@@ -98,338 +106,467 @@ export async function readConfig(projectRoot, configPath) {
     payload.windows,
     'configuration.windows',
     WINDOWS_PACKAGE_PATTERN,
-    [...commandData.windows, ...extensions.windowsCommands],
-    [...commandData.permissions, ...extensions.permissions],
-    true
+    [...commandData.windows, ...appPlugins.windowsCommands],
+    [...commandData.permissions, ...appPlugins.permissions],
+    true,
+    undefined,
+    {
+      platform: 'windows',
+      frameworkPlugins: commandData.plugins ?? {},
+      appPlugins: appPlugins.appPlugins
+    }
   );
   const android = parsePlatform(
     payload.android,
     'configuration.android',
     ANDROID_PACKAGE_PATTERN,
-    [...commandData.android, ...extensions.androidCommands],
-    [...commandData.permissions, ...extensions.permissions],
+    [...commandData.android, ...appPlugins.androidCommands],
+    [...commandData.permissions, ...appPlugins.permissions],
     false,
-    androidWebView
+    androidWebView,
+    {
+      platform: 'android',
+      frameworkPlugins: commandData.plugins ?? {},
+      appPlugins: appPlugins.appPlugins
+    }
   );
   windows.icons = { ...root.icons, ...windows.icons };
   android.icons = { ...root.icons, ...android.icons };
   return {
     ...root,
-    extensions: extensions.extensions,
+    appPlugins: appPlugins.appPlugins,
+    extensions: appPlugins.appPlugins,
     windows,
     android
   };
 }
 
- const EXTENSION_ID = /^[a-z0-9][a-z0-9-]*$/;
- const EXTENSION_COMMAND = /^app\.[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$/;
- const EXTENSION_EVENT = /^app\.[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$/;
- const EXTENSION_PERMISSION = /^[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$/;
- const EXTENSION_PLATFORMS = new Set(['windows', 'android']);
- const RESERVED_EXTENSION_PREFIXES = ['core', 'ksm'];
+ const APP_PLUGIN_ID = /^[a-z0-9][a-z0-9-]*$/;
+ const APP_PLUGIN_VERSION = /^\d+\.\d+\.\d+$/;
+ const APP_PLUGIN_COMMAND = /^app\.[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$/;
+ const APP_PLUGIN_EVENT = /^app\.[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$/;
+ const APP_PLUGIN_PERMISSION = /^[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$/;
+ const APP_PLUGIN_PLATFORMS = new Set(['windows', 'android']);
 
- async function parseExtensions(value, projectRoot, location, commandData) {
+ async function parseAppPlugins(value, projectRoot, location, commandData) {
   if (value === undefined) {
-  return {
-  extensions: [],
-  windowsCommands: [],
-  androidCommands: [],
-  permissions: []
-  };
+    return {
+      appPlugins: [],
+      windowsCommands: [],
+      androidCommands: [],
+      permissions: []
+    };
   }
   if (!Array.isArray(value)) {
-  throw new ConfigError(`${location} must be an array.`);
+    throw new ConfigError(`${location} must be an array.`);
   }
+  const frameworkPlugins = commandData.plugins ?? {};
   const ids = new Set();
-  const commands = new Set([
-  ...commandData.windows,
-  ...commandData.android
+  const usedCommands = new Set([
+    ...commandData.windows,
+    ...commandData.android
   ]);
-  const events = new Set();
+  const usedEvents = new Set(Object.keys(commandData.events ?? {}));
   const knownPermissions = new Set(commandData.permissions);
   const windowsCommands = [];
   const androidCommands = [];
   const permissions = [];
-  const extensions = [];
+  const appPlugins = [];
   for (const [index, entry] of value.entries()) {
-  const itemLocation = `${location}[${index}]`;
-  if (!isObject(entry)) {
-  throw new ConfigError(`${itemLocation} must be an object.`);
+    const itemLocation = `${location}[${index}]`;
+    if (!isObject(entry)) {
+      throw new ConfigError(`${itemLocation} must be an object.`);
+    }
+    rejectUnknown(
+      entry,
+      new Set(['id', 'manifest', 'platforms', 'enabled']),
+      itemLocation
+    );
+    if (typeof entry.id !== 'string' || !APP_PLUGIN_ID.test(entry.id)) {
+      throw new ConfigError(`${itemLocation}.id has an invalid format.`);
+    }
+    if (ids.has(entry.id)) {
+      throw new ConfigError(`${itemLocation}.id is duplicated: ${entry.id}.`);
+    }
+    if (Object.hasOwn(frameworkPlugins, entry.id)) {
+      throw new ConfigError(
+        `${itemLocation}.id conflicts with a framework plugin: ${entry.id}.`
+      );
+    }
+    if (entry.enabled !== undefined && typeof entry.enabled !== 'boolean') {
+      throw new ConfigError(`${itemLocation}.enabled must be a boolean.`);
+    }
+    const enabled = entry.enabled ?? true;
+    ids.add(entry.id);
+    const platforms = parseAppPluginPlatforms(
+      entry.platforms,
+      `${itemLocation}.platforms`
+    );
+    if (typeof entry.manifest !== 'string' || entry.manifest.length === 0) {
+      throw new ConfigError(`${itemLocation}.manifest must be a non-empty string.`);
+    }
+    const manifestPath = path.resolve(projectRoot, entry.manifest);
+    const relativeManifest = path.relative(projectRoot, manifestPath);
+    if (
+      relativeManifest.startsWith('..') ||
+      path.isAbsolute(relativeManifest)
+    ) {
+      throw new ConfigError(`${itemLocation}.manifest must stay inside the project.`);
+    }
+    let manifest;
+    try {
+      manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        throw new ConfigError(`${itemLocation}.manifest was not found.`);
+      }
+      if (error instanceof SyntaxError) {
+        throw new ConfigError(`${itemLocation}.manifest is not valid JSON.`);
+      }
+      throw error;
+    }
+    const parsed = parseAppPluginManifest(
+      manifest,
+      entry.manifest,
+      entry.id,
+      platforms,
+      usedCommands,
+      usedEvents,
+      knownPermissions,
+      commandData
+    );
+    if (enabled) {
+      for (const command of parsed.commands) {
+        if (command.platforms.includes('windows')) {
+          windowsCommands.push(command.name);
+        }
+        if (command.platforms.includes('android')) {
+          androidCommands.push(command.name);
+        }
+        for (const permission of command.permissions) {
+          if (
+            !knownPermissions.has(permission) &&
+            !permissions.includes(permission)
+          ) {
+            permissions.push(permission);
+          }
+        }
+      }
+    }
+    appPlugins.push({
+      id: entry.id,
+      manifest: entry.manifest,
+      platforms,
+      enabled,
+      ...parsed
+    });
   }
-  rejectUnknown(
-  entry,
-  new Set(['id', 'manifest', 'platforms']),
-  itemLocation
-  );
-  if (typeof entry.id !== 'string' || !EXTENSION_ID.test(entry.id)) {
-  throw new ConfigError(`${itemLocation}.id has an invalid format.`);
-  }
-  if (ids.has(entry.id)) {
-  throw new ConfigError(`${itemLocation}.id is duplicated: ${entry.id}.`);
-  }
-  ids.add(entry.id);
-  const platforms = parseExtensionPlatforms(
-  entry.platforms,
-  `${itemLocation}.platforms`
-  );
-  if (typeof entry.manifest !== 'string' || entry.manifest.length ===0) {
-  throw new ConfigError(`${itemLocation}.manifest must be a non-empty string.`);
-  }
-  const manifestPath = path.resolve(projectRoot, entry.manifest);
-  const relativeManifest = path.relative(projectRoot, manifestPath);
-  if (
-  relativeManifest.startsWith('..') ||
-  path.isAbsolute(relativeManifest)
-  ) {
-  throw new ConfigError(`${itemLocation}.manifest must stay inside the project.`);
-  }
-  let manifest;
-  try {
-  manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-  } catch (error) {
-  if (error?.code === 'ENOENT') {
-  throw new ConfigError(`${itemLocation}.manifest was not found.`);
-  }
-  if (error instanceof SyntaxError) {
-  throw new ConfigError(`${itemLocation}.manifest is not valid JSON.`);
-  }
-  throw error;
-  }
-  const parsed = parseExtensionManifest(
-  manifest,
-  entry.manifest,
-  entry.id,
-  platforms,
-  commands,
-  knownPermissions
-  );
-  for (const command of parsed.commands) {
-  commands.add(command.name);
-  if (command.platforms.includes('windows')) {
-  windowsCommands.push(command.name);
-  }
-  if (command.platforms.includes('android')) {
-  androidCommands.push(command.name);
-  }
-  for (const permission of command.permissions) {
-  if (
-  !knownPermissions.has(permission) &&
-  !permissions.includes(permission)
-  ) {
-  permissions.push(permission);
-  }
-  }
-  }
-  for (const event of parsed.events) {
-  if (
-  events.has(event.name) ||
-  commandData.windows.includes(event.name) ||
-  commandData.android.includes(event.name)
-  ) {
-  throw new ConfigError(
-  `${itemLocation}.manifest event conflicts with a registered name: ${event.name}.`
-  );
-  }
-  events.add(event.name);
-  }
-  extensions.push({
-  id: entry.id,
-  manifest: entry.manifest,
-  platforms,
-  commands: parsed.commands,
-  events: parsed.events
-  });
-  }
- return {
- extensions,
-  windowsCommands,
-  androidCommands,
-  permissions
+  return {
+    appPlugins,
+    windowsCommands,
+    androidCommands,
+    permissions
   };
- }
+}
 
- function parseExtensionPlatforms(value, location) {
-  if (!Array.isArray(value) || value.length ===0) {
-  throw new ConfigError(`${location} must be a non-empty array.`);
+function parseAppPluginPlatforms(value, location) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ConfigError(`${location} must be a non-empty array.`);
   }
   const result = [];
   for (const platform of value) {
-  if (typeof platform !== 'string' || !EXTENSION_PLATFORMS.has(platform)) {
-  throw new ConfigError(`${location} contains an invalid platform.`);
-  }
-  if (result.includes(platform)) {
-  throw new ConfigError(`${location} contains a duplicate platform.`);
-  }
-  result.push(platform);
+    if (typeof platform !== 'string' || !APP_PLUGIN_PLATFORMS.has(platform)) {
+      throw new ConfigError(`${location} contains an invalid platform.`);
+    }
+    if (result.includes(platform)) {
+      throw new ConfigError(`${location} contains a duplicate platform.`);
+    }
+    result.push(platform);
   }
   return result;
- }
+}
 
- function parseExtensionManifest(
+function parseAppPluginManifest(
+  value,
+  location,
+  id,
+  platforms,
+  usedCommands,
+  usedEvents,
+  knownPermissions,
+  commandData
+) {
+  if (!isObject(value)) {
+    throw new ConfigError(`${location} must be an object.`);
+  }
+  rejectUnknown(
+    value,
+    new Set([
+      'id',
+      'name',
+      'version',
+      'description',
+      'commands',
+      'events',
+      'defaultPermissions',
+      'frameworkEvents'
+    ]),
+    location
+  );
+  if (value.id !== id) {
+    throw new ConfigError(`${location}.id must match configuration app plugin id.`);
+  }
+  const name = value.name ?? id;
+  const version = value.version ?? '1.0.0';
+  const description = value.description ?? id;
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new ConfigError(`${location}.name must be a non-empty string.`);
+  }
+  if (typeof version !== 'string' || !APP_PLUGIN_VERSION.test(version)) {
+    throw new ConfigError(`${location}.version must use semantic versioning.`);
+  }
+  if (typeof description !== 'string' || description.length === 0) {
+    throw new ConfigError(`${location}.description must be a non-empty string.`);
+  }
+  const commands = parseAppPluginCommands(
+    value.commands,
+    `${location}.commands`,
+    id,
+    platforms,
+    usedCommands,
+    knownPermissions
+  );
+  const events = parseAppPluginEvents(
+    value.events,
+    `${location}.events`,
+    id,
+    platforms,
+    usedEvents
+  );
+  const commandPermissions = new Set(
+    commands.flatMap((command) => command.permissions)
+  );
+  const defaultPermissions = parseAppPluginPermissions(
+    value.defaultPermissions,
+    `${location}.defaultPermissions`,
+    knownPermissions,
+    commandPermissions,
+    id
+  );
+  const frameworkEvents = parseFrameworkEvents(
+    value.frameworkEvents,
+    `${location}.frameworkEvents`,
+    platforms,
+    commandData
+  );
+  return {
+    name,
+    version,
+    description,
+    commands,
+    events,
+    defaultPermissions,
+    frameworkEvents
+  };
+}
+
+function parseAppPluginCommands(
   value,
   location,
   id,
   platforms,
   usedCommands,
   knownPermissions
- ) {
-  if (!isObject(value)) {
-  throw new ConfigError(`${location} must be an object.`);
-  }
-  rejectUnknown(value, new Set(['id', 'commands', 'events']), location);
-  if (value.id !== id) {
-  throw new ConfigError(`${location}.id must match configuration extension id.`);
-  }
-  const commands = parseExtensionEntries(
-  value.commands,
-  `${location}.commands`,
-  platforms,
-  usedCommands,
-  knownPermissions,
-  'command'
-  );
-  const events = parseExtensionEvents(
-  value.events,
-  `${location}.events`,
-  platforms
-  );
-  return { commands, events };
- }
-
- function parseExtensionEntries(
-  value,
-  location,
-  platforms,
-  usedCommands,
-  knownPermissions,
-  kind
- ) {
+) {
   if (value === undefined) {
-  return [];
+    return [];
   }
   if (!Array.isArray(value)) {
-  throw new ConfigError(`${location} must be an array.`);
+    throw new ConfigError(`${location} must be an array.`);
   }
   const seen = new Set();
   return value.map((entry, index) => {
-  const itemLocation = `${location}[${index}]`;
-  if (!isObject(entry)) {
-  throw new ConfigError(`${itemLocation} must be an object.`);
-  }
-  rejectUnknown(
-  entry,
-  new Set(['name', 'platforms', 'permissions', 'args', 'result']),
-  itemLocation
-  );
-  if (
-  typeof entry.name !== 'string' ||
-  !EXTENSION_COMMAND.test(entry.name) ||
-  RESERVED_EXTENSION_PREFIXES.some((prefix) =>
-  entry.name.startsWith(`${prefix}.`)
-  )
-  ) {
-  throw new ConfigError(`${itemLocation}.name has an invalid format.`);
-  }
-  if (seen.has(entry.name) || usedCommands.has(entry.name)) {
-  throw new ConfigError(`${itemLocation}.name conflicts: ${entry.name}.`);
-  }
-  seen.add(entry.name);
-  const declared = parseExtensionPlatforms(
-  entry.platforms,
-  `${itemLocation}.platforms`
-  );
-  if (declared.some((platform) => !platforms.includes(platform))) {
-  throw new ConfigError(
-  `${itemLocation}.platforms exceeds the extension platform list.`
-  );
-  }
-  const permissions = [];
-  if (entry.permissions !== undefined) {
-  if (!Array.isArray(entry.permissions)) {
-  throw new ConfigError(`${itemLocation}.permissions must be an array.`);
-  }
-  for (const permission of entry.permissions) {
-  if (
-  typeof permission !== 'string' ||
-  !EXTENSION_PERMISSION.test(permission) ||
-  (!knownPermissions.has(permission) &&
-  !isExtensionPermission(permission, entry.name))
-  ) {
-  throw new ConfigError(
-  `${itemLocation}.permissions contains an unknown permission.`
-  );
-  }
-  if (!permissions.includes(permission)) {
-  permissions.push(permission);
-  }
-  }
-  }
-  return {
-  name: entry.name,
-  platforms: declared,
-  permissions,
-  args: entry.args ?? {},
-  result: entry.result ?? {}
-  };
+    const itemLocation = `${location}[${index}]`;
+    if (!isObject(entry)) {
+      throw new ConfigError(`${itemLocation} must be an object.`);
+    }
+    rejectUnknown(
+      entry,
+      new Set(['name', 'platforms', 'permissions', 'args', 'result']),
+      itemLocation
+    );
+    if (
+      typeof entry.name !== 'string' ||
+      !APP_PLUGIN_COMMAND.test(entry.name) ||
+      !entry.name.startsWith(`app.${id}.`)
+    ) {
+      throw new ConfigError(
+        `${itemLocation}.name must use the app.${id}.* namespace.`
+      );
+    }
+    if (seen.has(entry.name) || usedCommands.has(entry.name)) {
+      throw new ConfigError(`${itemLocation}.name conflicts: ${entry.name}.`);
+    }
+    seen.add(entry.name);
+    usedCommands.add(entry.name);
+    const declared = parseAppPluginPlatforms(
+      entry.platforms,
+      `${itemLocation}.platforms`
+    );
+    if (declared.some((platform) => !platforms.includes(platform))) {
+      throw new ConfigError(
+        `${itemLocation}.platforms exceeds the app plugin platform list.`
+      );
+    }
+    const permissions = [];
+    if (entry.permissions !== undefined) {
+      if (!Array.isArray(entry.permissions)) {
+        throw new ConfigError(`${itemLocation}.permissions must be an array.`);
+      }
+      for (const permission of entry.permissions) {
+        if (
+          typeof permission !== 'string' ||
+          !APP_PLUGIN_PERMISSION.test(permission) ||
+          (!knownPermissions.has(permission) &&
+            !isAppPluginPermission(permission, entry.name))
+        ) {
+          throw new ConfigError(
+            `${itemLocation}.permissions contains an unknown permission.`
+          );
+        }
+        if (!permissions.includes(permission)) {
+          permissions.push(permission);
+        }
+      }
+    }
+    return {
+      name: entry.name,
+      platforms: declared,
+      permissions,
+      args: entry.args ?? {},
+      result: entry.result ?? {}
+    };
   });
- }
+}
 
- function isExtensionPermission(permission, command) {
+function parseAppPluginEvents(value, location, id, platforms, usedEvents) {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new ConfigError(`${location} must be an array.`);
+  }
+  const seen = new Set();
+  return value.map((entry, index) => {
+    const itemLocation = `${location}[${index}]`;
+    if (!isObject(entry)) {
+      throw new ConfigError(`${itemLocation} must be an object.`);
+    }
+    rejectUnknown(
+      entry,
+      new Set(['name', 'platforms', 'payload']),
+      itemLocation
+    );
+    if (
+      typeof entry.name !== 'string' ||
+      !APP_PLUGIN_EVENT.test(entry.name) ||
+      !entry.name.startsWith(`app.${id}.`)
+    ) {
+      throw new ConfigError(
+        `${itemLocation}.name must use the app.${id}.* namespace.`
+      );
+    }
+    if (seen.has(entry.name) || usedEvents.has(entry.name)) {
+      throw new ConfigError(`${itemLocation}.name conflicts: ${entry.name}.`);
+    }
+    seen.add(entry.name);
+    usedEvents.add(entry.name);
+    const declared = parseAppPluginPlatforms(
+      entry.platforms,
+      `${itemLocation}.platforms`
+    );
+    if (declared.some((platform) => !platforms.includes(platform))) {
+      throw new ConfigError(
+        `${itemLocation}.platforms exceeds the app plugin platform list.`
+      );
+    }
+    return {
+      name: entry.name,
+      platforms: declared,
+      payload: entry.payload ?? {}
+    };
+  });
+}
+
+function isAppPluginPermission(permission, command) {
   const segments = command.split('.');
   if (segments.length < 2) {
-  return false;
+    return false;
   }
   const namespace = `${segments[0]}.${segments[1]}`;
   return permission === namespace || permission.startsWith(`${namespace}.`);
- }
+}
 
- function parseExtensionEvents(value, location, platforms) {
+function parseAppPluginPermissions(
+  value,
+  location,
+  knownPermissions,
+  commandPermissions,
+  id
+) {
   if (value === undefined) {
-  return [];
+    return [];
   }
   if (!Array.isArray(value)) {
-  throw new ConfigError(`${location} must be an array.`);
+    throw new ConfigError(`${location} must be an array.`);
   }
-  const seen = new Set();
-  return value.map((entry, index) => {
-  const itemLocation = `${location}[${index}]`;
-  if (!isObject(entry)) {
-  throw new ConfigError(`${itemLocation} must be an object.`);
+  const permissions = [];
+  for (const permission of value) {
+    if (
+      typeof permission !== 'string' ||
+      !APP_PLUGIN_PERMISSION.test(permission) ||
+      (!knownPermissions.has(permission) &&
+        !permission.startsWith(`app.${id}`))
+    ) {
+      throw new ConfigError(`${location} contains an unknown permission.`);
+    }
+    if (!commandPermissions.has(permission)) {
+      throw new ConfigError(
+        `${location} must belong to the plugin command permissions.`
+      );
+    }
+    if (!permissions.includes(permission)) {
+      permissions.push(permission);
+    }
   }
-  rejectUnknown(
-  entry,
-  new Set(['name', 'platforms', 'payload']),
-  itemLocation
-  );
-  if (
-  typeof entry.name !== 'string' ||
-  !EXTENSION_EVENT.test(entry.name) ||
-  RESERVED_EXTENSION_PREFIXES.some((prefix) =>
-  entry.name.startsWith(`${prefix}.`)
-  )
-  ) {
-  throw new ConfigError(`${itemLocation}.name has an invalid format.`);
+  return permissions;
+}
+
+function parseFrameworkEvents(value, location, platforms, commandData) {
+  if (value === undefined) {
+    return [];
   }
-  if (seen.has(entry.name)) {
-  throw new ConfigError(`${itemLocation}.name is duplicated: ${entry.name}.`);
+  if (!Array.isArray(value)) {
+    throw new ConfigError(`${location} must be an array.`);
   }
-  seen.add(entry.name);
-  const declared = parseExtensionPlatforms(
-  entry.platforms,
-  `${itemLocation}.platforms`
-  );
-  if (declared.some((platform) => !platforms.includes(platform))) {
-  throw new ConfigError(
-  `${itemLocation}.platforms exceeds the extension platform list.`
-  );
+  const definitions = commandData.events ?? {};
+  const events = [];
+  for (const event of value) {
+    if (typeof event !== 'string' || !Object.hasOwn(definitions, event)) {
+      throw new ConfigError(`${location} contains an unknown framework event.`);
+    }
+    const eventPlatforms = definitions[event].platforms ?? [];
+    if (!eventPlatforms.some((platform) => platforms.includes(platform))) {
+      throw new ConfigError(
+        `${location} event has no platform overlap with the app plugin.`
+      );
+    }
+    if (!events.includes(event)) {
+      events.push(event);
+    }
   }
-  return {
-  name: entry.name,
-  platforms: declared,
-  payload: entry.payload ?? {}
-  };
-  });
- }
+  return events;
+}
 
 function parsePlatform(
   value,
@@ -438,7 +575,8 @@ function parsePlatform(
   availableCommands,
   availablePermissions,
   allowDecorations = false,
-  webviewConfig = undefined
+  webviewConfig = undefined,
+  pluginContext = undefined
 ) {
   if (!isObject(value)) {
     throw new ConfigError(`${location} must be an object.`);
@@ -447,6 +585,7 @@ function parsePlatform(
     'packageName',
     'version',
     'commands',
+    'frameworkPlugins',
     'permissions',
     'shell',
     'http',
@@ -465,10 +604,15 @@ function parsePlatform(
     allowedFields.add('webview');
   }
   rejectUnknown(value, allowedFields, location);
-  for (const field of ['packageName', 'version', 'commands']) {
+  for (const field of ['packageName', 'version']) {
     if (!(field in value)) {
       throw new ConfigError(`${location}.${field} is required.`);
     }
+  }
+  if (value.commands === undefined && value.frameworkPlugins === undefined) {
+    throw new ConfigError(
+      `${location} must define commands or frameworkPlugins.`
+    );
   }
   if (typeof value.packageName !== 'string' || !packagePattern.test(value.packageName)) {
     throw new ConfigError(`${location}.packageName has an invalid format.`);
@@ -483,9 +627,55 @@ function parsePlatform(
   ) {
     throw new ConfigError(`${location}.decorations must be a boolean.`);
   }
-  const commands = parseCommands(value.commands, location, availableCommands);
+  const frameworkPluginMode = value.frameworkPlugins !== undefined;
+  const enabledFrameworkPlugins = resolveFrameworkPlugins(
+    value.frameworkPlugins,
+    value.commands,
+    `${location}.frameworkPlugins`,
+    pluginContext
+  );
+  const enabledAppPlugins = (pluginContext?.appPlugins ?? [])
+    .filter(
+      (plugin) =>
+        plugin.enabled !== false &&
+        plugin.platforms.includes(pluginContext.platform)
+    )
+    .map((plugin) => plugin.id);
+  let commands;
+  if (frameworkPluginMode) {
+    const baseCommands = pluginCommandsForPlatform(
+      enabledFrameworkPlugins,
+      enabledAppPlugins,
+      pluginContext
+    );
+    if (value.commands === undefined || value.commands === 'all') {
+      commands = baseCommands;
+    } else {
+      commands = parseCommands(value.commands, location, availableCommands);
+      for (const command of commands) {
+        if (!baseCommands.includes(command)) {
+          throw new ConfigError(
+            `${location}.commands contains a command outside enabled plugins: ${command}.`
+          );
+        }
+      }
+      for (const required of ['ping', 'capabilities.query']) {
+        if (!commands.includes(required)) {
+          commands.push(required);
+        }
+      }
+    }
+  } else {
+    commands = parseCommands(value.commands, location, availableCommands);
+  }
+  const defaultPermissions = defaultPluginPermissions(
+    enabledFrameworkPlugins,
+    enabledAppPlugins,
+    pluginContext
+  );
   const permissions = parseRules(
-    value.permissions,
+    value.permissions ??
+      (frameworkPluginMode ? defaultPermissions : undefined),
     `${location}.permissions`,
     availablePermissions,
     PERMISSION_PATTERN,
@@ -506,6 +696,8 @@ function parsePlatform(
     packageName: value.packageName,
     version: value.version,
     commands,
+    frameworkPlugins: enabledFrameworkPlugins,
+    appPlugins: enabledAppPlugins,
     permissions,
     shell: {
       allowedOrigins: parseOrigins(
@@ -539,6 +731,112 @@ function parsePlatform(
     result.webview = webviewConfig;
   }
   return result;
+}
+
+function resolveFrameworkPlugins(value, commands, location, context) {
+  const platform = context?.platform;
+  const plugins = context?.frameworkPlugins ?? {};
+  const platformIds = Object.keys(plugins).filter((id) =>
+    (plugins[id].platforms ?? []).includes(platform)
+  );
+  if (value === undefined) {
+    if (commands === 'all') {
+      return platformIds;
+    }
+    const selected = platformIds.filter(
+      (id) =>
+        id === 'core' ||
+        (plugins[id].commands ?? []).some((command) =>
+          commands.includes(command)
+        )
+    );
+    return platformIds.filter((id) => selected.includes(id));
+  }
+  if (value === 'all') {
+    return platformIds;
+  }
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new ConfigError(
+      `${location} must be "all" or a non-empty array.`
+    );
+  }
+  const selected = new Set(['core']);
+  for (const [index, id] of value.entries()) {
+    if (typeof id !== 'string' || !/^[A-Za-z][A-Za-z0-9]*$/.test(id)) {
+      throw new ConfigError(`${location}[${index}] has an invalid format.`);
+    }
+    if (selected.has(id) && id !== 'core') {
+      throw new ConfigError(`${location} contains a duplicate: ${id}.`);
+    }
+    if (!Object.hasOwn(plugins, id)) {
+      throw new ConfigError(`${location} contains an unknown plugin: ${id}.`);
+    }
+    if (!(plugins[id].platforms ?? []).includes(platform)) {
+      throw new ConfigError(
+        `${location} contains a plugin unsupported on ${platform}: ${id}.`
+      );
+    }
+    selected.add(id);
+  }
+  return platformIds.filter((id) => selected.has(id));
+}
+
+function pluginCommandsForPlatform(
+  frameworkPluginIds,
+  appPluginIds,
+  context
+) {
+  const platform = context.platform;
+  const commands = ['ping', 'capabilities.query'];
+  for (const id of frameworkPluginIds) {
+    const plugin = context.frameworkPlugins[id];
+    for (const command of plugin.commands ?? []) {
+      if (!commands.includes(command)) {
+        commands.push(command);
+      }
+    }
+  }
+  for (const plugin of context.appPlugins ?? []) {
+    if (!appPluginIds.includes(plugin.id)) {
+      continue;
+    }
+    for (const command of plugin.commands ?? []) {
+      if (
+        command.platforms.includes(platform) &&
+        !commands.includes(command.name)
+      ) {
+        commands.push(command.name);
+      }
+    }
+  }
+  return commands;
+}
+
+function defaultPluginPermissions(
+  frameworkPluginIds,
+  appPluginIds,
+  context
+) {
+  const permissions = [];
+  for (const id of frameworkPluginIds) {
+    const plugin = context.frameworkPlugins[id];
+    for (const permission of plugin.defaultPermissions ?? []) {
+      if (!permissions.includes(permission)) {
+        permissions.push(permission);
+      }
+    }
+  }
+  for (const plugin of context.appPlugins ?? []) {
+    if (!appPluginIds.includes(plugin.id)) {
+      continue;
+    }
+    for (const permission of plugin.defaultPermissions ?? []) {
+      if (!permissions.includes(permission)) {
+        permissions.push(permission);
+      }
+    }
+  }
+  return permissions;
 }
 
 function parseWebView(value, location) {
