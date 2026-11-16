@@ -6,6 +6,7 @@ import {
   rm,
   writeFile
 } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -337,50 +338,19 @@ export async function createWindowsInstaller(
       );
     }
     const appName = config.packageName;
+    const upgradeCode = stableWindowsUpgradeCode(appName);
     const output = path.join(
       outputDirectory,
       `${appName}-${config.version}-setup.msi`
     );
     const wxs = path.join(staging, `install-${Date.now()}.wxs`);
     const wixobj = path.join(staging, `install-${Date.now()}.wixobj`);
-    await writeFile(
-      wxs,
-      [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">',
-        '  <Product Id="*" Name="' + appName + '" Language="1033"',
-        '           Version="' + config.version + '" Manufacturer="Kasumi"',
-        '           UpgradeCode="00000000-0000-0000-0000-000000000000">',
-        '    <Package InstallerVersion="200" Compressed="yes" />',
-        ...(installerIcon
-          ? [
-              '    <Icon Id="ProductIcon" SourceFile="' +
-                xmlEscape(installerIcon) +
-                '" />',
-              '    <Property Id="ARPPRODUCTICON" Value="ProductIcon" />'
-            ]
-          : []),
-        '    <Directory Id="TARGETDIR" Name="SourceDir">',
-        '      <Directory Id="ProgramFiles64Folder" Name="PFiles">',
-        '        <Directory Id="INSTALLFOLDER" Name="Kasumi">',
-        '          <Directory Id="APPLICATIONFOLDER" Name="' + appName + '" />',
-        '        </Directory>',
-        '      </Directory>',
-        '    </Directory>',
-        '    <ComponentGroup Id="ProductComponents" Directory="APPLICATIONFOLDER">',
-        '      <Component Id="MainExecutable" Guid="*">',
-        '        <File Id="MainExe" Source="' + executable + '" />',
-        '      </Component>',
-        '    </ComponentGroup>',
-        '    <Feature Id="MainFeature" Title="Main Feature" Level="1">',
-        '      <ComponentGroupRef Id="ProductComponents" />',
-        '    </Feature>',
-        '  </Product>',
-        '</Wix>',
-        ''
-      ].join('\r\n'),
-      'utf8'
-    );
+    await writeFile(wxs, createWindowsMsiSource(
+      config,
+      executable,
+      installerIcon,
+      upgradeCode
+    ), 'utf8');
     await run(candle, [wxs, '-o', wixobj], { cwd: projectRoot });
     await run(light, [wixobj, '-out', output], { cwd: projectRoot });
     await rm(wxs, { force: true });
@@ -389,6 +359,67 @@ export async function createWindowsInstaller(
   }
 
   throw new Error(`Unsupported Windows installer type: ${installerType}`);
+}
+
+export function stableWindowsUpgradeCode(packageName) {
+  const hex = createHash('sha256')
+    .update(`kasumi-windows-msi:${packageName}`)
+    .digest('hex')
+    .slice(0, 32);
+  const variant = ((Number.parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    `5${hex.slice(13, 16)}`,
+    `${variant}${hex.slice(17, 20)}`,
+    hex.slice(20, 32)
+  ].join('-').toUpperCase();
+}
+
+export function createWindowsMsiSource(
+  config,
+  executable,
+  installerIcon,
+  upgradeCode = stableWindowsUpgradeCode(config.packageName)
+) {
+  const appName = xmlEscape(config.packageName);
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">',
+    `  <Product Id="*" Name="${appName}" Language="1033"`,
+    `           Version="${xmlEscape(config.version)}" Manufacturer="Kasumi"`,
+    `           UpgradeCode="${upgradeCode}">`,
+    '    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64" />',
+    '    <Media Id="1" Cabinet="product.cab" EmbedCab="yes" />',
+    `    <MajorUpgrade DowngradeErrorMessage="A newer version of ${appName} is already installed." />`,
+    '    <Property Id="ARPNOMODIFY" Value="1" />',
+    ...(installerIcon
+      ? [
+          '    <Icon Id="ProductIcon" SourceFile="' +
+            xmlEscape(installerIcon) +
+            '" />',
+          '    <Property Id="ARPPRODUCTICON" Value="ProductIcon" />'
+        ]
+      : []),
+    '    <Directory Id="TARGETDIR" Name="SourceDir">',
+    '      <Directory Id="ProgramFiles64Folder" Name="PFiles">',
+    '        <Directory Id="INSTALLFOLDER" Name="Kasumi">',
+    `          <Directory Id="APPLICATIONFOLDER" Name="${appName}" />`,
+    '        </Directory>',
+    '      </Directory>',
+    '    </Directory>',
+    '    <ComponentGroup Id="ProductComponents" Directory="APPLICATIONFOLDER">',
+    '      <Component Id="MainExecutable" Guid="*" Win64="yes">',
+    `        <File Id="MainExe" Source="${xmlEscape(executable)}" KeyPath="yes" />`,
+    '      </Component>',
+    '    </ComponentGroup>',
+    '    <Feature Id="MainFeature" Title="Main Feature" Level="1">',
+    '      <ComponentGroupRef Id="ProductComponents" />',
+    '    </Feature>',
+    '  </Product>',
+    '</Wix>',
+    ''
+  ].join('\r\n');
 }
 
 export async function findVcpkgToolchain(visualStudio) {
